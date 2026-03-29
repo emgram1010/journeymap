@@ -1,0 +1,43 @@
+﻿{
+    "base":  "https://xdjc-i7zz-jhm2.n7e.xano.io/api:ER4MRRWZ",
+    "chat":  {
+                 "journey_map_id":  50,
+                 "assertions":  {
+                                    "no_applied_updates":  true,
+                                    "no_skipped_updates":  true,
+                                    "cell_content_unchanged":  true,
+                                    "cell_status_unchanged":  true,
+                                    "cell_source_unchanged":  true
+                                },
+                 "passed":  true
+             },
+    "apply":  {
+                  "journey_map_id":  51,
+                  "target_cell_id":  2435,
+                  "assertions":  {
+                                     "one_applied_update":  true,
+                                     "zero_skipped_updates":  true,
+                                     "applied_target_matches":  true,
+                                     "persisted_content":  true,
+                                     "persisted_status_is_draft":  true,
+                                     "persisted_source_is_ai":  true
+                                 },
+                  "passed":  true
+              },
+    "skip":  {
+                 "journey_map_id":  52,
+                 "target_cell_id":  2515,
+                 "assertions":  {
+                                    "zero_applied_updates":  true,
+                                    "one_skipped_update":  true,
+                                    "skipped_target_matches":  true,
+                                    "skipped_reason_locked":  true,
+                                    "content_unchanged_after_lock":  true,
+                                    "status_unchanged_after_lock":  true,
+                                    "source_unchanged_after_lock":  true,
+                                    "cell_remains_locked":  true
+                                },
+                 "passed":  true
+             },
+    "overall_passed":  true
+}

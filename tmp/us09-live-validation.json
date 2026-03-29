@@ -1,0 +1,23 @@
+﻿{
+    "success":  true,
+    "journey_map_id":  29,
+    "conversation_id":  5,
+    "eligible_cell_count":  80,
+    "first_eligible_cell_id":  675,
+    "second_eligible_cell_id":  676,
+    "chat_proposed_updates_count":  0,
+    "interview_proposed_updates_count":  1,
+    "interview_first_proposed_cell_id":  675,
+    "lock_response_cell_id":  675,
+    "lock_response_is_locked":  true,
+    "interview_after_lock_proposed_updates_count":  1,
+    "interview_after_lock_first_proposed_cell_id":  676,
+    "assertions":  {
+                       "chat_mode_no_proposals":  true,
+                       "interview_mode_has_proposals":  true,
+                       "interview_targets_first_eligible_cell":  true,
+                       "locked_cell_was_saved":  true,
+                       "locked_cell_excluded_after_lock":  true,
+                       "next_eligible_cell_selected_after_lock":  true
+                   }
+}

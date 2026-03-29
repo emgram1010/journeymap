@@ -8,7 +8,6 @@
 
 # Temp / local working data
 .tmp/
-tmp/
 *.log
 
 # Local environment files

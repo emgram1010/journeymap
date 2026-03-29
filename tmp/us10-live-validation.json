@@ -1,0 +1,74 @@
+﻿{
+    "base":  "https://xdjc-i7zz-jhm2.n7e.xano.io/api:ER4MRRWZ",
+    "chat":  {
+                 "journey_map_id":  45,
+                 "probe_cell_id":  1955,
+                 "applied_updates_count":  0,
+                 "skipped_updates_count":  0,
+                 "assertions":  {
+                                    "no_applied_updates":  true,
+                                    "no_skipped_updates":  true,
+                                    "no_cell_content_change":  false,
+                                    "no_cell_status_change":  false,
+                                    "no_cell_change_source_change":  false
+                                }
+             },
+    "apply":  {
+                  "journey_map_id":  45,
+                  "target_cell_id":  1955,
+                  "applied_updates_count":  null,
+                  "skipped_updates_count":  0,
+                  "applied_update":  null,
+                  "cell_after":  {
+                                     "id":  1955,
+                                     "created_at":  1774732615625,
+                                     "updated_at":  "2026-03-28",
+                                     "journey_map":  45,
+                                     "stage":  214,
+                                     "lens":  256,
+                                     "content":  "AI persisted draft for US-10 validation",
+                                     "status":  "draft",
+                                     "is_locked":  false,
+                                     "change_source":  "ai",
+                                     "last_updated_at":  "2026-03-28"
+                                 },
+                  "assertions":  {
+                                     "has_one_applied_update":  false,
+                                     "has_zero_skipped_updates":  true,
+                                     "applied_target_matches":  false,
+                                     "persisted_content":  true,
+                                     "persisted_status_is_draft":  true,
+                                     "persisted_source_is_ai":  true
+                                 }
+              },
+    "skip":  {
+                 "journey_map_id":  46,
+                 "target_cell_id":  2035,
+                 "applied_updates_count":  0,
+                 "skipped_updates_count":  null,
+                 "skipped_update":  null,
+                 "cell_after":  {
+                                    "id":  2035,
+                                    "created_at":  1774732617888,
+                                    "updated_at":  "2026-03-28",
+                                    "journey_map":  46,
+                                    "stage":  222,
+                                    "lens":  266,
+                                    "content":  "",
+                                    "status":  "open",
+                                    "is_locked":  true,
+                                    "change_source":  "user",
+                                    "last_updated_at":  "2026-03-28"
+                                },
+                 "assertions":  {
+                                    "has_zero_applied_updates":  true,
+                                    "has_one_skipped_update":  false,
+                                    "skipped_target_matches":  false,
+                                    "skipped_reason_locked":  false,
+                                    "content_unchanged":  true,
+                                    "status_unchanged":  true,
+                                    "source_unchanged":  false,
+                                    "cell_remains_locked":  true
+                                }
+             }
+}
