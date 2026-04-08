@@ -41,9 +41,6 @@ import {
   addJourneyLens,
   addJourneyStage,
   createDraftJourneyMap,
-  getXanoCreateDraftPath,
-  getXanoLoadMapPath,
-  getXanoMessagePath,
   listJourneyMaps,
   loadJourneyMapBundle,
   removeJourneyLens,
@@ -236,29 +233,6 @@ export default function App() {
       setIsXanoSyncing(false);
     }
   }, [applyJourneyMapBundle]);
-
-  const businessEndpointsConfigured = Boolean(getXanoCreateDraftPath() || getXanoLoadMapPath() || getXanoMessagePath());
-
-  const matrixSourceLabel =
-    matrixSyncSource === 'business'
-      ? 'business endpoint'
-      : matrixSyncSource === 'crud'
-        ? 'CRUD hydrate'
-        : matrixSyncSource === 'map-only'
-          ? 'map record only'
-          : 'local scaffold';
-
-  const xanoStatusText = xanoError
-    ? 'Xano error · latest change not saved'
-    : isSendingMessage
-      ? 'Saving conversation…'
-      : isXanoSyncing && initialLoadState === 'loading'
-        ? 'Loading latest journey map…'
-      : isXanoSyncing
-      ? 'Syncing Xano…'
-      : journeyMapRecord
-        ? `Xano connected · map #${journeyMapRecord.id} · ${matrixSourceLabel}`
-        : 'Xano connected · no maps yet';
 
   const showWorkspace = initialLoadState === 'ready';
   const isScaffoldFallback = Boolean(journeyMapRecord) && matrixSyncSource === 'map-only';
@@ -602,43 +576,6 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-zinc-50 font-sans">
-      {/* Header */}
-      <header className="h-14 border-b border-zinc-200 bg-white flex items-center justify-between px-6 shrink-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-zinc-900 rounded flex items-center justify-center text-white font-bold text-xs">E</div>
-          <div>
-            <h1 className="font-semibold text-sm tracking-tight">Emgram1010 <span className="text-zinc-400 font-normal ml-2">/ {journeyMapRecord?.title ?? 'Journey Map'}</span></h1>
-            <div className={`text-[10px] font-medium ${xanoError ? 'text-rose-600' : 'text-zinc-500'}`}>
-              {xanoStatusText}
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
-            <Info className="w-3.5 h-3.5" />
-            {businessEndpointsConfigured ? 'Business endpoints configured' : 'CRUD fallback active'}
-          </div>
-          <div className="h-4 w-px bg-zinc-200 mx-2" />
-          <button
-            onClick={() => void handleCreateXanoDraft()}
-            disabled={isXanoSyncing}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Play className="w-3.5 h-3.5" />
-            Create Xano Draft
-          </button>
-          <button
-            onClick={() => void syncLatestJourneyMap()}
-            disabled={isXanoSyncing}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Refresh Xano
-          </button>
-        </div>
-      </header>
-
       {/* Main Content */}
       <main ref={mainRef} className="flex-1 flex flex-col overflow-hidden relative">
         {!showWorkspace ? (
@@ -714,7 +651,7 @@ export default function App() {
         ) : (
           <>
             {/* Journey Map Matrix Section (Now Full Screen) */}
-            <section className="flex-1 flex flex-col bg-zinc-100 overflow-hidden relative">
+            <section className="flex-1 min-h-0 flex flex-col bg-zinc-100 overflow-hidden relative">
               {xanoError && (
                 <div className="border-b border-rose-200 bg-rose-50 px-6 py-3 text-xs text-rose-900">
                   <div className="font-semibold">Latest Xano action failed</div>
@@ -802,8 +739,8 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-auto p-6">
-                <div className="h-full min-h-[520px] overflow-auto rounded-sm border border-zinc-200 bg-white shadow-sm">
+              <div className="flex-1 min-h-0 overflow-hidden p-6">
+                <div className="h-full min-h-0 overflow-hidden rounded-sm border border-zinc-200 bg-white shadow-sm">
                   <JourneyMatrixTabulator
                     stages={stages}
                     lenses={lenses}

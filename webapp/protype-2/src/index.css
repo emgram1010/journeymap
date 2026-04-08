@@ -136,20 +136,30 @@
   color: rgb(113 113 122);
 }
 
-/* Custom scrollbar for a cleaner look */
+/* Native-feeling scrollbar with a subtle Google-like neutral color */
+* {
+  scrollbar-color: rgb(189 193 198) rgb(249 250 251);
+}
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-transparent;
+  background: rgb(249 250 251);
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-zinc-300 rounded-full;
+  background: rgb(189 193 198);
+  border-radius: 9999px;
+  border: 2px solid rgb(249 250 251);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-zinc-400;
+  background: rgb(154 160 166);
+}
+
+::-webkit-scrollbar-corner {
+  background: rgb(249 250 251);
 }
