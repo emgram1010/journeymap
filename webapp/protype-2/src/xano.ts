@@ -1,4 +1,5 @@
 import type {CellStatus, Lens, MatrixCell, Message, Stage} from './types';
+import type {SelectedCellContext} from './cellIdentifiers';
 
 export type JourneyMapStatus = 'draft' | 'active' | 'archived';
 export type ConversationMode = 'interview' | 'chat';
@@ -116,6 +117,7 @@ type SendJourneyMapMessageInput = {
   content: string;
   mode: ConversationMode;
   assistantReply?: string;
+  selectedCell?: SelectedCellContext | null;
 };
 
 type RenameJourneyStageInput = {
@@ -360,12 +362,16 @@ const buildHydratedJourneyMapBundle = (
     hasHydratedMatrix: sortedStages.length > 0 && sortedLenses.length > 0,
     stages: sortedStages.map((stage) => ({
       id: stageKeyById.get(stage.id)!,
+      key: stageKeyById.get(stage.id)!,
       xanoId: stage.id,
+      displayOrder: stage.display_order ?? undefined,
       label: stage.label,
     })),
     lenses: sortedLenses.map((lens) => ({
       id: lensKeyById.get(lens.id)!,
+      key: lensKeyById.get(lens.id)!,
       xanoId: lens.id,
+      displayOrder: lens.display_order ?? undefined,
       label: lens.label,
     })),
     cells: cellRecords
@@ -373,8 +379,14 @@ const buildHydratedJourneyMapBundle = (
       .map((cell) => ({
         id: String(cell.id),
         xanoId: cell.id,
+        journeyCellId: cell.id,
+        journeyMapId: cell.journey_map,
         stageId: stageKeyById.get(cell.stage)!,
+        stageKey: stageKeyById.get(cell.stage)!,
+        stageXanoId: cell.stage,
         lensId: lensKeyById.get(cell.lens)!,
+        lensKey: lensKeyById.get(cell.lens)!,
+        lensXanoId: cell.lens,
         content: cell.content ?? '',
         status: normalizeCellStatus(cell.status),
         isLocked: Boolean(cell.is_locked),
@@ -577,6 +589,21 @@ export async function sendJourneyMapMessage(input: SendJourneyMapMessageInput): 
 
   if (typeof input.conversationId === 'number') {
     body.conversation_id = input.conversationId;
+  }
+
+  if (input.selectedCell) {
+    body.selected_cell_json = JSON.stringify({
+      reference: input.selectedCell.reference,
+      shorthand: input.selectedCell.shorthand,
+      journey_map_id: input.selectedCell.journeyMapId,
+      journey_cell_id: input.selectedCell.journeyCellId,
+      stage_id: input.selectedCell.stageId,
+      stage_key: input.selectedCell.stageKey,
+      stage_label: input.selectedCell.stageLabel,
+      lens_id: input.selectedCell.lensId,
+      lens_key: input.selectedCell.lensKey,
+      lens_label: input.selectedCell.lensLabel,
+    });
   }
 
   const response = await xanoRequest<ConversationThreadResponse>(buildJourneyMapPath(getXanoMessagePath(), input.journeyMapId), {

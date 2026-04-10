@@ -169,79 +169,106 @@ query "journey_map/{journey_map_id}/message" verb=POST {
               value = $matched_lens
             }
           
+            // Stale-target guard: skip if the cell's stage or lens was deleted.
+            // Otherwise check locked status, then apply the update.
             conditional {
-              if ($proposal_cell.is_locked) {
+              if ($matched_stage == null || $matched_lens == null) {
                 array.push $skipped_updates {
                   value = {
                     journey_cell_id: $proposal_cell.id
                     journey_map_id : $proposal_cell.journey_map
                     stage_id       : $proposal_cell.stage
-                    stage_key      : $proposal_stage.key
-                    stage_label    : $proposal_stage.label
+                    stage_key      : null
+                    stage_label    : null
                     lens_id        : $proposal_cell.lens
-                    lens_key       : $proposal_lens.key
-                    lens_label     : $proposal_lens.label
+                    lens_key       : null
+                    lens_label     : null
                     content        : $input.content
                     status         : "draft"
                     change_source  : "ai"
-                    is_locked      : true
+                    is_locked      : false
                     skipped        : true
-                    skip_reason    : "locked"
+                    skip_reason    : "stale_target"
                   }
                 }
               }
             
               else {
-                db.patch journey_cell {
-                  field_name = "id"
-                  field_value = $proposal_cell.id
-                  data = {
-                    content        : $input.content
-                    status         : "draft"
-                    change_source  : "ai"
-                    updated_at     : "now"
-                    last_updated_at: "now"
+                conditional {
+                  if ($proposal_cell.is_locked) {
+                    array.push $skipped_updates {
+                      value = {
+                        journey_cell_id: $proposal_cell.id
+                        journey_map_id : $proposal_cell.journey_map
+                        stage_id       : $proposal_cell.stage
+                        stage_key      : $proposal_stage.key
+                        stage_label    : $proposal_stage.label
+                        lens_id        : $proposal_cell.lens
+                        lens_key       : $proposal_lens.key
+                        lens_label     : $proposal_lens.label
+                        content        : $input.content
+                        status         : "draft"
+                        change_source  : "ai"
+                        is_locked      : true
+                        skipped        : true
+                        skip_reason    : "locked"
+                      }
+                    }
                   }
-                } as $ai_updated_cell
-              
-                precondition ($ai_updated_cell != null) {
-                  error = "Failed to apply AI journey cell update"
-                }
-              
-                array.push $proposed_updates {
-                  value = {
-                    journey_cell_id: $ai_updated_cell.id
-                    journey_map_id : $ai_updated_cell.journey_map
-                    stage_id       : $ai_updated_cell.stage
-                    stage_key      : $proposal_stage.key
-                    stage_label    : $proposal_stage.label
-                    lens_id        : $ai_updated_cell.lens
-                    lens_key       : $proposal_lens.key
-                    lens_label     : $proposal_lens.label
-                    content        : $ai_updated_cell.content
-                    status         : $ai_updated_cell.status
-                    change_source  : $ai_updated_cell.change_source
-                    is_locked      : $ai_updated_cell.is_locked
-                  }
-                }
-              
-                array.push $applied_updates {
-                  value = {
-                    journey_cell_id: $ai_updated_cell.id
-                    journey_map_id : $ai_updated_cell.journey_map
-                    stage_id       : $ai_updated_cell.stage
-                    stage_key      : $proposal_stage.key
-                    stage_label    : $proposal_stage.label
-                    lens_id        : $ai_updated_cell.lens
-                    lens_key       : $proposal_lens.key
-                    lens_label     : $proposal_lens.label
-                    content        : $ai_updated_cell.content
-                    status         : $ai_updated_cell.status
-                    change_source  : $ai_updated_cell.change_source
-                    is_locked      : $ai_updated_cell.is_locked
-                    updated_at     : $ai_updated_cell.updated_at
-                    last_updated_at: $ai_updated_cell.last_updated_at
-                    skipped        : false
+                
+                  else {
+                    db.patch journey_cell {
+                      field_name = "id"
+                      field_value = $proposal_cell.id
+                      data = {
+                        content        : $input.content
+                        status         : "draft"
+                        change_source  : "ai"
+                        updated_at     : "now"
+                        last_updated_at: "now"
+                      }
+                    } as $ai_updated_cell
+                  
+                    precondition ($ai_updated_cell != null) {
+                      error = "Failed to apply AI journey cell update"
+                    }
+                  
+                    array.push $proposed_updates {
+                      value = {
+                        journey_cell_id: $ai_updated_cell.id
+                        journey_map_id : $ai_updated_cell.journey_map
+                        stage_id       : $ai_updated_cell.stage
+                        stage_key      : $proposal_stage.key
+                        stage_label    : $proposal_stage.label
+                        lens_id        : $ai_updated_cell.lens
+                        lens_key       : $proposal_lens.key
+                        lens_label     : $proposal_lens.label
+                        content        : $ai_updated_cell.content
+                        status         : $ai_updated_cell.status
+                        change_source  : $ai_updated_cell.change_source
+                        is_locked      : $ai_updated_cell.is_locked
+                      }
+                    }
+                  
+                    array.push $applied_updates {
+                      value = {
+                        journey_cell_id: $ai_updated_cell.id
+                        journey_map_id : $ai_updated_cell.journey_map
+                        stage_id       : $ai_updated_cell.stage
+                        stage_key      : $proposal_stage.key
+                        stage_label    : $proposal_stage.label
+                        lens_id        : $ai_updated_cell.lens
+                        lens_key       : $proposal_lens.key
+                        lens_label     : $proposal_lens.label
+                        content        : $ai_updated_cell.content
+                        status         : $ai_updated_cell.status
+                        change_source  : $ai_updated_cell.change_source
+                        is_locked      : $ai_updated_cell.is_locked
+                        updated_at     : $ai_updated_cell.updated_at
+                        last_updated_at: $ai_updated_cell.last_updated_at
+                        skipped        : false
+                      }
+                    }
                   }
                 }
               }

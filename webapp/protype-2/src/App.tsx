@@ -27,9 +27,7 @@ import {
   Box,
   Bookmark,
   MousePointer2,
-  Folder,
-  Pin,
-  GitBranch
+  Folder
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Message, MatrixCell, CellStatus, Stage, Lens } from './types';
@@ -37,6 +35,8 @@ import {cloneCellSnapshot, hasPendingCellChanges, resolveCellPersistenceBaseline
 import { STAGES as INITIAL_STAGES, LENSES as INITIAL_LENSES } from './constants';
 import JourneyMatrixTabulator from './JourneyMatrixTabulator';
 import {mergePersistedCellUpdates} from './persistedCellUpdates';
+import {buildCellReferenceLabel, buildCellShorthand, buildCellUpdateSummaries, buildSelectedCellContext} from './cellIdentifiers';
+import type {CellUpdateSummary} from './cellIdentifiers';
 import {
   addJourneyLens,
   addJourneyStage,
@@ -61,7 +61,9 @@ const buildScaffoldCells = (stages: Stage[], lenses: Lens[]): MatrixCell[] =>
     lenses.map((lens) => ({
       id: `${stage.id}-${lens.id}`,
       stageId: stage.id,
+      stageKey: stage.key ?? stage.id,
       lensId: lens.id,
+      lensKey: lens.key ?? lens.id,
       content: '',
       status: 'open' as CellStatus,
       isLocked: false,
@@ -105,6 +107,7 @@ export default function App() {
   const [initialLoadState, setInitialLoadState] = useState<InitialLoadState>('loading');
   const [isXanoSyncing, setIsXanoSyncing] = useState(true);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [lastUpdateSummaries, setLastUpdateSummaries] = useState<CellUpdateSummary[]>([]);
   const [xanoError, setXanoError] = useState<string | null>(null);
   const [matrixSyncSource, setMatrixSyncSource] = useState<'local' | 'map-only' | 'crud' | 'business'>('local');
   const [selectedCellId, setSelectedCellId] = useState<string | null>(null);
@@ -236,6 +239,12 @@ export default function App() {
 
   const showWorkspace = initialLoadState === 'ready';
   const isScaffoldFallback = Boolean(journeyMapRecord) && matrixSyncSource === 'map-only';
+  const selectedCell = cells.find((cell) => cell.id === selectedCellId) ?? null;
+  const selectedStageLabel = selectedCell ? stages.find((stage) => stage.id === selectedCell.stageId)?.label ?? null : null;
+  const selectedLensLabel = selectedCell ? lenses.find((lens) => lens.id === selectedCell.lensId)?.label ?? null : null;
+  const selectedCellReference = buildCellReferenceLabel(selectedStageLabel, selectedLensLabel);
+  const selectedCellShorthand = buildCellShorthand(selectedCell, stages, lenses);
+  const selectedCellContext = buildSelectedCellContext({cell: selectedCell, stages, lenses, journeyMapId: journeyMapRecord?.id});
 
   const handleSendMessage = useCallback(async () => {
     const messageText = inputText.trim();
@@ -263,6 +272,7 @@ export default function App() {
         content: messageText,
         mode: isChatMode ? 'chat' : 'interview',
         assistantReply,
+        selectedCell: selectedCellContext,
       });
 
       setConversationRecord(persistedThread.conversation);
@@ -281,6 +291,9 @@ export default function App() {
         });
       }
 
+      const summaries = buildCellUpdateSummaries(persistedThread.appliedUpdates, persistedThread.skippedUpdates);
+      setLastUpdateSummaries(summaries);
+
       if (persistedThread.journeyMapUpdatedAt) {
         setJourneyMapRecord((currentJourneyMap) =>
           currentJourneyMap
@@ -298,11 +311,7 @@ export default function App() {
     } finally {
       setIsSendingMessage(false);
     }
-  }, [conversationRecord?.id, inputText, isChatMode, journeyMapRecord, lenses, stages]);
-
-  const selectedCell = cells.find(c => c.id === selectedCellId);
-  const selectedStageLabel = selectedCell ? stages.find(s => s.id === selectedCell.stageId)?.label : null;
-  const selectedLensLabel = selectedCell ? lenses.find(l => l.id === selectedCell.lensId)?.label : null;
+  }, [conversationRecord?.id, inputText, isChatMode, journeyMapRecord, selectedCellContext, lenses, stages]);
 
   const persistCellChanges = useCallback(
     async (cell: MatrixCell | null | undefined, rollbackCell?: MatrixCell | null) => {
@@ -329,9 +338,15 @@ export default function App() {
         const nextCell: MatrixCell = {
           ...cell,
           xanoId: persistedCell.id,
+          journeyCellId: persistedCell.id,
+          journeyMapId: persistedCell.journey_map,
           content: persistedCell.content ?? '',
+          stageXanoId: persistedCell.stage,
+          stageKey: cell.stageKey ?? cell.stageId,
           status: normalizePersistedCellStatus(persistedCell.status, cell.status),
           isLocked: Boolean(persistedCell.is_locked),
+          lensXanoId: persistedCell.lens,
+          lensKey: cell.lensKey ?? cell.lensId,
           lastUpdated: persistedCell.last_updated_at ? new Date(persistedCell.last_updated_at) : new Date(),
         };
 
@@ -420,7 +435,9 @@ export default function App() {
       return;
     }
 
+    // Spread preserves the canonical key — only the display label changes.
     setStages((currentStages) => currentStages.map((stage) => (stage.id === id ? {...stage, label: nextLabel} : stage)));
+    setLastUpdateSummaries([]);
 
     void (async () => {
       setIsXanoSyncing(true);
@@ -453,7 +470,9 @@ export default function App() {
       return;
     }
 
+    // Spread preserves the canonical key — only the display label changes.
     setLenses((currentLenses) => currentLenses.map((lens) => (lens.id === id ? {...lens, label: nextLabel} : lens)));
+    setLastUpdateSummaries([]);
 
     void (async () => {
       setIsXanoSyncing(true);
@@ -483,6 +502,7 @@ export default function App() {
 
     setIsXanoSyncing(true);
     setXanoError(null);
+    setLastUpdateSummaries([]);
 
     try {
       await addJourneyStage({journeyMapId: journeyMapRecord.id});
@@ -511,6 +531,7 @@ export default function App() {
 
     setIsXanoSyncing(true);
     setXanoError(null);
+    setLastUpdateSummaries([]);
 
     try {
       await removeJourneyStage({journeyStageId: resolveXanoId(stageToRemove, 'stage')});
@@ -535,6 +556,7 @@ export default function App() {
 
     setIsXanoSyncing(true);
     setXanoError(null);
+    setLastUpdateSummaries([]);
 
     try {
       await addJourneyLens({journeyMapId: journeyMapRecord.id});
@@ -563,6 +585,7 @@ export default function App() {
 
     setIsXanoSyncing(true);
     setXanoError(null);
+    setLastUpdateSummaries([]);
 
     try {
       await removeJourneyLens({journeyLensId: resolveXanoId(lensToRemove, 'lens')});
@@ -811,6 +834,20 @@ export default function App() {
                       </div>
                     </div>
                   ))}
+                  {lastUpdateSummaries.length > 0 && (
+                    <div className="mx-2 p-3 rounded-lg bg-zinc-50 border border-zinc-200 space-y-1.5">
+                      <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Cell updates</div>
+                      {lastUpdateSummaries.map((summary, index) => (
+                        <div key={index} className="flex items-center gap-2 text-xs">
+                          <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${summary.status === 'applied' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                          <span className="font-medium text-zinc-700">{summary.reference}</span>
+                          <span className={`text-[10px] ${summary.status === 'applied' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            {summary.status === 'applied' ? 'applied' : `skipped${summary.reason ? ` · ${summary.reason}` : ''}`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div ref={chatEndRef} />
                 </div>
 
@@ -838,11 +875,15 @@ export default function App() {
                           <Folder className="w-3 h-3 text-zinc-500" />
                           <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-tighter">emgram1010</span>
                         </div>
-                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-zinc-100 rounded-md shrink-0 border border-zinc-200">
-                          <Pin className="w-3 h-3 text-zinc-500" />
-                          <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-tighter">about.md</span>
-                          <X className="w-2.5 h-2.5 text-zinc-400 hover:text-zinc-600 cursor-pointer" />
-                        </div>
+                        {selectedCellContext && (
+                          <div className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-50 rounded-md shrink-0 border border-blue-200">
+                            <LayoutGrid className="w-3 h-3 text-blue-600" />
+                            <span className="text-[9px] font-bold text-blue-700 uppercase tracking-tighter">{selectedCellContext.reference}</span>
+                            {selectedCellContext.shorthand && (
+                              <span className="text-[9px] font-semibold text-blue-500">{selectedCellContext.shorthand}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       <div className="px-3 pt-3 flex items-start gap-2">
@@ -931,9 +972,10 @@ export default function App() {
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                   <div>
                     <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-2">Context</label>
-                    <div className="text-xs font-semibold text-zinc-900">
-                      {stages.find(s => s.id === selectedCell.stageId)?.label} • {lenses.find(l => l.id === selectedCell.lensId)?.label}
-                    </div>
+                    <div className="text-xs font-semibold text-zinc-900">{selectedCellReference ?? `${selectedStageLabel} • ${selectedLensLabel}`}</div>
+                    {selectedCellShorthand && (
+                      <div className="mt-1 text-[10px] font-medium uppercase tracking-wider text-zinc-400">{selectedCellShorthand}</div>
+                    )}
                   </div>
 
                   <div>

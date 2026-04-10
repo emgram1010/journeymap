@@ -1,4 +1,6 @@
 // Rename a journey lens label with validation.
+// Only the display label is updated; the canonical key is preserved so that
+// machine targeting (cell identifiers, AI references) remains stable.
 query "journey_lens/rename/{journey_lens_id}" verb=PATCH {
   api_group = "journey-map"
 
@@ -23,6 +25,7 @@ query "journey_lens/rename/{journey_lens_id}" verb=PATCH {
       error = "Journey lens not found"
     }
   
+    // Only update label and updated_at — key and display_order are intentionally untouched.
     db.edit journey_lens {
       field_name = "id"
       field_value = $input.journey_lens_id

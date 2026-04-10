@@ -1,5 +1,6 @@
 import type {PersistedJourneyCellUpdate} from './xano';
 import type {CellStatus, Lens, MatrixCell, Stage} from './types';
+import {resolveLensKey, resolveStageKey} from './cellIdentifiers';
 
 const buildCellLookupKey = (stageId: string, lensId: string) => `${stageId}::${lensId}`;
 
@@ -16,7 +17,9 @@ export const mergePersistedCellUpdates = (
   stages: Stage[],
   lenses: Lens[],
 ) => {
-  if (updates.length === 0 || currentCells.length === 0) {
+  const activeUpdates = updates.filter((u) => !u.skipped);
+
+  if (activeUpdates.length === 0 || currentCells.length === 0) {
     return currentCells;
   }
 
@@ -29,6 +32,7 @@ export const mergePersistedCellUpdates = (
 
   stages.forEach((stage) => {
     stageIdByKey.set(stage.id, stage.id);
+    stageIdByKey.set(resolveStageKey(stage), stage.id);
     if (typeof stage.xanoId === 'number') {
       stageIdByXanoId.set(stage.xanoId, stage.id);
     }
@@ -36,12 +40,13 @@ export const mergePersistedCellUpdates = (
 
   lenses.forEach((lens) => {
     lensIdByKey.set(lens.id, lens.id);
+    lensIdByKey.set(resolveLensKey(lens), lens.id);
     if (typeof lens.xanoId === 'number') {
       lensIdByXanoId.set(lens.xanoId, lens.id);
     }
   });
 
-  updates.forEach((update) => {
+  activeUpdates.forEach((update) => {
     updatesByXanoId.set(update.journeyCellId, update);
 
     const localStageId =
@@ -58,6 +63,7 @@ export const mergePersistedCellUpdates = (
 
   return currentCells.map((cell) => {
     const directUpdate =
+      (typeof cell.journeyCellId === 'number' ? updatesByXanoId.get(cell.journeyCellId) : undefined) ??
       (typeof cell.xanoId === 'number' ? updatesByXanoId.get(cell.xanoId) : undefined) ??
       (Number.isInteger(Number(cell.id)) ? updatesByXanoId.get(Number(cell.id)) : undefined) ??
       updatesByCompositeKey.get(buildCellLookupKey(cell.stageId, cell.lensId));
@@ -70,8 +76,14 @@ export const mergePersistedCellUpdates = (
 
     return {
       ...cell,
+      journeyCellId: directUpdate.journeyCellId,
+      journeyMapId: directUpdate.journeyMapId ?? cell.journeyMapId,
       xanoId: directUpdate.journeyCellId,
+      stageXanoId: directUpdate.stageId ?? cell.stageXanoId,
+      stageKey: directUpdate.stageKey ?? cell.stageKey ?? cell.stageId,
       content: directUpdate.content,
+      lensXanoId: directUpdate.lensId ?? cell.lensXanoId,
+      lensKey: directUpdate.lensKey ?? cell.lensKey ?? cell.lensId,
       status: normalizePersistedCellStatus(directUpdate.status, cell.status),
       isLocked: directUpdate.isLocked,
       lastUpdated: nextLastUpdated ? new Date(nextLastUpdated) : new Date(),

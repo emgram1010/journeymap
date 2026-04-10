@@ -1,4 +1,5 @@
 // Update a single journey cell's content, status, and/or lock state.
+// Validates the cell's stage and lens still exist to prevent stale-target writes.
 query "journey_cell/update/{journey_cell_id}" verb=PATCH {
   api_group = "journey-map"
 
@@ -26,6 +27,22 @@ query "journey_cell/update/{journey_cell_id}" verb=PATCH {
     precondition ($existing_cell != null) {
       error_type = "notfound"
       error = "Journey cell not found"
+    }
+  
+    // Stale-target guard: verify the cell's stage and lens still exist.
+    db.get journey_stage {
+      field_name = "id"
+      field_value = $existing_cell.stage
+    } as $cell_stage
+  
+    db.get journey_lens {
+      field_name = "id"
+      field_value = $existing_cell.lens
+    } as $cell_lens
+  
+    precondition ($cell_stage != null && $cell_lens != null) {
+      error_type = "badrequest"
+      error = "Cell target is stale — stage or lens has been deleted"
     }
   
     precondition (($raw_input|keys|count) > 0) {
