@@ -12,5 +12,12 @@ export const hasPendingCellChanges = (cell: MatrixCell | null | undefined, snaps
     return false;
   }
 
-  return cell.content !== snapshot.content || cell.status !== snapshot.status || Boolean(cell.isLocked) !== Boolean(snapshot.isLocked);
+  const actorFieldsChanged = JSON.stringify(cell.actorFields ?? null) !== JSON.stringify(snapshot.actorFields ?? null);
+
+  return (
+    cell.content !== snapshot.content ||
+    cell.status !== snapshot.status ||
+    Boolean(cell.isLocked) !== Boolean(snapshot.isLocked) ||
+    actorFieldsChanged
+  );
 };

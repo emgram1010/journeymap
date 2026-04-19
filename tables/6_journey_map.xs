@@ -1,4 +1,5 @@
 // Stores high-level information about each customer journey map.
+// v2: added nullable journey_architecture FK
 table journey_map {
   auth = false
 
@@ -34,6 +35,51 @@ table journey_map {
   
     // JSON object for journey map settings (optional).
     json settings?
+  
+    // The main user or persona experiencing the journey.
+    text primary_actor? filters=trim
+  
+    // A description of what the journey map covers.
+    text journey_scope? filters=trim
+  
+    // The initial step or event of the journey.
+    text start_point? filters=trim
+  
+    // The final step or outcome of the journey.
+    text end_point? filters=trim
+  
+    // The estimated or actual length of the journey.
+    text duration? filters=trim
+  
+    // Key performance indicators for measuring the journey's success.
+    text success_metrics? filters=trim
+  
+    // Important individuals or groups involved in or affected by the journey.
+    text key_stakeholders? filters=trim
+  
+    // Other systems, processes, or teams that the journey relies on.
+    text dependencies? filters=trim
+  
+    // A summary of major difficulties or frustrations experienced during the journey.
+    text pain_points_summary? filters=trim
+  
+    // Potential areas for improvement or new features identified within the journey.
+    text opportunities? filters=trim
+  
+    // The version identifier for the journey map.
+    text version? filters=trim
+  
+    // Per-map AI behaviour settings controlling interview depth, insight standard, lens priority,
+    // emotional mapping, business impact framing, auto-confirm writes, and show reasoning.
+    // Null = all defaults. Shape: { interview_depth, insight_standard, lens_priority,
+    // emotional_mapping, business_impact_framing, auto_confirm_writes, show_reasoning }
+    json smart_ai_settings?
+  
+    // Optional reference to the Journey Architecture this map belongs to.
+    // Null means the map is standalone (not grouped under any architecture).
+    int journey_architecture? {
+      table = "journey_architecture"
+    }
   }
 
   index = [
@@ -48,6 +94,10 @@ table journey_map {
         {name: "updated_at", op: "desc"}
         {name: "last_interaction_at", op: "desc"}
       ]
+    }
+    {
+      type : "btree"
+      field: [{name: "journey_architecture", op: "asc"}]
     }
   ]
 }

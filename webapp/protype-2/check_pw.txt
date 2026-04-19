@@ -1,0 +1,13 @@
+ Volume in drive C is Windows
+ Volume Serial Number is FA12-3860
+
+ Directory of C:\Users\javie\OneDrive\Documents\emgram1010\webapp\protype-2\node_modules\.bin
+
+04/09/2026  10:35 PM               395 playwright
+04/09/2026  10:35 PM               393 playwright-core
+04/09/2026  10:35 PM               327 playwright-core.cmd
+04/09/2026  10:35 PM               813 playwright-core.ps1
+04/09/2026  10:35 PM               328 playwright.cmd
+04/09/2026  10:35 PM               817 playwright.ps1
+               6 File(s)          3,073 bytes
+               0 Dir(s)  13,150,617,600 bytes free

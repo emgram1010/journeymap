@@ -3,6 +3,7 @@
 // machine targeting (cell identifiers, AI references) remains stable.
 query "journey_lens/rename/{journey_lens_id}" verb=PATCH {
   api_group = "journey-map"
+  auth = "user"
 
   input {
     int journey_lens_id? filters=min:1

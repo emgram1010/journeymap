@@ -1,0 +1,183 @@
+[
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/@vite/client",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/src/main.tsx",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/@react-refresh",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/node_modules/vite/dist/client/env.mjs",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=66d7af2f",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/node_modules/.vite/deps/react.js?v=66d7af2f",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/node_modules/.vite/deps/react-dom_client.js?v=66d7af2f",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/src/App.tsx",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/node_modules/.vite/deps/chunk-EUHAVL2Q.js?v=66d7af2f",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/node_modules/.vite/deps/chunk-2TUXWMP5.js?v=66d7af2f",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/node_modules/.vite/deps/lucide-react.js?v=66d7af2f",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/node_modules/.vite/deps/motion_react.js?v=66d7af2f",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/src/cellPersistence.ts",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/src/constants.ts",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/src/JourneyMatrixTabulator.tsx",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/src/cellIdentifiers.ts",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/src/xano.ts",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/node_modules/.vite/deps/chunk-5MXL5BYH.js?v=66d7af2f",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/node_modules/.vite/deps/tabulator-tables.js?v=66d7af2f",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/src/frameScheduler.ts",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/src/journeyMatrixTabulatorHelpers.ts",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "http://localhost:3002/node_modules/.vite/deps/chunk-BCIG5HOZ.js?v=66d7af2f",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "https://xdjc-i7zz-jhm2.n7e.xano.io/api:ER4MRRWZ/journey_map",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "https://xdjc-i7zz-jhm2.n7e.xano.io/api:ER4MRRWZ/journey_map",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "https://xdjc-i7zz-jhm2.n7e.xano.io/api:ER4MRRWZ/journey_map/load_bundle/65",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "GET",
+    "url": "https://xdjc-i7zz-jhm2.n7e.xano.io/api:ER4MRRWZ/journey_map/load_bundle/65",
+    "body": null
+  },
+  {
+    "direction": "REQUEST",
+    "method": "POST",
+    "url": "https://xdjc-i7zz-jhm2.n7e.xano.io/api:ER4MRRWZ/journey_map/65/ai_message",
+    "body": {
+      "content": "help me create a user journey on creating an ai agent driving journey map",
+      "mode": "chat",
+      "conversation_id": 38
+    }
+  },
+  {
+    "direction": "RESPONSE",
+    "status": 500,
+    "url": "https://xdjc-i7zz-jhm2.n7e.xano.io/api:ER4MRRWZ/journey_map/65/ai_message",
+    "body": {
+      "code": "ERROR_FATAL",
+      "message": "Unable to locate var: agent_run.thinking"
+    }
+  }
+]

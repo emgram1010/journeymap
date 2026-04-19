@@ -22,8 +22,43 @@ table journey_lens {
     // Display label for the journey lens.
     text label? filters=trim
   
+    // Semantic definition of what this lens captures — injected into AI context.
+    text description? filters=trim
+  
     // The order in which the lens should be displayed.
     int display_order?
+  
+    // The type of actor associated with this lens.
+    enum actor_type? {
+      values = [
+        "customer"
+        "internal"
+        "engineering"
+        "handoff"
+        "vendor"
+        "financial"
+        "operations"
+        "ai_agent"
+        "dev"
+        "custom"
+        "metrics"
+      ]
+    }
+  
+    // Stores which template was applied when the row was created (e.g., customer-v1).
+    text template_key? filters=trim
+  
+    // Stores the AI role instructions for this actor type, injected into agent context.
+    text role_prompt? filters=trim
+  
+    // Describes who this specific actor persona is.
+    text persona_description? filters=trim
+  
+    // The actor's overarching Job-to-be-Done across the entire journey.
+    text primary_goal? filters=trim
+  
+    // Fixed limitations this actor brings (e.g., schedule, access, budget).
+    text standing_constraints? filters=trim
   }
 
   index = [

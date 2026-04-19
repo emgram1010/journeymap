@@ -1,6 +1,7 @@
 // Remove a journey lens and all of its cells while preserving minimum matrix structure.
 query "journey_lens/remove/{journey_lens_id}" verb=DELETE {
   api_group = "journey-map"
+  auth = "user"
 
   input {
     int journey_lens_id? filters=min:1

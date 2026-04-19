@@ -2,6 +2,7 @@
 // Validates the cell's stage and lens still exist to prevent stale-target writes.
 query "journey_cell/update/{journey_cell_id}" verb=PATCH {
   api_group = "journey-map"
+  auth = "user"
 
   input {
     int journey_cell_id? filters=min:1
@@ -11,6 +12,9 @@ query "journey_cell/update/{journey_cell_id}" verb=PATCH {
     }
   
     bool is_locked?
+  
+    // Structured actor-specific sub-fields — keyed by actor template (e.g. customer-v1).
+    json actor_fields?
   }
 
   stack {
@@ -46,7 +50,7 @@ query "journey_cell/update/{journey_cell_id}" verb=PATCH {
     }
   
     precondition (($raw_input|keys|count) > 0) {
-      error = "Provide at least one of content, status, or is_locked"
+      error = "Provide at least one of content, status, is_locked, or actor_fields"
     }
   
     db.patch journey_cell {
@@ -93,6 +97,7 @@ query "journey_cell/update/{journey_cell_id}" verb=PATCH {
     is_locked             : $journey_cell.is_locked
     change_source         : $journey_cell.change_source
     last_updated_at       : $journey_cell.last_updated_at
+    actor_fields          : $journey_cell.actor_fields
     journey_map_updated_at: $journey_map_touch.updated_at
   }
 }

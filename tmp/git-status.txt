@@ -1,0 +1,168 @@
+﻿On branch ai-agent
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   .xano/branches/v1/objects.json
+	modified:   apis/journey_map/18_journey_map_GET.xs
+	modified:   apis/journey_map/20_journey_map_journey_map_id_PUT.xs
+	modified:   apis/journey_map/21_journey_map_journey_map_id_PATCH.xs
+	modified:   apis/journey_map/22_journey_map_journey_map_id_DELETE.xs
+	modified:   apis/journey_map/23_journey_map_journey_map_id_GET.xs
+	modified:   apis/journey_map/42_journey_map_create_draft_POST.xs
+	modified:   apis/journey_map/43_journey_map_load_bundle_journey_map_id_GET.xs
+	modified:   apis/journey_map/44_journey_cell_update_journey_cell_id_PATCH.xs
+	modified:   apis/journey_map/45_journey_stage_rename_journey_stage_id_PATCH.xs
+	modified:   apis/journey_map/46_journey_lens_rename_journey_lens_id_PATCH.xs
+	modified:   apis/journey_map/47_journey_stage_add_journey_map_id_POST.xs
+	modified:   apis/journey_map/48_journey_stage_remove_journey_stage_id_DELETE.xs
+	modified:   apis/journey_map/49_journey_lens_add_journey_map_id_POST.xs
+	modified:   apis/journey_map/50_journey_lens_remove_journey_lens_id_DELETE.xs
+	modified:   apis/journey_map/51_journey_map_journey_map_id_message_POST.xs
+	modified:   tables/4_agent_conversation.xs
+	modified:   tables/5_agent_message.xs
+	modified:   tables/6_journey_map.xs
+	modified:   tables/8_journey_lens.xs
+	modified:   tables/9_journey_cell.xs
+	modified:   webapp/protype-2/package-lock.json
+	modified:   webapp/protype-2/package.json
+	modified:   webapp/protype-2/src/App.tsx
+	modified:   webapp/protype-2/src/JourneyMatrixTabulator.tsx
+	modified:   webapp/protype-2/src/cellPersistence.ts
+	modified:   webapp/protype-2/src/constants.ts
+	modified:   webapp/protype-2/src/index.css
+	modified:   webapp/protype-2/src/journeyMatrixTabulatorHelpers.test.ts
+	modified:   webapp/protype-2/src/journeyMatrixTabulatorHelpers.ts
+	modified:   webapp/protype-2/src/main.tsx
+	modified:   webapp/protype-2/src/types.ts
+	modified:   webapp/protype-2/src/xano.ts
+	modified:   workflow_tests/2_journey_map_ai_modes.xs
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	.git-status-check.txt
+	agents/2_journey_map_assistant.xs
+	apis/journey_map/52_journey_map_journey_map_id_ai_message_POST.xs
+	apis/journey_map/53_journey_map_journey_map_id_conversations_GET.xs
+	apis/journey_map/54_journey_map_journey_map_id_conversation_conversation_id_GET.xs
+	apis/journey_map/55_journey_map_journey_map_id_conversation_POST.xs
+	apis/journey_map/56_journey_map_journey_map_id_conversation_conversation_id_PATCH.xs
+	apis/journey_map/57_journey_map_journey_map_id_conversation_conversation_id_DELETE.xs
+	apis/journey_map/58_journey_map_journey_map_id_conversation_conversation_id_message_message_id_DELETE.xs
+	apis/journey_map/59_journey_map_journey_map_id_turn_logs_GET.xs
+	apis/journey_map/60_test_GET.xs
+	apis/journey_map/61_journey_lens_backfill_descriptions_POST.xs
+	apis/journey_map/62_journey_map_settings_journey_map_id_PATCH.xs
+	apis/journey_map/63_journey_lens_actor_fields_journey_lens_id_PATCH.xs
+	apis/journey_map/63_journey_map_smart_ai_settings_journey_map_id_PATCH.xs
+	apis/journey_map/64_journey_architecture_POST.xs
+	apis/journey_map/65_journey_architecture_GET.xs
+	apis/journey_map/66_journey_architecture_journey_architecture_id_GET.xs
+	apis/journey_map/67_journey_architecture_journey_architecture_id_PATCH.xs
+	apis/journey_map/68_journey_architecture_journey_architecture_id_DELETE.xs
+	apis/journey_map/69_journey_architecture_bundle_journey_architecture_id_GET.xs
+	apis/journey_map/70_journey_architecture_journey_architecture_id_link_POST.xs
+	apis/journey_map/71_journey_link_journey_link_id_GET.xs
+	apis/journey_map/72_journey_link_journey_link_id_PATCH.xs
+	apis/journey_map/73_journey_link_journey_link_id_DELETE.xs
+	apis/journey_map/74_journey_link_GET.xs
+	current-state.png
+	haiku-results.txt
+	install-out.txt
+	install-output.txt
+	key-test-result.txt
+	note.md
+	product/bug-fixes/
+	product/login.md
+	product/stories/actor-cell-fields-epic.md
+	product/stories/actor-lens-template-epic.md
+	product/stories/ai-agent-empowerment-epic.md
+	product/stories/ai-agent-intelligence-epic.md
+	product/stories/ai-agent-lens-epic.md
+	product/stories/ai-chat-settings-epic.md
+	product/stories/aipm-transparency.md
+	product/stories/aipm-trasperancy.md
+	product/stories/auth-epic.md
+	product/stories/bug-fix/
+	product/stories/cell-text-display.md
+	product/stories/chat-crud.md
+	product/stories/chat-stream.md
+	product/stories/chat-ux-feedback-epic.md
+	product/stories/engineering-lens-epic.md
+	product/stories/financial-lens-epic.md
+	product/stories/handoff-lens-epic.md
+	product/stories/internal-actor-epic.md
+	product/stories/journey-architecture-phase-1-epic.md
+	product/stories/journey-architecture-phase-2-epic.md
+	product/stories/journey-architecture-phase-2b-epic.md
+	product/stories/journey-architecture-phase-2c-epic.md
+	product/stories/journey-map-dashboard-epic.md
+	product/stories/journey-settings-epic.md
+	product/stories/lens-header-edit-epic.md
+	product/stories/metric-actor.md
+	product/stories/metric-summary.md
+	product/stories/metric/
+	product/stories/notes.md
+	product/stories/scalable-ai-agent-epic-2.md
+	product/stories/scalable-ai-agent-epic-3.md
+	product/stories/smart-ai-chat-settings-epic.md
+	product/stories/vendor-lens-epic.md
+	product/wholistic/
+	r2.txt
+	tables/10_agent_capability.xs
+	tables/11_agent_tool_log.xs
+	tables/12_agent_turn_log.xs
+	tables/13_journey_architecture.xs
+	tables/14_journey_link.xs
+	test-haiku.cjs
+	test-key.cjs
+	test-result.txt
+	test_api.mjs
+	tmp/git-branch.txt
+	tmp/git-log.txt
+	tmp/git-out.txt
+	tmp/git-status.txt
+	tools/10_batch_set_status.xs
+	tools/11_search_cells.xs
+	tools/12_update_actor_cell_fields.xs
+	tools/13_update_actor_identity.xs
+	tools/14_update_journey_settings.xs
+	tools/2_get_map_state.xs
+	tools/3_update_cell.xs
+	tools/4_mutate_structure.xs
+	tools/5_batch_update.xs
+	tools/6_set_cell_status.xs
+	tools/7_scaffold_structure.xs
+	tools/8_get_slice.xs
+	tools/9_get_gaps.xs
+	webapp/protype-2/check_pw.txt
+	webapp/protype-2/debug-1-sidebar.png
+	webapp/protype-2/debug-2-before-send.png
+	webapp/protype-2/debug-3-after-response.png
+	webapp/protype-2/debug-log.txt
+	webapp/protype-2/debug-network.json
+	webapp/protype-2/e2e/
+	webapp/protype-2/playwright-report/
+	webapp/protype-2/playwright.config.ts
+	webapp/protype-2/src/ActorSetupWizard.tsx
+	webapp/protype-2/src/ArchitectureDashboard.tsx
+	webapp/protype-2/src/ArchitectureDetail.tsx
+	webapp/protype-2/src/ArchitectureGraph.tsx
+	webapp/protype-2/src/AuthContext.tsx
+	webapp/protype-2/src/Dashboard.tsx
+	webapp/protype-2/src/Login.tsx
+	webapp/protype-2/src/Register.tsx
+	webapp/protype-2/src/xano.test.ts
+	webapp/protype-2/test-ai-fix.mjs
+	webapp/protype-2/test-chat-debug.mjs
+	webapp/protype-2/test-log.txt
+	webapp/protype-2/test-output.txt
+	webapp/protype-2/test-results.json
+	webapp/protype-2/test-results/
+	webapp/protype-2/validate-fix.js
+	workflow_tests/5_journey_map_ai_agent_tools.xs
+	workflow_tests/6_journey_map_ai_tool_optimization.xs
+	workflow_tests/7_ai_transparency.xs
+	workflow_tests/8_conversation_persistence.xs
+	workflow_tests/8_epic2_lens_descriptions.xs
+
+no changes added to commit (use "git add" and/or "git commit -a")

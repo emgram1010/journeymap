@@ -1,0 +1,252 @@
+ M .xano/branches/v1/objects.json
+ M .xano/config.json
+ D addons/112590_user.xs
+ D agents/21117_xano_example_agent.xs
+ D apis/authentication/3665971_auth_login_POST.xs
+ D apis/authentication/3665972_auth_signup_POST.xs
+ D apis/authentication/3665973_auth_me_GET.xs
+ D apis/authentication/3665974_reset_request_reset_link_GET.xs
+ D apis/authentication/3665975_reset_magic_link_login_POST.xs
+ D apis/authentication/3665976_reset_update_password_POST.xs
+ D apis/authentication/3665977_message_send_welcome_email_POST.xs
+ D apis/authentication/3665978_1_start_here_demo_page_GET.xs
+ D apis/authentication/3665979_demo_agent_conversation_POST.xs
+ D apis/event_logs/3665986_logs_user_my_events_GET.xs
+ D apis/event_logs/3665987_logs_admin_account_events_GET.xs
+ D apis/journey_map/3757713_journey_map_GET.xs
+ D apis/journey_map/3757714_journey_map_POST.xs
+ D apis/journey_map/3757715_journey_map_journey_map_id_PUT.xs
+ D apis/journey_map/3757716_journey_map_journey_map_id_PATCH.xs
+ D apis/journey_map/3757717_journey_map_journey_map_id_DELETE.xs
+ D apis/journey_map/3757718_journey_map_journey_map_id_GET.xs
+ D apis/journey_map/3757719_journey_stage_journey_stage_id_PUT.xs
+ D apis/journey_map/3757720_journey_stage_journey_stage_id_GET.xs
+ D apis/journey_map/3757721_journey_stage_GET.xs
+ D apis/journey_map/3757722_journey_stage_journey_stage_id_DELETE.xs
+ D apis/journey_map/3757723_journey_stage_POST.xs
+ D apis/journey_map/3757724_journey_stage_journey_stage_id_PATCH.xs
+ D apis/journey_map/3757725_journey_lens_journey_lens_id_PUT.xs
+ D apis/journey_map/3757726_journey_lens_POST.xs
+ D apis/journey_map/3757727_journey_lens_GET.xs
+ D apis/journey_map/3757728_journey_lens_journey_lens_id_PATCH.xs
+ D apis/journey_map/3757729_journey_lens_journey_lens_id_GET.xs
+ D apis/journey_map/3757730_journey_lens_journey_lens_id_DELETE.xs
+ D apis/journey_map/3757731_journey_cell_journey_cell_id_GET.xs
+ D apis/journey_map/3757732_journey_cell_journey_cell_id_DELETE.xs
+ D apis/journey_map/3757733_journey_cell_POST.xs
+ D apis/journey_map/3757734_journey_cell_journey_cell_id_PUT.xs
+ D apis/journey_map/3757735_journey_cell_journey_cell_id_PATCH.xs
+ D apis/journey_map/3757736_journey_cell_GET.xs
+ D apis/journey_map/3757737_journey_map_create_draft_POST.xs
+ D apis/journey_map/3757738_journey_map_load_bundle_journey_map_id_GET.xs
+ D apis/journey_map/3757739_journey_cell_update_journey_cell_id_PATCH.xs
+ D apis/journey_map/3757740_journey_stage_rename_journey_stage_id_PATCH.xs
+ D apis/journey_map/3757741_journey_lens_rename_journey_lens_id_PATCH.xs
+ D apis/journey_map/3757742_journey_stage_add_journey_map_id_POST.xs
+ D apis/journey_map/3757743_journey_stage_remove_journey_stage_id_DELETE.xs
+ D apis/journey_map/3757744_journey_lens_add_journey_map_id_POST.xs
+ D apis/journey_map/3757745_journey_lens_remove_journey_lens_id_DELETE.xs
+ D apis/journey_map/3757746_journey_map_journey_map_id_message_POST.xs
+ D apis/members_accounts/3665980_account_my_team_members_GET.xs
+ D apis/members_accounts/3665981_admin_user_role_POST.xs
+ D apis/members_accounts/3665982_user_edit_profile_PATCH.xs
+ D apis/members_accounts/3665983_account_details_GET.xs
+ D apis/members_accounts/3665984_user_join_account_POST.xs
+ D apis/members_accounts/3665985_account_POST.xs
+ D functions/getting_started_template/278160_generate_magic_link.xs
+ D functions/getting_started_template/278161_create_event_log.xs
+ D functions/getting_started_template/278162_role_based_access_control.xs
+ D mcp_servers/triggers/.gitkeep
+ D middlewares/.gitkeep
+ D realtime/triggers/.gitkeep
+ D tables/771637_user.xs
+ D tables/771638_account.xs
+ D tables/771639_event_log.xs
+ D tables/771640_agent_conversation.xs
+ D tables/771641_agent_message.xs
+ D tables/795944_journey_map.xs
+ D tables/795950_journey_stage.xs
+ D tables/795951_journey_lens.xs
+ D tables/795952_journey_cell.xs
+ D tasks/.gitkeep
+ D tools/21134_search_xano_docs.xs
+ M webapp/protype-2/package.json
+ M webapp/protype-2/src/App.tsx
+ M webapp/protype-2/src/constants.ts
+ M webapp/protype-2/src/persistedCellUpdates.test.ts
+ M webapp/protype-2/src/persistedCellUpdates.ts
+ M webapp/protype-2/src/types.ts
+ M webapp/protype-2/src/xano.ts
+ D workflow_tests/journey_map_add_and_remove_structure.xs
+ D workflow_tests/journey_map_ai_modes.xs
+ D workflow_tests/journey_map_create_load_and_edit.xs
+?? .git-status-check.txt
+?? addons/1_user.xs
+?? agents/1_xano_example_agent.xs
+?? apis/authentication/1_auth_login_POST.xs
+?? apis/authentication/2_auth_signup_POST.xs
+?? apis/authentication/3_auth_me_GET.xs
+?? apis/authentication/4_reset_request_reset_link_GET.xs
+?? apis/authentication/5_reset_magic_link_login_POST.xs
+?? apis/authentication/6_reset_update_password_POST.xs
+?? apis/authentication/7_message_send_welcome_email_POST.xs
+?? apis/authentication/8_1_start_here_demo_page_GET.xs
+?? apis/authentication/9_demo_agent_conversation_POST.xs
+?? apis/event_logs/16_logs_user_my_events_GET.xs
+?? apis/event_logs/17_logs_admin_account_events_GET.xs
+?? apis/journey_map/18_journey_map_GET.xs
+?? apis/journey_map/19_journey_map_POST.xs
+?? apis/journey_map/20_journey_map_journey_map_id_PUT.xs
+?? apis/journey_map/21_journey_map_journey_map_id_PATCH.xs
+?? apis/journey_map/22_journey_map_journey_map_id_DELETE.xs
+?? apis/journey_map/23_journey_map_journey_map_id_GET.xs
+?? apis/journey_map/24_journey_stage_journey_stage_id_PUT.xs
+?? apis/journey_map/25_journey_stage_journey_stage_id_GET.xs
+?? apis/journey_map/26_journey_stage_GET.xs
+?? apis/journey_map/27_journey_stage_journey_stage_id_DELETE.xs
+?? apis/journey_map/28_journey_stage_POST.xs
+?? apis/journey_map/29_journey_stage_journey_stage_id_PATCH.xs
+?? apis/journey_map/30_journey_lens_journey_lens_id_PUT.xs
+?? apis/journey_map/31_journey_lens_POST.xs
+?? apis/journey_map/32_journey_lens_GET.xs
+?? apis/journey_map/33_journey_lens_journey_lens_id_PATCH.xs
+?? apis/journey_map/34_journey_lens_journey_lens_id_GET.xs
+?? apis/journey_map/35_journey_lens_journey_lens_id_DELETE.xs
+?? apis/journey_map/36_journey_cell_journey_cell_id_GET.xs
+?? apis/journey_map/37_journey_cell_journey_cell_id_DELETE.xs
+?? apis/journey_map/38_journey_cell_POST.xs
+?? apis/journey_map/39_journey_cell_journey_cell_id_PUT.xs
+?? apis/journey_map/40_journey_cell_journey_cell_id_PATCH.xs
+?? apis/journey_map/41_journey_cell_GET.xs
+?? apis/journey_map/42_journey_map_create_draft_POST.xs
+?? apis/journey_map/43_journey_map_load_bundle_journey_map_id_GET.xs
+?? apis/journey_map/44_journey_cell_update_journey_cell_id_PATCH.xs
+?? apis/journey_map/45_journey_stage_rename_journey_stage_id_PATCH.xs
+?? apis/journey_map/46_journey_lens_rename_journey_lens_id_PATCH.xs
+?? apis/journey_map/47_journey_stage_add_journey_map_id_POST.xs
+?? apis/journey_map/48_journey_stage_remove_journey_stage_id_DELETE.xs
+?? apis/journey_map/49_journey_lens_add_journey_map_id_POST.xs
+?? apis/journey_map/50_journey_lens_remove_journey_lens_id_DELETE.xs
+?? apis/journey_map/51_journey_map_journey_map_id_message_POST.xs
+?? apis/members_accounts/10_account_my_team_members_GET.xs
+?? apis/members_accounts/11_admin_user_role_POST.xs
+?? apis/members_accounts/12_user_edit_profile_PATCH.xs
+?? apis/members_accounts/13_account_details_GET.xs
+?? apis/members_accounts/14_user_join_account_POST.xs
+?? apis/members_accounts/15_account_POST.xs
+?? functions/getting_started_template/1_generate_magic_link.xs
+?? functions/getting_started_template/2_create_event_log.xs
+?? functions/getting_started_template/3_role_based_access_control.xs
+?? journey.md
+?? product/stories/conversational-ai-agent-epic.md
+?? product/stories/prototype-2-cell-identifiers-epic.md
+?? tables/1_user.xs
+?? tables/2_account.xs
+?? tables/3_event_log.xs
+?? tables/4_agent_conversation.xs
+?? tables/5_agent_message.xs
+?? tables/6_journey_map.xs
+?? tables/7_journey_stage.xs
+?? tables/8_journey_lens.xs
+?? tables/9_journey_cell.xs
+?? tools/1_search_xano_docs.xs
+?? webapp/protype-2/src/cellIdentifiers.test.ts
+?? webapp/protype-2/src/cellIdentifiers.ts
+?? workflow_tests/1_journey_map_add_and_remove_structure.xs
+?? workflow_tests/2_journey_map_ai_modes.xs
+?? workflow_tests/3_journey_map_create_load_and_edit.xs
+43f5d4e Refine journey matrix scrolling and scrollbar styling
+3e92ca2 Add missing project folders and tmp files
+060dee9 Initial project import
+warning: in the working copy of '.xano/branches/v1/objects.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.xano/config.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'webapp/protype-2/package.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'webapp/protype-2/src/App.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'webapp/protype-2/src/constants.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'webapp/protype-2/src/persistedCellUpdates.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'webapp/protype-2/src/persistedCellUpdates.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'webapp/protype-2/src/types.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'webapp/protype-2/src/xano.ts', LF will be replaced by CRLF the next time Git touches it
+ .xano/branches/v1/objects.json                     |  646 +++++------
+ .xano/config.json                                  |    4 +-
+ addons/112590_user.xs                              |   14 -
+ agents/21117_xano_example_agent.xs                 |   44 -
+ apis/authentication/3665971_auth_login_POST.xs     |   65 --
+ apis/authentication/3665972_auth_signup_POST.xs    |   56 -
+ apis/authentication/3665973_auth_me_GET.xs         |   30 -
+ .../3665974_reset_request_reset_link_GET.xs        |   73 --
+ .../3665975_reset_magic_link_login_POST.xs         |   94 --
+ .../3665976_reset_update_password_POST.xs          |   52 -
+ .../3665977_message_send_welcome_email_POST.xs     |   55 -
+ .../3665978_1_start_here_demo_page_GET.xs          | 1180 --------------------
+ .../3665979_demo_agent_conversation_POST.xs        |  107 --
+ apis/event_logs/3665986_logs_user_my_events_GET.xs |   19 -
+ .../3665987_logs_admin_account_events_GET.xs       |   39 -
+ apis/journey_map/3757713_journey_map_GET.xs        |   15 -
+ apis/journey_map/3757714_journey_map_POST.xs       |   27 -
+ .../3757715_journey_map_journey_map_id_PUT.xs      |   29 -
+ .../3757716_journey_map_journey_map_id_PATCH.xs    |   26 -
+ .../3757717_journey_map_journey_map_id_DELETE.xs   |   17 -
+ .../3757718_journey_map_journey_map_id_GET.xs      |   22 -
+ .../3757719_journey_stage_journey_stage_id_PUT.xs  |   27 -
+ .../3757720_journey_stage_journey_stage_id_GET.xs  |   22 -
+ apis/journey_map/3757721_journey_stage_GET.xs      |   15 -
+ ...757722_journey_stage_journey_stage_id_DELETE.xs |   17 -
+ apis/journey_map/3757723_journey_stage_POST.xs     |   25 -
+ ...3757724_journey_stage_journey_stage_id_PATCH.xs |   26 -
+ .../3757725_journey_lens_journey_lens_id_PUT.xs    |   27 -
+ apis/journey_map/3757726_journey_lens_POST.xs      |   25 -
+ apis/journey_map/3757727_journey_lens_GET.xs       |   15 -
+ .../3757728_journey_lens_journey_lens_id_PATCH.xs  |   26 -
+ .../3757729_journey_lens_journey_lens_id_GET.xs    |   22 -
+ .../3757730_journey_lens_journey_lens_id_DELETE.xs |   17 -
+ .../3757731_journey_cell_journey_cell_id_GET.xs    |   22 -
+ .../3757732_journey_cell_journey_cell_id_DELETE.xs |   17 -
+ apis/journey_map/3757733_journey_cell_POST.xs      |   29 -
+ .../3757734_journey_cell_journey_cell_id_PUT.xs    |   31 -
+ .../3757735_journey_cell_journey_cell_id_PATCH.xs  |   26 -
+ apis/journey_map/3757736_journey_cell_GET.xs       |   15 -
+ .../3757737_journey_map_create_draft_POST.xs       |  275 -----
+ ...8_journey_map_load_bundle_journey_map_id_GET.xs |   80 --
+ ...39_journey_cell_update_journey_cell_id_PATCH.xs |   81 --
+ ..._journey_stage_rename_journey_stage_id_PATCH.xs |   50 -
+ ...41_journey_lens_rename_journey_lens_id_PATCH.xs |   61 -
+ ...757742_journey_stage_add_journey_map_id_POST.xs |  131 ---
+ ...journey_stage_remove_journey_stage_id_DELETE.xs |   70 --
+ ...3757744_journey_lens_add_journey_map_id_POST.xs |  122 --
+ ...5_journey_lens_remove_journey_lens_id_DELETE.xs |   61 -
+ ...7746_journey_map_journey_map_id_message_POST.xs |  290 -----
+ .../3665980_account_my_team_members_GET.xs         |   32 -
+ .../3665981_admin_user_role_POST.xs                |   66 --
+ .../3665982_user_edit_profile_PATCH.xs             |   51 -
+ .../3665983_account_details_GET.xs                 |   20 -
+ .../3665984_user_join_account_POST.xs              |   56 -
+ apis/members_accounts/3665985_account_POST.xs      |   48 -
+ .../278160_generate_magic_link.xs                  |   50 -
+ .../278161_create_event_log.xs                     |   33 -
+ .../278162_role_based_access_control.xs            |   64 --
+ mcp_servers/triggers/.gitkeep                      |    0
+ middlewares/.gitkeep                               |    0
+ realtime/triggers/.gitkeep                         |    0
+ tables/771637_user.xs                              |   52 -
+ tables/771638_account.xs                           |   27 -
+ tables/771639_event_log.xs                         |   35 -
+ tables/771640_agent_conversation.xs                |   45 -
+ tables/771641_agent_message.xs                     |   38 -
+ tables/795944_journey_map.xs                       |   53 -
+ tables/795950_journey_stage.xs                     |   49 -
+ tables/795951_journey_lens.xs                      |   49 -
+ tables/795952_journey_cell.xs                      |   64 --
+ tasks/.gitkeep                                     |    0
+ tools/21134_search_xano_docs.xs                    |   21 -
+ webapp/protype-2/package.json                      |    2 +-
+ webapp/protype-2/src/App.tsx                       |   66 +-
+ webapp/protype-2/src/constants.ts                  |   36 +-
+ webapp/protype-2/src/persistedCellUpdates.test.ts  |   45 +-
+ webapp/protype-2/src/persistedCellUpdates.ts       |   10 +
+ webapp/protype-2/src/types.ts                      |   10 +
+ webapp/protype-2/src/xano.ts                       |   27 +
+ .../journey_map_add_and_remove_structure.xs        |  132 ---
+ workflow_tests/journey_map_ai_modes.xs             |  201 ----
+ workflow_tests/journey_map_create_load_and_edit.xs |  161 ---
+ 82 files changed, 484 insertions(+), 5298 deletions(-)

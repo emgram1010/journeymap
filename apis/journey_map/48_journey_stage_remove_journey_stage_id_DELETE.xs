@@ -1,6 +1,7 @@
 // Remove a journey stage and all of its cells while preserving minimum matrix structure.
 query "journey_stage/remove/{journey_stage_id}" verb=DELETE {
   api_group = "journey-map"
+  auth = "user"
 
   input {
     int journey_stage_id? filters=min:1

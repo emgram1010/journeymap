@@ -1,5 +1,6 @@
 // Covers chat non-mutation, locked-cell skipping, and interview-mode AI updates.
-// Verifies chat mode does not mutate cells, locked cells are skipped, and interview mode applies AI updates to unlocked cells.
+// Tests the legacy POST /journey_map/{id}/message contract (deterministic, no LLM call).
+// The live AI agent round-trip (POST /journey_map/{id}/ai_message) is covered by e2e/chat-ai-fix.spec.ts.
 workflow_test journey_map_ai_modes {
   stack {
     api.call "journey_map/create_draft" verb=POST {

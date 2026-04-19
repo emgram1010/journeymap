@@ -1,6 +1,7 @@
-// Load a fully hydrated journey map bundle for Prototype 2.
+// v2 — Load a fully hydrated journey map bundle for Prototype 2. (authenticated, owner-scoped)
 query "journey_map/load_bundle/{journey_map_id}" verb=GET {
   api_group = "journey-map"
+  auth = "user"
 
   input {
     int journey_map_id? filters=min:1
@@ -23,6 +24,11 @@ query "journey_map/load_bundle/{journey_map_id}" verb=GET {
     precondition ($journey_map != null) {
       error_type = "notfound"
       error = "Journey map not found"
+    }
+  
+    precondition ($journey_map.owner_user == $auth.id) {
+      error_type = "accessdenied"
+      error = "Access denied"
     }
   
     db.query journey_stage {

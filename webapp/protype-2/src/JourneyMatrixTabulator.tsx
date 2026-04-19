@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useNavigate} from 'react-router-dom';
 import {TabulatorFull as Tabulator} from 'tabulator-tables';
 import 'tabulator-tables/dist/css/tabulator.min.css';
 import {cancelScheduledAnimationFrame, scheduleAnimationFrame} from './frameScheduler';
@@ -8,6 +9,7 @@ import {
   formatLensCellMarkup,
   formatMatrixCellMarkup,
   syncSelectedMatrixCellClasses,
+  type CellLinkInfo,
 } from './journeyMatrixTabulatorHelpers';
 import type {MatrixCell, Stage, Lens} from './types';
 
@@ -20,6 +22,9 @@ type Props = {
   onSelectCell: (id: string) => void;
   onUpdateLensLabel: (id: string, label: string) => void;
   onUpdateStageLabel: (id: string, label: string) => void;
+  onEditLens: (lensId: string) => void;
+  // Optional: map of xanoId → link info for breakpoint indicators
+  linkedCells?: Map<number, CellLinkInfo>;
 };
 
 export default function JourneyMatrixTabulator({
@@ -31,7 +36,10 @@ export default function JourneyMatrixTabulator({
   onSelectCell,
   onUpdateLensLabel,
   onUpdateStageLabel,
+  onEditLens,
+  linkedCells,
 }: Props) {
+  const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const tableRef = useRef<Tabulator | null>(null);
   const [isTableBuilt, setIsTableBuilt] = useState(false);
@@ -43,10 +51,12 @@ export default function JourneyMatrixTabulator({
   const selectFrameRef = useRef<number | null>(null);
   const highlightFrameRef = useRef<number | null>(null);
   const cellMapRef = useRef<Map<string, MatrixCell>>(new Map());
+  const linkedCellsRef = useRef<Map<number, CellLinkInfo> | undefined>(linkedCells);
   const selectedCellIdRef = useRef<string | null>(selectedCellId);
   const onSelectCellRef = useRef(onSelectCell);
   const onUpdateLensLabelRef = useRef(onUpdateLensLabel);
   const onUpdateStageLabelRef = useRef(onUpdateStageLabel);
+  const onEditLensRef = useRef(onEditLens);
 
   const cellMap = useMemo(
     () => new Map(cells.map((cell) => [`${cell.stageId}:${cell.lensId}`, cell])),
@@ -56,7 +66,11 @@ export default function JourneyMatrixTabulator({
   const tableData = useMemo(
     () =>
       lenses.map((lens) => {
-        const row: Record<string, string> = {id: lens.id, lensLabel: lens.label};
+        const row: Record<string, string> = {
+          id: lens.id,
+          lensLabel: lens.label,
+          lensActorType: lens.actorType ?? '',
+        };
         stages.forEach((stage) => {
           row[stage.id] = cellMap.get(`${stage.id}:${lens.id}`)?.content ?? '';
         });
@@ -97,6 +111,18 @@ export default function JourneyMatrixTabulator({
     onUpdateStageLabelRef.current = onUpdateStageLabel;
   }, [onUpdateStageLabel]);
 
+  useEffect(() => {
+    onEditLensRef.current = onEditLens;
+  }, [onEditLens]);
+
+  useEffect(() => {
+    linkedCellsRef.current = linkedCells;
+    // Re-render table cells when link data changes
+    if (tableRef.current) {
+      tableRef.current.getRows().forEach((row) => row.reformat());
+    }
+  }, [linkedCells]);
+
   const syncSelectedCellClasses = useCallback((table: Tabulator) => {
     syncSelectedMatrixCellClasses(table as never, cellMapRef.current, selectedCellIdRef.current);
   }, []);
@@ -108,6 +134,26 @@ export default function JourneyMatrixTabulator({
     }
 
     const handleClick = (event: MouseEvent) => {
+      // Intercept clicks on the lens edit button before anything else.
+      const editBtn = (event.target as HTMLElement).closest?.('[data-edit-lens-id]') as HTMLElement | null;
+      if (editBtn && container.contains(editBtn)) {
+        event.stopPropagation();
+        const lensId = editBtn.dataset.editLensId;
+        if (lensId) {
+          onEditLensRef.current(lensId);
+        }
+        return;
+      }
+
+      // Breakpoint indicator click — navigate to the linked map
+      const linkIndicator = (event.target as Element).closest?.('.jm-link-indicator') as HTMLElement | null;
+      if (linkIndicator) {
+        event.stopPropagation();
+        const targetMapId = linkIndicator.dataset.linkTarget;
+        if (targetMapId) navigate(`/maps/${targetMapId}`);
+        return;
+      }
+
       const cellId = findMatrixCellIdFromClickTarget(event.target, container);
       if (!cellId) {
         return;
@@ -135,9 +181,14 @@ export default function JourneyMatrixTabulator({
         width: 180,
         minWidth: 180,
         headerSort: false,
-        editor: 'input',
-        formatter: (cell: any) => formatLensCellMarkup(cell.getValue()),
-        cellEdited: (cell: any) => onUpdateLensLabelRef.current(String(cell.getRow().getData().id), String(cell.getValue() ?? '')),
+        formatter: (cell: any) => {
+          const rowData = cell.getRow().getData();
+          return formatLensCellMarkup({
+            label: String(cell.getValue() ?? ''),
+            actorType: rowData.lensActorType || undefined,
+            lensId: String(rowData.id),
+          });
+        },
       },
       ...currentStages.map((stage) => ({
         title: stage.label,
@@ -153,6 +204,7 @@ export default function JourneyMatrixTabulator({
             content: cell.getValue(),
             meta,
             selectedCellId: selectedCellIdRef.current,
+            linkedCells: linkedCellsRef.current,
           });
         },
       })),
