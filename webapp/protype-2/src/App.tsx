@@ -1,13 +1,16 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { 
-  Send, 
-  Play, 
-  RotateCcw, 
-  CheckCircle2, 
-  CircleDashed, 
-  HelpCircle, 
-  Info, 
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  Send,
+  Play,
+  RotateCcw,
+  CheckCircle2,
+  CircleDashed,
+  HelpCircle,
+  Info,
+  ChevronDown,
   ChevronRight,
+  Check,
   MessageSquare,
   LayoutGrid,
   Search,
@@ -27,32 +30,62 @@ import {
   Box,
   Bookmark,
   MousePointer2,
-  Folder
+  Folder,
+  Settings,
+  ArrowLeft,
+  LogOut,
 } from 'lucide-react';
+import { useAuth } from './AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
-import { Message, MatrixCell, CellStatus, Stage, Lens } from './types';
+import { Message, MessageActivity, MatrixCell, CellStatus, Stage, Lens, ToolTraceEntry } from './types';
 import {cloneCellSnapshot, hasPendingCellChanges, resolveCellPersistenceBaseline} from './cellPersistence';
-import { STAGES as INITIAL_STAGES, LENSES as INITIAL_LENSES } from './constants';
+import { STAGES as INITIAL_STAGES, LENSES as INITIAL_LENSES, ACTOR_TEMPLATES } from './constants';
 import JourneyMatrixTabulator from './JourneyMatrixTabulator';
-import {mergePersistedCellUpdates} from './persistedCellUpdates';
-import {buildCellReferenceLabel, buildCellShorthand, buildCellUpdateSummaries, buildSelectedCellContext} from './cellIdentifiers';
+import {ActorSetupWizard} from './ActorSetupWizard';
+import type {ActorWizardInput} from './ActorSetupWizard';
+import {buildCellReferenceLabel, buildCellShorthand, buildSelectedCellContext} from './cellIdentifiers';
 import type {CellUpdateSummary} from './cellIdentifiers';
 import {
   addJourneyLens,
+  updateLensActorFields,
   addJourneyStage,
+  buildSelectedCellPayload,
+  createConversation,
   createDraftJourneyMap,
+  deleteConversation,
+  deleteMessage,
+  getConversation,
+  listConversations,
   listJourneyMaps,
+  createJourneyLink,
+  loadJourneyArchitectureBundle,
+  listJourneyLinksForMap,
+  listInboundLinksForMap,
+  getJourneyCell,
   loadJourneyMapBundle,
   removeJourneyLens,
   removeJourneyStage,
   renameJourneyLens,
   renameJourneyStage,
-  sendJourneyMapMessage,
+  sendAiMessage,
+  updateConversation,
   updateJourneyCell,
+  saveJourneySettings,
+  saveSmartAiSettings,
+  type ConversationListItem,
   type XanoAgentConversation,
-  XanoJourneyMap,
+  type XanoJourneyMap,
   type HydratedJourneyMapBundle,
+  type JourneySettings,
+  type SmartAiSettings,
+  type InterviewDepth,
+  type InsightStandard,
+  type LensPriority,
+  SMART_AI_DEFAULTS,
+  type JourneyLinkType,
+  type ParentJourneyContext,
 } from './xano';
+import type {CellLinkInfo} from './journeyMatrixTabulatorHelpers';
 
 type InitialLoadState = 'loading' | 'ready' | 'empty' | 'error';
 
@@ -96,13 +129,157 @@ const resolveXanoId = (entity: {id: string; xanoId?: number}, entityName: string
 
 const getErrorMessage = (error: unknown, fallback: string) => (error instanceof Error ? error.message : fallback);
 
-export default function App() {
+// ── Transparency Layer helpers ──────────────────────────────────────────────
+
+const TOOL_CATEGORY_ICON: Record<string, string> = {
+  read: '🔍',
+  write: '✏️',
+  status: '🔒',
+  structure: '🏗️',
+};
+
+interface ActivityPanelProps {
+  msgId: string;
+  activity: MessageActivity;
+  isTraceExpanded: boolean;
+  isReasoningExpanded: boolean;
+  onToggleTrace: () => void;
+  onToggleReasoning: () => void;
+  showReasoning?: boolean;
+}
+
+function ActivityPanel({
+  activity,
+  isTraceExpanded,
+  isReasoningExpanded,
+  onToggleTrace,
+  onToggleReasoning,
+  showReasoning = true,
+}: ActivityPanelProps) {
+  const toolTrace: ToolTraceEntry[] = activity.toolTrace ?? [];
+  const hasTrace = toolTrace.length > 0;
+  const hasThinking = Boolean(activity.thinking);
+  const readCount = toolTrace.filter((t) => t.toolCategory === 'read').length;
+
+  const showChip =
+    activity.cellsUpdated > 0 ||
+    activity.structureChanged ||
+    hasTrace;
+
+  if (!showChip) return null;
+
+  return (
+    <div className="ml-8 mt-0.5 space-y-1.5">
+      {/* Layer 1: compact activity chip */}
+      <button
+        type="button"
+        onClick={hasTrace ? onToggleTrace : undefined}
+        className={`flex items-center gap-1.5 text-[10px] text-zinc-400 font-medium transition-colors ${
+          hasTrace ? 'cursor-pointer hover:text-zinc-600' : 'cursor-default'
+        }`}
+      >
+        {readCount > 0 && <span>📖 {readCount} read</span>}
+        {readCount > 0 && activity.cellsUpdated > 0 && <span className="text-zinc-300">·</span>}
+        {activity.cellsUpdated > 0 && (
+          <span>✏️ {activity.cellsUpdated} updated</span>
+        )}
+        {activity.structureChanged && (
+          <>
+            {(readCount > 0 || activity.cellsUpdated > 0) && <span className="text-zinc-300">·</span>}
+            <span>🏗️ Structure changed</span>
+          </>
+        )}
+        {(activity.cellsUpdated > 0 || activity.structureChanged || readCount > 0) && (
+          <>
+            <span className="text-zinc-300">·</span>
+            <span>{activity.progress.percentage}% complete</span>
+          </>
+        )}
+        {hasTrace && (
+          <span className="text-zinc-300 ml-0.5">
+            {isTraceExpanded
+              ? <ChevronDown className="w-2.5 h-2.5 inline" />
+              : <ChevronRight className="w-2.5 h-2.5 inline" />}
+          </span>
+        )}
+      </button>
+
+      {/* Layer 2: tool trace panel */}
+      {isTraceExpanded && hasTrace && (
+        <div className="border border-zinc-100 rounded-lg bg-zinc-50/70 overflow-hidden divide-y divide-zinc-100">
+          {toolTrace.map((entry, idx) => (
+            <div key={idx} className="flex items-start gap-2 px-2.5 py-1.5 text-[10px]">
+              <span className="shrink-0 mt-px">
+                {TOOL_CATEGORY_ICON[entry.toolCategory] ?? '🔧'}
+              </span>
+              <div className="min-w-0 flex-1">
+                <span className="font-medium text-zinc-700">{entry.toolName}</span>
+                {entry.inputSummary && (
+                  <>
+                    <span className="text-zinc-300 mx-1">·</span>
+                    <span className="text-zinc-500">{entry.inputSummary}</span>
+                  </>
+                )}
+                {entry.outputSummary && entry.outputSummary !== entry.inputSummary && (
+                  <>
+                    <span className="text-zinc-300 mx-1">→</span>
+                    <span className="text-zinc-400">{entry.outputSummary}</span>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {/* Layer 3 toggle — only when thinking is present */}
+          {hasThinking && (
+            <button
+              type="button"
+              onClick={onToggleReasoning}
+              className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-colors"
+            >
+              <span>💭</span>
+              <span>{isReasoningExpanded ? 'Hide AI reasoning' : 'Show AI reasoning'}</span>
+              {isReasoningExpanded
+                ? <ChevronDown className="w-2.5 h-2.5 ml-auto" />
+                : <ChevronRight className="w-2.5 h-2.5 ml-auto" />}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Layer 3: reasoning panel — hidden when show_reasoning is off */}
+      {showReasoning && isReasoningExpanded && hasThinking && (
+        <div className="p-2.5 rounded-lg bg-zinc-50 border border-zinc-100 text-[10px] text-zinc-400 italic leading-relaxed">
+          {activity.thinking}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+
+export default function App({ journeyMapId }: { journeyMapId?: number }) {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const architectureId = searchParams.get('arch') ? Number(searchParams.get('arch')) : null;
+  const { user, logout } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [cells, setCells] = useState<MatrixCell[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
   const [lenses, setLenses] = useState<Lens[]>([]);
   const [journeyMapRecord, setJourneyMapRecord] = useState<XanoJourneyMap | null>(null);
+  const [cellLinkMap, setCellLinkMap] = useState<Map<number, CellLinkInfo>>(new Map());
+  // Cell-level link creation state
+  const [siblingMaps, setSiblingMaps] = useState<XanoJourneyMap[]>([]);
+  const [siblingMapsLoaded, setSiblingMapsLoaded] = useState(false);
+  const [cellLinkType, setCellLinkType] = useState<JourneyLinkType>('exception');
+  const [cellLinkTargetId, setCellLinkTargetId] = useState<number | 'new' | ''>('');
+  const [cellLinkNewTitle, setCellLinkNewTitle] = useState('');
+  const [cellLinkCreating, setCellLinkCreating] = useState(false);
+  const [cellLinkError, setCellLinkError] = useState<string | null>(null);
+  const [cellLinkSuccess, setCellLinkSuccess] = useState(false);
   const [conversationRecord, setConversationRecord] = useState<XanoAgentConversation | null>(null);
   const [initialLoadState, setInitialLoadState] = useState<InitialLoadState>('loading');
   const [isXanoSyncing, setIsXanoSyncing] = useState(true);
@@ -114,9 +291,30 @@ export default function App() {
   const [selectedCellSnapshot, setSelectedCellSnapshot] = useState<MatrixCell | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isChatMode, setIsChatMode] = useState(false); // false = Interview Mode, true = Chat Mode
+  const [isSmartAiSettingsOpen, setIsSmartAiSettingsOpen] = useState(false);
+  const [smartAiSettings, setSmartAiSettings] = useState<SmartAiSettings>({...SMART_AI_DEFAULTS});
+  const [isSmartAiSettingsSaving, setIsSmartAiSettingsSaving] = useState(false);
+  const [smartAiSettingsError, setSmartAiSettingsError] = useState<string | null>(null);
+  const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
   const [isQuestionMode, setIsQuestionMode] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  
+  const [conversationList, setConversationList] = useState<ConversationListItem[]>([]);
+  const [isSessionPickerOpen, setIsSessionPickerOpen] = useState(false);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+  const [isRenamingSession, setIsRenamingSession] = useState<number | null>(null);
+  const [renameText, setRenameText] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  // transparency layer: tracks which panel (trace | reasoning | null) is open per message id
+  const [expandedPanels, setExpandedPanels] = useState<Record<string, 'trace' | 'reasoning' | null>>({});
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [journeySettings, setJourneySettings] = useState<JourneySettings>({});
+  const [settingsDraft, setSettingsDraft] = useState<JourneySettings>({});
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [settingsSaved, setSettingsSaved] = useState(false);
+  const [showActorWizard, setShowActorWizard] = useState(false);
+  const [actorWizardEditTarget, setActorWizardEditTarget] = useState<Lens | null>(null);
+  const [inboundContext, setInboundContext] = useState<ParentJourneyContext | null>(null);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
 
@@ -143,6 +341,9 @@ export default function App() {
       setLenses([]);
       setCells([]);
       setMatrixSyncSource('local');
+      setJourneySettings({});
+      setSettingsDraft({});
+      setSmartAiSettings({...SMART_AI_DEFAULTS});
       return;
     }
 
@@ -150,6 +351,26 @@ export default function App() {
     setConversationRecord(bundle.conversation);
     setMessages(bundle.messages);
     setIsChatMode(bundle.conversation?.mode === 'chat');
+
+    // Populate journey settings from the loaded map record
+    const loadedSettings: JourneySettings = {
+      primary_actor:       bundle.journeyMap.primary_actor ?? null,
+      journey_scope:       bundle.journeyMap.journey_scope ?? null,
+      start_point:         bundle.journeyMap.start_point ?? null,
+      end_point:           bundle.journeyMap.end_point ?? null,
+      duration:            bundle.journeyMap.duration ?? null,
+      success_metrics:     bundle.journeyMap.success_metrics ?? null,
+      key_stakeholders:    bundle.journeyMap.key_stakeholders ?? null,
+      dependencies:        bundle.journeyMap.dependencies ?? null,
+      pain_points_summary: bundle.journeyMap.pain_points_summary ?? null,
+      opportunities:       bundle.journeyMap.opportunities ?? null,
+      version:             bundle.journeyMap.version ?? null,
+    };
+    setJourneySettings(loadedSettings);
+    setSettingsDraft(loadedSettings);
+
+    // Load smart AI settings — merge persisted values over defaults so null fields fall back cleanly
+    setSmartAiSettings({...SMART_AI_DEFAULTS, ...(bundle.journeyMap.smart_ai_settings ?? {})});
 
     if (bundle.hasHydratedMatrix) {
       setStages(bundle.stages);
@@ -212,9 +433,132 @@ export default function App() {
     }
   }, [applyJourneyMapBundle]);
 
+  // When a specific journeyMapId is provided (from URL), load that map directly.
+  // Otherwise fall back to loading the most recently updated map.
   useEffect(() => {
-    void syncLatestJourneyMap();
-  }, [syncLatestJourneyMap]);
+    if (typeof journeyMapId === 'number') {
+      setIsXanoSyncing(true);
+      setXanoError(null);
+      loadJourneyMapBundle(journeyMapId)
+        .then((bundle) => { applyJourneyMapBundle(bundle); setInitialLoadState('ready'); })
+        .catch((err) => {
+          applyJourneyMapBundle(null);
+          setXanoError(err instanceof Error ? err.message : 'Unable to load journey map.');
+          setInitialLoadState('error');
+        })
+        .finally(() => setIsXanoSyncing(false));
+    } else {
+      void syncLatestJourneyMap();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [journeyMapId]);
+
+  // Load sibling maps from the architecture bundle (lazy — only when architectureId is set).
+  useEffect(() => {
+    if (!architectureId || siblingMapsLoaded) return;
+    loadJourneyArchitectureBundle(architectureId)
+      .then((bundle) => {
+        setSiblingMaps(bundle.journey_maps.filter((m) => m.id !== journeyMapRecord?.id));
+        setSiblingMapsLoaded(true);
+      })
+      .catch(() => setSiblingMapsLoaded(true));
+  }, [architectureId, siblingMapsLoaded, journeyMapRecord?.id]);
+
+  // Load inbound parent context — runs once when the map and architecture are both known.
+  useEffect(() => {
+    if (!architectureId || !journeyMapRecord) { setInboundContext(null); return; }
+    const mapId = journeyMapRecord.id;
+    listInboundLinksForMap(mapId)
+      .then(async (links) => {
+        if (links.length === 0) { setInboundContext(null); return; }
+        // Take most-recently-created inbound link.
+        const link = [...links].sort((a, b) => Number(b.created_at ?? 0) - Number(a.created_at ?? 0))[0]!;
+        // Fetch source cell and parent map bundle (gives title + stages + lenses) in parallel.
+        const [sourceCell, parentMapBundle] = await Promise.all([
+          getJourneyCell(link.source_cell),
+          loadJourneyMapBundle(link.source_map),
+        ]);
+        const stageLabel = parentMapBundle.stages.find((s) => s.xanoId === sourceCell.stage)?.label ?? `Stage ${sourceCell.stage}`;
+        const lensLabel = parentMapBundle.lenses.find((l) => l.xanoId === sourceCell.lens)?.label ?? `Lens ${sourceCell.lens}`;
+        setInboundContext({
+          link_type: link.link_type,
+          parent_map_id: link.source_map,
+          parent_map_title: parentMapBundle.journeyMap.title ?? `Map ${link.source_map}`,
+          source_cell_id: link.source_cell,
+          source_stage_label: stageLabel,
+          source_lens_label: lensLabel,
+          trigger_content: sourceCell.content ?? null,
+        });
+      })
+      .catch(() => setInboundContext(null));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [architectureId, journeyMapRecord?.id]);
+
+  // Reset link form when the user selects a different cell.
+  useEffect(() => {
+    setCellLinkType('exception');
+    setCellLinkTargetId('');
+    setCellLinkNewTitle('');
+    setCellLinkError(null);
+    setCellLinkSuccess(false);
+  }, [selectedCellId]);
+
+  // Load journey links for the current map to power breakpoint indicators in the matrix.
+  useEffect(() => {
+    if (!journeyMapRecord) { setCellLinkMap(new Map()); return; }
+    listJourneyLinksForMap(journeyMapRecord.id)
+      .then((links) => {
+        setCellLinkMap(
+          new Map(links.map((l) => [l.source_cell, {linkType: l.link_type as JourneyLinkType, targetMapId: l.target_map}])),
+        );
+      })
+      .catch(() => setCellLinkMap(new Map()));
+  }, [journeyMapRecord?.id]);
+
+  const handleCreateCellLink = async () => {
+    if (!selectedCell?.xanoId || !journeyMapRecord || !architectureId || !cellLinkTargetId) return;
+    setCellLinkCreating(true);
+    setCellLinkError(null);
+    try {
+      let targetMapId: number;
+      if (cellLinkTargetId === 'new') {
+        const bundle = await createDraftJourneyMap({
+          title: cellLinkNewTitle.trim() || 'Untitled Journey Map',
+          status: 'draft',
+          journey_architecture_id: architectureId,
+        });
+        targetMapId = bundle.journeyMap.id;
+        setSiblingMaps((prev) => [...prev, bundle.journeyMap]);
+      } else {
+        targetMapId = cellLinkTargetId;
+      }
+      const link = await createJourneyLink(architectureId, {
+        source_map_id: journeyMapRecord.id,
+        source_cell_id: selectedCell.xanoId,
+        target_map_id: targetMapId,
+        link_type: cellLinkType,
+      });
+      // Show breakpoint indicator immediately on the cell
+      setCellLinkMap((prev) => {
+        const next = new Map(prev);
+        next.set(selectedCell.xanoId!, { linkType: link.link_type, targetMapId: link.target_map });
+        return next;
+      });
+      setCellLinkSuccess(true);
+      if (cellLinkTargetId === 'new') {
+        navigate(`/maps/${targetMapId}?arch=${architectureId}`);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setCellLinkError(
+        msg.includes('already exists')
+          ? 'This cell already links to that map.'
+          : 'Failed to create link. Please try again.',
+      );
+    } finally {
+      setCellLinkCreating(false);
+    }
+  };
 
   const handleCreateXanoDraft = useCallback(async () => {
     setIsXanoSyncing(true);
@@ -237,6 +581,120 @@ export default function App() {
     }
   }, [applyJourneyMapBundle]);
 
+  const refreshConversationList = useCallback(async () => {
+    if (!journeyMapRecord) return;
+    setIsLoadingSessions(true);
+    try {
+      const items = await listConversations(journeyMapRecord.id);
+      setConversationList(items);
+    } catch {
+      // Silently fail — list is non-critical
+    } finally {
+      setIsLoadingSessions(false);
+    }
+  }, [journeyMapRecord]);
+
+  const handleToggleSessionPicker = useCallback(() => {
+    setIsSessionPickerOpen((open) => {
+      if (!open) {
+        void refreshConversationList();
+      }
+      return !open;
+    });
+    setIsRenamingSession(null);
+    setConfirmDeleteId(null);
+  }, [refreshConversationList]);
+
+  const handleSwitchSession = useCallback(async (conversationId: number) => {
+    if (!journeyMapRecord) return;
+    setIsLoadingSessions(true);
+    setXanoError(null);
+    try {
+      const result = await getConversation(journeyMapRecord.id, conversationId);
+      setConversationRecord(result.conversation);
+      setMessages(result.messages);
+      setIsChatMode(result.conversation.mode === 'chat');
+      setIsSessionPickerOpen(false);
+    } catch (error) {
+      setXanoError(getErrorMessage(error, 'Unable to load conversation.'));
+    } finally {
+      setIsLoadingSessions(false);
+    }
+  }, [journeyMapRecord]);
+
+  const handleCreateSession = useCallback(async () => {
+    if (!journeyMapRecord) return;
+    setIsLoadingSessions(true);
+    setXanoError(null);
+    try {
+      const mode = isChatMode ? 'chat' as const : 'interview' as const;
+      const newConversation = await createConversation({journeyMapId: journeyMapRecord.id, mode});
+      setConversationRecord(newConversation);
+      setMessages([]);
+      setIsSessionPickerOpen(false);
+      setLastUpdateSummaries([]);
+    } catch (error) {
+      setXanoError(getErrorMessage(error, 'Unable to create conversation.'));
+    } finally {
+      setIsLoadingSessions(false);
+    }
+  }, [journeyMapRecord, isChatMode]);
+
+  const handleRenameSession = useCallback(async (conversationId: number, title: string) => {
+    if (!journeyMapRecord || !title.trim()) return;
+    try {
+      const updated = await updateConversation({journeyMapId: journeyMapRecord.id, conversationId, title: title.trim()});
+      if (conversationRecord?.id === conversationId) {
+        setConversationRecord(updated);
+      }
+      setConversationList((list) => list.map((item) => item.id === conversationId ? {...item, title: updated.title} : item));
+    } catch (error) {
+      setXanoError(getErrorMessage(error, 'Unable to rename conversation.'));
+    } finally {
+      setIsRenamingSession(null);
+    }
+  }, [journeyMapRecord, conversationRecord?.id]);
+
+  const handleDeleteSession = useCallback(async (conversationId: number) => {
+    if (!journeyMapRecord) return;
+    setXanoError(null);
+    try {
+      await deleteConversation(journeyMapRecord.id, conversationId);
+      const nextList = conversationList.filter((item) => item.id !== conversationId);
+      setConversationList(nextList);
+      if (conversationRecord?.id === conversationId) {
+        const next = nextList[0]; // list is already sorted by last_message_at desc
+        if (next) {
+          const result = await getConversation(journeyMapRecord.id, next.id);
+          setConversationRecord(result.conversation);
+          setMessages(result.messages);
+          setIsChatMode(result.conversation.mode === 'chat');
+          setLastUpdateSummaries([]);
+        } else {
+          setConversationRecord(null);
+          setMessages([]);
+          setLastUpdateSummaries([]);
+        }
+      }
+    } catch (error) {
+      setXanoError(getErrorMessage(error, 'Unable to delete conversation.'));
+    } finally {
+      setConfirmDeleteId(null);
+    }
+  }, [journeyMapRecord, conversationRecord?.id, conversationList]);
+
+  const handleDeleteMessage = useCallback(async (msgId: string) => {
+    if (!journeyMapRecord || !conversationRecord) return;
+    const numericId = parseInt(msgId, 10);
+    if (isNaN(numericId)) return;
+    try {
+      await deleteMessage(journeyMapRecord.id, conversationRecord.id, numericId);
+      setMessages((prev) => prev.filter((m) => m.id !== msgId));
+    } catch (error) {
+      setXanoError(getErrorMessage(error, 'Unable to delete message.'));
+    }
+  }, [journeyMapRecord, conversationRecord]);
+
   const showWorkspace = initialLoadState === 'ready';
   const isScaffoldFallback = Boolean(journeyMapRecord) && matrixSyncSource === 'map-only';
   const selectedCell = cells.find((cell) => cell.id === selectedCellId) ?? null;
@@ -257,61 +715,123 @@ export default function App() {
       return;
     }
 
-    const assistantReply = isChatMode
-      ? 'Understood. This thread is saved in chat mode, so I will keep the exchange conversational without proposing matrix edits yet.'
-      : 'Got it. I saved this interview thread so we can resume later. What is the primary pain point they face during this initiation phase?';
-
     setIsSendingMessage(true);
     setXanoError(null);
     setInputText('');
 
+    // Show the user's message immediately — don't wait for the AI round-trip.
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `optimistic-${Date.now()}`,
+        role: 'expert' as const,
+        content: messageText,
+        timestamp: new Date(),
+      },
+    ]);
+
+    const currentMode = isChatMode ? 'chat' as const : 'interview' as const;
+    const selectedCellPayload = buildSelectedCellPayload(selectedCellContext);
+
     try {
-      const persistedThread = await sendJourneyMapMessage({
+      const aiThread = await sendAiMessage({
         journeyMapId: journeyMapRecord.id,
         conversationId: conversationRecord?.id,
         content: messageText,
-        mode: isChatMode ? 'chat' : 'interview',
-        assistantReply,
-        selectedCell: selectedCellContext,
+        mode: currentMode,
+        selectedCell: selectedCellPayload,
+        journeySettings,
+        parentContext: inboundContext,
       });
 
-      setConversationRecord(persistedThread.conversation);
-      setMessages(persistedThread.messages);
-      setIsChatMode(persistedThread.conversation?.mode === 'chat');
+      setConversationRecord(aiThread.conversation);
+      setIsChatMode(aiThread.conversation?.mode === 'chat');
+      setSuggestedPrompts(aiThread.suggestedPrompts.length > 0 ? aiThread.suggestedPrompts : []);
 
-      if (persistedThread.appliedUpdates.length > 0) {
-        setCells((currentCells) => mergePersistedCellUpdates(currentCells, persistedThread.appliedUpdates, stages, lenses));
-        setSelectedCellSnapshot((currentSnapshot) => {
-          if (!currentSnapshot) {
-            return currentSnapshot;
-          }
+      // Build activity metadata for the last AI message (Layers 1-3 transparency)
+      const activity: MessageActivity = {
+        cellsUpdated: aiThread.cellUpdates.length,
+        cellsSkipped: 0,
+        structureChanged: aiThread.structuralChanges.stages_changed || aiThread.structuralChanges.lenses_changed,
+        progress: aiThread.progress,
+        updatedCells: aiThread.cellUpdates.map((u) => {
+          const stg = stages.find((s) => s.xanoId === u.stage_id);
+          const lns = lenses.find((l) => l.xanoId === u.lens_id);
+          return { stageLabel: stg?.label ?? `Stage ${u.stage_id}`, lensLabel: lns?.label ?? `Lens ${u.lens_id}` };
+        }),
+        toolTrace: aiThread.toolTrace,
+        thinking: aiThread.thinking,
+      };
 
-          const [nextSnapshot] = mergePersistedCellUpdates([currentSnapshot], persistedThread.appliedUpdates, stages, lenses);
-          return nextSnapshot ?? currentSnapshot;
-        });
+      // Always tag the last AI message so Layer 2 & 3 panels can render
+      const taggedMessages = aiThread.messages.map((msg, idx) =>
+        msg.role === 'ai' && idx === aiThread.messages.length - 1
+          ? { ...msg, activity }
+          : msg
+      );
+
+      setMessages(taggedMessages);
+
+      // Apply cell updates from the AI agent to the matrix
+      if (aiThread.cellUpdates.length > 0) {
+        setCells((currentCells) =>
+          currentCells.map((cell) => {
+            const update = aiThread.cellUpdates.find(
+              (u) => u.cell_id === cell.xanoId || u.cell_id === cell.journeyCellId,
+            );
+            if (!update) return cell;
+            return {
+              ...cell,
+              content: update.content ?? cell.content,
+              status: (update.status as CellStatus) ?? cell.status,
+              isLocked: update.is_locked ?? cell.isLocked,
+            };
+          }),
+        );
       }
 
-      const summaries = buildCellUpdateSummaries(persistedThread.appliedUpdates, persistedThread.skippedUpdates);
-      setLastUpdateSummaries(summaries);
-
-      if (persistedThread.journeyMapUpdatedAt) {
-        setJourneyMapRecord((currentJourneyMap) =>
-          currentJourneyMap
-            ? {
-                ...currentJourneyMap,
-                updated_at: persistedThread.journeyMapUpdatedAt ?? currentJourneyMap.updated_at,
-                last_interaction_at: persistedThread.journeyMapUpdatedAt ?? currentJourneyMap.last_interaction_at,
-              }
-            : currentJourneyMap,
-        );
+      // If structural changes occurred (stages/lenses added or removed), reload the full bundle
+      if (aiThread.structuralChanges.stages_changed || aiThread.structuralChanges.lenses_changed) {
+        const bundle = await loadJourneyMapBundle(journeyMapRecord.id, journeyMapRecord);
+        applyJourneyMapBundle(bundle);
       }
     } catch (error) {
       setInputText(messageText);
-      setXanoError(error instanceof Error ? error.message : 'Unable to save conversation.');
+      setXanoError(getErrorMessage(error, 'Unable to send AI message.'));
     } finally {
       setIsSendingMessage(false);
     }
   }, [conversationRecord?.id, inputText, isChatMode, journeyMapRecord, selectedCellContext, lenses, stages]);
+
+  const handleSaveAllSettings = useCallback(async () => {
+    if (!journeyMapRecord) return;
+    setIsSavingSettings(true);
+    setSettingsSaved(false);
+    try {
+      await saveJourneySettings(journeyMapRecord.id, settingsDraft);
+      setJourneySettings(settingsDraft);
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 2500);
+    } catch {
+      // non-critical
+    } finally {
+      setIsSavingSettings(false);
+    }
+  }, [journeyMapRecord, settingsDraft]);
+
+  const handleSmartAiSettingChange = useCallback(async (patch: Partial<SmartAiSettings>) => {
+    if (!journeyMapRecord) return;
+    setSmartAiSettings((prev) => ({...prev, ...patch}));
+    setIsSmartAiSettingsSaving(true);
+    setSmartAiSettingsError(null);
+    try {
+      await saveSmartAiSettings(journeyMapRecord.id, patch);
+    } catch {
+      setSmartAiSettingsError('Unable to save — please try again.');
+    } finally {
+      setIsSmartAiSettingsSaving(false);
+    }
+  }, [journeyMapRecord]);
 
   const persistCellChanges = useCallback(
     async (cell: MatrixCell | null | undefined, rollbackCell?: MatrixCell | null) => {
@@ -333,6 +853,7 @@ export default function App() {
           content: cell.content,
           status: cell.status,
           isLocked: Boolean(cell.isLocked),
+          actorFields: cell.actorFields,
         });
 
         const nextCell: MatrixCell = {
@@ -348,6 +869,7 @@ export default function App() {
           lensXanoId: persistedCell.lens,
           lensKey: cell.lensKey ?? cell.lensId,
           lastUpdated: persistedCell.last_updated_at ? new Date(persistedCell.last_updated_at) : new Date(),
+          actorFields: (persistedCell.actor_fields ?? cell.actorFields) as MatrixCell['actorFields'],
         };
 
         setCells((currentCells) => currentCells.map((entry) => (entry.id === cell.id ? nextCell : entry)));
@@ -413,6 +935,16 @@ export default function App() {
 
   const updateCellContent = (id: string, content: string) => {
     setCells((currentCells) => currentCells.map((cell) => (cell.id === id ? {...cell, content} : cell)));
+  };
+
+  const updateCellActorField = (id: string, fieldKey: string, value: string) => {
+    setCells((currentCells) =>
+      currentCells.map((cell) =>
+        cell.id === id
+          ? {...cell, actorFields: {...(cell.actorFields as Record<string, string | null> ?? {}), [fieldKey]: value || null}}
+          : cell,
+      ),
+    );
   };
 
   const toggleCellLock = (id: string) => {
@@ -543,7 +1075,7 @@ export default function App() {
     }
   };
 
-  const addLens = async () => {
+  const addLens = async (actorInput?: ActorWizardInput) => {
     const didPersistCurrentCell = await persistCellChanges(selectedCell);
     if (!didPersistCurrentCell) {
       return;
@@ -559,12 +1091,59 @@ export default function App() {
     setLastUpdateSummaries([]);
 
     try {
-      await addJourneyLens({journeyMapId: journeyMapRecord.id});
+      await addJourneyLens({
+        journeyMapId: journeyMapRecord.id,
+        ...(actorInput && {
+          label: actorInput.label,
+          actorType: actorInput.actorType,
+          templateKey: actorInput.templateKey,
+          rolePrompt: actorInput.rolePrompt,
+          personaDescription: actorInput.personaDescription,
+          primaryGoal: actorInput.primaryGoal,
+          standingConstraints: actorInput.standingConstraints,
+        }),
+      });
       await refreshCurrentJourneyMap(journeyMapRecord);
     } catch (error) {
       setXanoError(getErrorMessage(error, 'Unable to add lens.'));
     } finally {
       setIsXanoSyncing(false);
+    }
+  };
+
+  const handleActorWizardConfirm = async (input: ActorWizardInput) => {
+    if (actorWizardEditTarget?.xanoId) {
+      // Edit mode — PATCH existing lens actor fields
+      await updateLensActorFields({
+        journeyLensId: actorWizardEditTarget.xanoId,
+        label: input.label,
+        actorType: input.actorType,
+        templateKey: input.templateKey,
+        rolePrompt: input.rolePrompt,
+        personaDescription: input.personaDescription,
+        primaryGoal: input.primaryGoal,
+        standingConstraints: input.standingConstraints,
+      });
+      if (journeyMapRecord) {
+        await refreshCurrentJourneyMap(journeyMapRecord);
+      }
+    } else {
+      // Create mode — add a new lens row
+      await addLens(input);
+    }
+    setShowActorWizard(false);
+    setActorWizardEditTarget(null);
+  };
+
+  const handleEditActorOpen = (lens: Lens) => {
+    setActorWizardEditTarget(lens);
+    setShowActorWizard(true);
+  };
+
+  const handleLensEditFromMatrix = (lensId: string) => {
+    const lens = lenses.find((l) => l.id === lensId);
+    if (lens) {
+      handleEditActorOpen(lens);
     }
   };
 
@@ -597,8 +1176,74 @@ export default function App() {
     }
   };
 
+  const userInitials = user?.name
+    ? user.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+    : 'U';
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-zinc-50 font-sans">
+      {/* Editor top bar */}
+      <div className="h-10 border-b border-zinc-200 bg-white flex items-center justify-between px-4 shrink-0 z-20">
+        <button
+          onClick={() => navigate(architectureId ? `/architectures/${architectureId}` : '/dashboard')}
+          className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-900 transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span className="font-medium">{architectureId ? 'Architecture' : 'Dashboard'}</span>
+        </button>
+        <span className="text-xs font-semibold text-zinc-700 truncate max-w-xs px-2">
+          {journeyMapRecord?.title ?? ''}
+        </span>
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full bg-zinc-800 text-white flex items-center justify-center text-[10px] font-bold">{userInitials}</div>
+          <button
+            onClick={() => { logout(); navigate('/login'); }}
+            title="Sign out"
+            className="p-1 text-zinc-400 hover:text-zinc-700 transition-colors"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Parent Journey Context Strip — shown when this map is a child (anti-journey / exception / sub-journey) */}
+      {inboundContext && (() => {
+        const LINK_TYPE_LABEL: Record<string, string> = {exception: 'Exception', anti_journey: 'Anti-Journey', sub_journey: 'Sub-Journey'};
+        const LINK_TYPE_ICON: Record<string, string> = {exception: '⚠', anti_journey: '↩', sub_journey: '⤵'};
+        const truncated = inboundContext.trigger_content
+          ? (inboundContext.trigger_content.length > 120
+              ? inboundContext.trigger_content.slice(0, 117) + '…'
+              : inboundContext.trigger_content)
+          : null;
+        return (
+          <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-1.5 flex items-center gap-3 z-10">
+            <span className="text-sm shrink-0" title={LINK_TYPE_LABEL[inboundContext.link_type]}>{LINK_TYPE_ICON[inboundContext.link_type]}</span>
+            <span className="text-[11px] font-semibold text-amber-700 shrink-0 uppercase tracking-wider">{LINK_TYPE_LABEL[inboundContext.link_type]}</span>
+            <span className="text-zinc-300 shrink-0">·</span>
+            <span className="text-[11px] font-semibold text-zinc-600 shrink-0 truncate max-w-[120px]" title={inboundContext.parent_map_title}>{inboundContext.parent_map_title}</span>
+            <span className="text-zinc-300 shrink-0">·</span>
+            <span className="text-[11px] text-zinc-500 shrink-0">{inboundContext.source_stage_label} × {inboundContext.source_lens_label}</span>
+            {truncated ? (
+              <>
+                <span className="text-zinc-300 shrink-0">·</span>
+                <span className="text-[11px] text-zinc-500 italic truncate min-w-0" title={inboundContext.trigger_content ?? undefined}>"{truncated}"</span>
+              </>
+            ) : (
+              <>
+                <span className="text-zinc-300 shrink-0">·</span>
+                <span className="text-[11px] text-zinc-400 italic shrink-0">No content recorded at this cell</span>
+              </>
+            )}
+            <button
+              onClick={() => navigate(`/maps/${inboundContext.parent_map_id}?arch=${architectureId}`)}
+              className="ml-auto shrink-0 text-[11px] font-medium text-amber-700 hover:text-amber-900 flex items-center gap-1 transition-colors"
+            >
+              View source <ArrowLeft className="w-3 h-3 rotate-180" />
+            </button>
+          </div>
+        );
+      })()}
+
       {/* Main Content */}
       <main ref={mainRef} className="flex-1 flex flex-col overflow-hidden relative">
         {!showWorkspace ? (
@@ -729,7 +1374,7 @@ export default function App() {
                     Add Column
                   </button>
                   <button
-                    onClick={() => void addLens()}
+                    onClick={() => { setActorWizardEditTarget(null); setShowActorWizard(true); }}
                     disabled={isXanoSyncing}
                     className="inline-flex items-center gap-1.5 rounded border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-zinc-600 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
                   >
@@ -758,6 +1403,14 @@ export default function App() {
                     <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
                     <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} type="text" placeholder="Search matrix..." className="pl-8 pr-3 py-1.5 bg-zinc-100 border-none rounded text-xs focus:ring-1 focus:ring-zinc-300 w-48" />
                   </div>
+                  <button
+                    onClick={() => setIsSettingsOpen((v) => !v)}
+                    title="Journey Settings"
+                    className={`inline-flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-[11px] font-medium transition-colors ${isSettingsOpen ? 'border-zinc-400 bg-zinc-100 text-zinc-900' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
+                  >
+                    <Settings className="h-3.5 w-3.5" />
+                    Settings
+                  </button>
                 </div>
                 </div>
               </div>
@@ -773,9 +1426,89 @@ export default function App() {
                     onSelectCell={handleSelectCell}
                     onUpdateLensLabel={updateLensLabel}
                     onUpdateStageLabel={updateStageLabel}
+                    linkedCells={cellLinkMap}
+                    onEditLens={handleLensEditFromMatrix}
                   />
                 </div>
               </div>
+
+              {/* Journey Settings Panel (Left Side) */}
+              <AnimatePresence>
+                {isSettingsOpen && (
+                  <motion.div
+                    initial={{ x: '-100%' }}
+                    animate={{ x: 0 }}
+                    exit={{ x: '-100%' }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                    className="absolute left-0 top-0 bottom-0 w-96 bg-white border-r border-zinc-200 shadow-2xl z-40 flex flex-col"
+                  >
+                    <div className="h-14 flex items-center justify-between px-4 border-b border-zinc-200 bg-zinc-50 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <Settings className="w-4 h-4 text-zinc-400" />
+                        <span className="text-xs font-semibold text-zinc-700 uppercase tracking-tight">Journey Settings</span>
+                      </div>
+                      <button onClick={() => setIsSettingsOpen(false)} className="p-1.5 hover:bg-zinc-200 rounded text-zinc-400 transition-colors">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                      {([
+                        {field: 'primary_actor',       label: 'Primary Actor',              placeholder: 'e.g. Residential customer purchasing appliance', long: false},
+                        {field: 'journey_scope',        label: 'Journey Scope',              placeholder: 'e.g. From order placement to delivery, excludes post-delivery support', long: true},
+                        {field: 'start_point',          label: 'Start Point',               placeholder: 'e.g. Customer places order online', long: false},
+                        {field: 'end_point',            label: 'End Point',                 placeholder: 'e.g. Delivery completed and signed off', long: false},
+                        {field: 'duration',             label: 'Duration',                  placeholder: 'e.g. 7 to 14 days from order to delivery', long: false},
+                        {field: 'success_metrics',      label: 'Success Metrics',           placeholder: 'e.g. On-time delivery, satisfaction score above 4.5 stars', long: true},
+                        {field: 'key_stakeholders',     label: 'Key Stakeholders',          placeholder: 'e.g. Customer, driver, warehouse, AI system', long: true},
+                        {field: 'dependencies',         label: 'Dependencies & Assumptions', placeholder: 'e.g. Inventory available, customer home during window', long: true},
+                        {field: 'pain_points_summary',  label: 'Pain Points Summary',       placeholder: 'e.g. Last-minute cancellations, address issues', long: true},
+                        {field: 'opportunities',        label: 'Opportunities',             placeholder: 'e.g. Better real-time tracking, predictive availability', long: true},
+                        {field: 'version',              label: 'Version / Last Updated',    placeholder: 'e.g. Version 2.1, updated April 2026', long: false},
+                      ] as {field: keyof JourneySettings; label: string; placeholder: string; long: boolean}[]).map(({field, label, placeholder, long}) => (
+                        <div key={field}>
+                          <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">{label}</label>
+                          {long ? (
+                            <textarea
+                              value={settingsDraft[field] ?? ''}
+                              onChange={(e) => setSettingsDraft((d) => ({...d, [field]: e.target.value}))}
+                              placeholder={placeholder}
+                              disabled={!journeyMapRecord}
+                              rows={3}
+                              className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-zinc-300 resize-none disabled:opacity-50"
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              value={settingsDraft[field] ?? ''}
+                              onChange={(e) => setSettingsDraft((d) => ({...d, [field]: e.target.value}))}
+                              placeholder={placeholder}
+                              disabled={!journeyMapRecord}
+                              className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-zinc-300 disabled:opacity-50"
+                            />
+                          )}
+                        </div>
+                      ))}
+                      {!journeyMapRecord && (
+                        <p className="text-[10px] text-zinc-400 italic">Create or load a journey map to edit settings.</p>
+                      )}
+                    </div>
+                    <div className="shrink-0 border-t border-zinc-200 px-4 py-3 flex items-center justify-between bg-zinc-50">
+                      {settingsSaved ? (
+                        <span className="text-[11px] text-emerald-600 font-medium">✓ Saved</span>
+                      ) : (
+                        <span className="text-[11px] text-zinc-400">Unsaved changes</span>
+                      )}
+                      <button
+                        onClick={() => void handleSaveAllSettings()}
+                        disabled={!journeyMapRecord || isSavingSettings}
+                        className="px-3 py-1.5 bg-zinc-900 text-white text-[11px] font-medium rounded hover:bg-zinc-700 disabled:opacity-40 transition-colors"
+                      >
+                        {isSavingSettings ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* AI Chat Slider (Right Side) */}
               <AnimatePresence>
@@ -787,53 +1520,313 @@ export default function App() {
                     transition={{ type: 'spring', damping: 25, stiffness: 200 }}
                     className="absolute right-0 top-0 bottom-0 w-96 bg-white border-l border-zinc-200 shadow-2xl z-40 flex flex-col"
                   >
-                <div className="h-14 border-b border-zinc-200 flex items-center justify-between px-4 shrink-0 bg-zinc-50">
-                  <div className="flex items-center gap-3">
-                    <div className="flex flex-col">
-                      <span className="text-[10px] font-bold text-zinc-900 uppercase tracking-widest leading-none">AI Interviewer</span>
-                      <span className="text-[9px] text-zinc-400 font-medium mt-0.5">{isChatMode ? 'Chat Mode' : 'Interview Mode'}</span>
+                <div className="border-b border-zinc-200 shrink-0 bg-zinc-50">
+                  <div className="h-14 flex items-center justify-between px-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex flex-col gap-1">
+                        <button
+                          type="button"
+                          onClick={handleToggleSessionPicker}
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-widest leading-none transition-colors ${isSessionPickerOpen ? 'border-zinc-400 bg-zinc-100 text-zinc-900' : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300'} shadow-sm`}
+                        >
+                          {conversationRecord?.title ?? 'AI Interviewer'}
+                          <ChevronDown className={`w-3 h-3 transition-transform ${isSessionPickerOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        <span className="text-[9px] text-zinc-400 font-medium ml-0.5">{isChatMode ? 'Chat Mode' : 'Interview Mode'}</span>
+                      </div>
+                      <div className="flex items-center rounded-lg border border-zinc-200 bg-white p-0.5 shadow-sm">
+                        <button
+                          type="button"
+                          onClick={() => setIsChatMode(false)}
+                          disabled={isSendingMessage}
+                          aria-pressed={!isChatMode}
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${!isChatMode ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'} disabled:opacity-50`}
+                        >
+                          Interview
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsChatMode(true)}
+                          disabled={isSendingMessage}
+                          aria-pressed={isChatMode}
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${isChatMode ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'} disabled:opacity-50`}
+                        >
+                          Chat
+                        </button>
+                      </div>
                     </div>
-	                    <div className="flex items-center rounded-lg border border-zinc-200 bg-white p-0.5 shadow-sm">
-	                      <button
-	                        type="button"
-	                        onClick={() => setIsChatMode(false)}
-	                        disabled={isSendingMessage}
-	                        aria-pressed={!isChatMode}
-	                        className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${!isChatMode ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'} disabled:opacity-50`}
-	                      >
-	                        Interview
-	                      </button>
-	                      <button
-	                        type="button"
-	                        onClick={() => setIsChatMode(true)}
-	                        disabled={isSendingMessage}
-	                        aria-pressed={isChatMode}
-	                        className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${isChatMode ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'} disabled:opacity-50`}
-	                      >
-	                        Chat
-	                      </button>
-	                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => { setIsSmartAiSettingsOpen((o) => !o); setSmartAiSettingsError(null); }}
+                        title="Smart AI Settings"
+                        className={`p-1.5 rounded transition-colors ${isSmartAiSettingsOpen ? 'bg-zinc-900 text-white' : 'hover:bg-zinc-200 text-zinc-400'}`}
+                      >
+                        <Settings className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => { setIsChatOpen(false); setIsSmartAiSettingsOpen(false); }} className="p-1.5 hover:bg-zinc-200 rounded text-zinc-400 transition-colors">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => setIsChatOpen(false)} className="p-1.5 hover:bg-zinc-200 rounded text-zinc-400 transition-colors">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
+
+                  {/* Smart AI Settings Panel */}
+                  {isSmartAiSettingsOpen && (
+                    <div className="border-t border-zinc-200 bg-white overflow-y-auto max-h-[70%]">
+                      <div className="p-4 space-y-5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-zinc-900 uppercase tracking-wider">Smart AI Settings</span>
+                          {isSmartAiSettingsSaving && <span className="text-[10px] text-zinc-400 animate-pulse">Saving…</span>}
+                        </div>
+                        {smartAiSettingsError && (
+                          <div className="text-[10px] text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">{smartAiSettingsError}</div>
+                        )}
+
+                        {/* Interview Depth */}
+                        <div>
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block mb-0.5">Interview Depth</label>
+                          <p className="text-[10px] text-zinc-400 mb-2">How deeply the AI works each stage before moving on</p>
+                          <div className="flex rounded-lg border border-zinc-200 overflow-hidden text-[10px] font-semibold">
+                            {(['strategic', 'discovery', 'rapid_capture'] as InterviewDepth[]).map((v) => (
+                              <button key={v} disabled={!journeyMapRecord}
+                                onClick={() => void handleSmartAiSettingChange({interview_depth: v})}
+                                className={`flex-1 py-1.5 transition-colors ${smartAiSettings.interview_depth === v ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:bg-zinc-50'} disabled:opacity-40`}
+                              >{v === 'rapid_capture' ? 'Rapid' : v.charAt(0).toUpperCase() + v.slice(1)}</button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Insight Standard */}
+                        <div>
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block mb-0.5">Insight Standard</label>
+                          <p className="text-[10px] text-zinc-400 mb-2">Write first, then probe — Deep Dive uses 5-Whys to enrich across turns</p>
+                          <div className="flex rounded-lg border border-zinc-200 overflow-hidden text-[10px] font-semibold">
+                            {(['surface', 'discovery', 'deep_dive'] as InsightStandard[]).map((v) => (
+                              <button key={v} disabled={!journeyMapRecord}
+                                onClick={() => void handleSmartAiSettingChange({insight_standard: v})}
+                                className={`flex-1 py-1.5 transition-colors ${smartAiSettings.insight_standard === v ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:bg-zinc-50'} disabled:opacity-40`}
+                              >{v === 'deep_dive' ? 'Deep Dive' : v.charAt(0).toUpperCase() + v.slice(1)}</button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Lens Priority */}
+                        <div>
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block mb-0.5">Lens Priority</label>
+                          <p className="text-[10px] text-zinc-400 mb-2">Which rows the AI focuses on first in Interview Mode</p>
+                          <div className="flex rounded-lg border border-zinc-200 overflow-hidden text-[10px] font-semibold">
+                            {(['balanced', 'customer', 'operations', 'engineering'] as LensPriority[]).map((v) => (
+                              <button key={v} disabled={!journeyMapRecord}
+                                onClick={() => void handleSmartAiSettingChange({lens_priority: v})}
+                                className={`flex-1 py-1.5 transition-colors ${smartAiSettings.lens_priority === v ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:bg-zinc-50'} disabled:opacity-40`}
+                              >{v.charAt(0).toUpperCase() + v.slice(1)}</button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Toggle settings */}
+                        {(
+                          [
+                            {key: 'emotional_mapping',        label: 'Emotional Mapping',        desc: 'Always probe for customer emotional state at each touchpoint'},
+                            {key: 'business_impact_framing',  label: 'Business Impact Framing',  desc: 'Frame every pain point with frequency, severity and business consequence'},
+                            {key: 'auto_confirm_writes',      label: 'Auto-Confirm AI Writes',   desc: 'AI-written cells land as Confirmed (not Draft)'},
+                            {key: 'show_reasoning',           label: 'Show AI Reasoning',        desc: "Show the AI's thinking process beneath each message"},
+                          ] as {key: keyof SmartAiSettings; label: string; desc: string}[]
+                        ).map(({key, label, desc}) => (
+                          <div key={key} className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] font-semibold text-zinc-700">{label}</p>
+                              <p className="text-[10px] text-zinc-400 leading-snug mt-0.5">{desc}</p>
+                            </div>
+                            <button
+                              disabled={!journeyMapRecord}
+                              onClick={() => void handleSmartAiSettingChange({[key]: !smartAiSettings[key]})}
+                              className={`shrink-0 mt-0.5 w-8 h-4 rounded-full transition-colors relative ${smartAiSettings[key] ? 'bg-zinc-900' : 'bg-zinc-200'} disabled:opacity-40`}
+                            >
+                              <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${smartAiSettings[key] ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Session Picker Dropdown */}
+                  {isSessionPickerOpen && (
+                    <div className="border-t border-zinc-200 bg-white max-h-64 overflow-y-auto">
+                      <div className="p-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleCreateSession()}
+                          disabled={isLoadingSessions}
+                          className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium text-zinc-600 hover:bg-zinc-50 transition-colors disabled:opacity-50"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          New Session
+                        </button>
+                      </div>
+                      <div className="border-t border-zinc-100">
+                        {isLoadingSessions && conversationList.length === 0 && (
+                          <div className="px-4 py-3 text-[10px] text-zinc-400 text-center">Loading sessions…</div>
+                        )}
+                        {!isLoadingSessions && conversationList.length === 0 && (
+                          <div className="px-4 py-3 text-[10px] text-zinc-400 text-center">No sessions yet</div>
+                        )}
+                        {conversationList.map((item) => (
+                          <div
+                            key={item.id}
+                            className={`group flex items-center gap-2 px-3 py-2 hover:bg-zinc-50 transition-colors ${conversationRecord?.id === item.id ? 'bg-zinc-100' : ''}`}
+                          >
+                            {isRenamingSession === item.id ? (
+                              <form
+                                className="flex-1 flex items-center gap-1"
+                                onSubmit={(e) => { e.preventDefault(); void handleRenameSession(item.id, renameText); }}
+                              >
+                                <input
+                                  autoFocus
+                                  value={renameText}
+                                  onChange={(e) => setRenameText(e.target.value)}
+                                  onBlur={() => setIsRenamingSession(null)}
+                                  className="flex-1 text-xs border border-zinc-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-400"
+                                />
+                                <button type="submit" className="p-1 text-emerald-600 hover:bg-emerald-50 rounded">
+                                  <Check className="w-3 h-3" />
+                                </button>
+                              </form>
+                            ) : confirmDeleteId === item.id ? (
+                              <div className="flex-1 flex items-center justify-between">
+                                <span className="text-[10px] text-rose-600 font-medium">Delete this session?</span>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleDeleteSession(item.id)}
+                                    className="px-2 py-0.5 text-[10px] font-medium text-white bg-rose-500 rounded hover:bg-rose-600"
+                                  >
+                                    Yes
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDeleteId(null)}
+                                    className="px-2 py-0.5 text-[10px] font-medium text-zinc-500 bg-zinc-100 rounded hover:bg-zinc-200"
+                                  >
+                                    No
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleSwitchSession(item.id)}
+                                  className="flex-1 text-left"
+                                >
+                                  <div className="text-xs font-medium text-zinc-700 truncate">{item.title ?? 'Untitled'}</div>
+                                  <div className="text-[9px] text-zinc-400 mt-0.5">
+                                    {item.mode ?? 'interview'} · {item.message_count} msg{item.message_count !== 1 ? 's' : ''}
+                                  </div>
+                                </button>
+                                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    type="button"
+                                    onClick={() => { setIsRenamingSession(item.id); setRenameText(item.title ?? ''); }}
+                                    className="p-1 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded"
+                                  >
+                                    <Edit2 className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDeleteId(item.id)}
+                                    className="p-1 text-zinc-400 hover:text-rose-500 hover:bg-rose-50 rounded"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-white">
                   {messages.map((msg) => (
-                    <div key={msg.id} className={`flex ${msg.role === 'ai' ? 'justify-start' : 'justify-end'}`}>
-                      <div className={`max-w-[85%] flex gap-2 ${msg.role === 'ai' ? '' : 'flex-row-reverse'}`}>
-                        <div className={`w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[8px] font-bold ${msg.role === 'ai' ? 'bg-zinc-900 text-white' : 'bg-zinc-200 text-zinc-600'}`}>
-                          {msg.role === 'ai' ? 'AI' : 'EX'}
+                    <div key={msg.id} className="space-y-1 group">
+                      <div className={`flex items-start gap-1 ${msg.role === 'ai' ? 'justify-start' : 'justify-end'}`}>
+                        {/* Delete button — left side for expert messages */}
+                        {msg.role !== 'ai' && (
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteMessage(msg.id)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity self-center p-1 text-zinc-300 hover:text-rose-400 hover:bg-rose-50 rounded shrink-0"
+                            title="Delete message"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                        <div className={`max-w-[85%] flex gap-2 ${msg.role === 'ai' ? '' : 'flex-row-reverse'}`}>
+                          <div className={`w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[8px] font-bold ${msg.role === 'ai' ? 'bg-zinc-900 text-white' : 'bg-zinc-200 text-zinc-600'}`}>
+                            {msg.role === 'ai' ? 'AI' : 'EX'}
+                          </div>
+                          <div className={`p-3 rounded-xl text-xs leading-relaxed ${msg.role === 'ai' ? 'bg-zinc-100 text-zinc-800' : 'bg-zinc-900 text-white'}`}>
+                            {msg.content}
+                          </div>
                         </div>
-                        <div className={`p-3 rounded-xl text-xs leading-relaxed ${msg.role === 'ai' ? 'bg-zinc-100 text-zinc-800' : 'bg-zinc-900 text-white'}`}>
-                          {msg.content}
-                        </div>
+                        {/* Delete button — right side for AI messages */}
+                        {msg.role === 'ai' && (
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteMessage(msg.id)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity self-center p-1 text-zinc-300 hover:text-rose-400 hover:bg-rose-50 rounded shrink-0"
+                            title="Delete message"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
+                      {/* Transparency layers 1-3 */}
+                      {msg.role === 'ai' && msg.activity && (
+                        <ActivityPanel
+                          msgId={msg.id}
+                          activity={msg.activity}
+                          isTraceExpanded={
+                            expandedPanels[msg.id] === 'trace' ||
+                            expandedPanels[msg.id] === 'reasoning'
+                          }
+                          isReasoningExpanded={expandedPanels[msg.id] === 'reasoning'}
+                          onToggleTrace={() =>
+                            setExpandedPanels((prev) => ({
+                              ...prev,
+                              [msg.id]:
+                                prev[msg.id] === 'trace' || prev[msg.id] === 'reasoning'
+                                  ? null
+                                  : 'trace',
+                            }))
+                          }
+                          onToggleReasoning={() =>
+                            setExpandedPanels((prev) => ({
+                              ...prev,
+                              [msg.id]: prev[msg.id] === 'reasoning' ? 'trace' : 'reasoning',
+                            }))
+                          }
+                          showReasoning={smartAiSettings.show_reasoning ?? true}
+                        />
+                      )}
                     </div>
                   ))}
+                  {/* Thinking indicator — shown while the AI is processing */}
+                  {isSendingMessage && (
+                    <div className="flex items-start gap-2">
+                      <div className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[8px] font-bold bg-zinc-900 text-white">
+                        AI
+                      </div>
+                      <div className="p-3 rounded-xl bg-zinc-100 flex gap-1 items-center">
+                        <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                        <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                        <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                      </div>
+                    </div>
+                  )}
                   {lastUpdateSummaries.length > 0 && (
                     <div className="mx-2 p-3 rounded-lg bg-zinc-50 border border-zinc-200 space-y-1.5">
                       <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Cell updates</div>
@@ -853,13 +1846,15 @@ export default function App() {
 
                 <div className="p-4 border-t border-zinc-100 bg-zinc-50/80">
                   <div className="space-y-3">
-                    <div className="flex flex-wrap gap-1.5">
-                      {['Define Stage 2', 'List systems', 'Risks'].map(chip => (
-                        <button key={chip} onClick={() => setInputText(chip)} className="px-2 py-1 bg-white border border-zinc-200 rounded-full text-[10px] text-zinc-500 hover:border-zinc-400 transition-colors">
-                          {chip}
-                        </button>
-                      ))}
-                    </div>
+                    {suggestedPrompts.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {suggestedPrompts.map(chip => (
+                          <button key={chip} onClick={() => setInputText(chip)} className="px-2 py-1 bg-white border border-zinc-200 rounded-full text-[10px] text-zinc-500 hover:border-zinc-400 transition-colors">
+                            {chip}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     
                     <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-zinc-900/5 focus-within:border-zinc-400 transition-all shadow-sm">
                       {/* Context Bar */}
@@ -978,10 +1973,94 @@ export default function App() {
                     )}
                   </div>
 
+                  {/* Actor context — shown when the parent lens has an actor type */}
+                  {(() => {
+                    const cellLens = selectedCell ? lenses.find((l) => l.id === selectedCell.lensId) : null;
+                    if (!cellLens?.actorType) return null;
+                    return (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Actor</label>
+                          <button
+                            type="button"
+                            onClick={() => handleEditActorOpen(cellLens)}
+                            className="text-[10px] text-zinc-400 hover:text-zinc-800 font-medium transition-colors"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                        <div className="p-3 bg-zinc-50 border border-zinc-200 rounded space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-zinc-900">{cellLens.label}</span>
+                            <span className="text-[9px] font-bold uppercase tracking-wider bg-zinc-200 text-zinc-600 px-1.5 py-0.5 rounded">
+                              {cellLens.actorType.replace('_', ' ')}
+                            </span>
+                          </div>
+                          {cellLens.personaDescription && (
+                            <p className="text-[11px] text-zinc-500 leading-snug">{cellLens.personaDescription}</p>
+                          )}
+                          {cellLens.primaryGoal && (
+                            <p className="text-[11px] text-zinc-600 leading-snug">
+                              <span className="font-medium">Goal:</span> {cellLens.primaryGoal}
+                            </p>
+                          )}
+                          {cellLens.standingConstraints && (
+                            <p className="text-[11px] text-zinc-600 leading-snug">
+                              <span className="font-medium">Constraints:</span> {cellLens.standingConstraints}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Structured actor cell fields — rendered when the parent lens has a defined template */}
+                  {(() => {
+                    const cellLensForFields = selectedCell ? lenses.find((l) => l.id === selectedCell.lensId) : null;
+                    const template = cellLensForFields?.actorType
+                      ? ACTOR_TEMPLATES.find((t) => t.actorType === cellLensForFields.actorType)
+                      : null;
+                    if (!template || template.cellFields.length === 0 || !selectedCell.actorFields) return null;
+                    return (
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
+                          {template.label} Fields
+                        </label>
+                        {template.cellFields.map((field) => {
+                          const rawVal = (selectedCell.actorFields as Record<string, string | null> | null | undefined)?.[field.key];
+                          const fieldValue = rawVal ?? '';
+                          return (
+                            <div key={field.key}>
+                              <label className="text-[10px] font-medium text-zinc-500 block mb-1">{field.label}</label>
+                              <div className="relative">
+                                <textarea
+                                  value={fieldValue}
+                                  onChange={(e) => updateCellActorField(selectedCell.id, field.key, e.target.value)}
+                                  disabled={selectedCell.isLocked}
+                                  placeholder={field.placeholder}
+                                  rows={2}
+                                  className={`w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-zinc-300 resize-none ${selectedCell.isLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                />
+                                {selectedCell.isLocked && (
+                                  <div className="absolute inset-0 bg-zinc-50/20 backdrop-blur-[1px] pointer-events-none" />
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
                   <div>
-                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-2">Content</label>
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-2">
+                      {(() => {
+                        const cellLensForNotes = selectedCell ? lenses.find((l) => l.id === selectedCell.lensId) : null;
+                        return cellLensForNotes?.actorType ? 'Notes' : 'Content';
+                      })()}
+                    </label>
                     <div className="relative">
-                      <textarea 
+                      <textarea
                         value={selectedCell.content}
                         onChange={(e) => updateCellContent(selectedCell.id, e.target.value)}
                         disabled={selectedCell.isLocked}
@@ -1043,8 +2122,72 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* ── Link to Map (only when inside an architecture) ──────── */}
+                {architectureId && (
+                  <div className="px-4 pb-4 space-y-3">
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Link to Map</label>
+
+                    {/* Link type */}
+                    <div className="flex rounded-lg border border-zinc-200 overflow-hidden">
+                      {(['exception', 'anti_journey', 'sub_journey'] as JourneyLinkType[]).map((t) => {
+                        const icons = { exception: '⚠', anti_journey: '↩', sub_journey: '⤵' };
+                        const labels = { exception: 'Exception', anti_journey: 'Anti-Journey', sub_journey: 'Sub-Journey' };
+                        return (
+                          <button key={t} onClick={() => { setCellLinkType(t); setCellLinkSuccess(false); }}
+                            className={`flex-1 py-1.5 text-[10px] font-medium transition-colors ${cellLinkType === t ? 'bg-indigo-600 text-white' : 'bg-white text-zinc-500 hover:bg-zinc-50'}`}>
+                            {icons[t]} {labels[t]}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Target map dropdown */}
+                    <select
+                      value={String(cellLinkTargetId)}
+                      onChange={(e) => { setCellLinkTargetId(e.target.value === 'new' ? 'new' : Number(e.target.value)); setCellLinkSuccess(false); }}
+                      className="w-full px-2.5 py-2 text-xs bg-white border border-zinc-200 rounded-lg text-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                      <option value="">Select target map…</option>
+                      {siblingMaps.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
+                      <option value="new">+ Create new map…</option>
+                    </select>
+
+                    {/* New map title (shown when "Create new map" is selected) */}
+                    {cellLinkTargetId === 'new' && (
+                      <input
+                        value={cellLinkNewTitle}
+                        onChange={(e) => setCellLinkNewTitle(e.target.value)}
+                        placeholder="e.g. Anti-Journey — Driver Can't Find Address"
+                        className="w-full px-2.5 py-2 text-xs bg-white border border-zinc-200 rounded-lg text-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                      />
+                    )}
+
+                    {/* Error */}
+                    {cellLinkError && (
+                      <p className="text-[11px] text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-1.5">{cellLinkError}</p>
+                    )}
+
+                    {/* Submit */}
+                    {cellLinkSuccess ? (
+                      <div className="flex items-center gap-2 text-xs text-emerald-600 font-medium py-1">
+                        <span>✓</span> Link created
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => void handleCreateCellLink()}
+                        disabled={!cellLinkTargetId || cellLinkCreating}
+                        className="w-full py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+                        {cellLinkCreating ? (
+                          <><span className="animate-spin">↻</span> Creating…</>
+                        ) : (
+                          <>→ {cellLinkTargetId === 'new' ? 'Create Map & Link' : 'Add Link'}</>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 <div className="p-4 border-t border-zinc-100 bg-zinc-50">
-                  <button 
+                  <button
                     onClick={handleCloseSelectedCell}
                     disabled={isXanoSyncing}
                     className="w-full py-2 bg-zinc-900 text-white rounded text-xs font-semibold hover:bg-zinc-800 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
@@ -1059,6 +2202,14 @@ export default function App() {
           </>
         )}
       </main>
+
+      {/* Actor Setup Wizard */}
+      <ActorSetupWizard
+        isOpen={showActorWizard}
+        onClose={() => { setShowActorWizard(false); setActorWizardEditTarget(null); }}
+        onConfirm={handleActorWizardConfirm}
+        existingLens={actorWizardEditTarget}
+      />
 
       {/* Footer / Legend */}
       <footer className="h-8 border-t border-zinc-200 bg-white flex items-center justify-between px-6 shrink-0 text-[10px] text-zinc-400 font-medium">

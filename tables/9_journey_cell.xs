@@ -44,6 +44,9 @@ table journey_cell {
   
     // Timestamp of the last content update for the cell (optional).
     date last_updated_at?
+  
+    // Stores structured actor-specific sub-fields for this cell. The JSON keys vary by actor type (e.g., entry_trigger, emotions, information_needs for a customer actor cell).
+    json actor_fields?
   }
 
   index = [

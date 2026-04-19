@@ -1,4 +1,4 @@
-// Stores individual messages within conversation threads.
+// v2 — Stores individual messages within conversation threads.
 table agent_message {
   auth = false
 
@@ -25,6 +25,9 @@ table agent_message {
   
     // The content of the message, compatible with AI SDK.
     json content?
+  
+    // Agent thinking output (reasoning trace) from include_thoughts. Null for user messages.
+    text thinking?
   }
 
   index = [

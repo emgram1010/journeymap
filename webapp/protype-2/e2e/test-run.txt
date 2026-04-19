@@ -1,0 +1,33 @@
+
+Running 1 test using 1 worker
+
+  ✘  1 e2e\chat-ai-fix.spec.ts:3:1 › chat sends message and gets real AI response without errors (5.6s)
+
+
+  1) e2e\chat-ai-fix.spec.ts:3:1 › chat sends message and gets real AI response without errors ─────
+
+    Error: AI endpoint returned 0 — expected 200
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m200[39m
+    Received: [31m0[39m
+
+      67 |
+      68 |   // 2. The backend did NOT return a 500
+    > 69 |   expect(aiResponseStatus, `AI endpoint returned ${aiResponseStatus} — expected 200`).toBe(200);
+         |                                                                                       ^
+      70 |
+      71 |   // 3. Response body has no error code
+      72 |   const body = aiResponseBody as Record<string, unknown> | null;
+        at C:\Users\javie\OneDrive\Documents\emgram1010\webapp\protype-2\e2e\chat-ai-fix.spec.ts:69:87
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\chat-ai-fix-chat-sends-mes-e9b7e--AI-response-without-errors\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\chat-ai-fix-chat-sends-mes-e9b7e--AI-response-without-errors\error-context.md
+
+  1 failed
+    e2e\chat-ai-fix.spec.ts:3:1 › chat sends message and gets real AI response without errors ──────
+FAILED 

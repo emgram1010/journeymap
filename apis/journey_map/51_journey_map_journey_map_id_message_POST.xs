@@ -1,6 +1,7 @@
 // Append a persisted expert/assistant exchange and safely persist interview-mode AI updates.
 query "journey_map/{journey_map_id}/message" verb=POST {
   api_group = "journey-map"
+  auth = "user"
 
   input {
     int journey_map_id? filters=min:1
@@ -49,6 +50,11 @@ query "journey_map/{journey_map_id}/message" verb=POST {
     precondition ($journey_map != null) {
       error_type = "notfound"
       error = "Journey map not found"
+    }
+  
+    precondition ($journey_map.owner_user == $auth.id) {
+      error_type = "accessdenied"
+      error = "Access denied"
     }
   
     precondition ($input.content != null && $input.content != "") {

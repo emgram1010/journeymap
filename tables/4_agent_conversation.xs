@@ -1,4 +1,4 @@
-// Stores conversation threads for agents/chatbots.
+// v2 — Stores conversation threads for agents/chatbots.
 table agent_conversation {
   auth = false
 

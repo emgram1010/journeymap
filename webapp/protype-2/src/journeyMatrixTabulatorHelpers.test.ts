@@ -23,11 +23,23 @@ const searchStages: Stage[] = [
   {id: 'stage-b', label: 'Stage B'},
 ];
 
-test('formatLensCellMarkup escapes editable lens labels', () => {
-  const markup = formatLensCellMarkup('<Customer & Ops>');
+test('formatLensCellMarkup escapes lens labels and renders actor pill and edit button', () => {
+  const markup = formatLensCellMarkup({label: '<Customer & Ops>', actorType: 'internal', lensId: 'lens-42'});
 
   assert.ok(markup.includes('&lt;Customer &amp; Ops&gt;'));
   assert.ok(markup.includes('jm-lens-cell'));
+  assert.ok(markup.includes('jm-lens-actor-pill'));
+  assert.ok(markup.includes('internal'));
+  assert.ok(markup.includes('data-edit-lens-id="lens-42"'));
+  assert.ok(markup.includes('jm-lens-edit-btn'));
+});
+
+test('formatLensCellMarkup renders without pill or edit button when actorType and lensId are absent', () => {
+  const markup = formatLensCellMarkup({label: 'Plain Row'});
+
+  assert.ok(markup.includes('Plain Row'));
+  assert.ok(!markup.includes('jm-lens-actor-pill'));
+  assert.ok(!markup.includes('jm-lens-edit-btn'));
 });
 
 test('formatMatrixCellMarkup renders selected confirmed cells with escaped content and data-cell-id', () => {
