@@ -664,5 +664,341 @@
     "staged": false,
     "sha256": "3f80d8023a89455d8f449e0cb53a7dd396276e2f608002dc4daa24f4764d82a2",
     "original": "Ly8gQ292ZXJzIGNlbGwgaWRlbnRpZmllciBzdGFiaWxpdHkgdGhyb3VnaCByZW5hbWUsIGFkZCwgYW5kIHJlbW92ZS4KLy8gVmVyaWZpZXMgY2Fub25pY2FsIGtleXMgYXJlIHByZXNlcnZlZCB3aGVuIGxhYmVscyBjaGFuZ2UsCi8vIGFuZCB0aGF0IG5ldyBzdGFnZXMvbGVuc2VzIGdldCB0aGVpciBvd24gc3RhYmxlIGtleXMuCndvcmtmbG93X3Rlc3Qgam91cm5leV9tYXBfY2VsbF9pZGVudGlmaWVycyB7CiAgc3RhY2sgewogICAgYXBpLmNhbGwgImpvdXJuZXlfbWFwL2NyZWF0ZV9kcmFmdCIgdmVyYj1QT1NUIHsKICAgICAgYXBpX2dyb3VwID0gImpvdXJuZXktbWFwIgogICAgICBpbnB1dCA9IHt0aXRsZTogIkNlbGwgSWRlbnRpZmllciBUZXN0Iiwgc3RhdHVzOiAiZHJhZnQifQogICAgfSBhcyAkZHJhZnQKICAKICAgIHZhciAkam91cm5leV9tYXBfaWQgewogICAgICB2YWx1ZSA9ICRkcmFmdC5qb3VybmV5X21hcC5pZAogICAgfQogIAogICAgLy8gTG9hZCB0aGUgaW5pdGlhbCBidW5kbGUgYW5kIGNhcHR1cmUgdGhlIGZpcnN0IHN0YWdlIGFuZCBsZW5zIGtleXMuCiAgICBhcGkuY2FsbCAiam91cm5leV9tYXAvbG9hZF9idW5kbGUve2pvdXJuZXlfbWFwX2lkfSIgdmVyYj1HRVQgewogICAgICBhcGlfZ3JvdXAgPSAiam91cm5leS1tYXAiCiAgICAgIGlucHV0ID0ge2pvdXJuZXlfbWFwX2lkOiAkam91cm5leV9tYXBfaWR9CiAgICB9IGFzICRpbml0aWFsX2J1bmRsZQogIAogICAgdmFyICRmaXJzdF9zdGFnZSB7CiAgICAgIHZhbHVlID0gJGluaXRpYWxfYnVuZGxlLnN0YWdlc1swXQogICAgfQogIAogICAgdmFyICRmaXJzdF9sZW5zIHsKICAgICAgdmFsdWUgPSAkaW5pdGlhbF9idW5kbGUubGVuc2VzWzBdCiAgICB9CiAgCiAgICB2YXIgJG9yaWdpbmFsX3N0YWdlX2tleSB7CiAgICAgIHZhbHVlID0gJGZpcnN0X3N0YWdlLmtleQogICAgfQogIAogICAgdmFyICRvcmlnaW5hbF9sZW5zX2tleSB7CiAgICAgIHZhbHVlID0gJGZpcnN0X2xlbnMua2V5CiAgICB9CiAgCiAgICAvLyBSZW5hbWUgdGhlIGZpcnN0IHN0YWdlIOKAlCBrZXkgbXVzdCBub3QgY2hhbmdlLgogICAgYXBpLmNhbGwgImpvdXJuZXlfc3RhZ2UvcmVuYW1lL3tqb3VybmV5X3N0YWdlX2lkfSIgdmVyYj1QQVRDSCB7CiAgICAgIGFwaV9ncm91cCA9ICJqb3VybmV5LW1hcCIKICAgICAgaW5wdXQgPSB7CiAgICAgICAgam91cm5leV9zdGFnZV9pZDogJGZpcnN0X3N0YWdlLmlkCiAgICAgICAgbGFiZWwgICAgICAgICAgIDogIlJlbmFtZWQgU3RhZ2UiCiAgICAgIH0KICAgIH0gYXMgJHN0YWdlX3JlbmFtZQogIAogICAgZXhwZWN0LnRvX2VxdWFsICgkc3RhZ2VfcmVuYW1lLmxhYmVsKSB7CiAgICAgIHZhbHVlID0gIlJlbmFtZWQgU3RhZ2UiCiAgICB9CiAgCiAgICBleHBlY3QudG9fZXF1YWwgKCRzdGFnZV9yZW5hbWUua2V5KSB7CiAgICAgIHZhbHVlID0gJG9yaWdpbmFsX3N0YWdlX2tleQogICAgfQogIAogICAgLy8gUmVuYW1lIHRoZSBmaXJzdCBsZW5zIOKAlCBrZXkgbXVzdCBub3QgY2hhbmdlLgogICAgYXBpLmNhbGwgImpvdXJuZXlfbGVucy9yZW5hbWUve2pvdXJuZXlfbGVuc19pZH0iIHZlcmI9UEFUQ0ggewogICAgICBhcGlfZ3JvdXAgPSAiam91cm5leS1tYXAiCiAgICAgIGlucHV0ID0ge2pvdXJuZXlfbGVuc19pZDogJGZpcnN0X2xlbnMuaWQsIGxhYmVsOiAiUmVuYW1lZCBMZW5zIn0KICAgIH0gYXMgJGxlbnNfcmVuYW1lCiAgCiAgICBleHBlY3QudG9fZXF1YWwgKCRsZW5zX3JlbmFtZS5sZW5zLmxhYmVsKSB7CiAgICAgIHZhbHVlID0gIlJlbmFtZWQgTGVucyIKICAgIH0KICAKICAgIGV4cGVjdC50b19lcXVhbCAoJGxlbnNfcmVuYW1lLmxlbnMua2V5KSB7CiAgICAgIHZhbHVlID0gJG9yaWdpbmFsX2xlbnNfa2V5CiAgICB9CiAgCiAgICAvLyBBZGQgYSBuZXcgc3RhZ2Ug4oCUIG11c3QgZ2V0IGl0cyBvd24ga2V5IGRpc3RpbmN0IGZyb20gZXhpc3Rpbmcgb25lcy4KICAgIGFwaS5jYWxsICJqb3VybmV5X3N0YWdlL2FkZC97am91cm5leV9tYXBfaWR9IiB2ZXJiPVBPU1QgewogICAgICBhcGlfZ3JvdXAgPSAiam91cm5leS1tYXAiCiAgICAgIGlucHV0ID0ge2pvdXJuZXlfbWFwX2lkOiAkam91cm5leV9tYXBfaWQsIGxhYmVsOiAiTmV3IFN0YWdlIn0KICAgIH0gYXMgJG5ld19zdGFnZQogIAogICAgZXhwZWN0LnRvX2JlX2RlZmluZWQgKCRuZXdfc3RhZ2Uuc3RhZ2Uua2V5KQogIAogICAgLy8gQWRkIGEgbmV3IGxlbnMg4oCUIG11c3QgZ2V0IGl0cyBvd24ga2V5LgogICAgYXBpLmNhbGwgImpvdXJuZXlfbGVucy9hZGQve2pvdXJuZXlfbWFwX2lkfSIgdmVyYj1QT1NUIHsKICAgICAgYXBpX2dyb3VwID0gImpvdXJuZXktbWFwIgogICAgICBpbnB1dCA9IHtqb3VybmV5X21hcF9pZDogJGpvdXJuZXlfbWFwX2lkLCBsYWJlbDogIk5ldyBMZW5zIn0KICAgIH0gYXMgJG5ld19sZW5zCiAgCiAgICBleHBlY3QudG9fYmVfZGVmaW5lZCAoJG5ld19sZW5zLmxlbnMua2V5KQogIAogICAgLy8gUmVsb2FkIGFuZCB2ZXJpZnkga2V5cyBzdXJ2aXZlZCBhbGwgY2hhbmdlcy4KICAgIGFwaS5jYWxsICJqb3VybmV5X21hcC9sb2FkX2J1bmRsZS97am91cm5leV9tYXBfaWR9IiB2ZXJiPUdFVCB7CiAgICAgIGFwaV9ncm91cCA9ICJqb3VybmV5LW1hcCIKICAgICAgaW5wdXQgPSB7am91cm5leV9tYXBfaWQ6ICRqb3VybmV5X21hcF9pZH0KICAgIH0gYXMgJGZpbmFsX2J1bmRsZQogIAogICAgLy8gVGhlIHJlbmFtZWQgc3RhZ2Ugc2hvdWxkIHN0aWxsIGhhdmUgaXRzIG9yaWdpbmFsIGtleS4KICAgIHZhciAkcmVuYW1lZF9zdGFnZSB7CiAgICAgIHZhbHVlID0gJGZpbmFsX2J1bmRsZS5zdGFnZXNbMF0KICAgIH0KICAKICAgIGV4cGVjdC50b19lcXVhbCAoJHJlbmFtZWRfc3RhZ2Uua2V5KSB7CiAgICAgIHZhbHVlID0gJG9yaWdpbmFsX3N0YWdlX2tleQogICAgfQogIAogICAgZXhwZWN0LnRvX2VxdWFsICgkcmVuYW1lZF9zdGFnZS5sYWJlbCkgewogICAgICB2YWx1ZSA9ICJSZW5hbWVkIFN0YWdlIgogICAgfQogIAogICAgLy8gVGhlIHJlbmFtZWQgbGVucyBzaG91bGQgc3RpbGwgaGF2ZSBpdHMgb3JpZ2luYWwga2V5LgogICAgdmFyICRyZW5hbWVkX2xlbnMgewogICAgICB2YWx1ZSA9ICRmaW5hbF9idW5kbGUubGVuc2VzWzBdCiAgICB9CiAgCiAgICBleHBlY3QudG9fZXF1YWwgKCRyZW5hbWVkX2xlbnMua2V5KSB7CiAgICAgIHZhbHVlID0gJG9yaWdpbmFsX2xlbnNfa2V5CiAgICB9CiAgCiAgICBleHBlY3QudG9fZXF1YWwgKCRyZW5hbWVkX2xlbnMubGFiZWwpIHsKICAgICAgdmFsdWUgPSAiUmVuYW1lZCBMZW5zIgogICAgfQogIAogICAgLy8gRXZlcnkgY2VsbCBpbiB0aGUgYnVuZGxlIHNob3VsZCBoYXZlIGEgc3RhZ2UgYW5kIGxlbnMgcmVmZXJlbmNlLgogICAgdmFyICRjZWxsX2NvdW50IHsKICAgICAgdmFsdWUgPSAkZmluYWxfYnVuZGxlLmNlbGxzfGNvdW50CiAgICB9CiAgCiAgICBleHBlY3QudG9fZXF1YWwgKCRjZWxsX2NvdW50ID4gMCkgewogICAgICB2YWx1ZSA9IHRydWUKICAgIH0KICAKICAgIC8vIFJlbW92ZSB0aGUgYWRkZWQgc3RhZ2UgYW5kIGxlbnMgdG8gY2xlYW4gdXAuCiAgICBhcGkuY2FsbCAiam91cm5leV9zdGFnZS9yZW1vdmUve2pvdXJuZXlfc3RhZ2VfaWR9IiB2ZXJiPURFTEVURSB7CiAgICAgIGFwaV9ncm91cCA9ICJqb3VybmV5LW1hcCIKICAgICAgaW5wdXQgPSB7am91cm5leV9zdGFnZV9pZDogJG5ld19zdGFnZS5zdGFnZS5pZH0KICAgIH0KICAKICAgIGFwaS5jYWxsICJqb3VybmV5X2xlbnMvcmVtb3ZlL3tqb3VybmV5X2xlbnNfaWR9IiB2ZXJiPURFTEVURSB7CiAgICAgIGFwaV9ncm91cCA9ICJqb3VybmV5LW1hcCIKICAgICAgaW5wdXQgPSB7am91cm5leV9sZW5zX2lkOiAkbmV3X2xlbnMubGVucy5pZH0KICAgIH0KICB9Cn0="
+  },
+  {
+    "id": 0,
+    "path": "tables/10_agent_capability.xs",
+    "status": "new",
+    "type": "table",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tables/11_agent_tool_log.xs",
+    "status": "new",
+    "type": "table",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tables/12_agent_turn_log.xs",
+    "status": "new",
+    "type": "table",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tables/13_journey_architecture.xs",
+    "status": "new",
+    "type": "table",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tables/14_journey_link.xs",
+    "status": "new",
+    "type": "table",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/10_batch_set_status.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/11_search_cells.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/12_update_actor_cell_fields.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/13_update_actor_identity.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/14_update_journey_settings.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/2_get_map_state.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/3_update_cell.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/4_mutate_structure.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/5_batch_update.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/6_set_cell_status.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/7_scaffold_structure.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/8_get_slice.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/9_get_gaps.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/52_journey_map_journey_map_id_ai_message_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/53_journey_map_journey_map_id_conversations_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/54_journey_map_journey_map_id_conversation_conversation_id_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/55_journey_map_journey_map_id_conversation_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/56_journey_map_journey_map_id_conversation_conversation_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/57_journey_map_journey_map_id_conversation_conversation_id_DELETE.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/58_journey_map_journey_map_id_conversation_conversation_id_message_message_id_DELETE.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/59_journey_map_journey_map_id_turn_logs_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/60_test_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/61_journey_lens_backfill_descriptions_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/62_journey_map_settings_journey_map_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/63_journey_lens_actor_fields_journey_lens_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/63_journey_map_smart_ai_settings_journey_map_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/64_journey_architecture_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/65_journey_architecture_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/66_journey_architecture_journey_architecture_id_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/67_journey_architecture_journey_architecture_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/68_journey_architecture_journey_architecture_id_DELETE.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/69_journey_architecture_bundle_journey_architecture_id_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/70_journey_architecture_journey_architecture_id_link_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/71_journey_link_journey_link_id_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/72_journey_link_journey_link_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/73_journey_link_journey_link_id_DELETE.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/74_journey_link_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "workflow_tests/5_journey_map_ai_agent_tools.xs",
+    "status": "new",
+    "type": "workflow_test",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "workflow_tests/6_journey_map_ai_tool_optimization.xs",
+    "status": "new",
+    "type": "workflow_test",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "workflow_tests/7_ai_transparency.xs",
+    "status": "new",
+    "type": "workflow_test",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "workflow_tests/8_conversation_persistence.xs",
+    "status": "new",
+    "type": "workflow_test",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "workflow_tests/8_epic2_lens_descriptions.xs",
+    "status": "new",
+    "type": "workflow_test",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "agents/2_journey_map_assistant.xs",
+    "status": "new",
+    "type": "agent",
+    "staged": false
   }
 ]

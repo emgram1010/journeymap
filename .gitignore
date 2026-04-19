@@ -1,5 +1,10 @@
 # Dependencies
-**/node_modules/
+**/node_modules
+test-haiku.cjs
+test-key.cjs
+test-key*.cjs
+*.env
+.env*/
 
 # Build outputs
 **/dist/
