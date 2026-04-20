@@ -198,13 +198,15 @@ export default function JourneyMatrixTabulator({
         headerSort: false,
         editableTitle: true,
         formatter: (cell: any) => {
-          const lensId = String(cell.getRow().getData().id);
+          const rowData = cell.getRow().getData();
+          const lensId = String(rowData.id);
           const meta = cellMapRef.current.get(`${stage.id}:${lensId}`);
           return formatMatrixCellMarkup({
             content: cell.getValue(),
             meta,
             selectedCellId: selectedCellIdRef.current,
             linkedCells: linkedCellsRef.current,
+            actorType: rowData.lensActorType || undefined,
           });
         },
       })),

@@ -80,6 +80,12 @@ table journey_map {
     int journey_architecture? {
       table = "journey_architecture"
     }
+  
+    // Optional reference to the journey map this map was cloned from.
+    // Set when a scenario is created by cloning an existing map. Null for originals.
+    int cloned_from_map_id? {
+      table = "journey_map"
+    }
   }
 
   index = [

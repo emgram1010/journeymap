@@ -1,4 +1,6 @@
-import type {MatrixCell, Stage} from './types';
+import type {MatrixCell, Stage, MetricsActorFields} from './types';
+import {parseMetricValue, calcStageHealth} from './types';
+import {METRICS_THRESHOLDS, getMetricColor} from './constants';
 
 type ToggleableClassList = {
   toggle(className: string, force?: boolean): void;
@@ -68,16 +70,68 @@ export interface CellLinkInfo {
   targetMapId: number;
 }
 
+const METRIC_DOT_COLOR: Record<string, string> = {green: '#22c55e', yellow: '#f59e0b', red: '#ef4444'};
+
+/** Renders a compact scorecard chip for a metrics actor cell. */
+const formatMetricsScorecardMarkup = (fields: MetricsActorFields): string => {
+  const f = fields;
+  const health = f.stage_health != null ? parseMetricValue(f.stage_health) : calcStageHealth(f);
+  const healthColor = METRIC_DOT_COLOR[getMetricColor('stage_health', health)];
+
+  const dot = (key: string, val: number | null) =>
+    `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${METRIC_DOT_COLOR[getMetricColor(key, val)]};flex-shrink:0"></span>`;
+
+  const metricPairs: Array<[string, string, number | null, string]> = [
+    ['csat_score',          'CSAT',       parseMetricValue(f.csat_score),          '/10'],
+    ['completion_rate',     'Done',        parseMetricValue(f.completion_rate),     '%'],
+    ['drop_off_rate',       'Drop-off',   parseMetricValue(f.drop_off_rate),       '%'],
+    ['error_rate',          'Errors',     parseMetricValue(f.error_rate),          '%'],
+    ['sla_compliance_rate', 'SLA',        parseMetricValue(f.sla_compliance_rate), '%'],
+  ];
+
+  const pairRows = metricPairs
+    .filter(([, , v]) => v != null)
+    .map(([key, label, val, unit]) =>
+      `<div style="display:flex;align-items:center;gap:3px;min-width:0">
+        <span style="font-size:9px;color:#71717a;white-space:nowrap">${label}</span>
+        <span style="font-size:10px;font-weight:600;color:#18181b">${val}${unit}</span>
+        ${dot(key, val)}
+      </div>`,
+    )
+    .join('');
+
+  const hasAnyField = health != null || pairRows !== '';
+
+  if (!hasAnyField) {
+    return `<div style="display:flex;align-items:center;gap:4px;padding:2px 0;color:#a1a1aa;font-size:10px">📊 No metrics yet</div>`;
+  }
+
+  const healthDisplay = health != null
+    ? `<span style="font-size:13px;font-weight:700;color:#18181b">${health.toFixed(1)}</span>
+       <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${healthColor};margin-left:3px"></span>`
+    : `<span style="font-size:11px;color:#a1a1aa">—</span>`;
+
+  return `<div style="display:flex;flex-direction:column;gap:3px;padding:1px 0">
+    <div style="display:flex;align-items:center;gap:4px">
+      <span style="font-size:9px;color:#71717a;font-weight:500">Health</span>
+      ${healthDisplay}
+    </div>
+    ${pairRows !== '' ? `<div style="display:flex;flex-wrap:wrap;gap:4px 8px">${pairRows}</div>` : ''}
+  </div>`;
+};
+
 export const formatMatrixCellMarkup = ({
   content,
   meta,
   selectedCellId,
   linkedCells,
+  actorType,
 }: {
   content: unknown;
   meta?: MatrixCell;
   selectedCellId: string | null;
   linkedCells?: Map<number, CellLinkInfo>;
+  actorType?: string;
 }) => {
   const contentText = String(content ?? '');
   const selectedClass = meta?.id === selectedCellId ? 'is-selected' : '';
@@ -86,6 +140,26 @@ export const formatMatrixCellMarkup = ({
     ? '<span class="jm-status-indicator lock">🔒</span>'
     : `<span class="jm-status-indicator ${indicatorClass}"></span>`;
   const cellIdAttribute = meta?.id ? ` data-cell-id="${escapeHtml(meta.id)}"` : '';
+
+  // Breakpoint indicator
+  let linkIndicator = '';
+  if (meta?.xanoId && linkedCells?.has(meta.xanoId)) {
+    const info = linkedCells.get(meta.xanoId)!;
+    const icon = LINK_TYPE_ICON[info.linkType] ?? '→';
+    linkIndicator = `<span class="jm-link-indicator" data-link-target="${info.targetMapId}" title="View linked map →" style="position:absolute;bottom:4px;right:20px;font-size:11px;cursor:pointer;opacity:0.7;line-height:1">${icon}</span>`;
+  }
+
+  // Metrics actor — render compact scorecard instead of text + badge.
+  if (actorType === 'metrics' && meta?.actorFields && typeof meta.actorFields === 'object') {
+    const scorecard = formatMetricsScorecardMarkup(meta.actorFields as MetricsActorFields);
+    return `
+      <div class="jm-grid-cell ${selectedClass}"${cellIdAttribute} style="position:relative">
+        <div class="jm-grid-content" style="overflow:visible">${scorecard}</div>
+        <div class="jm-grid-meta">${indicator}</div>
+        ${linkIndicator}
+      </div>
+    `;
+  }
 
   // Actor field count badge — shown when the cell has structured actor fields.
   let actorBadge = '';
@@ -104,14 +178,6 @@ export const formatMatrixCellMarkup = ({
   const hasActorFields = actorBadge !== '';
   const displayText = hasContent ? escapeHtml(contentText) : 'No data';
   const isEmpty = !hasContent && !hasActorFields;
-
-  // Breakpoint indicator — shown when this cell is the source of a journey link.
-  let linkIndicator = '';
-  if (meta?.xanoId && linkedCells?.has(meta.xanoId)) {
-    const info = linkedCells.get(meta.xanoId)!;
-    const icon = LINK_TYPE_ICON[info.linkType] ?? '→';
-    linkIndicator = `<span class="jm-link-indicator" data-link-target="${info.targetMapId}" title="View linked map →" style="position:absolute;bottom:4px;right:20px;font-size:11px;cursor:pointer;opacity:0.7;line-height:1">${icon}</span>`;
-  }
 
   return `
     <div class="jm-grid-cell ${selectedClass}"${cellIdAttribute} style="position:relative">

@@ -1,12 +1,13 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {useNavigate, useParams} from 'react-router-dom';
+import {useNavigate, useParams, useSearchParams} from 'react-router-dom';
 import ArchitectureGraph from './ArchitectureGraph';
-import {Plus, RotateCcw, MoreHorizontal, Pencil, Archive, Trash2, Check, X, ArrowLeft, LayoutGrid, ArrowRight, Network} from 'lucide-react';
+import {Plus, RotateCcw, MoreHorizontal, Pencil, Archive, Trash2, Check, X, ArrowLeft, LayoutGrid, ArrowRight, Network, Layers, Copy} from 'lucide-react';
 import {
   loadJourneyArchitectureBundle,
   updateJourneyArchitecture,
   deleteJourneyArchitecture,
   createDraftJourneyMap,
+  cloneScenario,
   updateJourneyMapMeta,
   deleteJourneyMap,
   deleteJourneyLink,
@@ -17,6 +18,8 @@ import {
   type JourneyMapStatus,
   type JourneyLinkType,
 } from './xano';
+import ScenariosTab from './ScenariosTab';
+import CompareHealthView from './CompareHealthView';
 
 function relativeTime(value: string | number | null | undefined): string {
   if (!value) return '';
@@ -62,10 +65,11 @@ interface MapTileProps {
   onRename: (title: string) => Promise<void>;
   onDelete: () => void;
   onArchive: () => void;
+  onDuplicate: () => void;
   onRemoveLink: (linkId: number) => Promise<void>;
 }
 
-function MapTile({map, links, allMaps, onOpen, onRename, onDelete, onArchive, onRemoveLink}: MapTileProps) {
+function MapTile({map, links, allMaps, onOpen, onRename, onDelete, onArchive, onDuplicate, onRemoveLink}: MapTileProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(map.title);
@@ -164,6 +168,7 @@ function MapTile({map, links, allMaps, onOpen, onRename, onDelete, onArchive, on
         {menuOpen && !confirmDelete && (
           <div className="absolute right-0 top-7 w-40 bg-white border border-zinc-200 rounded-lg shadow-lg z-10 py-1 text-xs">
             <button onClick={() => {setRenaming(true); setMenuOpen(false);}} className="flex items-center gap-2 w-full px-3 py-2 hover:bg-zinc-50 text-zinc-700"><Pencil className="w-3.5 h-3.5" />Rename</button>
+            <button onClick={() => {onDuplicate(); setMenuOpen(false);}} className="flex items-center gap-2 w-full px-3 py-2 hover:bg-zinc-50 text-zinc-700"><Copy className="w-3.5 h-3.5" />Duplicate</button>
             <button onClick={() => {onArchive(); setMenuOpen(false);}} className="flex items-center gap-2 w-full px-3 py-2 hover:bg-zinc-50 text-zinc-700"><Archive className="w-3.5 h-3.5" />{isArchived ? 'Unarchive' : 'Archive'}</button>
             <div className="border-t border-zinc-100 my-1" />
             <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-2 w-full px-3 py-2 hover:bg-rose-50 text-rose-600"><Trash2 className="w-3.5 h-3.5" />Delete</button>
@@ -194,6 +199,7 @@ const ARCH_STATUS_STYLES: Record<JourneyArchitectureStatus, string> = {
 export default function ArchitectureDetail() {
   const {id} = useParams<{id: string}>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const archId = Number(id);
 
   const [arch, setArch] = useState<XanoJourneyArchitecture | null>(null);
@@ -203,8 +209,20 @@ export default function ArchitectureDetail() {
   const [isCreatingMap, setIsCreatingMap] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Link drawer state
-  // Graph view toggle
-  const [viewMode, setViewMode] = useState<'grid' | 'graph'>('grid');
+  // View tab toggle — initialise from ?tab= URL param so back-nav from editor restores the right tab
+  const initialTab = searchParams.get('tab');
+  const [viewMode, setViewMode] = useState<'grid' | 'graph' | 'scenarios'>(
+    initialTab === 'scenarios' ? 'scenarios' : 'grid',
+  );
+  // Separate count for scenarios badge — updated via callback so it stays fresh without re-fetching the bundle
+  const [scenariosCount, setScenariosCount] = useState<number | null>(null);
+
+  // Compare — parse ?comparing=mapAId,mapBId from URL
+  const comparingParam = searchParams.get('comparing');
+  const comparingIds = comparingParam
+    ? comparingParam.split(',').map(Number).filter((n) => !isNaN(n) && n > 0)
+    : [];
+  const isComparing = comparingIds.length === 2;
 
   // Inline edit state for title / description
   const [editingTitle, setEditingTitle] = useState(false);
@@ -303,6 +321,16 @@ export default function ArchitectureDetail() {
     catch { setMaps((ms) => ms.map((m) => (m.id === map.id ? map : m))); }
   };
 
+  const handleDuplicateMap = async (map: XanoJourneyMap) => {
+    if (!arch) return;
+    try {
+      const clone = await cloneScenario(archId, map.id, `Copy of ${map.title}`);
+      setMaps((prev) => [{...clone, last_interaction_at: clone.updated_at} as XanoJourneyMap, ...prev]);
+    } catch {
+      setError('Unable to duplicate map. Please try again.');
+    }
+  };
+
   const handleDeleteMap = async (mapId: number) => {
     const prev = maps.find((m) => m.id === mapId);
     setMaps((ms) => ms.filter((m) => m.id !== mapId));
@@ -352,7 +380,7 @@ export default function ArchitectureDetail() {
           {arch && <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${ARCH_STATUS_STYLES[arch.status]}`}>{arch.status}</span>}
         </div>
         <div className="flex items-center gap-3">
-          {/* Grid / Graph toggle */}
+          {/* Grid / Graph / Scenarios toggle */}
           <div className="flex rounded-lg border border-zinc-200 overflow-hidden">
             <button onClick={() => setViewMode('grid')}
               className={`px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 transition-colors ${viewMode === 'grid' ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-500 hover:bg-zinc-50'}`}>
@@ -362,12 +390,23 @@ export default function ArchitectureDetail() {
               className={`px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 transition-colors ${viewMode === 'graph' ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-500 hover:bg-zinc-50'}`}>
               <Network className="w-3.5 h-3.5" />Graph
             </button>
+            <button onClick={() => setViewMode('scenarios')}
+              className={`px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 transition-colors ${viewMode === 'scenarios' ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-500 hover:bg-zinc-50'}`}>
+              <Layers className="w-3.5 h-3.5" />Scenarios
+              {(scenariosCount ?? maps.length) > 0 && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${viewMode === 'scenarios' ? 'bg-white/20' : 'bg-zinc-100 text-zinc-500'}`}>
+                  {scenariosCount ?? maps.length}
+                </span>
+              )}
+            </button>
           </div>
-          <button onClick={() => void handleCreateMap()} disabled={isCreatingMap}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white text-sm font-semibold rounded-xl hover:bg-zinc-800 disabled:opacity-60 transition-colors shadow-sm">
-            {isCreatingMap ? <RotateCcw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-            New Journey Map
-          </button>
+          {viewMode !== 'scenarios' && (
+            <button onClick={() => void handleCreateMap()} disabled={isCreatingMap}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white text-sm font-semibold rounded-xl hover:bg-zinc-800 disabled:opacity-60 transition-colors shadow-sm">
+              {isCreatingMap ? <RotateCcw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              New Journey Map
+            </button>
+          )}
           {/* Architecture kebab */}
           <div ref={archMenuRef} className="relative">
             <button onClick={() => setArchMenuOpen((v) => !v)} className="p-2 rounded-lg hover:bg-zinc-100 transition">
@@ -442,6 +481,38 @@ export default function ArchitectureDetail() {
           />
         )}
 
+        {/* Scenarios view / Compare view */}
+        {viewMode === 'scenarios' && (
+          isComparing ? (
+            <CompareHealthView
+              archId={archId}
+              mapAId={comparingIds[0]}
+              mapBId={comparingIds[1]}
+              onBack={() => navigate(`/architectures/${archId}?tab=scenarios`)}
+              onOpenJourney={(mapId) => navigate(`/maps/${mapId}?arch=${archId}&tab=scenarios`)}
+            />
+          ) : (
+            <ScenariosTab
+              archId={archId}
+              onCountChange={setScenariosCount}
+              onCompare={(a, b) => navigate(`/architectures/${archId}?tab=scenarios&comparing=${a},${b}`)}
+              onOpenScenario={(scenarioId) => navigate(`/maps/${scenarioId}?arch=${archId}&tab=scenarios`)}
+              onCloneScenario={async (sourceId, sourceTitle) => {
+                const clone = await cloneScenario(archId, sourceId, `Copy of ${sourceTitle ?? 'Scenario'}`);
+                setMaps((prev) => [{...clone, last_interaction_at: clone.updated_at} as XanoJourneyMap, ...prev]);
+              }}
+              onCreateBlank={async () => {
+                const bundle = await createDraftJourneyMap({
+                  title: 'Untitled Scenario',
+                  status: 'draft',
+                  journey_architecture_id: archId,
+                });
+                navigate(`/maps/${bundle.journeyMap.id}?arch=${archId}&tab=scenarios`);
+              }}
+            />
+          )
+        )}
+
         {/* Grid view */}
         {viewMode === 'grid' && maps.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center py-20 px-6">
@@ -466,6 +537,7 @@ export default function ArchitectureDetail() {
                 allMaps={maps}
                 onOpen={() => navigate(`/maps/${map.id}?arch=${archId}`)}
                 onRename={(title) => handleRenameMap(map.id, title)}
+                onDuplicate={() => void handleDuplicateMap(map)}
                 onArchive={() => void handleArchiveMap(map)}
                 onDelete={() => void handleDeleteMap(map.id)}
                 onRemoveLink={handleRemoveLink}

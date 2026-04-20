@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Send,
@@ -34,13 +34,16 @@ import {
   Settings,
   ArrowLeft,
   LogOut,
+  BarChart2,
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
-import { Message, MessageActivity, MatrixCell, CellStatus, Stage, Lens, ToolTraceEntry } from './types';
+import { Message, MessageActivity, MatrixCell, CellStatus, Stage, Lens, ToolTraceEntry, isMetricsActorFields, parseMetricValue, calcStageHealth } from './types';
+import type {MetricsActorFields} from './types';
 import {cloneCellSnapshot, hasPendingCellChanges, resolveCellPersistenceBaseline} from './cellPersistence';
-import { STAGES as INITIAL_STAGES, LENSES as INITIAL_LENSES, ACTOR_TEMPLATES } from './constants';
+import { STAGES as INITIAL_STAGES, LENSES as INITIAL_LENSES, ACTOR_TEMPLATES, METRICS_THRESHOLDS, getMetricColor, METRICS_ACTOR_ENABLED } from './constants';
 import JourneyMatrixTabulator from './JourneyMatrixTabulator';
+import { JourneyHealthWidget } from './JourneyHealthWidget';
 import {ActorSetupWizard} from './ActorSetupWizard';
 import type {ActorWizardInput} from './ActorSetupWizard';
 import {buildCellReferenceLabel, buildCellShorthand, buildSelectedCellContext} from './cellIdentifiers';
@@ -84,6 +87,8 @@ import {
   SMART_AI_DEFAULTS,
   type JourneyLinkType,
   type ParentJourneyContext,
+  fetchScorecard,
+  type ScorecardResult,
 } from './xano';
 import type {CellLinkInfo} from './journeyMatrixTabulatorHelpers';
 
@@ -263,6 +268,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const architectureId = searchParams.get('arch') ? Number(searchParams.get('arch')) : null;
+  const fromScenarios = searchParams.get('tab') === 'scenarios';
   const { user, logout } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -314,6 +320,11 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const [showActorWizard, setShowActorWizard] = useState(false);
   const [actorWizardEditTarget, setActorWizardEditTarget] = useState<Lens | null>(null);
   const [inboundContext, setInboundContext] = useState<ParentJourneyContext | null>(null);
+  // ── Scorecard / Health Widget (US-MET-12/14) ──
+  const [scorecard, setScorecard] = useState<ScorecardResult | null>(null);
+  const [scorecardBaseline, setScorecardBaseline] = useState<ScorecardResult | null>(null);
+  const [widgetVisible, setWidgetVisible] = useState(true);
+  const scorecardDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
@@ -400,6 +411,21 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     [applyJourneyMapBundle, journeyMapRecord],
   );
 
+  // ── Scorecard refresh (US-MET-14) ──────────────────────────────────────────
+  const refreshScorecard = useCallback(async (mapId: number, isInitial = false) => {
+    if (!METRICS_ACTOR_ENABLED) return;
+    try {
+      const result = await fetchScorecard(mapId);
+      setScorecard(result);
+      if (isInitial) setScorecardBaseline(result);
+    } catch { /* scorecard is non-critical — swallow errors */ }
+  }, []);
+
+  const debouncedRefreshScorecard = useCallback((mapId: number) => {
+    if (scorecardDebounceRef.current) clearTimeout(scorecardDebounceRef.current);
+    scorecardDebounceRef.current = setTimeout(() => { void refreshScorecard(mapId); }, 2000);
+  }, [refreshScorecard]);
+
   const syncLatestJourneyMap = useCallback(async () => {
     setIsXanoSyncing(true);
     setXanoError(null);
@@ -440,7 +466,11 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
       setIsXanoSyncing(true);
       setXanoError(null);
       loadJourneyMapBundle(journeyMapId)
-        .then((bundle) => { applyJourneyMapBundle(bundle); setInitialLoadState('ready'); })
+        .then((bundle) => {
+          applyJourneyMapBundle(bundle);
+          setInitialLoadState('ready');
+          void refreshScorecard(journeyMapId, true);
+        })
         .catch((err) => {
           applyJourneyMapBundle(null);
           setXanoError(err instanceof Error ? err.message : 'Unable to load journey map.');
@@ -703,6 +733,18 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const selectedCellReference = buildCellReferenceLabel(selectedStageLabel, selectedLensLabel);
   const selectedCellShorthand = buildCellShorthand(selectedCell, stages, lenses);
   const selectedCellContext = buildSelectedCellContext({cell: selectedCell, stages, lenses, journeyMapId: journeyMapRecord?.id});
+  const selectedCellLens = selectedCell ? lenses.find((l) => l.id === selectedCell.lensId) ?? null : null;
+
+  /**
+   * SE-B3: Memoized stage health for the detail panel.
+   * Prefers explicit stage_health; falls back to calcStageHealth from sibling fields.
+   */
+  const metricsStageHealth = useMemo<number | null>(() => {
+    if (!selectedCell?.actorFields || !isMetricsActorFields(selectedCell.actorFields)) return null;
+    const f = selectedCell.actorFields;
+    const explicit = parseMetricValue(f.stage_health);
+    return explicit ?? calcStageHealth(f);
+  }, [selectedCell?.actorFields]);
 
   const handleSendMessage = useCallback(async () => {
     const messageText = inputText.trim();
@@ -878,6 +920,9 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
           setSelectedCellSnapshot(cloneCellSnapshot(nextCell));
         }
 
+        // Debounced scorecard refresh after cell save (SE-D1)
+        if (persistedCell.journey_map) debouncedRefreshScorecard(persistedCell.journey_map);
+
         return true;
       } catch (error) {
         if (baselineCell) {
@@ -894,7 +939,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         setIsXanoSyncing(false);
       }
     },
-    [selectedCellId, selectedCellSnapshot],
+    [selectedCellId, selectedCellSnapshot, debouncedRefreshScorecard],
   );
 
   const handleSelectCell = useCallback(
@@ -942,6 +987,19 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
       currentCells.map((cell) =>
         cell.id === id
           ? {...cell, actorFields: {...(cell.actorFields as Record<string, string | null> ?? {}), [fieldKey]: value || null}}
+          : cell,
+      ),
+    );
+  };
+
+  /** Updates a numeric MetricsActorFields field, converting the raw input string to number | null. */
+  const updateCellMetricField = (id: string, fieldKey: string, raw: string) => {
+    const num = raw.trim() === '' ? null : Number(raw);
+    const value = num === null || isNaN(num) ? null : num;
+    setCells((currentCells) =>
+      currentCells.map((cell) =>
+        cell.id === id
+          ? {...cell, actorFields: {...(cell.actorFields as Record<string, unknown> ?? {}), [fieldKey]: value}}
           : cell,
       ),
     );
@@ -1185,11 +1243,19 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
       {/* Editor top bar */}
       <div className="h-10 border-b border-zinc-200 bg-white flex items-center justify-between px-4 shrink-0 z-20">
         <button
-          onClick={() => navigate(architectureId ? `/architectures/${architectureId}` : '/dashboard')}
+          onClick={() => navigate(
+            architectureId
+              ? fromScenarios
+                ? `/architectures/${architectureId}?tab=scenarios`
+                : `/architectures/${architectureId}`
+              : '/dashboard'
+          )}
           className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-900 transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          <span className="font-medium">{architectureId ? 'Architecture' : 'Dashboard'}</span>
+          <span className="font-medium">
+            {architectureId ? (fromScenarios ? 'Scenarios' : 'Architecture') : 'Dashboard'}
+          </span>
         </button>
         <span className="text-xs font-semibold text-zinc-700 truncate max-w-xs px-2">
           {journeyMapRecord?.title ?? ''}
@@ -1403,6 +1469,20 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
                     <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} type="text" placeholder="Search matrix..." className="pl-8 pr-3 py-1.5 bg-zinc-100 border-none rounded text-xs focus:ring-1 focus:ring-zinc-300 w-48" />
                   </div>
+                  {/* US-MET-19 — Journey Health chip: always-visible signal, toggles right sidebar */}
+                  {METRICS_ACTOR_ENABLED && journeyMapRecord && (
+                    <button
+                      onClick={() => setWidgetVisible(v => !v)}
+                      title="Journey Health"
+                      className={`inline-flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-[11px] font-medium transition-colors ${widgetVisible ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
+                    >
+                      <BarChart2 className="h-3.5 w-3.5" />
+                      {scorecard?.metrics_rollup?.map_health != null
+                        ? scorecard.metrics_rollup.map_health.toFixed(1)
+                        : '—'}
+                      <span className={`text-[10px] ${scorecard?.metrics_rollup?.map_hl === 'healthy' ? 'text-emerald-500' : scorecard?.metrics_rollup?.map_hl === 'at_risk' ? 'text-amber-500' : scorecard?.metrics_rollup?.map_hl === 'critical' ? 'text-red-500' : 'text-zinc-300'}`}>●</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => setIsSettingsOpen((v) => !v)}
                     title="Journey Settings"
@@ -2014,9 +2094,107 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     );
                   })()}
 
-                  {/* Structured actor cell fields — rendered when the parent lens has a defined template */}
+                  {/* Metrics cell panel — structured scorecard, replaces generic field list */}
+                  {METRICS_ACTOR_ENABLED && selectedCellLens?.actorType === 'metrics' && selectedCell.actorFields && isMetricsActorFields(selectedCell.actorFields) && (() => {
+                    const mf = selectedCell.actorFields as MetricsActorFields;
+                    const healthColor = metricsStageHealth != null ? getMetricColor('stage_health', metricsStageHealth) : null;
+                    const healthDotColors: Record<string, string> = {green: '#22c55e', yellow: '#f59e0b', red: '#ef4444'};
+                    const dot = (key: string, val: number | null) => (
+                      <span style={{display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: healthDotColors[getMetricColor(key, val)], flexShrink: 0}} />
+                    );
+                    const numericRows: Array<[keyof MetricsActorFields, string, string, string]> = [
+                      ['csat_score',          'CSAT Score',           '1–10',    'healthy ≥ 8.0'],
+                      ['completion_rate',     'Completion Rate',      '%',       'healthy ≥ 90%'],
+                      ['drop_off_rate',       'Drop-off Rate',        '%',       'healthy ≤ 10%'],
+                      ['error_rate',          'Error Rate',           '%',       'healthy ≤ 5%'],
+                      ['sla_compliance_rate', 'SLA Compliance',       '%',       'healthy ≥ 90%'],
+                      ['avg_time_to_complete','Avg Time (min)',        'min',     ''],
+                    ];
+                    return (
+                      <div className="space-y-3">
+                        {/* AI Infer button */}
+                        <button
+                          type="button"
+                          disabled={true}
+                          title="Available after Epic C — AI integration"
+                          className="w-full flex items-center justify-center gap-2 py-2 rounded border border-dashed border-zinc-300 text-[10px] font-semibold text-zinc-400 cursor-not-allowed"
+                        >
+                          <Sparkles className="w-3 h-3" /> AI Infer from Actors
+                        </button>
+
+                        {/* Stage health headline */}
+                        <div className="p-3 rounded-lg border border-zinc-200 bg-zinc-50 flex items-center justify-between">
+                          <div>
+                            <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-0.5">Stage Health</div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-2xl font-bold text-zinc-900">{metricsStageHealth != null ? metricsStageHealth.toFixed(1) : '—'}</span>
+                              <span className="text-xs text-zinc-400">/10</span>
+                              {healthColor && <span style={{display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: healthDotColors[healthColor]}} />}
+                            </div>
+                            <div className="text-[9px] text-zinc-400 mt-0.5">Auto-calculated · override via Stage Health field</div>
+                          </div>
+                        </div>
+
+                        {/* Numeric metric rows */}
+                        <div className="space-y-2">
+                          {numericRows.map(([key, label, unit, benchmark]) => {
+                            const val = parseMetricValue(mf[key]);
+                            return (
+                              <div key={key} className="flex items-center gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-[10px] font-medium text-zinc-500">{label}</div>
+                                  {benchmark && <div className="text-[9px] text-zinc-300">{benchmark}</div>}
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <input
+                                    type="number"
+                                    value={val ?? ''}
+                                    onChange={(e) => updateCellMetricField(selectedCell.id, key, e.target.value)}
+                                    disabled={selectedCell.isLocked}
+                                    placeholder="—"
+                                    className="w-16 text-right p-1 bg-white border border-zinc-200 rounded text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-zinc-300 disabled:opacity-50"
+                                  />
+                                  <span className="text-[9px] text-zinc-400 w-5">{unit}</span>
+                                  {dot(key, val)}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Volume / Frequency (text) */}
+                        <div>
+                          <label className="text-[10px] font-medium text-zinc-500 block mb-1">Volume / Frequency</label>
+                          <input
+                            type="text"
+                            value={mf.volume_frequency ?? ''}
+                            onChange={(e) => updateCellActorField(selectedCell.id, 'volume_frequency', e.target.value)}
+                            disabled={selectedCell.isLocked}
+                            placeholder="e.g. ~300 interactions/day"
+                            className="w-full p-2 bg-zinc-50 border border-zinc-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-zinc-300 disabled:opacity-50"
+                          />
+                        </div>
+
+                        {/* Explicit stage_health override */}
+                        <div>
+                          <label className="text-[10px] font-medium text-zinc-500 block mb-1">Stage Health Override</label>
+                          <input
+                            type="number"
+                            value={parseMetricValue(mf.stage_health) ?? ''}
+                            onChange={(e) => updateCellMetricField(selectedCell.id, 'stage_health', e.target.value)}
+                            disabled={selectedCell.isLocked}
+                            placeholder="Leave blank to auto-calculate"
+                            className="w-full p-2 bg-zinc-50 border border-zinc-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-zinc-300 disabled:opacity-50"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Structured actor cell fields — rendered when the parent lens has a defined template (non-metrics) */}
                   {(() => {
-                    const cellLensForFields = selectedCell ? lenses.find((l) => l.id === selectedCell.lensId) : null;
+                    const cellLensForFields = selectedCellLens;
+                    if (cellLensForFields?.actorType === 'metrics') return null;
                     const template = cellLensForFields?.actorType
                       ? ACTOR_TEMPLATES.find((t) => t.actorType === cellLensForFields.actorType)
                       : null;
@@ -2202,6 +2380,22 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
           </>
         )}
       </main>
+
+      {/* Journey Health Widget (US-MET-12/14/19) — right sidebar, always mounted, slides in/out */}
+      {METRICS_ACTOR_ENABLED && journeyMapRecord && (
+        <JourneyHealthWidget
+          journeyMapId={journeyMapRecord.id}
+          scorecard={scorecard}
+          baseline={scorecardBaseline}
+          isOpen={widgetVisible}
+          onClose={() => setWidgetVisible(false)}
+          onAiNudge={(prompt) => {
+            setIsChatMode(true);
+            setIsChatOpen(true);
+            setInputText(prompt);
+          }}
+        />
+      )}
 
       {/* Actor Setup Wizard */}
       <ActorSetupWizard

@@ -2526,6 +2526,200 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                   }
                 }
               
+                // ── Metrics fields ──
+                conditional {
+                  if ($cell_actor_type == "metrics") {
+                    var.update $fields_section {
+                      value = $fields_section
+                        |concat:"Healthy thresholds: csat_score >= 8.0 | completion_rate >= 90% | drop_off_rate <= 10% | error_rate <= 5%":""
+                    }
+                  
+                    // csat_score
+                    var.update $fv_temp {
+                      value = $cell_record.actor_fields|get:"csat_score"
+                    }
+                  
+                    conditional {
+                      if ($fv_temp != null && $fv_temp != "") {
+                        var.update $filled_lines {
+                          value = $filled_lines
+                            |concat:"- CSAT Score (1-10) [key: csat_score]: ":$fv_temp:"\n":""
+                        }
+                      }
+                    }
+                  
+                    conditional {
+                      if ($fv_temp == null) {
+                        var.update $empty_lines {
+                          value = $empty_lines
+                            |concat:"- CSAT Score (1-10) [key: csat_score]\n":""
+                        }
+                      }
+                    }
+                  
+                    // completion_rate
+                    var.update $fv_temp {
+                      value = $cell_record.actor_fields|get:"completion_rate"
+                    }
+                  
+                    conditional {
+                      if ($fv_temp != null && $fv_temp != "") {
+                        var.update $filled_lines {
+                          value = $filled_lines
+                            |concat:"- Completion Rate % [key: completion_rate]: ":$fv_temp:"\n":""
+                        }
+                      }
+                    }
+                  
+                    conditional {
+                      if ($fv_temp == null) {
+                        var.update $empty_lines {
+                          value = $empty_lines
+                            |concat:"- Completion Rate % [key: completion_rate]\n":""
+                        }
+                      }
+                    }
+                  
+                    // drop_off_rate
+                    var.update $fv_temp {
+                      value = $cell_record.actor_fields|get:"drop_off_rate"
+                    }
+                  
+                    conditional {
+                      if ($fv_temp != null && $fv_temp != "") {
+                        var.update $filled_lines {
+                          value = $filled_lines
+                            |concat:"- Drop-off Rate % [key: drop_off_rate]: ":$fv_temp:"\n":""
+                        }
+                      }
+                    }
+                  
+                    conditional {
+                      if ($fv_temp == null) {
+                        var.update $empty_lines {
+                          value = $empty_lines
+                            |concat:"- Drop-off Rate % [key: drop_off_rate]\n":""
+                        }
+                      }
+                    }
+                  
+                    // avg_time_to_complete
+                    var.update $fv_temp {
+                      value = $cell_record.actor_fields|get:"avg_time_to_complete"
+                    }
+                  
+                    conditional {
+                      if ($fv_temp != null && $fv_temp != "") {
+                        var.update $filled_lines {
+                          value = $filled_lines
+                            |concat:"- Avg Time to Complete (min) [key: avg_time_to_complete]: ":$fv_temp:"\n":""
+                        }
+                      }
+                    }
+                  
+                    conditional {
+                      if ($fv_temp == null) {
+                        var.update $empty_lines {
+                          value = $empty_lines
+                            |concat:"- Avg Time to Complete (min) [key: avg_time_to_complete]":""
+                        }
+                      }
+                    }
+                  
+                    // error_rate
+                    var.update $fv_temp {
+                      value = $cell_record.actor_fields|get:"error_rate"
+                    }
+                  
+                    conditional {
+                      if ($fv_temp != null && $fv_temp != "") {
+                        var.update $filled_lines {
+                          value = $filled_lines
+                            |concat:"- Error Rate % [key: error_rate]: ":$fv_temp:"\n":""
+                        }
+                      }
+                    }
+                  
+                    conditional {
+                      if ($fv_temp == null) {
+                        var.update $empty_lines {
+                          value = $empty_lines
+                            |concat:"- Error Rate % [key: error_rate]\n":""
+                        }
+                      }
+                    }
+                  
+                    // sla_compliance_rate
+                    var.update $fv_temp {
+                      value = $cell_record.actor_fields|get:"sla_compliance_rate"
+                    }
+                  
+                    conditional {
+                      if ($fv_temp != null && $fv_temp != "") {
+                        var.update $filled_lines {
+                          value = $filled_lines
+                            |concat:"- SLA Compliance Rate % [key: sla_compliance_rate]: ":$fv_temp:"\n":""
+                        }
+                      }
+                    }
+                  
+                    conditional {
+                      if ($fv_temp == null) {
+                        var.update $empty_lines {
+                          value = $empty_lines
+                            |concat:"- SLA Compliance Rate % [key: sla_compliance_rate]":""
+                        }
+                      }
+                    }
+                  
+                    // volume_frequency
+                    var.update $fv_temp {
+                      value = $cell_record.actor_fields|get:"volume_frequency"
+                    }
+                  
+                    conditional {
+                      if ($fv_temp != null && $fv_temp != "") {
+                        var.update $filled_lines {
+                          value = $filled_lines
+                            |concat:"- Volume / Frequency [key: volume_frequency]: ":$fv_temp:"\n":""
+                        }
+                      }
+                    }
+                  
+                    conditional {
+                      if ($fv_temp == null) {
+                        var.update $empty_lines {
+                          value = $empty_lines
+                            |concat:"- Volume / Frequency [key: volume_frequency]\n":""
+                        }
+                      }
+                    }
+                  
+                    // stage_health
+                    var.update $fv_temp {
+                      value = $cell_record.actor_fields|get:"stage_health"
+                    }
+                  
+                    conditional {
+                      if ($fv_temp != null && $fv_temp != "") {
+                        var.update $filled_lines {
+                          value = $filled_lines
+                            |concat:"- Stage Health Score (1-10) [key: stage_health]: ":$fv_temp:"\n":""
+                        }
+                      }
+                    }
+                  
+                    conditional {
+                      if ($fv_temp == null) {
+                        var.update $empty_lines {
+                          value = $empty_lines
+                            |concat:"- Stage Health Score (1-10) [key: stage_health]\n":""
+                        }
+                      }
+                    }
+                  }
+                }
+              
                 // Assemble the section
                 conditional {
                   if ($filled_lines != "") {
@@ -2769,6 +2963,10 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
     }
   
     // ── Call the agent (with error capture for turn logging) ──
+    var $agent_run {
+      value = null
+    }
+  
     var $agent_error {
       value = null
     }
@@ -2780,7 +2978,11 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
             ai.agent.run "Journey Map Assistant" {
               args = {}|set:"messages":$agent_messages
               allow_tool_execution = true
-            } as $agent_run
+            } as $agent_run_inner
+          
+            var.update $agent_run {
+              value = $agent_run_inner
+            }
           }
         }
       }
@@ -2825,9 +3027,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
-    // Extract the agent result
+    // Extract the agent result — guard against null when agent threw an error
     var $agent_result {
-      value = $agent_run.result
+      value = $agent_run|get:"result"
     }
   
     // ── Extract assistant reply text ──
@@ -2843,9 +3045,15 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
+    conditional {
+      if ($agent_error != null && $reply_text == "") {
+        var.update $reply_text {
+          value = $agent_error
+        }
+      }
+    }
+  
     // ── Extract thinking output (safe: |get returns null if field absent) ──
-    // $agent_run.thinking throws when xano-free model omits the field.
-    // |get:"thinking" returns null safely instead.
     var $thinking_text {
       value = $agent_run|get:"thinking"
     }

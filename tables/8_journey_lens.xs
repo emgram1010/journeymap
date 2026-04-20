@@ -43,6 +43,7 @@ table journey_lens {
         "custom"
         "metrics"
       ]
+    
     }
   
     // Stores which template was applied when the row was created (e.g., customer-v1).

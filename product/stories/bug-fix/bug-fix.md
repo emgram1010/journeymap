@@ -1,4 +1,4 @@
-# Bug Fix Stories
+ Bug Fix Stories
 
 ---
 
@@ -309,3 +309,73 @@ const from = (location.state as { from?: { pathname: string } })?.from?.pathname
 5. Click that architecture tile → should see "test 1" and "test 2".
 6. Sign out, navigate directly to `http://localhost:5173/login`, sign in again — confirm same landing page.
 7. Confirm `/dashboard` is still reachable via the "Journey Maps" nav link inside the Architectures header.
+
+---
+
+## BUG-05 — Stale "← Journey Maps" back button on Journey Architectures page
+
+**Date:** 2026-04-20
+**Status:** ✅ FIXED
+**File:** `webapp/protype-2/src/ArchitectureDashboard.tsx`
+**Branch:** `BUG-05-remove-journey-maps-back-button`
+**Discovered via:** Manual UI review — unexpected back button visible on `/architectures`
+
+---
+
+### 🐛 Symptom
+
+The Journey Architectures page (`/architectures`) shows a `← Journey Maps` back button in the top-left header. Clicking it navigates to `/dashboard`, which displays only orphan (standalone) journey maps — not the maps associated with any architecture. This is confusing because the user's mental model expects:
+
+- **Architectures page** = top-level home
+- **Click an architecture tile** = see its associated journey maps
+
+A back button implying a parent above Architectures contradicts that model.
+
+---
+
+### 🔍 Root Cause
+
+`ArchitectureDashboard.tsx` still contains a header button left over from before BUG-04, when `/dashboard` was the application entry point and Architectures was a sub-section beneath it:
+
+```tsx
+<button onClick={() => navigate('/dashboard')} className="...">
+  <ArrowLeft className="w-3.5 h-3.5" /><span className="font-medium">Journey Maps</span>
+</button>
+```
+
+After BUG-04 made `/architectures` the entry point, this button became orphaned — it points to a page that is no longer a logical parent of Architectures.
+
+---
+
+### 🗺️ Story
+
+> **As a user**, I want the Journey Architectures page to feel like the top-level home so that the navigation hierarchy is clear and I am not misled by a back button that goes nowhere meaningful.
+
+**Acceptance Criteria:**
+- The `← Journey Maps` back button is removed from the `/architectures` header.
+- The Architectures page has no back navigation (it is the root).
+- `/dashboard` remains reachable via any existing internal link (e.g. from the map editor).
+
+---
+
+### 🔧 Fix
+
+**`webapp/protype-2/src/ArchitectureDashboard.tsx`** — Remove the back button and its surrounding divider from the header:
+
+```tsx
+// REMOVE these elements from the header
+<button onClick={() => navigate('/dashboard')} className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-800 transition-colors">
+  <ArrowLeft className="w-3.5 h-3.5" /><span className="font-medium">Journey Maps</span>
+</button>
+<div className="w-px h-4 bg-zinc-200" />
+```
+
+---
+
+### ✅ Verification
+
+1. Navigate to `/architectures`.
+2. Confirm there is **no** `← Journey Maps` button in the top-left header.
+3. Confirm the Architectures title and "A" icon are still visible.
+4. Confirm clicking an architecture tile navigates to its detail page with associated maps.
+5. Confirm `/dashboard` is still reachable from the map editor back button (for orphan maps).

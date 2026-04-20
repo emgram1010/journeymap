@@ -161,6 +161,23 @@ export const parseMetricValue = (v: unknown): number | null => {
   return isNaN(n) ? null : n;
 };
 
+/**
+ * Null-safe stage health calculator (SE-B1).
+ * Re-weights proportionally when some fields are null — never returns NaN.
+ * Returns null when no fields are populated.
+ * If stage_health is explicitly set, the caller should use that value instead.
+ */
+export function calcStageHealth(f: MetricsActorFields): number | null {
+  const parts: Array<{value: number; weight: number}> = [];
+  if (f.csat_score != null)       parts.push({value: f.csat_score / 10,             weight: 0.35});
+  if (f.completion_rate != null)  parts.push({value: f.completion_rate / 100,        weight: 0.35});
+  if (f.drop_off_rate != null)    parts.push({value: (100 - f.drop_off_rate) / 100,  weight: 0.20});
+  if (f.error_rate != null)       parts.push({value: (100 - f.error_rate) / 100,     weight: 0.10});
+  if (parts.length === 0) return null;
+  const totalWeight = parts.reduce((s, p) => s + p.weight, 0);
+  return (parts.reduce((s, p) => s + p.value * p.weight, 0) / totalWeight) * 10;
+}
+
 /** Union of all actor field shapes. Extend when new actor types are defined. */
 export type ActorFields = CustomerActorFields | InternalActorFields | EngineeringActorFields | AiAgentActorFields | HandoffActorFields | VendorActorFields | FinancialActorFields | MetricsActorFields | Record<string, string | number | null>;
 

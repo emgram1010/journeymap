@@ -1,6 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
-import {Plus, LayoutGrid, RotateCcw, MoreHorizontal, Pencil, Archive, Trash2, Check, X, ArrowLeft} from 'lucide-react';
+import {Plus, LayoutGrid, RotateCcw, MoreHorizontal, Pencil, Archive, Trash2, Check, X} from 'lucide-react';
 import {
   listJourneyArchitectures,
   createJourneyArchitecture,
@@ -85,10 +85,6 @@ export default function ArchitectureDashboard() {
     <div className="min-h-screen bg-zinc-50 font-sans">
       <header className="h-14 bg-white border-b border-zinc-200 flex items-center justify-between px-6 sticky top-0 z-10">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/dashboard')} className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-800 transition-colors">
-            <ArrowLeft className="w-3.5 h-3.5" /><span className="font-medium">Journey Maps</span>
-          </button>
-          <div className="w-px h-4 bg-zinc-200" />
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-sm font-bold">A</div>
             <span className="text-sm font-bold text-zinc-900 tracking-tight">Architectures</span>

@@ -216,6 +216,22 @@ query "journey_stage/add/{journey_map_id}" verb=POST {
           }
         }
       
+        conditional {
+          if ($lens.template_key == "metrics-v1") {
+            var.update $cell_actor_fields_scaffold {
+              value = {}
+                |set:"csat_score":null
+                |set:"completion_rate":null
+                |set:"drop_off_rate":null
+                |set:"avg_time_to_complete":null
+                |set:"error_rate":null
+                |set:"sla_compliance_rate":null
+                |set:"volume_frequency":null
+                |set:"stage_health":null
+            }
+          }
+        }
+      
         db.add journey_cell {
           data = {
             created_at  : "now"

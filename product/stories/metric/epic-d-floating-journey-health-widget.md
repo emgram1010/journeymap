@@ -54,8 +54,8 @@ One metric is too reductive (masks tradeoffs). More than three becomes a panel, 
 
 ---
 
-## US-MET-12 — Journey Health Widget component
-**File:** `webapp/protype-2/src/App.tsx` or new `JourneyHealthWidget.tsx`
+## US-MET-12 — Journey Health Widget component ✅ Done
+**File:** `webapp/protype-2/src/JourneyHealthWidget.tsx` (new)
 
 **Collapsed state (default):**
 ```
@@ -87,8 +87,8 @@ One metric is too reductive (masks tradeoffs). More than three becomes a panel, 
 
 ---
 
-## US-MET-13 — Journey scorecard rollup API endpoint
-**File:** New — `apis/journey_map/XX_journey_map_journey_map_id_scorecard_GET.xs`
+## US-MET-13 — Journey scorecard rollup API endpoint ✅ Done
+**File:** `apis/journey_map/75_journey_map_journey_map_id_scorecard_GET.xs`
 
 `GET /journey_map/{journey_map_id}/scorecard`
 
@@ -132,8 +132,8 @@ One metric is too reductive (masks tradeoffs). More than three becomes a panel, 
 
 ---
 
-## US-MET-14 — Widget delta tracking (session-level baseline)
-**File:** `webapp/protype-2/src/App.tsx`
+## US-MET-14 — Widget delta tracking (session-level baseline) ✅ Done
+**File:** `webapp/protype-2/src/App.tsx` + `webapp/protype-2/src/xano.ts`
 
 **Baseline capture:**
 - On map load (or first scorecard fetch), store result as `sessionBaseline` in component state
@@ -152,6 +152,39 @@ One metric is too reductive (masks tradeoffs). More than three becomes a panel, 
 - Color-coded per stage using the same thresholds as the cell display (Epic B)
 - "Weakest stages" section at top: sorted by `stage_health` ascending, top 3 highlighted
 - Closes with X or clicking outside
+
+---
+
+## US-MET-19 — Migrate Journey Health from floating widget to right sidebar + toolbar chip
+
+**UX rationale:** The floating/draggable widget occludes journey stage content, creates positional anxiety, and breaks the left-to-right scanning rhythm that PM management users rely on during reviews. Replacing it with two complementary surfaces removes all three friction points.
+
+**What to build:**
+
+**1. Right sidebar panel** (`JourneyHealthWidget.tsx`)
+- Remove all drag, `pos` state, `localStorage` position key, `onMouseDown`, and `mousemove`/`mouseup` listeners
+- Render as `position: fixed, right: 0, top: 48px` — anchored to the right edge below the toolbar
+- Width: `w-64` (256px), full viewport height minus toolbar, scrollable if content overflows
+- Slide-in animation: `translate-x-0` (open) ↔ `translate-x-full` (closed) via Tailwind transition
+- Preserve all existing content: score row, revenue at risk, critical stages, coverage bar, per-stage breakdown, AI nudges, tooltips, empty state, phase banner
+- X button still calls `onClose`
+
+**2. Toolbar health chip** (`App.tsx`)
+- Shown when `METRICS_ACTOR_ENABLED && journeyMapRecord && scorecard`
+- Renders in the toolbar next to the Settings button: `📊 [score] ●`
+- Clicking it calls `setWidgetVisible(v => !v)` — toggles the sidebar
+- When `isEmpty` (no metrics data): show chip greyed out with `—` score, still clickable to open sidebar
+- Chip is always visible so PMs never lose the health signal even when sidebar is closed
+
+**Acceptance criteria:**
+- [ ] Floating/draggable behaviour fully removed — no `pos` state, no `localStorage` position writes
+- [ ] Widget renders as a right sidebar that slides in/out smoothly
+- [ ] Toolbar chip shows score + health dot at all times (greyed when no data)
+- [ ] Chip click and sidebar X both toggle `widgetVisible` correctly
+- [ ] All existing widget content is preserved inside the sidebar
+- [ ] Empty state (no metrics) renders correctly in sidebar
+
+**Files:** `webapp/protype-2/src/JourneyHealthWidget.tsx`, `webapp/protype-2/src/App.tsx`
 
 ---
 

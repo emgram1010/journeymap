@@ -55,6 +55,18 @@ export interface XanoJourneyMap extends JourneySettings {
   smart_ai_settings?: SmartAiSettings | null;
   // Non-null when this map belongs to a Journey Architecture.
   journey_architecture?: number | null;
+  // Non-null when this map was cloned from another map.
+  cloned_from_map_id?: number | null;
+}
+
+// Lightweight scenario record returned by GET /journey_architecture/{id}/scenarios.
+export interface XanoScenario {
+  id: number;
+  title: string;
+  owner_name: string;
+  created_at: number | string;
+  updated_at: string | null;
+  cloned_from_map_id: number | null;
 }
 
 export interface XanoJourneyStage {
@@ -1206,6 +1218,19 @@ export const deleteJourneyArchitecture = (id: number): Promise<void> =>
 export const loadJourneyArchitectureBundle = (id: number): Promise<JourneyArchitectureBundle> =>
   xanoRequest<JourneyArchitectureBundle>(`/journey_architecture/bundle/${id}`);
 
+export const listScenarios = (archId: number): Promise<XanoScenario[]> =>
+  xanoRequest<XanoScenario[]>(`/journey_architecture/${archId}/scenarios`);
+
+export const cloneScenario = (
+  archId: number,
+  sourceMapId: number,
+  title?: string,
+): Promise<XanoScenario> =>
+  xanoRequest<XanoScenario>(`/journey_architecture/${archId}/scenarios/clone`, {
+    method: 'POST',
+    body: {source_map_id: sourceMapId, ...(title ? {title} : {})},
+  });
+
 export const createJourneyLink = (
   architectureId: number,
   data: {
@@ -1245,3 +1270,57 @@ export const getJourneyCell = (journeyCellId: number): Promise<XanoJourneyCell> 
 
 export const listInboundLinksForMap = (targetMapId: number): Promise<XanoJourneyLink[]> =>
   xanoRequest<XanoJourneyLink[]>(`/journey_link?target_map=${targetMapId}`);
+
+// ── Scorecard ────────────────────────────────────────────────────────────────
+
+export type HealthLabel = 'healthy' | 'at_risk' | 'critical';
+
+export interface ScorecardStage {
+  stage_id: number;
+  stage_key: string;
+  stage_label: string;
+  health: number | null;
+  health_label: HealthLabel | null;
+  cell_populated: boolean;
+}
+
+export interface ScorecardResult {
+  metrics_rollup: {
+    map_health: number | null;
+    map_hl: HealthLabel | null;
+    stages: ScorecardStage[];
+    populated_count: number;
+    total_count: number;
+  };
+  financial_rollup: {
+    total_cost_to_serve: number;
+    total_revenue_at_risk: number;
+    total_automation_savings: number;
+    total_upsell_opportunity: number;
+  };
+}
+
+export const fetchScorecard = (journeyMapId: number): Promise<ScorecardResult> =>
+  xanoRequest<ScorecardResult>(`/journey_map/${journeyMapId}/scorecard`);
+
+// ── Compare ───────────────────────────────────────────────────────────────────
+
+export interface CompareMapMeta {
+  id: number;
+  title: string;
+  updated_at: string | null;
+}
+
+export interface CompareMetaResult {
+  map_a: CompareMapMeta;
+  map_b: CompareMapMeta;
+}
+
+export const fetchCompareMeta = (
+  archId: number,
+  mapA: number,
+  mapB: number,
+): Promise<CompareMetaResult> =>
+  xanoRequest<CompareMetaResult>(
+    `/journey_architecture/${archId}/compare?map_a=${mapA}&map_b=${mapB}`,
+  );
