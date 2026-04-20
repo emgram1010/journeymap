@@ -221,3 +221,91 @@ foreach ($existing_lenses) {
 3. Inspect the newly created `journey_cell` records for the Customer lens — `actor_fields` should contain the 9-key customer scaffold.
 4. Repeat for maps with Internal, Engineering, AI Agent, Handoff, and Vendor lenses.
 5. Confirm the Description row cell still has `actor_fields = null`.
+
+---
+
+## BUG-04 — Post-login redirect lands on Journey Maps instead of Journey Architectures
+
+**Date:** 2026-04-20
+**Status:** ✅ FIXED
+**Files:** `webapp/protype-2/src/main.tsx`, `webapp/protype-2/src/Login.tsx`
+**Branch:** `BUG-04-post-login-redirect-architectures`
+**Discovered via:** Manual UI test — signing in and observing landing page
+
+---
+
+### 🐛 Symptom
+
+After signing in, the user is taken to `/dashboard` (the **Journey Maps** tile view) which shows a single "Untitled Journey Map" orphan. The expected flow is to land on `/architectures` first, pick "White Glove Online Last Mile Delivery Washer & Dryer", then see the correct "test 1" and "test 2" journey maps scoped to that architecture.
+
+Additionally, navigating to `/architectures` then back works correctly — proving the data and architecture scope are fine — so the bug is purely in the post-login redirect destination.
+
+---
+
+### 🔍 Root Cause
+
+Three hardcoded `/dashboard` references send authenticated users to the wrong page:
+
+| File | Location | Default |
+|------|----------|---------|
+| `main.tsx` | `PublicRoute` — already-auth'd users bounced away from `/login` | `<Navigate to="/dashboard" />` |
+| `main.tsx` | Catch-all `*` route | `<Navigate to="/dashboard" />` |
+| `Login.tsx` | `from` fallback when no redirect state is present | `?? '/dashboard'` |
+
+`/dashboard` renders `Dashboard.tsx` which calls `GET /journey_map` and filters to **standalone maps only** (`!m.journey_architecture`). The "Untitled Journey Map" shown is a real orphan record that has no `journey_architecture` FK — it is correctly excluded from the Architecture view. "test 1" and "test 2" belong to the "White Glove" architecture and are therefore invisible on this page.
+
+The user's mental model is **Architecture → Journey Map**, so the entry point should be `/architectures`.
+
+---
+
+### 🗺️ Story
+
+> **As a returning user**, I want to land on the Journey Architectures page after signing in, so that I can immediately select the correct architecture and see its associated journey maps.
+
+**Acceptance Criteria:**
+- After a successful sign-in, the browser navigates to `/architectures`.
+- Authenticated users who hit `/login` directly are also bounced to `/architectures`.
+- Any unknown URL still redirects authenticated users to `/architectures`.
+- The `/dashboard` (standalone maps) page remains accessible via the "Journey Maps" nav link.
+
+---
+
+### 🔧 Fix
+
+**`webapp/protype-2/src/main.tsx`** — Two changes:
+
+```tsx
+// BEFORE — PublicRoute
+if (user) return <Navigate to="/dashboard" replace />;
+
+// AFTER
+if (user) return <Navigate to="/architectures" replace />;
+
+// BEFORE — catch-all
+<Route path="*" element={<Navigate to="/dashboard" replace />} />
+
+// AFTER
+<Route path="*" element={<Navigate to="/architectures" replace />} />
+```
+
+**`webapp/protype-2/src/Login.tsx`** — One change:
+
+```tsx
+// BEFORE
+const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/dashboard';
+
+// AFTER
+const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/architectures';
+```
+
+---
+
+### ✅ Verification
+
+1. Sign out if currently logged in.
+2. Navigate to `http://localhost:5173` — should redirect to `/login`.
+3. Sign in with valid credentials.
+4. Browser should land on `/architectures` showing "White Glove Online Last Mile Delivery Washer & Dryer".
+5. Click that architecture tile → should see "test 1" and "test 2".
+6. Sign out, navigate directly to `http://localhost:5173/login`, sign in again — confirm same landing page.
+7. Confirm `/dashboard` is still reachable via the "Journey Maps" nav link inside the Architectures header.

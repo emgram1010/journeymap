@@ -33,7 +33,7 @@ function ProtectedRoute({children}: {children: React.ReactNode}) {
 function PublicRoute({children}: {children: React.ReactNode}) {
   const {user, isLoading} = useAuth();
   if (isLoading) return null;
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) return <Navigate to="/architectures" replace />;
   return <>{children}</>;
 }
 
@@ -58,7 +58,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/architectures/:id" element={<ProtectedRoute><ArchitectureDetail /></ProtectedRoute>} />
           <Route path="/maps/:id" element={<ProtectedRoute><MapEditorRoute /></ProtectedRoute>} />
           {/* Default redirect */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/architectures" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
