@@ -71,6 +71,7 @@ import {
   renameJourneyLens,
   renameJourneyStage,
   sendAiMessage,
+  fetchToolLogs,
   updateConversation,
   updateJourneyCell,
   saveJourneySettings,
@@ -262,6 +263,112 @@ function ActivityPanel({
   );
 }
 
+// ── Debug Panel (Layer 4) — only rendered when ?debug=1 in URL ──────────────
+
+const TOOL_CATEGORY_COLOR: Record<string, string> = {
+  read    : 'text-blue-500',
+  write   : 'text-emerald-600',
+  status  : 'text-violet-500',
+  structure: 'text-amber-500',
+};
+
+interface DebugPanelProps {
+  journeyMapId: number;
+  turnId: string;
+  stepLimitWarning: boolean;
+}
+
+function DebugPanel({ journeyMapId, turnId, stepLimitWarning }: DebugPanelProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [toolCalls, setToolCalls] = useState<import('./xano').ToolLogEntry[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleExpand = useCallback(async () => {
+    const next = !isExpanded;
+    setIsExpanded(next);
+    if (next && toolCalls === null && !loading) {
+      setLoading(true);
+      setError(null);
+      try {
+        const result = await fetchToolLogs(journeyMapId, turnId);
+        setToolCalls(result.tool_calls ?? []);
+      } catch {
+        setError('Failed to load tool logs');
+      } finally {
+        setLoading(false);
+      }
+    }
+  }, [isExpanded, toolCalls, loading, journeyMapId, turnId]);
+
+  return (
+    <div className="ml-8 mt-0.5">
+      <button
+        type="button"
+        onClick={handleExpand}
+        className="flex items-center gap-1.5 text-[10px] text-amber-500 font-medium hover:text-amber-700 transition-colors"
+      >
+        <span>🔧 Debug</span>
+        {toolCalls !== null && <span className="text-zinc-400">— {toolCalls.length} tool calls</span>}
+        {isExpanded
+          ? <ChevronDown className="w-2.5 h-2.5" />
+          : <ChevronRight className="w-2.5 h-2.5" />}
+      </button>
+
+      {isExpanded && (
+        <div className="mt-1 border border-amber-100 rounded-lg bg-amber-50/50 overflow-hidden">
+          {stepLimitWarning && (
+            <div className="px-2.5 py-1.5 bg-amber-100 text-[10px] text-amber-700 font-medium">
+              ⚠ Step limit warning — agent may have been cut off before completing all operations
+            </div>
+          )}
+          {loading && (
+            <div className="px-2.5 py-2 text-[10px] text-zinc-400">Loading tool logs…</div>
+          )}
+          {error && (
+            <div className="px-2.5 py-2 text-[10px] text-red-500">{error}</div>
+          )}
+          {!loading && !error && toolCalls !== null && toolCalls.length === 0 && (
+            <div className="px-2.5 py-2 text-[10px] text-zinc-400">No tool log records found for this turn.</div>
+          )}
+          {!loading && toolCalls !== null && toolCalls.length > 0 && (
+            <div className="divide-y divide-amber-100">
+              {toolCalls.map((call, idx) => {
+                const isSkipped = call.output_summary?.toLowerCase().includes('skipped') || call.output_summary?.toLowerCase().includes('not_found');
+                return (
+                  <div
+                    key={call.id ?? idx}
+                    className={`flex items-start gap-2 px-2.5 py-1.5 text-[10px] ${isSkipped ? 'bg-amber-100/60' : ''}`}
+                  >
+                    <span className="text-zinc-400 shrink-0 w-4 text-right">{call.execution_order}</span>
+                    <span className={`shrink-0 font-medium ${TOOL_CATEGORY_COLOR[call.tool_category] ?? 'text-zinc-500'}`}>
+                      {call.tool_name}
+                    </span>
+                    {call.input_summary && (
+                      <span className="text-zinc-500 truncate">{call.input_summary}</span>
+                    )}
+                    {call.output_summary && (
+                      <>
+                        <span className="text-zinc-300 shrink-0">→</span>
+                        <span className={`truncate ${isSkipped ? 'text-amber-600 font-medium' : 'text-zinc-400'}`}>
+                          {call.output_summary}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="px-2.5 py-1 border-t border-amber-100 text-[9px] text-zinc-400 font-mono">
+            turn_id: {turnId}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 
 export default function App({ journeyMapId }: { journeyMapId?: number }) {
@@ -269,6 +376,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const [searchParams] = useSearchParams();
   const architectureId = searchParams.get('arch') ? Number(searchParams.get('arch')) : null;
   const fromScenarios = searchParams.get('tab') === 'scenarios';
+  const isDebugMode = searchParams.get('debug') === '1';
   const { user, logout } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -803,6 +911,8 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         }),
         toolTrace: aiThread.toolTrace,
         thinking: aiThread.thinking,
+        turnId: aiThread.turnId,
+        stepLimitWarning: aiThread.stepLimitWarning,
       };
 
       // Always tag the last AI message so Layer 2 & 3 panels can render
@@ -1890,6 +2000,14 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                             }))
                           }
                           showReasoning={smartAiSettings.show_reasoning ?? true}
+                        />
+                      )}
+                      {/* Layer 4: Debug panel — only when ?debug=1 and turn_id available */}
+                      {isDebugMode && msg.role === 'ai' && msg.activity?.turnId && journeyMapRecord && (
+                        <DebugPanel
+                          journeyMapId={journeyMapRecord.id}
+                          turnId={msg.activity.turnId}
+                          stepLimitWarning={msg.activity.stepLimitWarning ?? false}
                         />
                       )}
                     </div>

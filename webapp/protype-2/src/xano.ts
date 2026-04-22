@@ -304,6 +304,29 @@ export interface AiMessageResponse {
   messages: XanoAgentMessage[];
   tool_trace?: AiToolTraceEntry[];
   thinking?: string | null;
+  turn_log?: {
+    turn_id?: string | null;
+    tool_count?: number | null;
+    status?: string | null;
+    error_message?: string | null;
+  } | null;
+}
+
+export interface ToolLogEntry {
+  id: number;
+  tool_name: string;
+  tool_category: 'read' | 'write' | 'status' | 'structure';
+  input_summary: string;
+  output_summary: string;
+  execution_order: number;
+  created_at?: string | null;
+}
+
+export interface ToolLogsResponse {
+  journey_map_id: number;
+  turn_id: string;
+  count: number;
+  tool_calls: ToolLogEntry[];
 }
 
 export interface ConversationListItem {
@@ -336,6 +359,10 @@ export interface PersistedAiConversationThread {
   messages: Message[];
   toolTrace: ToolTraceEntry[];
   thinking: string | null;
+  /** Debug: turn_id for fetching per-tool logs via /tool-logs endpoint */
+  turnId: string | null;
+  /** Debug: true when tool_count >= 18 (step limit warning) */
+  stepLimitWarning: boolean;
 }
 
 export type SelectedCellPayload = {
@@ -1043,7 +1070,14 @@ export async function sendAiMessage(input: SendAiMessageInput): Promise<Persiste
     thinking: typeof response.thinking === 'string' && response.thinking.trim().length > 0
       ? response.thinking
       : null,
+    turnId: response.turn_log?.turn_id ?? null,
+    stepLimitWarning: (response.turn_log?.tool_count ?? 0) >= 18,
   };
+}
+
+export async function fetchToolLogs(journeyMapId: number, turnId: string): Promise<ToolLogsResponse> {
+  const path = `/journey_map/${journeyMapId}/tool-logs?turn_id=${encodeURIComponent(turnId)}`;
+  return xanoRequest<ToolLogsResponse>(path);
 }
 
 // ── Conversation CRUD ──

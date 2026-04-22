@@ -202,6 +202,10 @@ export interface MessageActivity {
   toolTrace?: ToolTraceEntry[];
   /** Layer 3: raw agent thinking/reasoning text */
   thinking?: string | null;
+  /** Debug: turn_id for fetching agent_tool_log records via /tool-logs endpoint */
+  turnId?: string | null;
+  /** Debug: true when agent tool_count >= 18 (step limit warning) */
+  stepLimitWarning?: boolean;
 }
 
 export interface Message {

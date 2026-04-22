@@ -194,6 +194,100 @@
   color: rgb(113 113 122);
 }
 
+/* ── In-cell tile components ────────────────────────────────────────────── */
+
+.jm-tile-emotion-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  color: #fff;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jm-tile-header {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgb(24 24 27);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+
+.jm-tile-body {
+  font-size: 10px;
+  color: rgb(113 113 122);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.jm-tile-flow {
+  font-size: 9px;
+  color: rgb(82 82 91);
+  font-family: ui-monospace, monospace;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.jm-tile-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 1px;
+}
+
+.jm-tile-tag {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.jm-tile-tag.pain {
+  background: #fce7f3;
+  color: #be185d;
+}
+
+.jm-tile-tag.opportunity {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.jm-tile-tag.handoff {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.jm-tile-tag.error {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.jm-tile-tag.escalation {
+  background: #ede9fe;
+  color: #7c3aed;
+}
+
+.jm-tile-tag.risk {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.jm-tile-empty {
+  font-size: 10px;
+  color: rgb(161 161 170);
+  font-style: italic;
+}
+
 .jm-status-indicator {
   display: inline-flex;
   align-items: center;
