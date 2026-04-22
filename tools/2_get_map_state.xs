@@ -17,7 +17,9 @@ tool get_map_state {
         journey_map: { id, title, status, updated_at },
         stages: [ { id, key, label, display_order } ],
         lenses: [ { id, key, label, display_order } ],
-        cells: [ { id, stage_id, stage_key, lens_id, lens_key, content, status, is_locked, change_source } ],
+        cells: [ { id, stage_id, stage_key, lens_id, lens_key, actor_type, actor_fields, content, status, is_locked, change_source } ],
+        // actor_type: the actor type of the parent lens (e.g. "handoff", "customer"); null for non-actor rows.
+        // actor_fields: the structured field object written via update_actor_cell_fields; null when not yet populated.
         summary: { total_cells, filled_cells, empty_cells, locked_cells, confirmed_cells, draft_cells, open_cells }
       }
     """
@@ -128,6 +130,8 @@ tool get_map_state {
             stage_key    : $s_rec.key
             lens_id      : $c.lens
             lens_key     : $l_rec.key
+            actor_type   : $l_rec.actor_type
+            actor_fields : $c.actor_fields
             content      : $c.content
             status       : $c.status
             is_locked    : $c.is_locked

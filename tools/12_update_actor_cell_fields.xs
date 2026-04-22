@@ -19,6 +19,38 @@ tool update_actor_cell_fields {
       - conversation_id: (optional) for tool trace logging
       - turn_id: (optional) for tool trace logging
     
+      Valid actor_fields keys by actor_type — use ONLY these exact snake_case keys.
+      Do NOT invent keys. Do NOT use human-readable labels as keys.
+    
+      customer:    entry_trigger, emotions, information_needs, decisions_required,
+                   friction_points, assumptions, acceptance_criteria, expected_output,
+                   channel_touchpoint
+      internal:    task_objective, entry_trigger, tools_systems, information_needs,
+                   decisions_required, friction_points, assumptions, handoff_dependencies,
+                   success_criteria, output_deliverable, employee_constraints, pain_points
+      engineering: system_service_owner, data_inputs, data_outputs,
+                   api_integration_dependencies, business_rules_logic, error_states_edge_cases,
+                   data_storage_requirements, security_permissions, performance_requirements,
+                   audit_logging_needs
+      ai_agent:    ai_model_agent, input_data, decision_output, confidence_threshold,
+                   escalation_logic, training_data, retraining_frequency,
+                   bias_fairness_considerations, failure_scenarios, performance_metrics,
+                   model_owner, explainability_needs
+      handoff:     trigger_event, upstream_actor, prerequisite_data, upstream_dependencies,
+                   handoff_output, handoff_format, handoff_timing, downstream_actor,
+                   validation_rules, failure_recovery, communication_method,
+                   data_retention_policy
+      vendor:      vendor_name_type, role_at_step, engagement_trigger,
+                   contractual_obligations, information_needs, information_returned,
+                   integration_method, sla_performance_metrics, failure_scenario,
+                   escalation_path, data_privacy_compliance, vendor_constraints,
+                   cost_impact, dependency_on_internal
+      financial:   cost_to_serve, revenue_at_risk, automation_savings, upsell_opportunity,
+                   revenue_leakage, cost_efficiency_note, breakeven_threshold,
+                   cac_contribution, clv_impact, priority_score
+      metrics:     csat_score, completion_rate, drop_off_rate, avg_time_to_complete,
+                   error_rate, sla_compliance_rate, volume_frequency, stage_health
+    
       Response shape:
       {
         applied: true/false,

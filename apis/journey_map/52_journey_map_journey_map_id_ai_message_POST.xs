@@ -703,7 +703,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Entry Point / Trigger: ":$fv_temp:"\n":""
+                            |concat:"- Entry Point / Trigger [key: entry_trigger]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -712,7 +712,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Entry Point / Trigger\n":""
+                            |concat:"- Entry Point / Trigger [key: entry_trigger]\n":""
                         }
                       }
                     }
@@ -726,7 +726,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Feelings / Emotions: ":$fv_temp:"\n":""
+                            |concat:"- Feelings / Emotions [key: emotions]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -735,7 +735,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Feelings / Emotions\n":""
+                            |concat:"- Feelings / Emotions [key: emotions]\n":""
                         }
                       }
                     }
@@ -749,7 +749,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Information Needs: ":$fv_temp:"\n":""
+                            |concat:"- Information Needs [key: information_needs]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -758,7 +758,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Information Needs\n":""
+                            |concat:"- Information Needs [key: information_needs]\n":""
                         }
                       }
                     }
@@ -772,7 +772,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Decisions Required: ":$fv_temp:"\n":""
+                            |concat:"- Decisions Required [key: decisions_required]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -781,7 +781,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Decisions Required\n":""
+                            |concat:"- Decisions Required [key: decisions_required]\n":""
                         }
                       }
                     }
@@ -795,7 +795,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Friction Points: ":$fv_temp:"\n":""
+                            |concat:"- Friction Points [key: friction_points]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -803,7 +803,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Friction Points\n":""
+                          value = $empty_lines
+                            |concat:"- Friction Points [key: friction_points]\n":""
                         }
                       }
                     }
@@ -817,7 +818,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Assumptions: ":$fv_temp:"\n":""
+                            |concat:"- Assumptions [key: assumptions]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -825,7 +826,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Assumptions\n":""
+                          value = $empty_lines
+                            |concat:"- Assumptions [key: assumptions]\n":""
                         }
                       }
                     }
@@ -839,7 +841,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Acceptance Criteria: ":$fv_temp:"\n":""
+                            |concat:"- Acceptance Criteria [key: acceptance_criteria]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -848,7 +850,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Acceptance Criteria\n":""
+                            |concat:"""
+                            - Acceptance Criteria [key: acceptance_criteria]
+                            """:""
                         }
                       }
                     }
@@ -862,7 +866,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Expected Output / Confirmation: ":$fv_temp:"\n":""
+                            |concat:"- Expected Output / Confirmation [key: expected_output]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -871,7 +875,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Expected Output / Confirmation\n":""
+                            |concat:"""
+                            - Expected Output / Confirmation [key: expected_output]
+                            """:""
                         }
                       }
                     }
@@ -885,7 +891,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Channel / Touchpoint: ":$fv_temp:"\n":""
+                            |concat:"- Channel / Touchpoint [key: channel_touchpoint]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -894,7 +900,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Channel / Touchpoint\n":""
+                            |concat:"""
+                            - Channel / Touchpoint [key: channel_touchpoint]
+                            """:""
                         }
                       }
                     }
@@ -913,7 +921,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Task / Objective: ":$fv_temp:"\n":""
+                            |concat:"- Task / Objective [key: task_objective]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -921,7 +929,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Task / Objective\n":""
+                          value = $empty_lines
+                            |concat:"- Task / Objective [key: task_objective]\n":""
                         }
                       }
                     }
@@ -935,7 +944,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Entry Point / Trigger: ":$fv_temp:"\n":""
+                            |concat:"- Entry Point / Trigger [key: entry_trigger]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -944,7 +953,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Entry Point / Trigger\n":""
+                            |concat:"- Entry Point / Trigger [key: entry_trigger]\n":""
                         }
                       }
                     }
@@ -958,7 +967,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Tools & Systems Used: ":$fv_temp:"\n":""
+                            |concat:"- Tools & Systems Used [key: tools_systems]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -967,7 +976,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Tools & Systems Used\n":""
+                            |concat:"- Tools & Systems Used [key: tools_systems]\n":""
                         }
                       }
                     }
@@ -981,7 +990,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Information Needs: ":$fv_temp:"\n":""
+                            |concat:"- Information Needs [key: information_needs]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -990,7 +999,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Information Needs\n":""
+                            |concat:"- Information Needs [key: information_needs]\n":""
                         }
                       }
                     }
@@ -1004,7 +1013,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Decisions Required: ":$fv_temp:"\n":""
+                            |concat:"- Decisions Required [key: decisions_required]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1013,7 +1022,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Decisions Required\n":""
+                            |concat:"- Decisions Required [key: decisions_required]\n":""
                         }
                       }
                     }
@@ -1027,7 +1036,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Friction Points: ":$fv_temp:"\n":""
+                            |concat:"- Friction Points [key: friction_points]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1035,7 +1044,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Friction Points\n":""
+                          value = $empty_lines
+                            |concat:"- Friction Points [key: friction_points]\n":""
                         }
                       }
                     }
@@ -1049,7 +1059,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Assumptions Being Made: ":$fv_temp:"\n":""
+                            |concat:"- Assumptions Being Made [key: assumptions]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1058,7 +1068,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Assumptions Being Made\n":""
+                            |concat:"- Assumptions Being Made [key: assumptions]\n":""
                         }
                       }
                     }
@@ -1072,7 +1082,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Handoff Dependencies: ":$fv_temp:"\n":""
+                            |concat:"- Handoff Dependencies [key: handoff_dependencies]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1081,7 +1091,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Handoff Dependencies\n":""
+                            |concat:"""
+                            - Handoff Dependencies [key: handoff_dependencies]
+                            """:""
                         }
                       }
                     }
@@ -1095,7 +1107,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Success Criteria: ":$fv_temp:"\n":""
+                            |concat:"- Success Criteria [key: success_criteria]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1103,7 +1115,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Success Criteria\n":""
+                          value = $empty_lines
+                            |concat:"- Success Criteria [key: success_criteria]\n":""
                         }
                       }
                     }
@@ -1117,7 +1130,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Output / Deliverable: ":$fv_temp:"\n":""
+                            |concat:"- Output / Deliverable [key: output_deliverable]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1126,7 +1139,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Output / Deliverable\n":""
+                            |concat:"""
+                            - Output / Deliverable [key: output_deliverable]
+                            """:""
                         }
                       }
                     }
@@ -1140,7 +1155,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Employee Constraints: ":$fv_temp:"\n":""
+                            |concat:"- Employee Constraints [key: employee_constraints]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1149,7 +1164,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Employee Constraints\n":""
+                            |concat:"""
+                            - Employee Constraints [key: employee_constraints]
+                            """:""
                         }
                       }
                     }
@@ -1163,7 +1180,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Pain Points: ":$fv_temp:"\n":""
+                            |concat:"- Pain Points [key: pain_points]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1171,7 +1188,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Pain Points\n":""
+                          value = $empty_lines
+                            |concat:"- Pain Points [key: pain_points]\n":""
                         }
                       }
                     }
@@ -1190,7 +1208,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- System / Service Owner: ":$fv_temp:"\n":""
+                            |concat:"- System / Service Owner [key: system_service_owner]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1199,7 +1217,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- System / Service Owner\n":""
+                            |concat:"""
+                            - System / Service Owner [key: system_service_owner]
+                            """:""
                         }
                       }
                     }
@@ -1213,7 +1233,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Data Inputs: ":$fv_temp:"\n":""
+                            |concat:"- Data Inputs [key: data_inputs]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1221,7 +1241,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Data Inputs\n":""
+                          value = $empty_lines
+                            |concat:"- Data Inputs [key: data_inputs]\n":""
                         }
                       }
                     }
@@ -1235,7 +1256,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Data Outputs: ":$fv_temp:"\n":""
+                            |concat:"- Data Outputs [key: data_outputs]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1243,7 +1264,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Data Outputs\n":""
+                          value = $empty_lines
+                            |concat:"- Data Outputs [key: data_outputs]\n":""
                         }
                       }
                     }
@@ -1258,7 +1280,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- API / Integration Dependencies: ":$fv_temp:"\n":""
+                            |concat:"- API / Integration Dependencies [key: api_integration_dependencies]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1267,7 +1289,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- API / Integration Dependencies\n":""
+                            |concat:"""
+                            - API / Integration Dependencies [key: api_integration_dependencies]
+                            """:""
                         }
                       }
                     }
@@ -1281,7 +1305,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Business Rules / Logic: ":$fv_temp:"\n":""
+                            |concat:"- Business Rules / Logic [key: business_rules_logic]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1290,7 +1314,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Business Rules / Logic\n":""
+                            |concat:"""
+                            - Business Rules / Logic [key: business_rules_logic]
+                            """:""
                         }
                       }
                     }
@@ -1304,7 +1330,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Error States / Edge Cases: ":$fv_temp:"\n":""
+                            |concat:"- Error States / Edge Cases [key: error_states_edge_cases]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1313,7 +1339,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Error States / Edge Cases\n":""
+                            |concat:"""
+                            - Error States / Edge Cases [key: error_states_edge_cases]
+                            """:""
                         }
                       }
                     }
@@ -1327,7 +1355,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Data Storage Requirements: ":$fv_temp:"\n":""
+                            |concat:"- Data Storage Requirements [key: data_storage_requirements]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1336,7 +1364,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Data Storage Requirements\n":""
+                            |concat:"""
+                            - Data Storage Requirements [key: data_storage_requirements]
+                            """:""
                         }
                       }
                     }
@@ -1350,7 +1380,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Security & Permissions: ":$fv_temp:"\n":""
+                            |concat:"- Security & Permissions [key: security_permissions]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1359,7 +1389,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Security & Permissions\n":""
+                            |concat:"""
+                            - Security & Permissions [key: security_permissions]
+                            """:""
                         }
                       }
                     }
@@ -1373,7 +1405,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Performance Requirements: ":$fv_temp:"\n":""
+                            |concat:"- Performance Requirements [key: performance_requirements]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1382,7 +1414,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Performance Requirements\n":""
+                            |concat:"""
+                            - Performance Requirements [key: performance_requirements]
+                            """:""
                         }
                       }
                     }
@@ -1396,7 +1430,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Audit / Logging Needs: ":$fv_temp:"\n":""
+                            |concat:"- Audit / Logging Needs [key: audit_logging_needs]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1405,7 +1439,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Audit / Logging Needs\n":""
+                            |concat:"""
+                            - Audit / Logging Needs [key: audit_logging_needs]
+                            """:""
                         }
                       }
                     }
@@ -1424,7 +1460,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- AI Model / Agent: ":$fv_temp:"\n":""
+                            |concat:"- AI Model / Agent [key: ai_model_agent]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1432,7 +1468,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- AI Model / Agent\n":""
+                          value = $empty_lines
+                            |concat:"- AI Model / Agent [key: ai_model_agent]\n":""
                         }
                       }
                     }
@@ -1446,7 +1483,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Input Data: ":$fv_temp:"\n":""
+                            |concat:"- Input Data [key: input_data]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1454,7 +1491,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Input Data\n":""
+                          value = $empty_lines
+                            |concat:"- Input Data [key: input_data]\n":""
                         }
                       }
                     }
@@ -1468,7 +1506,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Decision / Output: ":$fv_temp:"\n":""
+                            |concat:"- Decision / Output [key: decision_output]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1477,7 +1515,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Decision / Output\n":""
+                            |concat:"- Decision / Output [key: decision_output]\n":""
                         }
                       }
                     }
@@ -1491,7 +1529,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Confidence Threshold: ":$fv_temp:"\n":""
+                            |concat:"- Confidence Threshold [key: confidence_threshold]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1500,7 +1538,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Confidence Threshold\n":""
+                            |concat:"""
+                            - Confidence Threshold [key: confidence_threshold]
+                            """:""
                         }
                       }
                     }
@@ -1514,7 +1554,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Escalation Logic: ":$fv_temp:"\n":""
+                            |concat:"- Escalation Logic [key: escalation_logic]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1522,7 +1562,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Escalation Logic\n":""
+                          value = $empty_lines
+                            |concat:"- Escalation Logic [key: escalation_logic]\n":""
                         }
                       }
                     }
@@ -1536,7 +1577,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Training Data: ":$fv_temp:"\n":""
+                            |concat:"- Training Data [key: training_data]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1544,7 +1585,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Training Data\n":""
+                          value = $empty_lines
+                            |concat:"- Training Data [key: training_data]\n":""
                         }
                       }
                     }
@@ -1558,7 +1600,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Retraining Frequency: ":$fv_temp:"\n":""
+                            |concat:"- Retraining Frequency [key: retraining_frequency]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1567,7 +1609,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Retraining Frequency\n":""
+                            |concat:"""
+                            - Retraining Frequency [key: retraining_frequency]
+                            """:""
                         }
                       }
                     }
@@ -1582,7 +1626,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Bias & Fairness Considerations: ":$fv_temp:"\n":""
+                            |concat:"- Bias & Fairness Considerations [key: bias_fairness_considerations]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1591,7 +1635,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Bias & Fairness Considerations\n":""
+                            |concat:"""
+                            - Bias & Fairness Considerations [key: bias_fairness_considerations]
+                            """:""
                         }
                       }
                     }
@@ -1605,7 +1651,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Failure Scenarios: ":$fv_temp:"\n":""
+                            |concat:"- Failure Scenarios [key: failure_scenarios]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1614,7 +1660,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Failure Scenarios\n":""
+                            |concat:"- Failure Scenarios [key: failure_scenarios]\n":""
                         }
                       }
                     }
@@ -1628,7 +1674,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Performance Metrics: ":$fv_temp:"\n":""
+                            |concat:"- Performance Metrics [key: performance_metrics]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1637,7 +1683,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Performance Metrics\n":""
+                            |concat:"""
+                            - Performance Metrics [key: performance_metrics]
+                            """:""
                         }
                       }
                     }
@@ -1651,7 +1699,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Model Owner: ":$fv_temp:"\n":""
+                            |concat:"- Model Owner [key: model_owner]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1659,7 +1707,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Model Owner\n":""
+                          value = $empty_lines
+                            |concat:"- Model Owner [key: model_owner]\n":""
                         }
                       }
                     }
@@ -1673,7 +1722,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Explainability Needs: ":$fv_temp:"\n":""
+                            |concat:"- Explainability Needs [key: explainability_needs]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1682,7 +1731,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Explainability Needs\n":""
+                            |concat:"""
+                            - Explainability Needs [key: explainability_needs]
+                            """:""
                         }
                       }
                     }
@@ -1701,7 +1752,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Trigger Event: ":$fv_temp:"\n":""
+                            |concat:"- Trigger Event [key: trigger_event]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1709,7 +1760,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Trigger Event\n":""
+                          value = $empty_lines
+                            |concat:"- Trigger Event [key: trigger_event]\n":""
                         }
                       }
                     }
@@ -1723,7 +1775,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Upstream Actor: ":$fv_temp:"\n":""
+                            |concat:"- Upstream Actor [key: upstream_actor]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1731,7 +1783,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Upstream Actor\n":""
+                          value = $empty_lines
+                            |concat:"- Upstream Actor [key: upstream_actor]\n":""
                         }
                       }
                     }
@@ -1745,7 +1798,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Prerequisite Data: ":$fv_temp:"\n":""
+                            |concat:"- Prerequisite Data [key: prerequisite_data]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1754,7 +1807,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Prerequisite Data\n":""
+                            |concat:"- Prerequisite Data [key: prerequisite_data]\n":""
                         }
                       }
                     }
@@ -1768,7 +1821,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Upstream Dependencies: ":$fv_temp:"\n":""
+                            |concat:"- Upstream Dependencies [key: upstream_dependencies]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1777,7 +1830,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Upstream Dependencies\n":""
+                            |concat:"""
+                            - Upstream Dependencies [key: upstream_dependencies]
+                            """:""
                         }
                       }
                     }
@@ -1791,7 +1846,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Handoff Output: ":$fv_temp:"\n":""
+                            |concat:"- Handoff Output [key: handoff_output]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1799,7 +1854,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Handoff Output\n":""
+                          value = $empty_lines
+                            |concat:"- Handoff Output [key: handoff_output]\n":""
                         }
                       }
                     }
@@ -1813,7 +1869,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Handoff Format: ":$fv_temp:"\n":""
+                            |concat:"- Handoff Format [key: handoff_format]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1821,7 +1877,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Handoff Format\n":""
+                          value = $empty_lines
+                            |concat:"- Handoff Format [key: handoff_format]\n":""
                         }
                       }
                     }
@@ -1835,7 +1892,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Handoff Timing: ":$fv_temp:"\n":""
+                            |concat:"- Handoff Timing [key: handoff_timing]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1843,7 +1900,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Handoff Timing\n":""
+                          value = $empty_lines
+                            |concat:"- Handoff Timing [key: handoff_timing]\n":""
                         }
                       }
                     }
@@ -1857,7 +1915,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Downstream Actor: ":$fv_temp:"\n":""
+                            |concat:"- Downstream Actor [key: downstream_actor]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1865,7 +1923,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Downstream Actor\n":""
+                          value = $empty_lines
+                            |concat:"- Downstream Actor [key: downstream_actor]\n":""
                         }
                       }
                     }
@@ -1879,7 +1938,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Validation Rules: ":$fv_temp:"\n":""
+                            |concat:"- Validation Rules [key: validation_rules]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1887,7 +1946,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Validation Rules\n":""
+                          value = $empty_lines
+                            |concat:"- Validation Rules [key: validation_rules]\n":""
                         }
                       }
                     }
@@ -1901,7 +1961,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Failure Recovery: ":$fv_temp:"\n":""
+                            |concat:"- Failure Recovery [key: failure_recovery]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1909,7 +1969,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Failure Recovery\n":""
+                          value = $empty_lines
+                            |concat:"- Failure Recovery [key: failure_recovery]\n":""
                         }
                       }
                     }
@@ -1923,7 +1984,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Communication Method: ":$fv_temp:"\n":""
+                            |concat:"- Communication Method [key: communication_method]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1932,7 +1993,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Communication Method\n":""
+                            |concat:"""
+                            - Communication Method [key: communication_method]
+                            """:""
                         }
                       }
                     }
@@ -1946,7 +2009,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Data Retention Policy: ":$fv_temp:"\n":""
+                            |concat:"- Data Retention Policy [key: data_retention_policy]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1955,7 +2018,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Data Retention Policy\n":""
+                            |concat:"""
+                            - Data Retention Policy [key: data_retention_policy]
+                            """:""
                         }
                       }
                     }
@@ -1974,7 +2039,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Vendor Name / Type: ":$fv_temp:"\n":""
+                            |concat:"- Vendor Name / Type [key: vendor_name_type]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -1983,7 +2048,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Vendor Name / Type\n":""
+                            |concat:"- Vendor Name / Type [key: vendor_name_type]\n":""
                         }
                       }
                     }
@@ -1997,7 +2062,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Role at This Step: ":$fv_temp:"\n":""
+                            |concat:"- Role at This Step [key: role_at_step]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2006,7 +2071,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Role at This Step\n":""
+                            |concat:"- Role at This Step [key: role_at_step]\n":""
                         }
                       }
                     }
@@ -2020,7 +2085,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Engagement Trigger: ":$fv_temp:"\n":""
+                            |concat:"- Engagement Trigger [key: engagement_trigger]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2029,7 +2094,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Engagement Trigger\n":""
+                            |concat:"- Engagement Trigger [key: engagement_trigger]\n":""
                         }
                       }
                     }
@@ -2043,7 +2108,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Contractual Obligations: ":$fv_temp:"\n":""
+                            |concat:"- Contractual Obligations [key: contractual_obligations]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2052,7 +2117,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Contractual Obligations\n":""
+                            |concat:"""
+                            - Contractual Obligations [key: contractual_obligations]
+                            """:""
                         }
                       }
                     }
@@ -2066,7 +2133,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Information Needs: ":$fv_temp:"\n":""
+                            |concat:"- Information Needs [key: information_needs]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2075,7 +2142,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Information Needs\n":""
+                            |concat:"- Information Needs [key: information_needs]\n":""
                         }
                       }
                     }
@@ -2089,7 +2156,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Information They Return: ":$fv_temp:"\n":""
+                            |concat:"- Information They Return [key: information_returned]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2098,7 +2165,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Information They Return\n":""
+                            |concat:"""
+                            - Information They Return [key: information_returned]
+                            """:""
                         }
                       }
                     }
@@ -2112,7 +2181,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Integration Method: ":$fv_temp:"\n":""
+                            |concat:"- Integration Method [key: integration_method]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2121,7 +2190,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Integration Method\n":""
+                            |concat:"- Integration Method [key: integration_method]\n":""
                         }
                       }
                     }
@@ -2140,7 +2209,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- SLA / Performance Metrics: ":$fv_temp:"\n":""
+                            |concat:"- SLA / Performance Metrics [key: sla_performance_metrics]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2149,7 +2218,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- SLA / Performance Metrics\n":""
+                            |concat:"""
+                            - SLA / Performance Metrics [key: sla_performance_metrics]
+                            """:""
                         }
                       }
                     }
@@ -2163,7 +2234,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Failure Scenario: ":$fv_temp:"\n":""
+                            |concat:"- Failure Scenario [key: failure_scenario]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2171,7 +2242,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Failure Scenario\n":""
+                          value = $empty_lines
+                            |concat:"- Failure Scenario [key: failure_scenario]\n":""
                         }
                       }
                     }
@@ -2185,7 +2257,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Escalation Path: ":$fv_temp:"\n":""
+                            |concat:"- Escalation Path [key: escalation_path]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2193,7 +2265,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Escalation Path\n":""
+                          value = $empty_lines
+                            |concat:"- Escalation Path [key: escalation_path]\n":""
                         }
                       }
                     }
@@ -2207,7 +2280,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Data Privacy & Compliance: ":$fv_temp:"\n":""
+                            |concat:"- Data Privacy & Compliance [key: data_privacy_compliance]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2216,7 +2289,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Data Privacy & Compliance\n":""
+                            |concat:"""
+                            - Data Privacy & Compliance [key: data_privacy_compliance]
+                            """:""
                         }
                       }
                     }
@@ -2230,7 +2305,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Vendor Constraints: ":$fv_temp:"\n":""
+                            |concat:"- Vendor Constraints [key: vendor_constraints]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2239,7 +2314,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Vendor Constraints\n":""
+                            |concat:"- Vendor Constraints [key: vendor_constraints]\n":""
                         }
                       }
                     }
@@ -2253,7 +2328,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Cost Impact: ":$fv_temp:"\n":""
+                            |concat:"- Cost Impact [key: cost_impact]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2261,7 +2336,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Cost Impact\n":""
+                          value = $empty_lines
+                            |concat:"- Cost Impact [key: cost_impact]\n":""
                         }
                       }
                     }
@@ -2275,7 +2351,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Dependency on Internal Actors: ":$fv_temp:"\n":""
+                            |concat:"- Dependency on Internal Actors [key: dependency_on_internal]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2284,7 +2360,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Dependency on Internal Actors\n":""
+                            |concat:"""
+                            - Dependency on Internal Actors [key: dependency_on_internal]
+                            """:""
                         }
                       }
                     }
@@ -2303,7 +2381,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Cost to Serve: ":$fv_temp:"\n":""
+                            |concat:"- Cost to Serve [key: cost_to_serve]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2311,7 +2389,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Cost to Serve\n":""
+                          value = $empty_lines
+                            |concat:"- Cost to Serve [key: cost_to_serve]\n":""
                         }
                       }
                     }
@@ -2325,7 +2404,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Revenue at Risk: ":$fv_temp:"\n":""
+                            |concat:"- Revenue at Risk [key: revenue_at_risk]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2333,7 +2412,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Revenue at Risk\n":""
+                          value = $empty_lines
+                            |concat:"- Revenue at Risk [key: revenue_at_risk]\n":""
                         }
                       }
                     }
@@ -2347,7 +2427,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Automation Savings: ":$fv_temp:"\n":""
+                            |concat:"- Automation Savings [key: automation_savings]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2356,7 +2436,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Automation Savings\n":""
+                            |concat:"- Automation Savings [key: automation_savings]\n":""
                         }
                       }
                     }
@@ -2370,7 +2450,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Upsell / Cross-sell Opportunity: ":$fv_temp:"\n":""
+                            |concat:"- Upsell / Cross-sell Opportunity [key: upsell_opportunity]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2379,7 +2459,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Upsell / Cross-sell Opportunity\n":""
+                            |concat:"""
+                            - Upsell / Cross-sell Opportunity [key: upsell_opportunity]
+                            """:""
                         }
                       }
                     }
@@ -2393,7 +2475,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Revenue Leakage: ":$fv_temp:"\n":""
+                            |concat:"- Revenue Leakage [key: revenue_leakage]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2401,7 +2483,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- Revenue Leakage\n":""
+                          value = $empty_lines
+                            |concat:"- Revenue Leakage [key: revenue_leakage]\n":""
                         }
                       }
                     }
@@ -2420,7 +2503,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Cost Efficiency Note: ":$fv_temp:"\n":""
+                            |concat:"- Cost Efficiency Note [key: cost_efficiency_note]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2429,7 +2512,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Cost Efficiency Note\n":""
+                            |concat:"""
+                            - Cost Efficiency Note [key: cost_efficiency_note]
+                            """:""
                         }
                       }
                     }
@@ -2443,7 +2528,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Breakeven Threshold: ":$fv_temp:"\n":""
+                            |concat:"- Breakeven Threshold [key: breakeven_threshold]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2452,7 +2537,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Breakeven Threshold\n":""
+                            |concat:"""
+                            - Breakeven Threshold [key: breakeven_threshold]
+                            """:""
                         }
                       }
                     }
@@ -2466,7 +2553,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- CAC Contribution: ":$fv_temp:"\n":""
+                            |concat:"- CAC Contribution [key: cac_contribution]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2474,7 +2561,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- CAC Contribution\n":""
+                          value = $empty_lines
+                            |concat:"- CAC Contribution [key: cac_contribution]\n":""
                         }
                       }
                     }
@@ -2488,7 +2576,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- CLV Impact: ":$fv_temp:"\n":""
+                            |concat:"- CLV Impact [key: clv_impact]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2496,7 +2584,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     conditional {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
-                          value = $empty_lines|concat:"- CLV Impact\n":""
+                          value = $empty_lines
+                            |concat:"- CLV Impact [key: clv_impact]\n":""
                         }
                       }
                     }
@@ -2510,7 +2599,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp != null && $fv_temp != "") {
                         var.update $filled_lines {
                           value = $filled_lines
-                            |concat:"- Financial Priority Score: ":$fv_temp:"\n":""
+                            |concat:"- Financial Priority Score [key: priority_score]: ":$fv_temp:"\n":""
                         }
                       }
                     }
@@ -2519,7 +2608,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"- Financial Priority Score\n":""
+                            |concat:"""
+                            - Financial Priority Score [key: priority_score]
+                            """:""
                         }
                       }
                     }

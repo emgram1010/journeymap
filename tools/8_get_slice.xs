@@ -17,9 +17,13 @@ tool get_slice {
       - lens_key: (optional) The key of the lens to slice
     
       Response shape varies by mode:
-      Column: { slice_type: "column", stage: {...}, cells: [...], summary: {...} }
-      Row:    { slice_type: "row", lens: {...}, cells: [...], summary: {...} }
-      Cell:   { slice_type: "cell", stage: {...}, lens: {...}, cell: {...} }
+      Column: { slice_type: "column", stage: {...}, cells: [{ lens_key, lens_label, actor_type, actor_fields, content, status, is_locked, change_source }], summary: {...} }
+      Row:    { slice_type: "row",    lens: {...},  cells: [{ stage_key, stage_label, actor_type, actor_fields, content, status, is_locked, change_source }], summary: {...} }
+      Cell:   { slice_type: "cell",  stage: {...}, lens: {...}, cell: { id, actor_type, actor_fields, content, status, is_locked, change_source } }
+    
+      actor_type: the actor type of the lens (e.g. "handoff", "customer"); null for non-actor lenses.
+      actor_fields: the structured field object written via update_actor_cell_fields; null when not yet populated.
+      Use actor_fields after writing with update_actor_cell_fields to verify the correct keys were saved.
     """
 
   input {
@@ -135,6 +139,8 @@ tool get_slice {
             lens      : {key: $lens.key, label: $lens.label, description: $lens.description, display_order: $lens.display_order}
             cell      : {
               id           : $cell.id
+              actor_type   : $lens.actor_type
+              actor_fields : $cell.actor_fields
               content      : $cell.content
               status       : $cell.status
               is_locked    : $cell.is_locked
@@ -180,6 +186,8 @@ tool get_slice {
               value = {
                 lens_key     : $l_rec.key
                 lens_label   : $l_rec.label
+                actor_type   : $l_rec.actor_type
+                actor_fields : $c.actor_fields
                 content      : $c.content
                 status       : $c.status
                 is_locked    : $c.is_locked
@@ -259,6 +267,8 @@ tool get_slice {
               value = {
                 stage_key    : $s_rec.key
                 stage_label  : $s_rec.label
+                actor_type   : $lens.actor_type
+                actor_fields : $c.actor_fields
                 content      : $c.content
                 status       : $c.status
                 is_locked    : $c.is_locked

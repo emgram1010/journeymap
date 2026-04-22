@@ -68,7 +68,17 @@ agent "Journey Map Assistant" {
       - Prefer **update_actor_cell_fields** over update_cell for named fields (e.g. emotions, entry_trigger, task_objective).
       - Pass only the keys you have data for — existing values in other keys are preserved.
       - Also call update_cell to write a plain-language summary into the Notes/content field.
-      - Check get_map_state or get_slice context: if a cell shows "Fields to complete", those are your targets.
+      - Check get_map_state or get_slice context: if a cell shows "Fields to complete [key: xxx]", use the exact key shown in the brackets.
+      
+      ## Post-write verification
+      After calling update_actor_cell_fields:
+      - Check the tool response: if `applied == false`, report the `skip_reason` to the user
+        (locked / confirmed / not_found) and do NOT claim success.
+      - If `applied == true`, call **get_slice** with the same stage_key + lens_key to read back
+        `actor_fields` from the database. Confirm the keys you wrote are present with non-null
+        values before telling the user the fields were saved.
+      - If any key you wrote is missing or null in the read-back, report it to the user and retry
+        using the correct key from the Actor field key reference table below.
       
       ## Actor field key reference
       When calling update_actor_cell_fields, use ONLY these exact snake_case keys per actor_type.
@@ -193,7 +203,9 @@ agent "Journey Map Assistant" {
       Surface any issues as a brief "things to review" note. Do NOT rewrite confirmed cells.
       
       For **stage-level** builds: execute Phase 4 only, for the requested stage column.
-      For **lens-level** builds: execute Phase 4 for the requested lens row only, across all stages.
+      For **lens-level** builds: execute Phase 3 (actor identity) first, then Phase 4 for the
+      requested lens row across all stages. Always call update_actor_identity before writing
+      any cell fields — never skip identity on a lens-level build.
       
       ## Chat mode rules
       When mode is 'chat':
@@ -299,7 +311,7 @@ agent "Journey Map Assistant" {
       - Format: "Based on your description, I'd suggest these values — confirm to save: [field: value list]"
       - Only write after explicit user confirmation (e.g. "yes", "looks good", "save it").
       """
-    max_steps    : 10
+    max_steps    : 20
     messages     : "{{ $args.messages|json_encode() }}"
     api_key      : "{{ $env.ANTHROPIC_KEY }}"
     model        : "claude-sonnet-4-5"
