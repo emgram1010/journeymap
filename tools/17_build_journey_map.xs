@@ -69,6 +69,5 @@ tool build_journey_map {
     journey_map_id : $input.journey_map_id
     map_title      : $journey_map.title
     reply          : $agent_run.output
-    continue_needed: $agent_run.output|contains:"[CONTINUE_BUILD]"
   }
 }
