@@ -83,10 +83,8 @@ query "journey_map/{journey_map_id}/build_full" verb=POST {
     // ── Main loop ──
     var $loop_idx { value = 0 }
 
-    repeat {
-      while = $loop_status == "running"
-
-      stack {
+    while (`$loop_status == "running"`) {
+      each {
         var $turn_id {
           value = "build_full_" ~ $input.journey_map_id ~ "_t" ~ $loop_idx
         }
@@ -109,8 +107,7 @@ query "journey_map/{journey_map_id}/build_full" verb=POST {
 
         // ── Count cells written this turn ──
         db.query agent_tool_log {
-          where = $db.agent_tool_log.conversation == $conversation.id
-            AND $db.agent_tool_log.turn_id == $turn_id
+          where = $db.agent_tool_log.conversation == $conversation.id && $db.agent_tool_log.turn_id == $turn_id
           return = {type: "list"}
         } as $turn_logs
 
@@ -170,22 +167,26 @@ query "journey_map/{journey_map_id}/build_full" verb=POST {
         var.update $turns_used { value = $turns_used + 1 }
         var.update $loop_idx   { value = $loop_idx + 1 }
 
-        // ── Check progress via get_gaps ──
-        tool.call get_gaps {
-          input = {journey_map_id: $input.journey_map_id}
-        } as $gaps_check
-
-        var $remaining_gaps {
-          value = $gaps_check.total_gaps
-        }
-
-        // ── Compute progress percentage ──
+        // ── Check progress: count empty cells inline ──
         db.query journey_cell {
           where = $db.journey_cell.journey_map == $input.journey_map_id
           return = {type: "list"}
         } as $all_cells
 
         var $total_count { value = $all_cells|count }
+        var $empty_count { value = 0 }
+
+        foreach ($all_cells) {
+          each as $cell {
+            conditional {
+              if ($cell.content == null || $cell.content == "") {
+                var.update $empty_count { value = $empty_count + 1 }
+              }
+            }
+          }
+        }
+
+        var $remaining_gaps { value = $empty_count }
         var $progress_pct {
           value = $total_count > 0 ? (($total_count - $remaining_gaps) * 100) / $total_count : 100
         }
@@ -212,17 +213,25 @@ query "journey_map/{journey_map_id}/build_full" verb=POST {
     }
 
     // ── Final progress snapshot ──
-    tool.call get_gaps {
-      input = {journey_map_id: $input.journey_map_id}
-    } as $final_gaps
-
     db.query journey_cell {
       where = $db.journey_cell.journey_map == $input.journey_map_id
       return = {type: "list"}
     } as $final_cells
 
     var $final_total   { value = $final_cells|count }
-    var $final_remaining { value = $final_gaps.total_gaps }
+    var $final_empty   { value = 0 }
+
+    foreach ($final_cells) {
+      each as $fc {
+        conditional {
+          if ($fc.content == null || $fc.content == "") {
+            var.update $final_empty { value = $final_empty + 1 }
+          }
+        }
+      }
+    }
+
+    var $final_remaining { value = $final_empty }
     var $final_filled  { value = $final_total - $final_remaining }
     var $final_pct     {
       value = $final_total > 0 ? ($final_filled * 100) / $final_total : 100
@@ -233,7 +242,7 @@ query "journey_map/{journey_map_id}/build_full" verb=POST {
       field_name  = "id"
       field_value = $conversation.id
       data        = {last_message_at: "now"}
-    } as $conv_update
+    } as $conv_patched
   }
 
   response = {
