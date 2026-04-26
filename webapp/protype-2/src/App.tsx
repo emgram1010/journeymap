@@ -144,6 +144,15 @@ const TOOL_CATEGORY_ICON: Record<string, string> = {
   structure: '🏗️',
 };
 
+/** Returns a coloured dot className based on the tool's output_summary. */
+function getStatusDotClass(entry: ToolTraceEntry): string {
+  if (entry.toolCategory === 'read') return 'bg-zinc-300'; // ⚪ neutral
+  const out = entry.outputSummary ?? '';
+  if (/^applied|filled|written/i.test(out)) return 'bg-emerald-500'; // 🟢
+  if (/^skipped|^failed/i.test(out)) return 'bg-red-500';             // 🔴
+  return 'bg-zinc-300';
+}
+
 interface ActivityPanelProps {
   msgId: string;
   activity: MessageActivity;
@@ -215,6 +224,9 @@ function ActivityPanel({
         <div className="border border-zinc-100 rounded-lg bg-zinc-50/70 overflow-hidden divide-y divide-zinc-100">
           {toolTrace.map((entry, idx) => (
             <div key={idx} className="flex items-start gap-2 px-2.5 py-1.5 text-[10px]">
+              <span className="shrink-0 mt-1.5">
+                <span className={`inline-block w-1.5 h-1.5 rounded-full ${getStatusDotClass(entry)}`} />
+              </span>
               <span className="shrink-0 mt-px">
                 {TOOL_CATEGORY_ICON[entry.toolCategory] ?? '🔧'}
               </span>
@@ -411,6 +423,18 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const [smartAiSettingsError, setSmartAiSettingsError] = useState<string | null>(null);
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
   const [isQuestionMode, setIsQuestionMode] = useState(true);
+
+  // ── Build loop state (AMBC) ──
+  const [isBuildLooping, setIsBuildLooping] = useState(false);
+  const [buildLoopProgress, setBuildLoopProgress] = useState(0);
+  const [buildLoopTurnDisplay, setBuildLoopTurnDisplay] = useState(0);
+  const isBuildLoopingRef = useRef(false);
+  const buildLoopTurnsRef = useRef(0);
+  const buildStallCountRef = useRef(0);
+  const BUILD_LOOP_MAX_TURNS = 8;
+  const BUILD_COMPLETE_THRESHOLD = 95;
+  const BUILD_CONTINUATION_PROMPT = '[CONTINUE_BUILD] Continue filling empty cells. Call get_gaps first, then fill the next batch.';
+  const BUILD_REQUEST_REGEX = /build.*map|create.*map|generate.*map|map.*journey|fill.*map|build.*journey|walk me through|build.*anti|build.*full/i;
   const [searchTerm, setSearchTerm] = useState('');
   const [conversationList, setConversationList] = useState<ConversationListItem[]>([]);
   const [isSessionPickerOpen, setIsSessionPickerOpen] = useState(false);
@@ -491,6 +515,15 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     // Load smart AI settings — merge persisted values over defaults so null fields fall back cleanly
     setSmartAiSettings({...SMART_AI_DEFAULTS, ...(bundle.journeyMap.smart_ai_settings ?? {})});
 
+    // ── MATRIX LOAD TRACE ──
+    console.group(`[BUNDLE] map ${bundle.journeyMap.id} source=${bundle.source}`);
+    console.log('hasHydratedMatrix:', bundle.hasHydratedMatrix);
+    console.log('stages:', bundle.stages.length, bundle.stages.map(s => `${s.id}:${s.label}`));
+    console.log('lenses:', bundle.lenses.length, bundle.lenses.map(l => `${l.id}:${l.label}`));
+    console.log('cells:', bundle.cells.length);
+    console.groupEnd();
+    // ── END TRACE ──
+
     if (bundle.hasHydratedMatrix) {
       setStages(bundle.stages);
       setLenses(bundle.lenses);
@@ -499,6 +532,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
       return;
     }
 
+    console.warn('[BUNDLE] hasHydratedMatrix=false → falling back to INITIAL_LENSES');
     setStages(INITIAL_STAGES);
     setLenses(INITIAL_LENSES);
     setCells(SCAFFOLD_CELLS);
@@ -854,49 +888,77 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     return explicit ?? calcStageHealth(f);
   }, [selectedCell?.actorFields]);
 
-  const handleSendMessage = useCallback(async () => {
-    const messageText = inputText.trim();
-    if (!messageText) {
-      return;
-    }
+  // Ref so the build loop can call the latest version without stale-closure issues
+  const handleSendMessageRef = useRef<(continuationConvId?: number) => Promise<void>>(async () => {});
 
+  const handleSendMessage = useCallback(async (continuationConvId?: number) => {
+    const isContinuation = continuationConvId !== undefined;
+    const messageText = isContinuation ? BUILD_CONTINUATION_PROMPT : inputText.trim();
+
+    if (!messageText) return;
     if (!journeyMapRecord) {
-      setXanoError('Create or load a journey map before sending a message.');
+      if (!isContinuation) setXanoError('Create or load a journey map before sending a message.');
       return;
     }
 
-    setIsSendingMessage(true);
-    setXanoError(null);
-    setInputText('');
+    if (!isContinuation) {
+      setIsSendingMessage(true);
+      setXanoError(null);
+      setInputText('');
 
-    // Show the user's message immediately — don't wait for the AI round-trip.
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `optimistic-${Date.now()}`,
-        role: 'expert' as const,
-        content: messageText,
-        timestamp: new Date(),
-      },
-    ]);
+      // Detect a full-map build request and arm the loop
+      if (!isChatMode && BUILD_REQUEST_REGEX.test(messageText)) {
+        isBuildLoopingRef.current = true;
+        buildLoopTurnsRef.current = 0;
+        buildStallCountRef.current = 0;
+        setIsBuildLooping(true);
+        setBuildLoopProgress(0);
+        setBuildLoopTurnDisplay(0);
+      }
+
+      // Show user message immediately
+      setMessages((prev) => [
+        ...prev,
+        { id: `optimistic-${Date.now()}`, role: 'expert' as const, content: messageText, timestamp: new Date() },
+      ]);
+    }
 
     const currentMode = isChatMode ? 'chat' as const : 'interview' as const;
     const selectedCellPayload = buildSelectedCellPayload(selectedCellContext);
+    const resolvedConvId = isContinuation ? continuationConvId : conversationRecord?.id;
 
     try {
       const aiThread = await sendAiMessage({
         journeyMapId: journeyMapRecord.id,
-        conversationId: conversationRecord?.id,
+        conversationId: resolvedConvId,
         content: messageText,
         mode: currentMode,
-        selectedCell: selectedCellPayload,
-        journeySettings,
+        selectedCell: isContinuation ? undefined : selectedCellPayload,
+        journeySettings: isContinuation ? undefined : journeySettings,
         parentContext: inboundContext,
       });
 
+      // ── TRACE LOGGING — remove once actor-field write chain is verified ──
+      console.group(`[AI TURN] ${isContinuation ? 'continuation' : 'user'} | map ${journeyMapRecord.id}`);
+      console.log('progress:', aiThread.progress);
+      console.log('cellUpdates count:', aiThread.cellUpdates.length);
+      console.log('cellUpdates:', aiThread.cellUpdates.map(u => ({
+        cell_id: u.cell_id,
+        stage_id: u.stage_id,
+        lens_id: u.lens_id,
+        content: u.content,
+        actor_fields: u.actor_fields,
+        status: u.status,
+      })));
+      console.log('stepLimitWarning:', aiThread.stepLimitWarning);
+      console.log('toolTrace:', aiThread.toolTrace?.map((t: ToolTraceEntry) => `${t.toolCategory}:${t.toolName} → ${t.outputSummary}`));
+      console.groupEnd();
+      // ── END TRACE LOGGING ──
+
       setConversationRecord(aiThread.conversation);
       setIsChatMode(aiThread.conversation?.mode === 'chat');
-      setSuggestedPrompts(aiThread.suggestedPrompts.length > 0 ? aiThread.suggestedPrompts : []);
+      if (!isContinuation) setSuggestedPrompts(aiThread.suggestedPrompts.length > 0 ? aiThread.suggestedPrompts : []);
+      setBuildLoopProgress(aiThread.progress.percentage);
 
       // Build activity metadata for the last AI message (Layers 1-3 transparency)
       const activity: MessageActivity = {
@@ -915,14 +977,18 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         stepLimitWarning: aiThread.stepLimitWarning,
       };
 
-      // Always tag the last AI message so Layer 2 & 3 panels can render
       const taggedMessages = aiThread.messages.map((msg, idx) =>
-        msg.role === 'ai' && idx === aiThread.messages.length - 1
-          ? { ...msg, activity }
-          : msg
+        msg.role === 'ai' && idx === aiThread.messages.length - 1 ? { ...msg, activity } : msg
       );
-
       setMessages(taggedMessages);
+
+      // US-BIM-03: auto-expand trace panel for every turn during an active build loop
+      if (isBuildLoopingRef.current) {
+        const lastAiMsg = [...aiThread.messages].reverse().find((m) => m.role === 'ai');
+        if (lastAiMsg?.id) {
+          setExpandedPanels((prev) => ({ ...prev, [lastAiMsg.id]: 'trace' }));
+        }
+      }
 
       // Apply cell updates from the AI agent to the matrix
       if (aiThread.cellUpdates.length > 0) {
@@ -935,6 +1001,8 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
             return {
               ...cell,
               content: update.content ?? cell.content,
+              // BUG-09: apply actor_fields from AI writes so matrix updates without a page refresh
+              actorFields: update.actor_fields !== undefined ? update.actor_fields : cell.actorFields,
               status: (update.status as CellStatus) ?? cell.status,
               isLocked: update.is_locked ?? cell.isLocked,
             };
@@ -942,18 +1010,66 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         );
       }
 
-      // If structural changes occurred (stages/lenses added or removed), reload the full bundle
+      // If structural changes occurred, reload the full bundle
       if (aiThread.structuralChanges.stages_changed || aiThread.structuralChanges.lenses_changed) {
         const bundle = await loadJourneyMapBundle(journeyMapRecord.id, journeyMapRecord);
         applyJourneyMapBundle(bundle);
       }
+
+      // ── Build loop continuation (AMBC-04) ──
+      if (isBuildLoopingRef.current) {
+        const isComplete = aiThread.progress.percentage >= BUILD_COMPLETE_THRESHOLD;
+        const maxTurnsHit = buildLoopTurnsRef.current >= BUILD_LOOP_MAX_TURNS;
+
+        if (aiThread.cellUpdates.length === 0) buildStallCountRef.current += 1;
+        else buildStallCountRef.current = 0;
+        const isStalled = buildStallCountRef.current >= 2;
+
+        if (!isComplete && !maxTurnsHit && !isStalled) {
+          buildLoopTurnsRef.current += 1;
+          setBuildLoopTurnDisplay(buildLoopTurnsRef.current);
+          await handleSendMessageRef.current(aiThread.conversation?.id ?? resolvedConvId);
+        } else {
+          isBuildLoopingRef.current = false;
+          setIsBuildLooping(false);
+          if (!isComplete) {
+            const empty = (aiThread.progress.totalCells ?? 0) - (aiThread.progress.filledCells ?? 0);
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `build-warn-${Date.now()}`,
+                role: 'ai' as const,
+                content: `Build stopped at ${aiThread.progress.percentage}% — ${empty} cells still empty.`,
+                timestamp: new Date(),
+                isBuildWarning: true,
+              },
+            ]);
+          }
+        }
+      }
     } catch (error) {
-      setInputText(messageText);
+      isBuildLoopingRef.current = false;
+      setIsBuildLooping(false);
+      if (!isContinuation) setInputText(messageText);
       setXanoError(getErrorMessage(error, 'Unable to send AI message.'));
     } finally {
-      setIsSendingMessage(false);
+      if (!isContinuation) setIsSendingMessage(false);
     }
-  }, [conversationRecord?.id, inputText, isChatMode, journeyMapRecord, selectedCellContext, lenses, stages]);
+  }, [conversationRecord?.id, inputText, isChatMode, journeyMapRecord, selectedCellContext, lenses, stages, inboundContext, journeySettings, applyJourneyMapBundle]);
+
+  // Keep the ref in sync so recursive continuation calls always use the latest version
+  useEffect(() => { handleSendMessageRef.current = handleSendMessage; }, [handleSendMessage]);
+
+  // Resume build loop after a stall or max-turns stop (AMBC-06)
+  const handleResumeBuild = useCallback(() => {
+    if (!conversationRecord?.id) return;
+    isBuildLoopingRef.current = true;
+    buildLoopTurnsRef.current = 0;
+    buildStallCountRef.current = 0;
+    setIsBuildLooping(true);
+    setIsSendingMessage(true);
+    void handleSendMessageRef.current(conversationRecord.id);
+  }, [conversationRecord?.id]);
 
   const handleSaveAllSettings = useCallback(async () => {
     if (!journeyMapRecord) return;
@@ -1942,6 +2058,25 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                 <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-white">
                   {messages.map((msg) => (
                     <div key={msg.id} className="space-y-1 group">
+                      {/* Build warning message (AMBC-06) */}
+                      {msg.isBuildWarning ? (
+                        <div className="flex items-start gap-2">
+                          <div className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[8px] font-bold bg-amber-500 text-white">
+                            ⚠
+                          </div>
+                          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-center gap-3">
+                            <span>{msg.content}</span>
+                            <button
+                              type="button"
+                              onClick={handleResumeBuild}
+                              disabled={isSendingMessage}
+                              className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-500 text-white text-[10px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors"
+                            >
+                              Resume →
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
                       <div className={`flex items-start gap-1 ${msg.role === 'ai' ? 'justify-start' : 'justify-end'}`}>
                         {/* Delete button — left side for expert messages */}
                         {msg.role !== 'ai' && (
@@ -1974,8 +2109,9 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                           </button>
                         )}
                       </div>
+                      )}
                       {/* Transparency layers 1-3 */}
-                      {msg.role === 'ai' && msg.activity && (
+                      {!msg.isBuildWarning && msg.role === 'ai' && msg.activity && (
                         <ActivityPanel
                           msgId={msg.id}
                           activity={msg.activity}
@@ -2003,7 +2139,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                         />
                       )}
                       {/* Layer 4: Debug panel — only when ?debug=1 and turn_id available */}
-                      {isDebugMode && msg.role === 'ai' && msg.activity?.turnId && journeyMapRecord && (
+                      {!msg.isBuildWarning && isDebugMode && msg.role === 'ai' && msg.activity?.turnId && journeyMapRecord && (
                         <DebugPanel
                           journeyMapId={journeyMapRecord.id}
                           turnId={msg.activity.turnId}
@@ -2012,17 +2148,29 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                       )}
                     </div>
                   ))}
-                  {/* Thinking indicator — shown while the AI is processing */}
+                  {/* Thinking / build-loop indicator — shown while the AI is processing */}
                   {isSendingMessage && (
                     <div className="flex items-start gap-2">
                       <div className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[8px] font-bold bg-zinc-900 text-white">
                         AI
                       </div>
-                      <div className="p-3 rounded-xl bg-zinc-100 flex gap-1 items-center">
-                        <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:0ms]" />
-                        <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:150ms]" />
-                        <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:300ms]" />
-                      </div>
+                      {isBuildLooping ? (
+                        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2 text-xs text-amber-700">
+                          <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                          <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                          <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                          <span className="ml-1 font-medium">
+                            Building map… {buildLoopProgress}% complete
+                            {buildLoopTurnDisplay > 0 && ` (turn ${buildLoopTurnDisplay}/${BUILD_LOOP_MAX_TURNS})`}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="p-3 rounded-xl bg-zinc-100 flex gap-1 items-center">
+                          <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                          <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                          <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                        </div>
+                      )}
                     </div>
                   )}
                   {lastUpdateSummaries.length > 0 && (

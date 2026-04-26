@@ -13,6 +13,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
   
     json selected_cell?
     json journey_settings?
+    json parent_context?
   }
 
   stack {
@@ -850,9 +851,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Acceptance Criteria [key: acceptance_criteria]
-                            """:""
+                            |concat:"- Acceptance Criteria [key: acceptance_criteria]":""
                         }
                       }
                     }
@@ -875,9 +874,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Expected Output / Confirmation [key: expected_output]
-                            """:""
+                            |concat:"- Expected Output / Confirmation [key: expected_output]":""
                         }
                       }
                     }
@@ -900,9 +897,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Channel / Touchpoint [key: channel_touchpoint]
-                            """:""
+                            |concat:"- Channel / Touchpoint [key: channel_touchpoint]":""
                         }
                       }
                     }
@@ -1091,9 +1086,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Handoff Dependencies [key: handoff_dependencies]
-                            """:""
+                            |concat:"- Handoff Dependencies [key: handoff_dependencies]":""
                         }
                       }
                     }
@@ -1139,9 +1132,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Output / Deliverable [key: output_deliverable]
-                            """:""
+                            |concat:"- Output / Deliverable [key: output_deliverable]":""
                         }
                       }
                     }
@@ -1164,9 +1155,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Employee Constraints [key: employee_constraints]
-                            """:""
+                            |concat:"- Employee Constraints [key: employee_constraints]":""
                         }
                       }
                     }
@@ -1217,9 +1206,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - System / Service Owner [key: system_service_owner]
-                            """:""
+                            |concat:"- System / Service Owner [key: system_service_owner]":""
                         }
                       }
                     }
@@ -1289,9 +1276,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - API / Integration Dependencies [key: api_integration_dependencies]
-                            """:""
+                            |concat:"- API / Integration Dependencies [key: api_integration_dependencies]":""
                         }
                       }
                     }
@@ -1314,9 +1299,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Business Rules / Logic [key: business_rules_logic]
-                            """:""
+                            |concat:"- Business Rules / Logic [key: business_rules_logic]":""
                         }
                       }
                     }
@@ -1339,9 +1322,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Error States / Edge Cases [key: error_states_edge_cases]
-                            """:""
+                            |concat:"- Error States / Edge Cases [key: error_states_edge_cases]":""
                         }
                       }
                     }
@@ -1364,9 +1345,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Data Storage Requirements [key: data_storage_requirements]
-                            """:""
+                            |concat:"- Data Storage Requirements [key: data_storage_requirements]":""
                         }
                       }
                     }
@@ -1389,9 +1368,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Security & Permissions [key: security_permissions]
-                            """:""
+                            |concat:"- Security & Permissions [key: security_permissions]":""
                         }
                       }
                     }
@@ -1414,9 +1391,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Performance Requirements [key: performance_requirements]
-                            """:""
+                            |concat:"- Performance Requirements [key: performance_requirements]":""
                         }
                       }
                     }
@@ -1439,9 +1414,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Audit / Logging Needs [key: audit_logging_needs]
-                            """:""
+                            |concat:"- Audit / Logging Needs [key: audit_logging_needs]":""
                         }
                       }
                     }
@@ -1538,9 +1511,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Confidence Threshold [key: confidence_threshold]
-                            """:""
+                            |concat:"- Confidence Threshold [key: confidence_threshold]":""
                         }
                       }
                     }
@@ -1609,9 +1580,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Retraining Frequency [key: retraining_frequency]
-                            """:""
+                            |concat:"- Retraining Frequency [key: retraining_frequency]":""
                         }
                       }
                     }
@@ -1635,9 +1604,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Bias & Fairness Considerations [key: bias_fairness_considerations]
-                            """:""
+                            |concat:"- Bias & Fairness Considerations [key: bias_fairness_considerations]":""
                         }
                       }
                     }
@@ -1683,9 +1650,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Performance Metrics [key: performance_metrics]
-                            """:""
+                            |concat:"- Performance Metrics [key: performance_metrics]":""
                         }
                       }
                     }
@@ -1731,9 +1696,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Explainability Needs [key: explainability_needs]
-                            """:""
+                            |concat:"- Explainability Needs [key: explainability_needs]":""
                         }
                       }
                     }
@@ -1830,9 +1793,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Upstream Dependencies [key: upstream_dependencies]
-                            """:""
+                            |concat:"- Upstream Dependencies [key: upstream_dependencies]":""
                         }
                       }
                     }
@@ -1993,9 +1954,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Communication Method [key: communication_method]
-                            """:""
+                            |concat:"- Communication Method [key: communication_method]":""
                         }
                       }
                     }
@@ -2018,9 +1977,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Data Retention Policy [key: data_retention_policy]
-                            """:""
+                            |concat:"- Data Retention Policy [key: data_retention_policy]":""
                         }
                       }
                     }
@@ -2117,9 +2074,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Contractual Obligations [key: contractual_obligations]
-                            """:""
+                            |concat:"- Contractual Obligations [key: contractual_obligations]":""
                         }
                       }
                     }
@@ -2165,9 +2120,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Information They Return [key: information_returned]
-                            """:""
+                            |concat:"- Information They Return [key: information_returned]":""
                         }
                       }
                     }
@@ -2218,9 +2171,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - SLA / Performance Metrics [key: sla_performance_metrics]
-                            """:""
+                            |concat:"- SLA / Performance Metrics [key: sla_performance_metrics]":""
                         }
                       }
                     }
@@ -2289,9 +2240,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Data Privacy & Compliance [key: data_privacy_compliance]
-                            """:""
+                            |concat:"- Data Privacy & Compliance [key: data_privacy_compliance]":""
                         }
                       }
                     }
@@ -2360,9 +2309,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Dependency on Internal Actors [key: dependency_on_internal]
-                            """:""
+                            |concat:"- Dependency on Internal Actors [key: dependency_on_internal]":""
                         }
                       }
                     }
@@ -2459,9 +2406,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Upsell / Cross-sell Opportunity [key: upsell_opportunity]
-                            """:""
+                            |concat:"- Upsell / Cross-sell Opportunity [key: upsell_opportunity]":""
                         }
                       }
                     }
@@ -2512,9 +2457,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Cost Efficiency Note [key: cost_efficiency_note]
-                            """:""
+                            |concat:"- Cost Efficiency Note [key: cost_efficiency_note]":""
                         }
                       }
                     }
@@ -2537,9 +2480,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Breakeven Threshold [key: breakeven_threshold]
-                            """:""
+                            |concat:"- Breakeven Threshold [key: breakeven_threshold]":""
                         }
                       }
                     }
@@ -2608,9 +2549,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       if ($fv_temp == null) {
                         var.update $empty_lines {
                           value = $empty_lines
-                            |concat:"""
-                            - Financial Priority Score [key: priority_score]
-                            """:""
+                            |concat:"- Financial Priority Score [key: priority_score]":""
                         }
                       }
                     }
@@ -2875,6 +2814,85 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       
         var.update $dynamic_context {
           value = $dynamic_context|concat:$cap_section:""
+        }
+      }
+    }
+  
+    // ── Inject parent journey context (anti-journey / exception / sub-journey) ──
+    conditional {
+      if ($input.parent_context != null && ($input.parent_context|is_empty) == false) {
+        var $parent_section {
+          value = "\n\n## Parent Journey Context\n"
+        }
+      
+        var $pc_link_type {
+          value = $input.parent_context|get:"link_type"
+        }
+      
+        var $pc_parent_title {
+          value = $input.parent_context|get:"parent_map_title"
+        }
+      
+        var $pc_stage {
+          value = $input.parent_context|get:"source_stage_label"
+        }
+      
+        var $pc_lens {
+          value = $input.parent_context|get:"source_lens_label"
+        }
+      
+        var $pc_trigger {
+          value = $input.parent_context|get:"trigger_content"
+        }
+      
+        conditional {
+          if ($pc_link_type != null) {
+            var.update $parent_section {
+              value = $parent_section
+                |concat:"- **Link type:** " ~ $pc_link_type ~ "\n":""
+            }
+          }
+        }
+      
+        conditional {
+          if ($pc_parent_title != null) {
+            var.update $parent_section {
+              value = $parent_section
+                |concat:"- **Parent map:** " ~ $pc_parent_title ~ "\n":""
+            }
+          }
+        }
+      
+        conditional {
+          if ($pc_stage != null && $pc_lens != null) {
+            var.update $parent_section {
+              value = $parent_section
+                |concat:"- **Trigger location:** " ~ $pc_stage ~ " × " ~ $pc_lens ~ "\n":""
+            }
+          }
+        }
+      
+        conditional {
+          if ($pc_trigger != null && $pc_trigger != "") {
+            var.update $parent_section {
+              value = $parent_section
+                |concat:"- **Trigger cell content:** \"" ~ $pc_trigger ~ "\"\n":""
+            }
+          }
+        }
+      
+        var.update $parent_section {
+          value = $parent_section
+            |concat:"""
+            
+            This map was branched from the above step in the parent happy-path map.
+            """:""
+            |concat:"Use this context to ground your suggestions — the friction or failure described ":""
+            |concat:"in the trigger cell is the starting point for this scenario.":""
+        }
+      
+        var.update $dynamic_context {
+          value = $dynamic_context|concat:$parent_section:""
         }
       }
     }
@@ -3171,12 +3189,12 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       return = {type: "list"}
     } as $updated_cells
   
-    // ── Detect which cells changed ──
+    // ── Detect which cells changed (BUG-07: also track actor_fields) ──
     var $cell_updates {
       value = []
     }
   
-    // Build a lookup of original cell content by ID
+    // Build a lookup of original content AND actor_fields by cell ID
     var $original_map {
       value = {}
     }
@@ -3184,25 +3202,96 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
     foreach ($cells) {
       each as $oc {
         var.update $original_map {
-          value = $original_map|set:($oc.id|to_text):$oc.content
+          value = $original_map
+            |set:($oc.id|to_text):{content: $oc.content, actor_fields: $oc.actor_fields}
+        }
+      }
+    }
+  
+    // Build lens lookup for actor_type resolution
+    var $lens_actor_map {
+      value = {}
+    }
+  
+    foreach ($lenses) {
+      each as $lns {
+        var.update $lens_actor_map {
+          value = $lens_actor_map
+            |set:($lns.id|to_text):$lns.actor_type
         }
       }
     }
   
     foreach ($updated_cells) {
       each as $uc {
-        var $orig_content {
+        var $orig_snapshot {
           value = $original_map|get:($uc.id|to_text)
         }
       
+        var $orig_content {
+          value = $orig_snapshot|get:"content"
+        }
+      
+        var $actor_type {
+          value = $lens_actor_map|get:($uc.lens|to_text)
+        }
+      
+        var $content_changed {
+          value = $uc.content != $orig_content
+        }
+      
+        // Detect actor_fields filled: avoid JSON object comparison (unsafe in xs).
+        // Instead: actor cell is "changed" if it NOW has at least one non-null value.
+        // Re-sending already-applied values is idempotent on the frontend.
+        var $actor_fields_changed {
+          value = false
+        }
+      
         conditional {
-          if ($uc.content != $orig_content) {
+          if ($actor_type != null && $actor_type != "") {
+            conditional {
+              if ($uc.actor_fields != null && ($uc.actor_fields|count) > 0) {
+                var $af_keys {
+                  value = $uc.actor_fields|keys
+                }
+              
+                var $has_real {
+                  value = false
+                }
+              
+                foreach ($af_keys) {
+                  each as $fk {
+                    var $fv {
+                      value = $uc.actor_fields|get:$fk
+                    }
+                  
+                    conditional {
+                      if ($fv != null && $fv != "") {
+                        var.update $has_real {
+                          value = true
+                        }
+                      }
+                    }
+                  }
+                }
+              
+                var.update $actor_fields_changed {
+                  value = $has_real
+                }
+              }
+            }
+          }
+        }
+      
+        conditional {
+          if ($content_changed || $actor_fields_changed) {
             array.push $cell_updates {
               value = {
                 cell_id      : $uc.id
                 stage_id     : $uc.stage
                 lens_id      : $uc.lens
                 content      : $uc.content
+                actor_fields : $uc.actor_fields
                 status       : $uc.status
                 change_source: $uc.change_source
                 is_locked    : $uc.is_locked
@@ -3235,7 +3324,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
-    // ── Compute updated progress ──
+    // ── Compute updated progress (BUG-08: count actor cells by actor_fields, not content) ──
     var $updated_total {
       value = $updated_cells|count
     }
@@ -3246,8 +3335,52 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
   
     foreach ($updated_cells) {
       each as $fc {
+        var $fc_actor_type {
+          value = $lens_actor_map|get:($fc.lens|to_text)
+        }
+      
+        var $fc_is_filled {
+          value = false
+        }
+      
         conditional {
-          if ($fc.content != null && $fc.content != "") {
+          if ($fc_actor_type != null && $fc_actor_type != "") {
+            // Actor cell: filled when actor_fields has at least one non-null value
+            conditional {
+              if ($fc.actor_fields != null && ($fc.actor_fields|count) > 0) {
+                var $fc_af_keys {
+                  value = $fc.actor_fields|keys
+                }
+              
+                foreach ($fc_af_keys) {
+                  each as $fak {
+                    var $fav {
+                      value = $fc.actor_fields|get:$fak
+                    }
+                  
+                    conditional {
+                      if ($fav != null && $fav != "") {
+                        var.update $fc_is_filled {
+                          value = true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        
+          else {
+            // Non-actor cell: filled when content is present
+            var.update $fc_is_filled {
+              value = $fc.content != null && $fc.content != ""
+            }
+          }
+        }
+      
+        conditional {
+          if ($fc_is_filled) {
             var.update $updated_filled {
               value = $updated_filled + 1
             }

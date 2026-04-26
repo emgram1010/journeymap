@@ -13,7 +13,7 @@ tool scaffold_structure {
         - action: 'rename' (requires key + label), 'add' (requires label), 'remove' (requires key)
       - lens_operations: JSON array of { action, key?, label, actor_type? }
         - action: 'rename' (requires key + label), 'add' (requires label), 'remove' (requires key)
-        - actor_type (add only, optional): one of customer, internal, engineering, ai_agent, handoff, vendor, financial. When provided the lens is created with the matching template_key, role_prompt, and cells are pre-scaffolded with actor_fields.
+        - actor_type (add only, optional): one of customer, internal, engineering, ai_agent, handoff, vendor, financial, metrics. When provided the lens is created with the matching template_key, role_prompt, and cells are pre-scaffolded with actor_fields.
     
       Operations execute in order: removes first, then renames, then adds.
       This ensures stable keys are preserved during renames and new items don't conflict.
@@ -521,6 +521,30 @@ tool scaffold_structure {
                         |set:"cac_contribution":null
                         |set:"clv_impact":null
                         |set:"priority_score":null
+                    }
+                  }
+                }
+              
+                conditional {
+                  if ($op.actor_type == "metrics") {
+                    var.update $sc_template_key {
+                      value = "metrics-v1"
+                    }
+                  
+                    var.update $sc_role_prompt {
+                      value = "You are capturing operational metrics at each stage of this journey. For each stage focus on: CSAT Score (customer satisfaction score 1-10 at this stage), Completion Rate (% of users who successfully complete this stage), Drop-off Rate (% who abandon or fail at this stage), Avg Time to Complete (average duration of this stage in minutes or hours), Error Rate (% of interactions at this stage that result in an error or failure), SLA Compliance Rate (% of interactions that meet defined SLA targets), Volume / Frequency (number of interactions or transactions at this stage per period), and Stage Health Score (composite 1-10 health score derived from all other metrics — weight CSAT and completion rate most heavily). Be specific. Use percentages, counts, and time units. Infer from qualitative actor content when direct data is unavailable."
+                    }
+                  
+                    var.update $sc_actor_fields_scaffold {
+                      value = {}
+                        |set:"csat_score":null
+                        |set:"completion_rate":null
+                        |set:"drop_off_rate":null
+                        |set:"avg_time_to_complete":null
+                        |set:"error_rate":null
+                        |set:"sla_compliance_rate":null
+                        |set:"volume_frequency":null
+                        |set:"stage_health":null
                     }
                   }
                 }

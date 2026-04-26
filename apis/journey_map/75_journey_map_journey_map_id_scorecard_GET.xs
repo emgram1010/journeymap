@@ -35,6 +35,15 @@ query "journey_map/{journey_map_id}/scorecard" verb=GET {
       return = {type: "single"}
     } as $metrics_lens
   
+    conditional {
+      if ($metrics_lens == null) {
+        db.query journey_lens {
+          where = $db.journey_lens.journey_map == $input.journey_map_id && $db.journey_lens.actor_type == "metrics"
+          return = {type: "single"}
+        } as $metrics_lens
+      }
+    }
+  
     db.query journey_lens {
       where = $db.journey_lens.journey_map == $input.journey_map_id && $db.journey_lens.template_key == "financial-v1"
       return = {type: "single"}

@@ -38,8 +38,8 @@ type ContainerLike = {
   contains(node: unknown): boolean;
 };
 
-export const escapeHtml = (value: string) =>
-  value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+export const escapeHtml = (value: unknown): string =>
+  String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export const formatLensCellMarkup = ({
   label,
@@ -123,8 +123,8 @@ const formatMetricsScorecardMarkup = (fields: MetricsActorFields): string => {
 // ── Shared color utilities ──────────────────────────────────────────────────
 
 /** Maps emotion text to a sentiment color and truncated display label. */
-export const resolveEmotionColor = (emotions: string | null | undefined): {color: string; label: string} => {
-  const raw = emotions ?? '';
+export const resolveEmotionColor = (emotions: unknown): {color: string; label: string} => {
+  const raw = String(emotions ?? '');
   const lower = raw.toLowerCase();
   let color = '#f59e0b'; // yellow neutral default
   if (/frustrated|anxious|confused|overwhelmed|concerned|worried/.test(lower)) color = '#ef4444';
@@ -134,8 +134,8 @@ export const resolveEmotionColor = (emotions: string | null | undefined): {color
 };
 
 /** Maps a priority_score string to a display color. */
-export const resolveFinancialPriorityColor = (priorityScore: string | null | undefined): string => {
-  const lower = (priorityScore ?? '').toLowerCase();
+export const resolveFinancialPriorityColor = (priorityScore: unknown): string => {
+  const lower = String(priorityScore ?? '').toLowerCase();
   if (lower.includes('high')) return '#ef4444';
   if (lower.includes('medium')) return '#f59e0b';
   if (lower.includes('low')) return '#22c55e';
@@ -143,7 +143,7 @@ export const resolveFinancialPriorityColor = (priorityScore: string | null | und
 };
 
 // ── Tile formatter mini-helpers (private) ───────────────────────────────────
-const ne = (v: string | null | undefined): v is string => v != null && v.trim() !== '';
+const ne = (v: unknown): v is string => v != null && String(v).trim() !== '';
 const tileShell = (...parts: string[]) =>
   `<div style="display:flex;flex-direction:column;gap:3px">${parts.filter(Boolean).join('')}</div>`;
 const tileHeader = (raw: string) => `<div class="jm-tile-header">${escapeHtml(raw)}</div>`;

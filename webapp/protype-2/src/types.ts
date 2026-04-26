@@ -215,6 +215,8 @@ export interface Message {
   timestamp: Date;
   /** Populated on AI messages after an ai_message call */
   activity?: MessageActivity;
+  /** True for system-injected build-loop warning messages */
+  isBuildWarning?: boolean;
 }
 
 export interface MatrixCell {

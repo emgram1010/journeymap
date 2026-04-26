@@ -263,6 +263,7 @@ export interface AiCellUpdate {
   stage_id: number;
   lens_id: number;
   content?: string | null;
+  actor_fields?: Record<string, string | null> | null;
   status?: string | null;
   change_source?: string | null;
   is_locked?: boolean | null;
@@ -1357,4 +1358,42 @@ export const fetchCompareMeta = (
 ): Promise<CompareMetaResult> =>
   xanoRequest<CompareMetaResult>(
     `/journey_architecture/${archId}/compare?map_a=${mapA}&map_b=${mapB}`,
+  );
+
+// ── Compare Analyst Chat ───────────────────────────────────────────────────────
+
+export interface CompareMessage {
+  id: number;
+  role: 'user' | 'assistant';
+  content: { type: string; text: string }[];
+  thinking?: string | null;
+  created_at: number | string;
+}
+
+export interface CompareMessageResponse {
+  reply: string;
+  conversation_id: number;
+  messages: CompareMessage[];
+  thinking?: string | null;
+}
+
+export const sendCompareMessage = (
+  archId: number,
+  mapAId: number,
+  mapBId: number,
+  content: string,
+  conversationId?: number | null,
+): Promise<CompareMessageResponse> =>
+  xanoRequest<CompareMessageResponse>(
+    `/journey_architecture/${archId}/compare/message`,
+    {
+      method: 'POST',
+      body: {
+        journey_architecture_id: archId,
+        map_a_id: mapAId,
+        map_b_id: mapBId,
+        content,
+        conversation_id: conversationId ?? null,
+      } as Record<string, unknown>,
+    },
   );

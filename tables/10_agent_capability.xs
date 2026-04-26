@@ -30,7 +30,6 @@ table agent_capability {
 
   index = [
     {type: "primary", field: [{name: "id"}]}
-    {type: "gin", field: [{name: "xdo", op: "jsonb_path_op"}]}
     {type: "btree", field: [{name: "created_at", op: "desc"}]}
     {type: "btree|unique", field: [{name: "key", op: "asc"}]}
     {type: "btree", field: [{name: "enabled", op: "asc"}]}

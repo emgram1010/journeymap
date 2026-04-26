@@ -237,16 +237,91 @@ tool get_gaps {
               }
             }
           
-            // Check if cell is empty
+            // Check if cell is empty (BUG-06).
+            // Actor lens cells store data in actor_fields, not content.
+            // A cell is empty if actor_fields is null, {}, or ALL values are null/empty.
+            var $is_actor_lens {
+              value = $l_rec.actor_type != null && $l_rec.actor_type != ""
+            }
+          
+            var $is_empty {
+              value = false
+            }
+          
             conditional {
-              if ($c.content == null || $c.content == "") {
+              if ($is_actor_lens) {
+                conditional {
+                  if ($c.actor_fields == null) {
+                    var.update $is_empty {
+                      value = true
+                    }
+                  }
+                }
+              
+                conditional {
+                  if ($c.actor_fields != null && ($c.actor_fields|count) == 0) {
+                    var.update $is_empty {
+                      value = true
+                    }
+                  }
+                }
+              
+                conditional {
+                  if ($c.actor_fields != null && ($c.actor_fields|count) > 0) {
+                    var $af_keys {
+                      value = $c.actor_fields|keys
+                    }
+                  
+                    var $has_real_value {
+                      value = false
+                    }
+                  
+                    foreach ($af_keys) {
+                      each as $fk {
+                        var $fv {
+                          value = $c.actor_fields|get:$fk
+                        }
+                      
+                        conditional {
+                          if ($fv != null && $fv != "") {
+                            var.update $has_real_value {
+                              value = true
+                            }
+                          }
+                        }
+                      }
+                    }
+                  
+                    conditional {
+                      if ($has_real_value == false) {
+                        var.update $is_empty {
+                          value = true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            
+              else {
+                // Description / non-actor row: gap when content is absent
+                var.update $is_empty {
+                  value = $c.content == null || $c.content == ""
+                }
+              }
+            }
+          
+            conditional {
+              if ($is_empty) {
                 array.push $gaps {
                   value = {
-                    stage_key  : $s_rec.key
-                    stage_label: $s_rec.label
-                    lens_key   : $l_rec.key
-                    lens_label : $l_rec.label
-                    cell_id    : $c.id
+                    stage_key   : $s_rec.key
+                    stage_label : $s_rec.label
+                    lens_key    : $l_rec.key
+                    lens_label  : $l_rec.label
+                    cell_id     : $c.id
+                    actor_type  : $l_rec.actor_type
+                    template_key: $l_rec.template_key
                   }
                 }
               

@@ -379,3 +379,220 @@ After BUG-04 made `/architectures` the entry point, this button became orphaned 
 3. Confirm the Architectures title and "A" icon are still visible.
 4. Confirm clicking an architecture tile navigates to its detail page with associated maps.
 5. Confirm `/dashboard` is still reachable from the map editor back button (for orphan maps).
+
+---
+
+## BUG-06 — `get_gaps` ignores `actor_fields` — AI reports 0 gaps on maps with empty actor rows
+
+**Date:** 2026-04-22
+**Status:** 🔧 FIXED
+**File:** `tools/9_get_gaps.xs`
+**Discovered via:** AI chatbot reporting "Map complete — 0 gaps" while actor rows (Customer, Driver, Support Agent) were visibly empty in the UI.
+
+---
+
+### 🐛 Symptom
+
+After the AI builds a journey map the agent calls `get_gaps`, receives `total_gaps: 0`, and declares the map complete. The matrix UI still shows `No data yet` on every actor lens row.
+
+---
+
+### 🔍 Root Cause
+
+`get_gaps` evaluates emptiness using only the `content` field:
+
+```
+if ($c.content == null || $c.content == "") { // gap }
+```
+
+Actor lens cells (Customer, Driver, Support Agent, etc.) store their data in `actor_fields` (a JSON column), not in `content`. The Description row uses `content`. So:
+
+| Row type | Data stored in | Checked by get_gaps |
+|---|---|---|
+| Description | `content` | ✅ Yes |
+| Actor (Customer, Driver…) | `actor_fields` | ❌ No |
+
+When actor cells are scaffolded at creation time they receive `actor_fields: {emotions: null, entry_trigger: null, ...}` — a non-null object with all-null values. The gap check only tested `actor_fields == null`, so these cells passed as filled even though every sub-field was empty. The AI called `get_gaps`, got `0 gaps`, and declared the map complete while the matrix showed "No data yet" on every actor row.
+
+---
+
+### ✅ Fix
+
+Add a secondary emptiness check: a cell is also a gap if it belongs to an actor lens (`actor_type` is not null/empty) **and** `actor_fields` is null or an empty object.
+
+**File:** `tools/9_get_gaps.xs`
+
+Change the gap condition from:
+```
+if ($c.content == null || $c.content == "")
+```
+To:
+```
+if (
+  ($c.content == null || $c.content == "") &&
+  ($c.actor_type == null || $c.actor_type == "")
+) OR (
+  ($c.actor_type != null && $c.actor_type != "") &&
+  ($c.actor_fields == null || $c.actor_fields == {})
+)
+```
+
+---
+
+### ✅ Verification
+
+1. Create a map with at least one Description row and one actor row (e.g. Customer).
+2. Fill only the Description cells — leave actor cells empty.
+3. Call `get_gaps` — confirm it returns gaps for the empty actor cells.
+4. Fill the actor cells via `update_actor_cell_fields`.
+5. Call `get_gaps` again — confirm `total_gaps: 0`.
+
+---
+
+## BUG-07 — `cell_updates` response never includes actor field writes — UI stays stale
+
+**Date:** 2026-04-22
+**Status:** 🔧 FIXED
+**File:** `apis/journey_map/52_journey_map_journey_map_id_ai_message_POST.xs`
+**Discovered via:** AI reporting "32 cells filled" but matrix showing "No data yet" on all actor rows after confirmed DB writes.
+
+### 🐛 Symptom
+
+After the AI calls `update_actor_cell_fields`, the matrix UI shows "No data yet" on every actor row even though the data is in the database. A page refresh reveals the filled content.
+
+### 🔍 Root Cause
+
+The post-turn change detection in `52_...ai_message_POST.xs` builds `$cell_updates` by comparing only the `content` field:
+
+```
+if ($uc.content != $orig_content)  // actor_fields never compared
+```
+
+`update_actor_cell_fields` writes to `actor_fields`, not `content`. So actor writes produce zero entries in `cell_updates`. The frontend only applies what's in `cell_updates` — it never learns about actor field writes and local state stays stale.
+
+### ✅ Fix
+
+- Build a pre-turn snapshot of `actor_fields` alongside `content`
+- In the post-turn diff loop, also detect `actor_fields` changes
+- Include `actor_fields` in the `cell_updates` payload items
+
+---
+
+## BUG-08 — Progress percentage ignores actor field cells — build loop never completes
+
+**Date:** 2026-04-22
+**Status:** 🔧 FIXED
+**File:** `apis/journey_map/52_journey_map_journey_map_id_ai_message_POST.xs`
+**Discovered via:** Build loop stalling at ~14% despite actor cells being written.
+
+### 🐛 Symptom
+
+The build loop's auto-continuation checks `progress.percentage >= 95`. Progress never reaches 95% on maps with actor rows — it stays stuck around 14% (only description cells count). The loop stalls via the zero-write detection instead of completing cleanly.
+
+### 🔍 Root Cause
+
+The progress calculation only counts cells where `content` is non-null:
+
+```
+if ($fc.content != null && $fc.content != "")  // actor cells never counted
+```
+
+Actor cells are filled via `actor_fields`, not `content`. They are always counted as empty regardless of how many fields were written.
+
+### ✅ Fix
+
+Mirror the same `is_actor_lens` + all-null-values check from BUG-06 in the progress calculation loop so that actor cells with at least one non-null `actor_fields` value count as filled.
+
+---
+
+## BUG-09 — Frontend `AiCellUpdate` type and `setCells` handler ignore `actor_fields`
+
+**Date:** 2026-04-22
+**Status:** 🔧 FIXED
+**Files:** `webapp/protype-2/src/xano.ts`, `webapp/protype-2/src/App.tsx`
+**Discovered via:** Actor fields written and returned in `cell_updates` not reflected in local React state.
+
+### 🐛 Symptom
+
+Even after BUG-07 is fixed (backend sends `actor_fields` in `cell_updates`), the matrix UI would still not update because the frontend discards the field.
+
+### 🔍 Root Cause
+
+`AiCellUpdate` in `xano.ts` has no `actor_fields` property. The `setCells` update in `App.tsx` only maps `content`, `status`, `isLocked` — `actorFields` is never updated from AI responses.
+
+### ✅ Fix
+
+- Add `actor_fields?: Record<string, string | null> | null` to `AiCellUpdate` in `xano.ts`
+- In the `setCells` callback in `App.tsx`, apply `actorFields: update.actor_fields ?? cell.actorFields`
+
+---
+
+## BUG-10 — Journey Health widget shows "No metrics yet" even when Metrics lens row is populated
+
+**Date:** 2026-04-22
+**Status:** 🔧 FIXED
+**File:** `apis/journey_map/75_journey_map_journey_map_id_scorecard_GET.xs`
+**Discovered via:** Manual UI review — Journey Health panel empty on "Last-mile Happy Path" map despite Metrics row visibly showing health scores and completion rates.
+
+---
+
+### 🐛 Symptom
+
+The Journey Health side panel displays "No metrics yet — add a Metrics lens row to enable" even though the Metrics lens row is present and fully populated with `stage_health`, `completion_rate`, `drop_off_rate`, etc. The Financial Intelligence lens renders correctly in the same map.
+
+---
+
+### 🔍 Root Cause
+
+The scorecard API finds the metrics lens by `template_key == "metrics-v1"`:
+
+```xs
+db.query journey_lens {
+  where = $db.journey_lens.journey_map == $input.journey_map_id
+       && $db.journey_lens.template_key == "metrics-v1"
+  return = {type: "single"}
+} as $metrics_lens
+```
+
+If `$metrics_lens` is null, the entire per-stage metrics block is skipped and `$populated_count` stays 0. The widget then sees `populated_count === 0` and renders the empty state.
+
+The Metrics lens in the affected map was created without `template_key = "metrics-v1"` (e.g. added manually or via an older flow). The matrix renders fine because the frontend reads `actor_fields` directly from cells — it never uses the scorecard. Journey Health is the only thing gated on `template_key`.
+
+---
+
+### 🗺️ Story
+
+> **As a PM**, I want the Journey Health panel to populate whenever a Metrics lens row exists and has data, regardless of how or when the row was created, so that scorecard values are always visible.
+
+**Acceptance Criteria:**
+- If a lens with `template_key = "metrics-v1"` exists, the scorecard uses it (existing behaviour, unchanged).
+- If no `template_key` match is found but a lens with `actor_type = "metrics"` exists, the scorecard falls back to that lens.
+- Journey Health panel shows health scores, critical stage count, and revenue at risk whenever any metrics-type lens has populated cells.
+- Maps with no metrics lens at all still show the empty state.
+
+---
+
+### 🔧 Fix
+
+**`apis/journey_map/75_journey_map_journey_map_id_scorecard_GET.xs`** — After the `template_key` query, add a conditional fallback that queries by `actor_type == "metrics"` when `$metrics_lens` is null:
+
+```xs
+conditional {
+  if ($metrics_lens == null) {
+    db.query journey_lens {
+      where = $db.journey_lens.journey_map == $input.journey_map_id
+           && $db.journey_lens.actor_type == "metrics"
+      return = {type: "single"}
+    } as $metrics_lens
+  }
+}
+```
+
+---
+
+### ✅ Verification
+
+1. Open a journey map whose Metrics lens was created without `template_key = "metrics-v1"` (e.g. "Last-mile Happy Path").
+2. Open the Journey Health side panel — it should now show the health score, critical stage count, and any revenue-at-risk values.
+3. Confirm maps with a properly-keyed `metrics-v1` lens are unaffected.
+4. Create a brand-new map with no Metrics row — panel should still show the empty state.

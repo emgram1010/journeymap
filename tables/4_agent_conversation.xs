@@ -21,9 +21,19 @@ table agent_conversation {
     // The title or subject of the conversation.
     text title? filters=trim
   
+    // The second journey map in a compare conversation (null for single-map conversations).
+    int map_b_id? {
+      table = "journey_map"
+    }
+  
+    // The journey architecture this conversation is scoped to (set for compare conversations).
+    int journey_architecture_id? {
+      table = "journey_architecture"
+    }
+  
     // The current mode for the conversation thread.
     enum mode? {
-      values = ["interview", "chat"]
+      values = ["interview", "chat", "compare"]
     }
   
     // Timestamp of the last message in the conversation.
@@ -32,7 +42,6 @@ table agent_conversation {
 
   index = [
     {type: "primary", field: [{name: "id"}]}
-    {type: "gin", field: [{name: "xdo", op: "jsonb_path_op"}]}
     {type: "btree", field: [{name: "created_at", op: "desc"}]}
     {type: "btree", field: [{name: "journey_map", op: "asc"}]}
     {
