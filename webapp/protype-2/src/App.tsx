@@ -486,6 +486,8 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const [chatSubMode, setChatSubMode] = useState<'default' | 'specialist' | 'consortium'>('default');
   const [activeSpecialistKey, setActiveSpecialistKey] = useState<string | null>(null);
   const [activeConsortiumKeys, setActiveConsortiumKeys] = useState<string[]>([]);
+  // MSR: badge→popover open state
+  const [isModePopoverOpen, setIsModePopoverOpen] = useState(false);
   const [isSmartAiSettingsOpen, setIsSmartAiSettingsOpen] = useState(false);
   const [smartAiSettings, setSmartAiSettings] = useState<SmartAiSettings>({...SMART_AI_DEFAULTS});
   const [isSmartAiSettingsSaving, setIsSmartAiSettingsSaving] = useState(false);
@@ -2027,83 +2029,152 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                           {conversationRecord?.title ?? 'AI Interviewer'}
                           <ChevronDown className={`w-3 h-3 transition-transform ${isSessionPickerOpen ? 'rotate-180' : ''}`} />
                         </button>
+                        {/* MSR-05: dynamic subtitle */}
                         <span className="text-[9px] text-zinc-400 font-medium ml-0.5">
-                          {!isChatMode ? 'Interview Mode' : chatSubMode === 'specialist' ? 'Specialist Mode' : chatSubMode === 'consortium' ? 'Consortium Mode' : 'Chat Mode'}
+                          {!isChatMode
+                            ? 'Interview Mode'
+                            : chatSubMode === 'specialist' && activeSpecialistKey
+                            ? `🎭 Speaking as ${lenses.find((l) => (l.key ?? l.xanoId?.toString()) === activeSpecialistKey)?.label ?? 'Actor'}`
+                            : chatSubMode === 'specialist'
+                            ? '🎭 Specialist — pick an actor'
+                            : chatSubMode === 'consortium' && activeConsortiumKeys.length > 0
+                            ? `🏛️ Panel · ${activeConsortiumKeys.length} actor${activeConsortiumKeys.length > 1 ? 's' : ''}`
+                            : chatSubMode === 'consortium'
+                            ? '🏛️ Consortium — pick actors'
+                            : 'Chat Mode'}
                         </span>
                       </div>
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center rounded-lg border border-zinc-200 bg-white p-0.5 shadow-sm">
-                          <button
-                            type="button"
-                            onClick={() => { setIsChatMode(false); setChatSubMode('default'); setActiveSpecialistKey(null); setActiveConsortiumKeys([]); }}
-                            disabled={isSendingMessage}
-                            aria-pressed={!isChatMode}
-                            className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${!isChatMode ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'} disabled:opacity-50`}
-                          >
-                            Interview
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setIsChatMode(true); setChatSubMode('default'); setActiveSpecialistKey(null); setActiveConsortiumKeys([]); }}
-                            disabled={isSendingMessage}
-                            aria-pressed={isChatMode && chatSubMode === 'default'}
-                            className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${isChatMode && chatSubMode === 'default' ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'} disabled:opacity-50`}
-                          >
-                            Chat
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setIsChatMode(true); setChatSubMode('specialist'); setActiveConsortiumKeys([]); }}
-                            disabled={isSendingMessage}
-                            aria-pressed={chatSubMode === 'specialist'}
-                            className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${chatSubMode === 'specialist' ? 'bg-violet-700 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'} disabled:opacity-50`}
-                          >
-                            🎭 Specialist
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setIsChatMode(true); setChatSubMode('consortium'); setActiveSpecialistKey(null); }}
-                            disabled={isSendingMessage}
-                            aria-pressed={chatSubMode === 'consortium'}
-                            className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${chatSubMode === 'consortium' ? 'bg-indigo-700 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'} disabled:opacity-50`}
-                          >
-                            🏛️ Consortium
-                          </button>
-                        </div>
-                        {/* Actor pill row — shown in Specialist or Consortium mode */}
-                        {(chatSubMode === 'specialist' || chatSubMode === 'consortium') && (
-                          <div className="flex flex-wrap gap-1 px-0.5">
-                            {lenses.filter((l) => l.actorType).map((lens) => {
-                              const key = lens.key ?? lens.xanoId?.toString() ?? '';
-                              const isSpecialistActive = chatSubMode === 'specialist' && activeSpecialistKey === key;
-                              const isConsortiumActive = chatSubMode === 'consortium' && activeConsortiumKeys.includes(key);
-                              const isActive = isSpecialistActive || isConsortiumActive;
-                              return (
-                                <button
-                                  key={key}
-                                  type="button"
-                                  disabled={isSendingMessage}
-                                  onClick={() => {
-                                    if (chatSubMode === 'specialist') {
-                                      setActiveSpecialistKey(isActive ? null : key);
-                                    } else {
-                                      setActiveConsortiumKeys((prev) =>
-                                        isActive ? prev.filter((k) => k !== key) : [...prev, key]
+                      {/* MSR-01: compact mode badge → popover */}
+                      <div className="relative">
+                        <button
+                          type="button"
+                          disabled={isSendingMessage}
+                          onClick={() => setIsModePopoverOpen((o) => !o)}
+                          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-widest leading-none transition-colors shadow-sm disabled:opacity-50 ${
+                            chatSubMode === 'specialist'
+                              ? 'border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100'
+                              : chatSubMode === 'consortium'
+                              ? 'border-indigo-300 bg-indigo-50 text-indigo-800 hover:bg-indigo-100'
+                              : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300'
+                          }`}
+                        >
+                          {!isChatMode
+                            ? 'Interview'
+                            : chatSubMode === 'specialist' && activeSpecialistKey
+                            ? `🎭 ${lenses.find((l) => (l.key ?? l.xanoId?.toString()) === activeSpecialistKey)?.label ?? 'Specialist'}`
+                            : chatSubMode === 'specialist'
+                            ? '🎭 Specialist'
+                            : chatSubMode === 'consortium' && activeConsortiumKeys.length > 0
+                            ? `🏛️ Panel (${activeConsortiumKeys.length})`
+                            : chatSubMode === 'consortium'
+                            ? '🏛️ Consortium'
+                            : 'Chat'}
+                          <ChevronDown className={`w-3 h-3 transition-transform ${isModePopoverOpen ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {/* Backdrop — closes popover on outside click */}
+                        {isModePopoverOpen && (
+                          <div className="fixed inset-0 z-40" onClick={() => setIsModePopoverOpen(false)} />
+                        )}
+
+                        {/* MSR-02: mode + actor popover */}
+                        {isModePopoverOpen && (
+                          <div className="absolute left-0 top-full mt-1 w-56 bg-white border border-zinc-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                            {/* Mode list */}
+                            <div className="p-2 space-y-0.5">
+                              <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider px-1 pb-1">Switch Mode</p>
+                              {([
+                                { label: 'Interview', value: 'interview' as const },
+                                { label: 'Chat', value: 'chat' as const },
+                                { label: '🎭 Specialist', value: 'specialist' as const },
+                                { label: '🏛️ Consortium', value: 'consortium' as const },
+                              ]).map((m) => {
+                                const isActive =
+                                  m.value === 'interview' ? !isChatMode
+                                  : m.value === 'chat' ? isChatMode && chatSubMode === 'default'
+                                  : isChatMode && chatSubMode === m.value;
+                                return (
+                                  <button
+                                    key={m.value}
+                                    type="button"
+                                    onClick={() => {
+                                      if (m.value === 'interview') { setIsChatMode(false); setChatSubMode('default'); setActiveSpecialistKey(null); setActiveConsortiumKeys([]); }
+                                      else if (m.value === 'chat') { setIsChatMode(true); setChatSubMode('default'); setActiveSpecialistKey(null); setActiveConsortiumKeys([]); }
+                                      else if (m.value === 'specialist') { setIsChatMode(true); setChatSubMode('specialist'); setActiveConsortiumKeys([]); }
+                                      else { setIsChatMode(true); setChatSubMode('consortium'); setActiveSpecialistKey(null); }
+                                    }}
+                                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-colors text-left ${isActive ? 'bg-zinc-900 text-white' : 'text-zinc-700 hover:bg-zinc-100'}`}
+                                  >
+                                    <span className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${isActive ? 'bg-white border-white' : 'border-zinc-300'}`} />
+                                    {m.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* MSR-03/04: actor list */}
+                            {(chatSubMode === 'specialist' || chatSubMode === 'consortium') && lenses.filter((l) => l.actorType).length > 0 && (
+                              <>
+                                <div className="border-t border-zinc-100 mx-2" />
+                                <div className="p-2">
+                                  <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider px-1 pb-1">
+                                    {chatSubMode === 'specialist' ? 'Speaking as' : 'Panel members'}
+                                  </p>
+                                  <div className="space-y-0.5 max-h-44 overflow-y-auto">
+                                    {lenses.filter((l) => l.actorType).map((lens) => {
+                                      const key = lens.key ?? lens.xanoId?.toString() ?? '';
+                                      const isSpecialistActive = chatSubMode === 'specialist' && activeSpecialistKey === key;
+                                      const isConsortiumActive = chatSubMode === 'consortium' && activeConsortiumKeys.includes(key);
+                                      const isActive = isSpecialistActive || isConsortiumActive;
+                                      return (
+                                        <button
+                                          key={key}
+                                          type="button"
+                                          onClick={() => {
+                                            if (chatSubMode === 'specialist') {
+                                              setActiveSpecialistKey(isActive ? null : key);
+                                            } else {
+                                              setActiveConsortiumKeys((prev) => isActive ? prev.filter((k) => k !== key) : [...prev, key]);
+                                            }
+                                          }}
+                                          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] transition-colors text-left ${
+                                            isActive
+                                              ? chatSubMode === 'specialist' ? 'bg-violet-100 text-violet-800 font-medium' : 'bg-indigo-100 text-indigo-800 font-medium'
+                                              : 'text-zinc-700 hover:bg-zinc-100'
+                                          }`}
+                                        >
+                                          {/* Radio (specialist) or checkbox (consortium) indicator */}
+                                          <span className={`w-3 h-3 flex-shrink-0 border-2 ${
+                                            chatSubMode === 'specialist'
+                                              ? `rounded-full ${isActive ? 'bg-violet-600 border-violet-600' : 'border-zinc-300'}`
+                                              : `rounded ${isActive ? 'bg-indigo-600 border-indigo-600' : 'border-zinc-300'}`
+                                          }`} />
+                                          {lens.label}
+                                        </button>
                                       );
-                                    }
-                                  }}
-                                  className={`px-2 py-0.5 rounded-full text-[9px] font-semibold border transition-colors ${
-                                    isActive
-                                      ? chatSubMode === 'specialist'
-                                        ? 'bg-violet-700 text-white border-violet-700'
-                                        : 'bg-indigo-700 text-white border-indigo-700'
-                                      : 'bg-white text-zinc-600 border-zinc-300 hover:border-zinc-500'
-                                  } disabled:opacity-50`}
-                                >
-                                  {lens.label}
-                                </button>
-                              );
-                            })}
+                                    })}
+                                  </div>
+                                </div>
+                              </>
+                            )}
+
+                            {/* MSR-06: footer — clear + done */}
+                            <div className="border-t border-zinc-100 px-3 py-2 flex justify-between items-center">
+                              <button
+                                type="button"
+                                onClick={() => { setIsChatMode(true); setChatSubMode('default'); setActiveSpecialistKey(null); setActiveConsortiumKeys([]); setIsModePopoverOpen(false); }}
+                                className="text-[10px] text-zinc-400 hover:text-zinc-700 transition-colors"
+                              >
+                                Clear
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setIsModePopoverOpen(false)}
+                                className="text-[10px] font-semibold text-zinc-900 hover:text-zinc-600 transition-colors"
+                              >
+                                Done
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
