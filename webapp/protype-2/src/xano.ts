@@ -433,6 +433,10 @@ type SendAiMessageInput = {
   selectedCell?: SelectedCellPayload | null;
   journeySettings?: JourneySettings | null;
   parentContext?: ParentJourneyContext | null;
+  signal?: AbortSignal;
+  builderMode?: boolean;
+  specialistActorKey?: string | null;
+  consortiumActorKeys?: string[] | null;
 };
 
 const DEFAULT_XANO_BASE_URL = 'https://xdjc-i7zz-jhm2.n7e.xano.io/api:ER4MRRWZ';
@@ -564,6 +568,7 @@ export const getAuthToken = () => (typeof localStorage !== 'undefined' ? localSt
 type RequestOptions = {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: Record<string, unknown>;
+  signal?: AbortSignal;
 };
 
 class XanoHttpError extends Error {
@@ -577,7 +582,7 @@ class XanoHttpError extends Error {
 }
 
 async function xanoRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const {method = 'GET', body} = options;
+  const {method = 'GET', body, signal} = options;
   const token = getAuthToken();
   const headers: Record<string, string> = {Accept: 'application/json'};
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -586,6 +591,7 @@ async function xanoRequest<T>(path: string, options: RequestOptions = {}): Promi
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    signal,
   });
 
   const responseText = await response.text();
@@ -1041,9 +1047,21 @@ export async function sendAiMessage(input: SendAiMessageInput): Promise<Persiste
     body.parent_context = input.parentContext;
   }
 
+  if (input.builderMode) {
+    body.builder_mode = true;
+  }
+
+  if (input.specialistActorKey) {
+    body.specialist_actor_key = input.specialistActorKey;
+  }
+
+  if (input.consortiumActorKeys && input.consortiumActorKeys.length > 0) {
+    body.consortium_actor_keys = input.consortiumActorKeys;
+  }
+
   const response = await xanoRequest<AiMessageResponse>(
     buildJourneyMapPath(getXanoAiMessagePath(), input.journeyMapId),
-    {method: 'POST', body},
+    {method: 'POST', body, signal: input.signal},
   );
 
   const rawTrace = Array.isArray(response.tool_trace) ? response.tool_trace : [];
@@ -1238,6 +1256,7 @@ export const createJourneyArchitecture = (data?: {
   title?: string;
   description?: string;
   status?: JourneyArchitectureStatus;
+  account_id?: number | null;
 }): Promise<XanoJourneyArchitecture> =>
   xanoRequest<XanoJourneyArchitecture>('/journey_architecture', {method: 'POST', body: data ?? {}});
 
@@ -1397,3 +1416,20 @@ export const sendCompareMessage = (
       } as Record<string, unknown>,
     },
   );
+
+// ── Account Settings ─────────────────────────────────────────────────────────
+
+export interface XanoAccount {
+  id: number;
+  name: string | null;
+  description: string | null;
+  location: string | null;
+  ai_context: string | null;
+  role: string | null;
+}
+
+export const getAccountMe = (): Promise<XanoAccount> =>
+  xanoRequest<XanoAccount>('/account/me');
+
+export const updateAccountMe = (data: Partial<Pick<XanoAccount, 'name' | 'description' | 'location' | 'ai_context'>>): Promise<XanoAccount> =>
+  xanoRequest<XanoAccount>('/account/me', {method: 'PATCH', body: data as Record<string, unknown>});

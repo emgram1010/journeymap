@@ -14,4 +14,5 @@ query "journey_stage/{journey_stage_id}" verb=DELETE {
   }
 
   response = null
+  guid = "acCPX0e9SHGDc2E6KLNIuCi7EKc"
 }

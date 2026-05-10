@@ -28,4 +28,5 @@ query "journey_cell/{journey_cell_id}" verb=PUT {
   }
 
   response = $model
+  guid = "j8emVd11SfBfYowOUUku_DTKv7E"
 }

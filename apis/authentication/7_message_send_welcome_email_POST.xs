@@ -52,4 +52,5 @@ query "message/send_welcome_email" verb=POST {
 
   response = $send_email
   tags = ["xano:quick-start"]
+  guid = "4lbeZU735iKKLZloXtx0uJwOg1Q"
 }

@@ -139,4 +139,5 @@ query "journey_architecture/{journey_architecture_id}" verb=DELETE {
   }
 
   response = {deleted: true, id: $input.journey_architecture_id}
+  guid = "W1tC_Mp6NPvoOgh1xTlBlwAjHl0"
 }

@@ -104,4 +104,5 @@ query "demo-agent/conversation" verb=POST {
   }
 
   tags = ["xano:quick-start"]
+  guid = "szd-66R8p8G6hKJW8Y6YbvB5KmE"
 }

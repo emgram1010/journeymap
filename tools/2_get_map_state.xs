@@ -227,4 +227,5 @@ tool get_map_state {
       }
       ```
   }
+  guid = "Sap-vPJrkcUdBa1EsiWa4vHSnIk"
 }

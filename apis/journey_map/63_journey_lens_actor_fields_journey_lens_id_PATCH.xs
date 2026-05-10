@@ -8,7 +8,19 @@ query "journey_lens/actor_fields/{journey_lens_id}" verb=PATCH {
     int journey_lens_id? filters=min:1
     text label? filters=trim
     enum actor_type? {
-      values = ["customer", "operations", "ai_agent", "dev", "custom"]
+      values = [
+        "customer"
+        "internal"
+        "engineering"
+        "handoff"
+        "vendor"
+        "financial"
+        "operations"
+        "ai_agent"
+        "dev"
+        "custom"
+        "metrics"
+      ]
     }
   
     text template_key? filters=trim
@@ -76,4 +88,5 @@ query "journey_lens/actor_fields/{journey_lens_id}" verb=PATCH {
   }
 
   response = $updated_lens
+  guid = "Sc0fw0GkWdi5bZu-teq32k2yUgU"
 }

@@ -15,6 +15,10 @@ table account {
     text description? filters=trim
   
     text location? filters=trim
+
+    // Freeform context fed to the AI agent on every conversation for this account.
+    // Should describe industry, customer types, internal team names, and terminology.
+    text ai_context? filters=trim
   }
 
   index = [
@@ -23,4 +27,5 @@ table account {
   ]
 
   tags = ["xano:quick-start"]
+  guid = "937pCNnXtKtr85V4TklxowLOIKE"
 }

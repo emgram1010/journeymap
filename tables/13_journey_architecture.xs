@@ -47,4 +47,5 @@ table journey_architecture {
       ]
     }
   ]
+  guid = "1tn1TQ1jgIVC6TWTLQVeFAAJhOw"
 }

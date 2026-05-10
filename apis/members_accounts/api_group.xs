@@ -3,4 +3,5 @@ api_group "Members & Accounts" {
   canonical = "Fcgmwc6Y"
   swagger = {token: "PUiLFcwB9eZUepGZFzUyY7O3MAs"}
   tags = ["xano:quick-start"]
+  guid = "b5RyPi-exmouUaoDHwL8SsH2QNg"
 }

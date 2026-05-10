@@ -264,4 +264,5 @@ tool update_journey_settings {
   }
 
   response = $result
+  guid = "gVc08xvshx4T4N02woJVr71lVAY"
 }

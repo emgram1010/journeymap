@@ -296,4 +296,5 @@ query "journey_map/create_draft" verb=POST {
     lenses     : $lenses
     cells      : $cells
   }
+  guid = "9j0volxckMS4LNVYw5nUxk4i3iY"
 }

@@ -105,4 +105,5 @@ table journey_map {
       field: [{name: "journey_architecture", op: "asc"}]
     }
   ]
+  guid = "TiXb2_1mjNzPCEt-ebY-xIQhFsg"
 }

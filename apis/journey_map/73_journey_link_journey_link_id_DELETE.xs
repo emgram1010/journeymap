@@ -30,4 +30,5 @@ query "journey_link/{journey_link_id}" verb=DELETE {
   }
 
   response = {deleted: true, id: $input.journey_link_id}
+  guid = "UKrLMJxEK_SqdEgTTnkMm9_RPYk"
 }

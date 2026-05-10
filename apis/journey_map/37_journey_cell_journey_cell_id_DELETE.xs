@@ -14,4 +14,5 @@ query "journey_cell/{journey_cell_id}" verb=DELETE {
   }
 
   response = null
+  guid = "nlHoCBN9GhWy0j4Pd9-5Q7Ep7rw"
 }

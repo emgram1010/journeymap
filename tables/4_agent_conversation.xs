@@ -51,4 +51,5 @@ table agent_conversation {
   ]
 
   tags = ["xano:quick-start"]
+  guid = "TLhe2nkJKIUlzfYwxgs_jWiNbmA"
 }

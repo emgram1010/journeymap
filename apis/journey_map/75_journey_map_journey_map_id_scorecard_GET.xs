@@ -373,4 +373,5 @@ query "journey_map/{journey_map_id}/scorecard" verb=GET {
   }
 
   response = $scorecard
+  guid = "i11xFZqiujfDKeoUiyo0orsRqDw"
 }

@@ -57,4 +57,5 @@ query "journey_map/{journey_map_id}/conversation" verb=POST {
   }
 
   response = $conversation
+  guid = "S3DbRSnuiUP33BUyCFtYtGlCc6k"
 }

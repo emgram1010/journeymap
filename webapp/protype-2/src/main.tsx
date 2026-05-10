@@ -8,6 +8,7 @@ import Dashboard from './Dashboard.tsx';
 import ArchitectureDashboard from './ArchitectureDashboard';
 import ArchitectureDetail from './ArchitectureDetail';
 import App from './App.tsx';
+import AccountSettings from './AccountSettings.tsx';
 import './index.css';
 
 /** Redirects to /login if the user is not authenticated; shows a loading screen while checking. */
@@ -57,6 +58,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/architectures" element={<ProtectedRoute><ArchitectureDashboard /></ProtectedRoute>} />
           <Route path="/architectures/:id" element={<ProtectedRoute><ArchitectureDetail /></ProtectedRoute>} />
           <Route path="/maps/:id" element={<ProtectedRoute><MapEditorRoute /></ProtectedRoute>} />
+          <Route path="/account" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
           {/* Default redirect */}
           <Route path="*" element={<Navigate to="/architectures" replace />} />
         </Routes>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, LayoutGrid, RotateCcw, MoreHorizontal, Pencil, Archive, Trash2, Check, X, LogOut, ChevronDown, Network } from 'lucide-react';
+import { Plus, LayoutGrid, RotateCcw, MoreHorizontal, Pencil, Archive, Trash2, Check, X, LogOut, ChevronDown, Network, Settings } from 'lucide-react';
 import {
   listJourneyMaps,
   createDraftJourneyMap,
@@ -195,7 +195,7 @@ export default function Dashboard() {
   const handleCreate = async () => {
     setIsCreating(true);
     try {
-      const bundle = await createDraftJourneyMap({ title: 'Untitled Journey Map', status: 'draft' });
+      const bundle = await createDraftJourneyMap({ title: 'Untitled Journey Map', status: 'draft', account_id: user?.account_id ?? undefined });
       setMaps((prev) => [bundle.journeyMap, ...prev]);
       navigate(`/maps/${bundle.journeyMap.id}`);
     } catch {
@@ -265,6 +265,10 @@ export default function Dashboard() {
           {userMenuOpen && (
             <div className="absolute right-0 top-11 z-20 w-48 bg-white border border-zinc-200 rounded-lg shadow-lg py-1 text-xs">
               <div className="px-3 py-2 text-zinc-500 border-b border-zinc-100">{user?.email ?? ''}</div>
+              <button className="w-full flex items-center gap-2 px-3 py-2.5 text-zinc-700 hover:bg-zinc-50 transition" onClick={() => { setUserMenuOpen(false); navigate('/account'); }}>
+                <Settings className="w-3.5 h-3.5" /> Account Settings
+              </button>
+              <div className="my-1 border-t border-zinc-100" />
               <button className="w-full flex items-center gap-2 px-3 py-2.5 text-rose-600 hover:bg-rose-50 transition" onClick={() => { logout(); navigate('/login'); }}>
                 <LogOut className="w-3.5 h-3.5" /> Sign out
               </button>

@@ -100,4 +100,5 @@ query "journey_cell/update/{journey_cell_id}" verb=PATCH {
     actor_fields          : $journey_cell.actor_fields
     journey_map_updated_at: $journey_map_touch.updated_at
   }
+  guid = "UFmyq_gip8Mmtd2gy5jLENww6Co"
 }

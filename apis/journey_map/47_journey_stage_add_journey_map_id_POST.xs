@@ -273,4 +273,5 @@ query "journey_stage/add/{journey_map_id}" verb=POST {
     cells                 : $cells
     journey_map_updated_at: $journey_map_touch.updated_at
   }
+  guid = "9McpMw8irPB5zdk9p0Pqwnr3d_4"
 }

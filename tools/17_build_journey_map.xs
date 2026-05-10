@@ -7,7 +7,7 @@ tool build_journey_map {
   input {
     // The numeric ID of the journey map to build.
     int journey_map_id filters=min:1
-
+  
     // Optional domain context to guide the AI builder.
     text context?
   }
@@ -15,21 +15,25 @@ tool build_journey_map {
   stack {
     // Validate map exists before triggering the build
     db.get journey_map {
-      field_name  = "id"
+      field_name = "id"
       field_value = $input.journey_map_id
     } as $journey_map
-
+  
     precondition ($journey_map != null) {
       error_type = "notfound"
-      error      = "Journey map not found"
+      error = "Journey map not found"
     }
-
+  
     // Invoke the server-side build loop
-    api.call "journey_map/{journey_map_id}/build_full" verb=POST {
-      api_group = "journey-map"
-      input     = {journey_map_id: $input.journey_map_id, context: $input.context}
+    api.call "" verb=GET {
+      api_group = ""
+      input = {
+        journey_map_id: $input.journey_map_id
+        context       : $input.context
+      }
     } as $build_result
   }
 
   response = $build_result
+  guid = "doRg3myscsAAReUAX_DomF4WCtk"
 }

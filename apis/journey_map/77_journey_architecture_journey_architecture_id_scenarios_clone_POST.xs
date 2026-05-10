@@ -251,4 +251,5 @@ query "journey_architecture/{journey_architecture_id}/scenarios/clone" verb=POST
     updated_at        : $new_map.updated_at
     cloned_from_map_id: $new_map.cloned_from_map_id
   }
+  guid = "XNYtAVSDDXsguu0pe9SUrKt0tIo"
 }

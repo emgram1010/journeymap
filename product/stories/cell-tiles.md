@@ -341,4 +341,4 @@ Add test cases:
 
 **Acceptance Criteria:**
 - All new tests pass
-- Existing tests remain green — no regressions on metrics scorecard, lens cell, or base cell markup
+- Existing tests remain green — no regressions on metrics scorecard, lens cell, or base cell 

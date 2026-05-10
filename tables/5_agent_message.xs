@@ -37,4 +37,5 @@ table agent_message {
   ]
 
   tags = ["xano:quick-start"]
+  guid = "Pm8449gs_t9AyKigpK_a2b-ActY"
 }

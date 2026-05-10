@@ -45,4 +45,5 @@ table journey_stage {
       ]
     }
   ]
+  guid = "oyjLsxiEMzYhPbqaduXT2ZxfTcI"
 }

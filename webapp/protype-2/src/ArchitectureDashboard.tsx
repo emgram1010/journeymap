@@ -1,6 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
-import {Plus, LayoutGrid, RotateCcw, MoreHorizontal, Pencil, Archive, Trash2, Check, X} from 'lucide-react';
+import {Plus, LayoutGrid, RotateCcw, MoreHorizontal, Pencil, Archive, Trash2, Check, X, Settings, LogOut} from 'lucide-react';
 import {
   listJourneyArchitectures,
   createJourneyArchitecture,
@@ -47,7 +47,7 @@ export default function ArchitectureDashboard() {
   const handleCreate = async () => {
     setIsCreating(true);
     try {
-      const arch = await createJourneyArchitecture();
+      const arch = await createJourneyArchitecture({ account_id: user?.account_id ?? undefined });
       setArchitectures((prev) => [arch, ...prev]);
       navigate(`/architectures/${arch.id}`);
     } catch {
@@ -105,8 +105,14 @@ export default function ArchitectureDashboard() {
               <span className="font-medium">{user?.name?.split(' ')[0] ?? 'User'}</span>
             </button>
             {userMenuOpen && (
-              <div className="absolute right-0 top-10 w-40 bg-white border border-zinc-200 rounded-xl shadow-lg z-20 py-1 text-sm">
-                <button onClick={() => { logout(); navigate('/login'); }} className="flex items-center gap-2 w-full px-4 py-2.5 hover:bg-zinc-50 text-zinc-700">Sign out</button>
+              <div className="absolute right-0 top-10 w-48 bg-white border border-zinc-200 rounded-xl shadow-lg z-20 py-1 text-sm">
+                <button onClick={() => { setUserMenuOpen(false); navigate('/account'); }} className="flex items-center gap-2 w-full px-4 py-2.5 hover:bg-zinc-50 text-zinc-700">
+                  <Settings className="w-3.5 h-3.5" /> Account Settings
+                </button>
+                <div className="my-1 border-t border-zinc-100" />
+                <button onClick={() => { logout(); navigate('/login'); }} className="flex items-center gap-2 w-full px-4 py-2.5 hover:bg-rose-50 text-rose-600">
+                  <LogOut className="w-3.5 h-3.5" /> Sign out
+                </button>
               </div>
             )}
           </div>

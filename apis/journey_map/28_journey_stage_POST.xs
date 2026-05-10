@@ -22,4 +22,5 @@ query journey_stage verb=POST {
   }
 
   response = $model
+  guid = "wa4Wonkha4qMVNwx3dSAW4hT-vY"
 }

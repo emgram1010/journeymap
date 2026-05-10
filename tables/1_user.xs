@@ -10,9 +10,7 @@ table user {
   
     text name filters=trim
     email? email filters=trim|lower
-    password? password filters=min:8|minAlpha:1|minDigit:1 {
-      visibility = "internal"
-    }
+    password? password filters=min:8|minAlpha:1|minDigit:1
   
     // Reference to the company the user belongs to.
     int account_id? {
@@ -27,17 +25,9 @@ table user {
   
     object password_reset? {
       schema {
-        password token? {
-          visibility = "internal"
-        }
-      
-        timestamp? expiration? {
-          visibility = "internal"
-        }
-      
-        bool used? {
-          visibility = "internal"
-        }
+        password token?
+        timestamp? expiration?
+        bool used?
       }
     }
   }
@@ -49,4 +39,5 @@ table user {
   ]
 
   tags = ["xano:quick-start"]
+  guid = "NUeb6U7x1PNcOkiaHSGfVTyZtgE"
 }

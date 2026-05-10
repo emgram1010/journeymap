@@ -27,4 +27,5 @@ query "auth/me" verb=GET {
 
   response = $user
   tags = ["xano:quick-start"]
+  guid = "3950ORypc3hfcvDnyEbxwrMN1xo"
 }

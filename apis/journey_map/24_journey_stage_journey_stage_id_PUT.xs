@@ -24,4 +24,5 @@ query "journey_stage/{journey_stage_id}" verb=PUT {
   }
 
   response = $model
+  guid = "DUZOGiLXpkITkt8B6Pn2qCunw4U"
 }

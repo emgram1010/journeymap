@@ -107,8 +107,8 @@ tool scaffold_structure {
               
                 conditional {
                   if ($target_stage != null) {
-                    api.call "journey_stage/remove/{journey_stage_id}" verb=DELETE {
-                      api_group = "journey-map"
+                    api.call "" verb=GET {
+                      api_group = ""
                       input = {journey_stage_id: $target_stage.id}
                     } as $remove_result
                   
@@ -148,11 +148,12 @@ tool scaffold_structure {
               
                 conditional {
                   if ($rename_target != null) {
-                    api.call "journey_stage/rename/{journey_stage_id}" verb=PATCH {
-                      api_group = "journey-map"
-                      input = {journey_stage_id: $rename_target.id, label: $op.label}
+                    db.edit journey_stage {
+                      field_name = "id"
+                      field_value = $rename_target.id
+                      data = {label: $op.label, updated_at: "now"}
                     } as $rename_result
-                  
+
                     var.update $stages_renamed {
                       value = $stages_renamed + 1
                     }
@@ -179,8 +180,8 @@ tool scaffold_structure {
           each as $op {
             conditional {
               if ($op.action == "add") {
-                api.call "journey_stage/add/{journey_map_id}" verb=POST {
-                  api_group = "journey-map"
+                api.call "" verb=GET {
+                  api_group = ""
                   input = {journey_map_id: $input.journey_map_id, label: $op.label}
                 } as $add_result
               
@@ -213,8 +214,8 @@ tool scaffold_structure {
               
                 conditional {
                   if ($target_lens != null) {
-                    api.call "journey_lens/remove/{journey_lens_id}" verb=DELETE {
-                      api_group = "journey-map"
+                    api.call "" verb=GET {
+                      api_group = ""
                       input = {journey_lens_id: $target_lens.id}
                     } as $remove_lens_result
                   
@@ -254,14 +255,12 @@ tool scaffold_structure {
               
                 conditional {
                   if ($rename_lens_target != null) {
-                    api.call "journey_lens/rename/{journey_lens_id}" verb=PATCH {
-                      api_group = "journey-map"
-                      input = {
-                        journey_lens_id: $rename_lens_target.id
-                        label          : $op.label
-                      }
+                    db.edit journey_lens {
+                      field_name = "id"
+                      field_value = $rename_lens_target.id
+                      data = {label: $op.label, updated_at: "now"}
                     } as $rename_lens_result
-                  
+
                     var.update $lenses_renamed {
                       value = $lenses_renamed + 1
                     }
@@ -656,4 +655,5 @@ tool scaffold_structure {
     lenses           : $final_lenses
     errors           : $errors
   }
+  guid = "DAqeKjJsXv8qump_B7THhNN1qoQ"
 }

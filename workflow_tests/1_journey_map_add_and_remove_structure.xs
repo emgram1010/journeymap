@@ -111,4 +111,5 @@ workflow_test journey_map_add_and_remove_structure {
       value = 80
     }
   }
+  guid = "F3gezSZ2zYNWhsewHdqy3leaUsM"
 }

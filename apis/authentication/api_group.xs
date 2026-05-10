@@ -2,4 +2,5 @@
 api_group Authentication {
   canonical = "RPonubWS"
   tags = ["xano:quick-start"]
+  guid = "zmuMbQ9J0pwG1lLZSEcIxyl29Uo"
 }

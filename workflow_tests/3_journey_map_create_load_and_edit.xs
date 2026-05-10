@@ -145,4 +145,5 @@ workflow_test journey_map_create_load_and_edit {
       value = "Workflow Lens"
     }
   }
+  guid = "sLVlTe47jaTpInsQkidlzSlvS_0"
 }

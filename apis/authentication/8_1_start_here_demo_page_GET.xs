@@ -1177,4 +1177,5 @@ query "1_start_here_demo_page" verb=GET {
 
   response = $html
   tags = ["xano:quick-start"]
+  guid = "4hlhGz0w_nsPcd5v_Q6yT7wABts"
 }

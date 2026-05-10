@@ -57,4 +57,5 @@ table agent_turn_log {
     {type: "btree", field: [{name: "turn_id", op: "asc"}]}
     {type: "btree", field: [{name: "status", op: "asc"}]}
   ]
+  guid = "c3AP3NHYuV1QVE9uNbDWafVWjtQ"
 }

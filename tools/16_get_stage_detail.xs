@@ -115,4 +115,5 @@ tool get_stage_detail {
   }
 
   response = $result
+  guid = "ZpQRnsvaKniK6EzcVV0e4eCceZg"
 }

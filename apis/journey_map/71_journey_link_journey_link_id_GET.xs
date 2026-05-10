@@ -25,4 +25,5 @@ query "journey_link/{journey_link_id}" verb=GET {
   }
 
   response = $link
+  guid = "Dd80OQDt2XqPs0UXyBz_ooFA8IM"
 }

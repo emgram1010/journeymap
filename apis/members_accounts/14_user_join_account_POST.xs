@@ -53,4 +53,5 @@ query "user/join_account" verb=POST {
 
   response = $updated_user
   tags = ["xano:quick-start"]
+  guid = "B2bEbozHjxX6flWhYNpn_u7zJow"
 }

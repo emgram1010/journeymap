@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Send,
+  Square,
   Play,
   RotateCcw,
   CheckCircle2,
@@ -35,6 +36,7 @@ import {
   ArrowLeft,
   LogOut,
   BarChart2,
+  Bug,
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -275,7 +277,63 @@ function ActivityPanel({
   );
 }
 
-// ── Debug Panel (Layer 4) — only rendered when ?debug=1 in URL ──────────────
+// ── Build Summary Panel (ARO-05) — collapsible per-phase table after build ──
+
+interface PhaseSummaryEntry {
+  phase_key: string;
+  tools_called: number;
+  cells_written: number;
+  step_limit_warning: boolean;
+}
+
+function phaseStatusIcon(entry: PhaseSummaryEntry): string {
+  if (entry.tools_called === 0) return '❌';
+  if (entry.step_limit_warning) return '⚠️';
+  return '✅';
+}
+
+function BuildSummaryPanel({ phases }: { phases: PhaseSummaryEntry[] }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const filledCount = phases.reduce((sum, p) => sum + p.cells_written, 0);
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setIsExpanded((v) => !v)}
+        className="flex items-center gap-1.5 text-[10px] text-emerald-600 font-medium hover:text-emerald-800 transition-colors"
+      >
+        <span>📋 Build Summary</span>
+        <span className="text-zinc-400">— {phases.length} phases · {filledCount} cells filled</span>
+        {isExpanded ? <ChevronDown className="w-2.5 h-2.5" /> : <ChevronRight className="w-2.5 h-2.5" />}
+      </button>
+      {isExpanded && (
+        <div className="mt-1 border border-zinc-100 rounded-lg overflow-hidden">
+          <table className="w-full text-[10px]">
+            <thead>
+              <tr className="bg-zinc-50 text-zinc-400 uppercase tracking-wider">
+                <th className="text-left px-2.5 py-1.5 font-medium">Phase</th>
+                <th className="text-center px-2 py-1.5 font-medium">Status</th>
+                <th className="text-right px-2 py-1.5 font-medium">Tools</th>
+                <th className="text-right px-2.5 py-1.5 font-medium">Cells</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-50">
+              {phases.map((p) => (
+                <tr key={p.phase_key} className="bg-white hover:bg-zinc-50/80">
+                  <td className="px-2.5 py-1 font-mono text-zinc-700">{p.phase_key}</td>
+                  <td className="px-2 py-1 text-center">{phaseStatusIcon(p)}</td>
+                  <td className="px-2 py-1 text-right text-zinc-500">{p.tools_called}</td>
+                  <td className="px-2.5 py-1 text-right text-zinc-700 font-medium">{p.cells_written}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Debug Panel (Layer 4) — toggle via localStorage:emgram_debug_mode ────────
 
 const TOOL_CATEGORY_COLOR: Record<string, string> = {
   read    : 'text-blue-500',
@@ -388,7 +446,14 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const [searchParams] = useSearchParams();
   const architectureId = searchParams.get('arch') ? Number(searchParams.get('arch')) : null;
   const fromScenarios = searchParams.get('tab') === 'scenarios';
-  const isDebugMode = searchParams.get('debug') === '1';
+  const [isDebugMode, setIsDebugMode] = useState(() => localStorage.getItem('emgram_debug_mode') === 'true');
+  const toggleDebugMode = useCallback(() => {
+    setIsDebugMode((v: boolean) => {
+      const next = !v;
+      localStorage.setItem('emgram_debug_mode', String(next));
+      return next;
+    });
+  }, []);
   const { user, logout } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -417,6 +482,10 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const [selectedCellSnapshot, setSelectedCellSnapshot] = useState<MatrixCell | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isChatMode, setIsChatMode] = useState(false); // false = Interview Mode, true = Chat Mode
+  // SCM: sub-mode for chat panel — 'default' | 'specialist' | 'consortium'
+  const [chatSubMode, setChatSubMode] = useState<'default' | 'specialist' | 'consortium'>('default');
+  const [activeSpecialistKey, setActiveSpecialistKey] = useState<string | null>(null);
+  const [activeConsortiumKeys, setActiveConsortiumKeys] = useState<string[]>([]);
   const [isSmartAiSettingsOpen, setIsSmartAiSettingsOpen] = useState(false);
   const [smartAiSettings, setSmartAiSettings] = useState<SmartAiSettings>({...SMART_AI_DEFAULTS});
   const [isSmartAiSettingsSaving, setIsSmartAiSettingsSaving] = useState(false);
@@ -431,9 +500,28 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const isBuildLoopingRef = useRef(false);
   const buildLoopTurnsRef = useRef(0);
   const buildStallCountRef = useRef(0);
-  const BUILD_LOOP_MAX_TURNS = 8;
+  // Tracks which conversation ID has already received the auto-greeting so we don't re-send
+  const greetedConvIdRef = useRef<number | null>(null);
+  // ── Abort + elapsed timer ──
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  // ── Build summary (ARO-05) ──
+  const phaseSummaryRef = useRef<PhaseSummaryEntry[]>([]);
+  const [completedBuildSummary, setCompletedBuildSummary] = useState<PhaseSummaryEntry[] | null>(null);
+  // ── Phase queue (BPC-01) ──
+  const buildPhaseIndexRef = useRef(0);
+  const BUILD_PHASES: Array<{key: string; prompt: string; builderMode: boolean}> = [
+    { key: 'scaffold',    prompt: '[BUILD_PHASE:scaffold] Scaffold stages and lenses only. DO NOT fill any cells. DO NOT call batch_update or update_actor_cell_fields. Report what you created.',                                                                                                              builderMode: false },
+    { key: 'identity',    prompt: '[BUILD_PHASE:identity] Fill actor identity fields (persona_description, primary_goal, standing_constraints) for all actor lenses using update_actor_identity only. DO NOT call batch_update. DO NOT write to any cells.',                                                   builderMode: false },
+    { key: 'description', prompt: '[BUILD_PHASE:description] Fill the Description lens ONLY across all stages. Use batch_update only. DO NOT call update_actor_cell_fields. DO NOT touch any other lens.',                                                                                                     builderMode: true  },
+    { key: 'customer',    prompt: '[BUILD_PHASE:customer] Fill Customer actor lenses ONLY (actor_type=customer) across all stages. Use update_actor_cell_fields only. DO NOT call batch_update. DO NOT touch non-customer lenses.',                                                                             builderMode: true  },
+    { key: 'internal',    prompt: '[BUILD_PHASE:internal] Fill Internal actor lenses ONLY (actor_type=internal) across all stages. Use update_actor_cell_fields only. DO NOT call batch_update. DO NOT touch non-internal lenses.',                                                                            builderMode: true  },
+    { key: 'structural',  prompt: '[BUILD_PHASE:structural] Fill structural lenses ONLY (Top Pain Point, Key Variable, Cascade Risk, Systems — actor_type empty) across all stages. Use batch_update only. DO NOT call update_actor_cell_fields. DO NOT touch actor lenses.',                                 builderMode: true  },
+    { key: 'metrics',     prompt: '[BUILD_PHASE:metrics] Fill Metrics and Financial actor lenses ONLY (actor_type=metrics or actor_type=financial) across all stages. Use update_actor_cell_fields only. DO NOT call batch_update. DO NOT touch non-metrics lenses.',                                         builderMode: true  },
+    { key: 'verify',      prompt: '[BUILD_PHASE:verify] Run cross-lens consistency check ONLY. Call get_map_state. Surface inconsistencies only. DO NOT call any write tools (batch_update, update_actor_cell_fields, mutate_structure, scaffold_structure).',                                                builderMode: false },
+  ];
+  const BUILD_LOOP_MAX_TURNS = BUILD_PHASES.length;
   const BUILD_COMPLETE_THRESHOLD = 95;
-  const BUILD_CONTINUATION_PROMPT = '[CONTINUE_BUILD] Continue filling empty cells. Call get_gaps first, then fill the next batch.';
   const BUILD_REQUEST_REGEX = /build.*map|create.*map|generate.*map|map.*journey|fill.*map|build.*journey|walk me through|build.*anti|build.*full/i;
   const [searchTerm, setSearchTerm] = useState('');
   const [conversationList, setConversationList] = useState<ConversationListItem[]>([]);
@@ -889,11 +977,56 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   }, [selectedCell?.actorFields]);
 
   // Ref so the build loop can call the latest version without stale-closure issues
+  // Auto-greeting: fires when chat opens on a fresh conversation with no messages
+  const handleGreeting = useCallback(async () => {
+    if (!journeyMapRecord || !conversationRecord) return;
+    if (greetedConvIdRef.current === conversationRecord.id) return;
+    greetedConvIdRef.current = conversationRecord.id;
+
+    setIsSendingMessage(true);
+    setXanoError(null);
+    try {
+      const aiThread = await sendAiMessage({
+        journeyMapId: journeyMapRecord.id,
+        conversationId: conversationRecord.id,
+        content: '[GREET]',
+        mode: isChatMode ? 'chat' : 'interview',
+        journeySettings,
+      });
+      setMessages(aiThread.messages);
+      if (aiThread.suggestedPrompts?.length) setSuggestedPrompts(aiThread.suggestedPrompts);
+    } catch {
+      // silently ignore — user can still type
+    } finally {
+      setIsSendingMessage(false);
+    }
+  }, [journeyMapRecord, conversationRecord, isChatMode, journeySettings]);
+
+  // Trigger the greeting when chat opens with a fresh empty session
+  useEffect(() => {
+    if (!isChatOpen) return;
+    if (messages.length > 0) return;
+    if (isSendingMessage) return;
+    if (!journeyMapRecord || !conversationRecord) return;
+    const timer = setTimeout(() => void handleGreeting(), 350);
+    return () => clearTimeout(timer);
+  }, [isChatOpen, messages.length, isSendingMessage, journeyMapRecord, conversationRecord, handleGreeting]);
+
+  // Reset greeted flag when conversation changes so the new session gets its own greeting
+  useEffect(() => {
+    if (conversationRecord?.id && greetedConvIdRef.current !== conversationRecord.id) {
+      // Only reset if messages are empty (genuinely new session, not a loaded history)
+      if (messages.length === 0) greetedConvIdRef.current = null;
+    }
+  }, [conversationRecord?.id, messages.length]);
+
   const handleSendMessageRef = useRef<(continuationConvId?: number) => Promise<void>>(async () => {});
 
   const handleSendMessage = useCallback(async (continuationConvId?: number) => {
     const isContinuation = continuationConvId !== undefined;
-    const messageText = isContinuation ? BUILD_CONTINUATION_PROMPT : inputText.trim();
+    // For phase continuation, use the current phase prompt; otherwise use user input
+    const currentPhase = isContinuation ? BUILD_PHASES[buildPhaseIndexRef.current] : null;
+    const messageText = currentPhase ? currentPhase.prompt : inputText.trim();
 
     if (!messageText) return;
     if (!journeyMapRecord) {
@@ -901,27 +1034,43 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
       return;
     }
 
+    // US-BPC-07: detect build request before arming so we can skip Turn 0
+    const isBuildRequest = !isContinuation && !isChatMode && BUILD_REQUEST_REGEX.test(messageText);
+
     if (!isContinuation) {
+      // Create a fresh AbortController for this send chain
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = new AbortController();
+
       setIsSendingMessage(true);
       setXanoError(null);
       setInputText('');
 
-      // Detect a full-map build request and arm the loop
-      if (!isChatMode && BUILD_REQUEST_REGEX.test(messageText)) {
+      // Detect a full-map build request and arm the phase queue loop
+      if (isBuildRequest) {
         isBuildLoopingRef.current = true;
         buildLoopTurnsRef.current = 0;
+        buildPhaseIndexRef.current = 0;
         buildStallCountRef.current = 0;
+        phaseSummaryRef.current = [];
+        setCompletedBuildSummary(null);
         setIsBuildLooping(true);
         setBuildLoopProgress(0);
         setBuildLoopTurnDisplay(0);
       }
 
-      // Show user message immediately
+      // Show user message immediately (always the raw user text)
       setMessages((prev) => [
         ...prev,
         { id: `optimistic-${Date.now()}`, role: 'expert' as const, content: messageText, timestamp: new Date() },
       ]);
     }
+
+    // US-BPC-07: on a build request, send the scaffold phase prompt as the very first
+    // agent message instead of the raw user text — eliminates the 60-90s Turn 0 dead zone.
+    const agentContent = isBuildRequest
+      ? BUILD_PHASES[0].prompt
+      : messageText;
 
     const currentMode = isChatMode ? 'chat' as const : 'interview' as const;
     const selectedCellPayload = buildSelectedCellPayload(selectedCellContext);
@@ -931,11 +1080,15 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
       const aiThread = await sendAiMessage({
         journeyMapId: journeyMapRecord.id,
         conversationId: resolvedConvId,
-        content: messageText,
+        content: agentContent,
         mode: currentMode,
         selectedCell: isContinuation ? undefined : selectedCellPayload,
         journeySettings: isContinuation ? undefined : journeySettings,
         parentContext: inboundContext,
+        signal: abortControllerRef.current?.signal,
+        builderMode: currentPhase?.builderMode ?? false,
+        specialistActorKey: chatSubMode === 'specialist' ? activeSpecialistKey : null,
+        consortiumActorKeys: chatSubMode === 'consortium' && activeConsortiumKeys.length > 0 ? activeConsortiumKeys : null,
       });
 
       // ── TRACE LOGGING — remove once actor-field write chain is verified ──
@@ -1016,56 +1169,92 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         applyJourneyMapBundle(bundle);
       }
 
-      // ── Build loop continuation (AMBC-04) ──
+      // ── Phase queue build loop (BPC-01) ──
       if (isBuildLoopingRef.current) {
+        // Collect per-phase summary entry (ARO-05)
+        const completedPhaseIdx = buildPhaseIndexRef.current;
+        phaseSummaryRef.current.push({
+          phase_key: BUILD_PHASES[completedPhaseIdx]?.key ?? `phase_${completedPhaseIdx}`,
+          tools_called: aiThread.toolTrace?.length ?? 0,
+          cells_written: aiThread.cellUpdates.length,
+          step_limit_warning: aiThread.stepLimitWarning ?? false,
+        });
+
+        // Advance to the next phase
+        buildPhaseIndexRef.current += 1;
+        buildLoopTurnsRef.current += 1;
+        const nextPhaseProgress = Math.round((buildPhaseIndexRef.current / BUILD_PHASES.length) * 100);
+        setBuildLoopProgress(nextPhaseProgress);
+        setBuildLoopTurnDisplay(buildPhaseIndexRef.current);
+
+        const allPhasesComplete = buildPhaseIndexRef.current >= BUILD_PHASES.length;
         const isComplete = aiThread.progress.percentage >= BUILD_COMPLETE_THRESHOLD;
-        const maxTurnsHit = buildLoopTurnsRef.current >= BUILD_LOOP_MAX_TURNS;
 
-        if (aiThread.cellUpdates.length === 0) buildStallCountRef.current += 1;
-        else buildStallCountRef.current = 0;
-        const isStalled = buildStallCountRef.current >= 2;
-
-        if (!isComplete && !maxTurnsHit && !isStalled) {
-          buildLoopTurnsRef.current += 1;
-          setBuildLoopTurnDisplay(buildLoopTurnsRef.current);
+        if (!allPhasesComplete && !isComplete) {
+          // Fire the next phase
           await handleSendMessageRef.current(aiThread.conversation?.id ?? resolvedConvId);
         } else {
           isBuildLoopingRef.current = false;
           setIsBuildLooping(false);
-          if (!isComplete) {
-            const empty = (aiThread.progress.totalCells ?? 0) - (aiThread.progress.filledCells ?? 0);
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: `build-warn-${Date.now()}`,
-                role: 'ai' as const,
-                content: `Build stopped at ${aiThread.progress.percentage}% — ${empty} cells still empty.`,
-                timestamp: new Date(),
-                isBuildWarning: true,
-              },
-            ]);
-          }
+          abortControllerRef.current = null;
+          // Freeze the phase summary for display (ARO-05)
+          setCompletedBuildSummary([...phaseSummaryRef.current]);
         }
       }
     } catch (error) {
       isBuildLoopingRef.current = false;
       setIsBuildLooping(false);
+      abortControllerRef.current = null;
+      // Suppress AbortError — user clicked stop intentionally
+      if (error instanceof Error && error.name === 'AbortError') return;
       if (!isContinuation) setInputText(messageText);
       setXanoError(getErrorMessage(error, 'Unable to send AI message.'));
     } finally {
-      if (!isContinuation) setIsSendingMessage(false);
+      // Keep isSendingMessage true while phases are still running
+      if (!isContinuation && !isBuildLoopingRef.current) setIsSendingMessage(false);
     }
-  }, [conversationRecord?.id, inputText, isChatMode, journeyMapRecord, selectedCellContext, lenses, stages, inboundContext, journeySettings, applyJourneyMapBundle]);
+  }, [conversationRecord?.id, inputText, isChatMode, chatSubMode, activeSpecialistKey, activeConsortiumKeys, journeyMapRecord, selectedCellContext, lenses, stages, inboundContext, journeySettings, applyJourneyMapBundle]);
 
   // Keep the ref in sync so recursive continuation calls always use the latest version
   useEffect(() => { handleSendMessageRef.current = handleSendMessage; }, [handleSendMessage]);
+
+  // ── Elapsed timer — ticks every second while the AI is processing ──
+  useEffect(() => {
+    if (!isSendingMessage) { setElapsedSeconds(0); return; }
+    setElapsedSeconds(0);
+    const interval = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
+    return () => clearInterval(interval);
+  }, [isSendingMessage]);
+
+  // ── Stop build / abort in-flight request ──
+  const handleStopBuild = useCallback(() => {
+    isBuildLoopingRef.current = false;
+    setIsBuildLooping(false);
+    setIsSendingMessage(false);
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `build-stopped-${Date.now()}`,
+        role: 'ai' as const,
+        content: `Build stopped by user at ${buildLoopProgress}% — you can resume anytime.`,
+        timestamp: new Date(),
+        isBuildWarning: true,
+      },
+    ]);
+  }, [buildLoopProgress]);
 
   // Resume build loop after a stall or max-turns stop (AMBC-06)
   const handleResumeBuild = useCallback(() => {
     if (!conversationRecord?.id) return;
     isBuildLoopingRef.current = true;
     buildLoopTurnsRef.current = 0;
+    buildPhaseIndexRef.current = 0;
     buildStallCountRef.current = 0;
+    phaseSummaryRef.current = [];
+    setCompletedBuildSummary(null);
+    abortControllerRef.current = new AbortController();
     setIsBuildLooping(true);
     setIsSendingMessage(true);
     void handleSendMessageRef.current(conversationRecord.id);
@@ -1838,30 +2027,100 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                           {conversationRecord?.title ?? 'AI Interviewer'}
                           <ChevronDown className={`w-3 h-3 transition-transform ${isSessionPickerOpen ? 'rotate-180' : ''}`} />
                         </button>
-                        <span className="text-[9px] text-zinc-400 font-medium ml-0.5">{isChatMode ? 'Chat Mode' : 'Interview Mode'}</span>
+                        <span className="text-[9px] text-zinc-400 font-medium ml-0.5">
+                          {!isChatMode ? 'Interview Mode' : chatSubMode === 'specialist' ? 'Specialist Mode' : chatSubMode === 'consortium' ? 'Consortium Mode' : 'Chat Mode'}
+                        </span>
                       </div>
-                      <div className="flex items-center rounded-lg border border-zinc-200 bg-white p-0.5 shadow-sm">
-                        <button
-                          type="button"
-                          onClick={() => setIsChatMode(false)}
-                          disabled={isSendingMessage}
-                          aria-pressed={!isChatMode}
-                          className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${!isChatMode ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'} disabled:opacity-50`}
-                        >
-                          Interview
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setIsChatMode(true)}
-                          disabled={isSendingMessage}
-                          aria-pressed={isChatMode}
-                          className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${isChatMode ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'} disabled:opacity-50`}
-                        >
-                          Chat
-                        </button>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center rounded-lg border border-zinc-200 bg-white p-0.5 shadow-sm">
+                          <button
+                            type="button"
+                            onClick={() => { setIsChatMode(false); setChatSubMode('default'); setActiveSpecialistKey(null); setActiveConsortiumKeys([]); }}
+                            disabled={isSendingMessage}
+                            aria-pressed={!isChatMode}
+                            className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${!isChatMode ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'} disabled:opacity-50`}
+                          >
+                            Interview
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setIsChatMode(true); setChatSubMode('default'); setActiveSpecialistKey(null); setActiveConsortiumKeys([]); }}
+                            disabled={isSendingMessage}
+                            aria-pressed={isChatMode && chatSubMode === 'default'}
+                            className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${isChatMode && chatSubMode === 'default' ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'} disabled:opacity-50`}
+                          >
+                            Chat
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setIsChatMode(true); setChatSubMode('specialist'); setActiveConsortiumKeys([]); }}
+                            disabled={isSendingMessage}
+                            aria-pressed={chatSubMode === 'specialist'}
+                            className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${chatSubMode === 'specialist' ? 'bg-violet-700 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'} disabled:opacity-50`}
+                          >
+                            🎭 Specialist
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setIsChatMode(true); setChatSubMode('consortium'); setActiveSpecialistKey(null); }}
+                            disabled={isSendingMessage}
+                            aria-pressed={chatSubMode === 'consortium'}
+                            className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${chatSubMode === 'consortium' ? 'bg-indigo-700 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'} disabled:opacity-50`}
+                          >
+                            🏛️ Consortium
+                          </button>
+                        </div>
+                        {/* Actor pill row — shown in Specialist or Consortium mode */}
+                        {(chatSubMode === 'specialist' || chatSubMode === 'consortium') && (
+                          <div className="flex flex-wrap gap-1 px-0.5">
+                            {lenses.filter((l) => l.actorType).map((lens) => {
+                              const key = lens.key ?? lens.xanoId?.toString() ?? '';
+                              const isSpecialistActive = chatSubMode === 'specialist' && activeSpecialistKey === key;
+                              const isConsortiumActive = chatSubMode === 'consortium' && activeConsortiumKeys.includes(key);
+                              const isActive = isSpecialistActive || isConsortiumActive;
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  disabled={isSendingMessage}
+                                  onClick={() => {
+                                    if (chatSubMode === 'specialist') {
+                                      setActiveSpecialistKey(isActive ? null : key);
+                                    } else {
+                                      setActiveConsortiumKeys((prev) =>
+                                        isActive ? prev.filter((k) => k !== key) : [...prev, key]
+                                      );
+                                    }
+                                  }}
+                                  className={`px-2 py-0.5 rounded-full text-[9px] font-semibold border transition-colors ${
+                                    isActive
+                                      ? chatSubMode === 'specialist'
+                                        ? 'bg-violet-700 text-white border-violet-700'
+                                        : 'bg-indigo-700 text-white border-indigo-700'
+                                      : 'bg-white text-zinc-600 border-zinc-300 hover:border-zinc-500'
+                                  } disabled:opacity-50`}
+                                >
+                                  {lens.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
+                      {/* ARO-06: Debug mode badge */}
+                      {isDebugMode && (
+                        <span className="text-[9px] font-bold text-amber-500 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 select-none">DEBUG</span>
+                      )}
+                      {/* ARO-06: Debug mode toggle */}
+                      <button
+                        onClick={toggleDebugMode}
+                        title={isDebugMode ? 'Debug Mode ON — click to disable' : 'Enable Debug Mode'}
+                        className={`p-1.5 rounded transition-colors ${isDebugMode ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' : 'hover:bg-zinc-200 text-zinc-400'}`}
+                      >
+                        <Bug className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => { setIsSmartAiSettingsOpen((o) => !o); setSmartAiSettingsError(null); }}
                         title="Smart AI Settings"
@@ -2056,6 +2315,43 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-white">
+                  {/* Welcome empty state — shown while greeting is loading or before first message */}
+                  {messages.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-full gap-5 pt-4 pb-8 text-center">
+                      <div className="w-12 h-12 rounded-2xl bg-zinc-900 flex items-center justify-center shadow-md">
+                        <Sparkles className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-zinc-800">Your AI Journey Partner</p>
+                        <p className="text-xs text-zinc-400 mt-1 max-w-[220px]">
+                          I read your map, ask the right questions, and help you build faster.
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-2 w-full max-w-[240px]">
+                        {[
+                          { icon: '🗺️', label: 'Build or fill the full map' },
+                          { icon: '🔍', label: 'Spot gaps & contradictions' },
+                          { icon: '✏️', label: 'Refine any stage or lens' },
+                          { icon: '💬', label: 'Answer questions about your journey' },
+                        ].map((item) => (
+                          <div key={item.label} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-zinc-50 border border-zinc-100 text-left">
+                            <span className="text-base leading-none">{item.icon}</span>
+                            <span className="text-[11px] text-zinc-600 font-medium">{item.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {isSendingMessage && (
+                        <div className="flex items-center gap-2 text-xs text-zinc-400">
+                          <div className="flex gap-1">
+                            <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{animationDelay:'0ms'}} />
+                            <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{animationDelay:'150ms'}} />
+                            <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{animationDelay:'300ms'}} />
+                          </div>
+                          Reading your map…
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {messages.map((msg) => (
                     <div key={msg.id} className="space-y-1 group">
                       {/* Build warning message (AMBC-06) */}
@@ -2148,6 +2444,17 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                       )}
                     </div>
                   ))}
+                  {/* ARO-05: Build Summary Panel — shown after build completes */}
+                  {completedBuildSummary && !isBuildLooping && (
+                    <div className="flex items-start gap-2">
+                      <div className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[8px] font-bold bg-zinc-900 text-white">
+                        AI
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <BuildSummaryPanel phases={completedBuildSummary} />
+                      </div>
+                    </div>
+                  )}
                   {/* Thinking / build-loop indicator — shown while the AI is processing */}
                   {isSendingMessage && (
                     <div className="flex items-start gap-2">
@@ -2161,7 +2468,10 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                           <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce [animation-delay:300ms]" />
                           <span className="ml-1 font-medium">
                             Building map… {buildLoopProgress}% complete
-                            {buildLoopTurnDisplay > 0 && ` (turn ${buildLoopTurnDisplay}/${BUILD_LOOP_MAX_TURNS})`}
+                            {buildLoopTurnDisplay > 0 && ` · phase ${buildLoopTurnDisplay}/${BUILD_PHASES.length} (${BUILD_PHASES[buildLoopTurnDisplay - 1]?.key ?? ''})`}
+                          </span>
+                          <span className="ml-auto font-mono text-amber-600">
+                            {`${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, '0')}`}
                           </span>
                         </div>
                       ) : (
@@ -2169,6 +2479,9 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                           <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:0ms]" />
                           <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:150ms]" />
                           <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                          <span className="ml-2 text-xs text-zinc-400 font-mono">
+                            {`${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, '0')}`}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -2261,13 +2574,23 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                         </div>
                         
                         <div className="flex items-center gap-1.5">
-                          <button 
-                            onClick={() => void handleSendMessage()}
-                            disabled={!inputText.trim() || isSendingMessage}
-                            className="p-1.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 disabled:opacity-30 transition-all shadow-sm"
-                          >
-                            <Send className="w-3.5 h-3.5" />
-                          </button>
+                          {isSendingMessage ? (
+                            <button
+                              onClick={handleStopBuild}
+                              title="Stop AI"
+                              className="p-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all shadow-sm"
+                            >
+                              <Square className="w-3.5 h-3.5 fill-white" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => void handleSendMessage()}
+                              disabled={!inputText.trim()}
+                              className="p-1.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 disabled:opacity-30 transition-all shadow-sm"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

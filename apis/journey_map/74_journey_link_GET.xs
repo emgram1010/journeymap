@@ -18,4 +18,5 @@ query journey_link verb=GET {
   }
 
   response = $links
+  guid = "S5omAdD2WzysIShpbNQvEg4PYfw"
 }

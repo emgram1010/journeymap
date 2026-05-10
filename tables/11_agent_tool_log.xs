@@ -55,4 +55,5 @@ table agent_tool_log {
   ]
 
   tags = ["xano:quick-start"]
+  guid = "gDKey1T3aTcQprwEmKBNQc1v9N4"
 }

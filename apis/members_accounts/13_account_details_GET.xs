@@ -17,4 +17,5 @@ query "account/details" verb=GET {
 
   response = $account_details
   tags = ["xano:quick-start"]
+  guid = "ChMBuPPqCjGloyIiemN434CTskQ"
 }

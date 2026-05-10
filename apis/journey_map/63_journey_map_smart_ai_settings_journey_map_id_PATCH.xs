@@ -104,4 +104,5 @@ query "journey_map/smart_ai_settings/{journey_map_id}" verb=PATCH {
   }
 
   response = $updated
+  guid = "lbL51OIhV5qNkoPDfmZhCcvpSjw"
 }
