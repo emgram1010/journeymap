@@ -42,4 +42,5 @@ query "journey_map/{journey_map_id}" verb=PUT {
   }
 
   response = $model
+  guid = "Bd4-6Z67NURctGPTY9VjqYIjZoc"
 }

@@ -75,8 +75,8 @@ tool mutate_structure {
           error = "label is required for add_stage"
         }
       
-        api.call "journey_stage/add/{journey_map_id}" verb=POST {
-          api_group = "journey-map"
+        api.call "" verb=GET {
+          api_group = ""
           input = {
             journey_map_id: $input.journey_map_id
             label         : $input.label
@@ -109,8 +109,8 @@ tool mutate_structure {
           error = "Stage not found with key: " + $input.target_key
         }
       
-        api.call "journey_stage/remove/{journey_stage_id}" verb=DELETE {
-          api_group = "journey-map"
+        api.call "" verb=GET {
+          api_group = ""
           input = {journey_stage_id: $target_stage.id}
         } as $remove_stage_result
       
@@ -145,14 +145,12 @@ tool mutate_structure {
           error = "Stage not found with key: " + $input.target_key
         }
       
-        api.call "journey_stage/rename/{journey_stage_id}" verb=PATCH {
-          api_group = "journey-map"
-          input = {
-            journey_stage_id: $rename_stage_target.id
-            label           : $input.label
-          }
+        db.edit journey_stage {
+          field_name = "id"
+          field_value = $rename_stage_target.id
+          data = {label: $input.label, updated_at: "now"}
         } as $rename_stage_result
-      
+
         var.update $result {
           value = {
             action : "rename_stage"
@@ -452,8 +450,8 @@ tool mutate_structure {
           error = "Lens not found with key: " + $input.target_key
         }
       
-        api.call "journey_lens/remove/{journey_lens_id}" verb=DELETE {
-          api_group = "journey-map"
+        api.call "" verb=GET {
+          api_group = ""
           input = {journey_lens_id: $target_lens.id}
         } as $remove_lens_result
       
@@ -488,14 +486,12 @@ tool mutate_structure {
           error = "Lens not found with key: " + $input.target_key
         }
       
-        api.call "journey_lens/rename/{journey_lens_id}" verb=PATCH {
-          api_group = "journey-map"
-          input = {
-            journey_lens_id: $rename_lens_target.id
-            label          : $input.label
-          }
+        db.edit journey_lens {
+          field_name = "id"
+          field_value = $rename_lens_target.id
+          data = {label: $input.label, updated_at: "now"}
         } as $rename_lens_result
-      
+
         var.update $result {
           value = {
             action : "rename_lens"
@@ -714,4 +710,5 @@ tool mutate_structure {
   }
 
   response = $result
+  guid = "v_CjcVOpEMS-4JZXVT3nSQ9kb0I"
 }

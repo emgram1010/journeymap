@@ -30,4 +30,5 @@ function "Getting Started Template/create_event_log" {
 
   response = null
   tags = ["xano:quick-start"]
+  guid = "33un6bTQQn2ER8jlXXY85EXTfWw"
 }

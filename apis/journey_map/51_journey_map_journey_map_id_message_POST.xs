@@ -320,4 +320,5 @@ query "journey_map/{journey_map_id}/message" verb=POST {
     skipped_updates       : $skipped_updates
     journey_map_updated_at: $journey_map_touch.updated_at
   }
+  guid = "23YzNBoa5JmwOS7DiyVakmV5xLY"
 }

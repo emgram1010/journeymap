@@ -51,4 +51,5 @@ query "journey_stage/rename/{journey_stage_id}" verb=PATCH {
 
   response = $journey_stage
     |set:"journey_map_updated_at":$journey_map_touch.updated_at
+    guid = "pq01_vkdyYyCaHm6LJoKc17EidU"
 }

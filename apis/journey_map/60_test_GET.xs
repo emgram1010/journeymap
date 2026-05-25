@@ -18,4 +18,5 @@ query test verb=GET {
   }
 
   response = $Journey_Map_Assistant1
+  guid = "almi53eEs1d-WM6EeToyAN0G2mw"
 }

@@ -85,4 +85,5 @@ query "journey_architecture/{journey_architecture_id}/scenarios" verb=GET {
   }
 
   response = $result
+  guid = "XONaYFkJJ7e2igZrnRAPX3Bafao"
 }

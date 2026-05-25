@@ -45,4 +45,5 @@ query account verb=POST {
 
   response = {account: $new_account}
   tags = ["xano:quick-start"]
+  guid = "58dbRahQyPciwW-0SrULUvL1xLA"
 }

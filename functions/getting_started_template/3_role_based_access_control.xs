@@ -61,4 +61,5 @@ function "Getting Started Template/role-based access control" {
 
   response = null
   tags = ["xano:quick-start"]
+  guid = "rchIvu_N8tSimI0S1UJCa3-YgMc"
 }

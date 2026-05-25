@@ -41,4 +41,5 @@ query "journey_architecture/bundle/{journey_architecture_id}" verb=GET {
     journey_maps        : $journey_maps
     journey_links       : $journey_links
   }
+  guid = "xuyyNbOZLC2A18Jk3kCChLnADf4"
 }

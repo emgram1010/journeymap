@@ -25,4 +25,5 @@ query "journey_architecture/{journey_architecture_id}" verb=GET {
   }
 
   response = $model
+  guid = "YuQCP7t3tvYifyLsN9iUE7y9Ed0"
 }

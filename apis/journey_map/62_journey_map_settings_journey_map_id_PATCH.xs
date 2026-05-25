@@ -87,4 +87,5 @@ query "journey_map/settings/{journey_map_id}" verb=PATCH {
   }
 
   response = $updated
+  guid = "0xKUZuCJWt9Tmm0DGaLamk3CMdU"
 }

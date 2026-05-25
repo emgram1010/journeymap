@@ -132,4 +132,5 @@ query "journey_architecture/{journey_architecture_id}/link" verb=POST {
   }
 
   response = $link
+  guid = "SKBczRXOLjUep1YXr3E9Ef0GBQA"
 }

@@ -356,4 +356,5 @@ tool get_slice {
   }
 
   response = $result
+  guid = "EpRDIOs7s-SXjusePZdaeIEjbIE"
 }

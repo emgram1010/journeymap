@@ -93,4 +93,5 @@ query "journey_architecture/{journey_architecture_id}/compare" verb=GET {
       }
       ```
   }
+  guid = "u7H4Qes5U2G2wSZ7iUDxPs9-bXs"
 }

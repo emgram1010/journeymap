@@ -42,7 +42,6 @@ table agent_tool_log {
 
   index = [
     {type: "primary", field: [{name: "id"}]}
-    {type: "gin", field: [{name: "xdo", op: "jsonb_path_op"}]}
     {type: "btree", field: [{name: "created_at", op: "desc"}]}
     {
       type : "btree"
@@ -56,4 +55,5 @@ table agent_tool_log {
   ]
 
   tags = ["xano:quick-start"]
+  guid = "gDKey1T3aTcQprwEmKBNQc1v9N4"
 }

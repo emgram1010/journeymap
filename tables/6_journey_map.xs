@@ -90,7 +90,6 @@ table journey_map {
 
   index = [
     {type: "primary", field: [{name: "id"}]}
-    {type: "gin", field: [{name: "xdo", op: "jsonb_path_op"}]}
     {type: "btree", field: [{name: "created_at", op: "desc"}]}
     {
       type : "btree"
@@ -106,4 +105,5 @@ table journey_map {
       field: [{name: "journey_architecture", op: "asc"}]
     }
   ]
+  guid = "TiXb2_1mjNzPCEt-ebY-xIQhFsg"
 }

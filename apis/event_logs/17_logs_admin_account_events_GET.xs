@@ -36,4 +36,5 @@ query "logs/admin/account_events" verb=GET {
 
   response = $account_events
   tags = ["xano:quick-start"]
+  guid = "CPWvTQrPcJag3CeV0qY5ThoAJA0"
 }

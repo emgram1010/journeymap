@@ -24,4 +24,5 @@ query "journey_lens/{journey_lens_id}" verb=PUT {
   }
 
   response = $model
+  guid = "WRXHCMpSgsb6GrzwnRqjerzgS58"
 }

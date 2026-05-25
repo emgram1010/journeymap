@@ -54,4 +54,5 @@ query "journey_link/{journey_link_id}" verb=PATCH {
   }
 
   response = $model
+  guid = "lH45uVVm5aYf1ooVPJuwq6yAWCw"
 }

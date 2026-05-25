@@ -69,4 +69,5 @@ query "journey_map/{journey_map_id}/tool-logs" verb=GET {
     count         : $tool_calls|count
     tool_calls    : $tool_calls
   }
+  guid = "itX2ReExAgmS4F6m6aVZAxfEUxI"
 }

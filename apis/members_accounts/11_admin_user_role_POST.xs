@@ -63,4 +63,5 @@ query "admin/user_role" verb=POST {
 
   response = $updated_user
   tags = ["xano:quick-start"]
+  guid = "8h80uyVWH8L3WkYh9rYy59bla28"
 }

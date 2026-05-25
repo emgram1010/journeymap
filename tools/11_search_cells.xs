@@ -247,4 +247,5 @@ tool search_cells {
     count  : $results|count
     results: $results
   }
+  guid = "s3O2FmbC-9ORogPzmqNDBZ_wKSI"
 }

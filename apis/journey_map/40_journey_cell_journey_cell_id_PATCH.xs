@@ -23,4 +23,5 @@ query "journey_cell/{journey_cell_id}" verb=PATCH {
   }
 
   response = $model
+  guid = "Jjpg7krb8Tv_rWssrhfxz-alpgw"
 }

@@ -19,4 +19,5 @@ query "journey_lens/{journey_lens_id}" verb=GET {
   }
 
   response = $model
+  guid = "F7syEsMovcvDp2a8KopJmgJo0qs"
 }

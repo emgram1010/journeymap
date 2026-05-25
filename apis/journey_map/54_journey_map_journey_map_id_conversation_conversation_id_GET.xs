@@ -42,4 +42,5 @@ query "journey_map/{journey_map_id}/conversation/{conversation_id}" verb=GET {
   }
 
   response = {conversation: $conversation, messages: $messages}
+  guid = "nJvJYnPydCz531hDxoVrH-ERM-E"
 }

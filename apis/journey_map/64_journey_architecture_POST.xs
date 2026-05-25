@@ -57,4 +57,5 @@ query journey_architecture verb=POST {
   }
 
   response = $model
+  guid = "yI3JcSR6YrP96zDqKmAhfzs2JYA"
 }

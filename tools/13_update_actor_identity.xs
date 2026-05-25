@@ -185,4 +185,5 @@ tool update_actor_identity {
   }
 
   response = $result
+  guid = "iL-sxpd9Q87d_IlMlynURHog9nY"
 }

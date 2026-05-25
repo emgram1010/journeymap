@@ -16,4 +16,5 @@ query "logs/user/my_events" verb=GET {
 
   response = $user_events
   tags = ["xano:quick-start"]
+  guid = "UNsyXVvSV-q-F1_cpe7kxpqjnrk"
 }

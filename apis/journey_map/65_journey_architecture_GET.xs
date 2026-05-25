@@ -16,4 +16,5 @@ query journey_architecture verb=GET {
   }
 
   response = $model
+  guid = "vwABRTn0lPCXxsHCXs-Nh0osloo"
 }

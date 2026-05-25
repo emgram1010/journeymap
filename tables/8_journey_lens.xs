@@ -64,7 +64,6 @@ table journey_lens {
 
   index = [
     {type: "primary", field: [{name: "id"}]}
-    {type: "gin", field: [{name: "xdo", op: "jsonb_path_op"}]}
     {type: "btree", field: [{name: "created_at", op: "desc"}]}
     {
       type : "btree"
@@ -82,4 +81,5 @@ table journey_lens {
       ]
     }
   ]
+  guid = "lYetKsxROKKnWHGaMC2cv5crn5I"
 }

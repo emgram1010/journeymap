@@ -51,11 +51,11 @@ table agent_turn_log {
 
   index = [
     {type: "primary", field: [{name: "id"}]}
-    {type: "gin", field: [{name: "xdo", op: "jsonb_path_op"}]}
     {type: "btree", field: [{name: "created_at", op: "desc"}]}
     {type: "btree", field: [{name: "conversation", op: "asc"}]}
     {type: "btree", field: [{name: "journey_map", op: "asc"}]}
     {type: "btree", field: [{name: "turn_id", op: "asc"}]}
     {type: "btree", field: [{name: "status", op: "asc"}]}
   ]
+  guid = "c3AP3NHYuV1QVE9uNbDWafVWjtQ"
 }

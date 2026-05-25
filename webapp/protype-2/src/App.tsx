@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Send,
+  Square,
   Play,
   RotateCcw,
   CheckCircle2,
@@ -35,6 +36,7 @@ import {
   ArrowLeft,
   LogOut,
   BarChart2,
+  Bug,
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -144,6 +146,15 @@ const TOOL_CATEGORY_ICON: Record<string, string> = {
   structure: '🏗️',
 };
 
+/** Returns a coloured dot className based on the tool's output_summary. */
+function getStatusDotClass(entry: ToolTraceEntry): string {
+  if (entry.toolCategory === 'read') return 'bg-zinc-300'; // ⚪ neutral
+  const out = entry.outputSummary ?? '';
+  if (/^applied|filled|written/i.test(out)) return 'bg-emerald-500'; // 🟢
+  if (/^skipped|^failed/i.test(out)) return 'bg-red-500';             // 🔴
+  return 'bg-zinc-300';
+}
+
 interface ActivityPanelProps {
   msgId: string;
   activity: MessageActivity;
@@ -215,6 +226,9 @@ function ActivityPanel({
         <div className="border border-zinc-100 rounded-lg bg-zinc-50/70 overflow-hidden divide-y divide-zinc-100">
           {toolTrace.map((entry, idx) => (
             <div key={idx} className="flex items-start gap-2 px-2.5 py-1.5 text-[10px]">
+              <span className="shrink-0 mt-1.5">
+                <span className={`inline-block w-1.5 h-1.5 rounded-full ${getStatusDotClass(entry)}`} />
+              </span>
               <span className="shrink-0 mt-px">
                 {TOOL_CATEGORY_ICON[entry.toolCategory] ?? '🔧'}
               </span>
@@ -263,7 +277,63 @@ function ActivityPanel({
   );
 }
 
-// ── Debug Panel (Layer 4) — only rendered when ?debug=1 in URL ──────────────
+// ── Build Summary Panel (ARO-05) — collapsible per-phase table after build ──
+
+interface PhaseSummaryEntry {
+  phase_key: string;
+  tools_called: number;
+  cells_written: number;
+  step_limit_warning: boolean;
+}
+
+function phaseStatusIcon(entry: PhaseSummaryEntry): string {
+  if (entry.tools_called === 0) return '❌';
+  if (entry.step_limit_warning) return '⚠️';
+  return '✅';
+}
+
+function BuildSummaryPanel({ phases }: { phases: PhaseSummaryEntry[] }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const filledCount = phases.reduce((sum, p) => sum + p.cells_written, 0);
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setIsExpanded((v) => !v)}
+        className="flex items-center gap-1.5 text-[10px] text-emerald-600 font-medium hover:text-emerald-800 transition-colors"
+      >
+        <span>📋 Build Summary</span>
+        <span className="text-zinc-400">— {phases.length} phases · {filledCount} cells filled</span>
+        {isExpanded ? <ChevronDown className="w-2.5 h-2.5" /> : <ChevronRight className="w-2.5 h-2.5" />}
+      </button>
+      {isExpanded && (
+        <div className="mt-1 border border-zinc-100 rounded-lg overflow-hidden">
+          <table className="w-full text-[10px]">
+            <thead>
+              <tr className="bg-zinc-50 text-zinc-400 uppercase tracking-wider">
+                <th className="text-left px-2.5 py-1.5 font-medium">Phase</th>
+                <th className="text-center px-2 py-1.5 font-medium">Status</th>
+                <th className="text-right px-2 py-1.5 font-medium">Tools</th>
+                <th className="text-right px-2.5 py-1.5 font-medium">Cells</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-50">
+              {phases.map((p) => (
+                <tr key={p.phase_key} className="bg-white hover:bg-zinc-50/80">
+                  <td className="px-2.5 py-1 font-mono text-zinc-700">{p.phase_key}</td>
+                  <td className="px-2 py-1 text-center">{phaseStatusIcon(p)}</td>
+                  <td className="px-2 py-1 text-right text-zinc-500">{p.tools_called}</td>
+                  <td className="px-2.5 py-1 text-right text-zinc-700 font-medium">{p.cells_written}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Debug Panel (Layer 4) — toggle via localStorage:emgram_debug_mode ────────
 
 const TOOL_CATEGORY_COLOR: Record<string, string> = {
   read    : 'text-blue-500',
@@ -376,7 +446,14 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const [searchParams] = useSearchParams();
   const architectureId = searchParams.get('arch') ? Number(searchParams.get('arch')) : null;
   const fromScenarios = searchParams.get('tab') === 'scenarios';
-  const isDebugMode = searchParams.get('debug') === '1';
+  const [isDebugMode, setIsDebugMode] = useState(() => localStorage.getItem('emgram_debug_mode') === 'true');
+  const toggleDebugMode = useCallback(() => {
+    setIsDebugMode((v: boolean) => {
+      const next = !v;
+      localStorage.setItem('emgram_debug_mode', String(next));
+      return next;
+    });
+  }, []);
   const { user, logout } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -405,12 +482,49 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const [selectedCellSnapshot, setSelectedCellSnapshot] = useState<MatrixCell | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isChatMode, setIsChatMode] = useState(false); // false = Interview Mode, true = Chat Mode
+  // SCM: sub-mode for chat panel — 'default' | 'specialist' | 'consortium'
+  const [chatSubMode, setChatSubMode] = useState<'default' | 'specialist' | 'consortium'>('default');
+  const [activeSpecialistKey, setActiveSpecialistKey] = useState<string | null>(null);
+  const [activeConsortiumKeys, setActiveConsortiumKeys] = useState<string[]>([]);
+  // MSR: badge→popover open state
+  const [isModePopoverOpen, setIsModePopoverOpen] = useState(false);
   const [isSmartAiSettingsOpen, setIsSmartAiSettingsOpen] = useState(false);
   const [smartAiSettings, setSmartAiSettings] = useState<SmartAiSettings>({...SMART_AI_DEFAULTS});
   const [isSmartAiSettingsSaving, setIsSmartAiSettingsSaving] = useState(false);
   const [smartAiSettingsError, setSmartAiSettingsError] = useState<string | null>(null);
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
   const [isQuestionMode, setIsQuestionMode] = useState(true);
+
+  // ── Build loop state (AMBC) ──
+  const [isBuildLooping, setIsBuildLooping] = useState(false);
+  const [buildLoopProgress, setBuildLoopProgress] = useState(0);
+  const [buildLoopTurnDisplay, setBuildLoopTurnDisplay] = useState(0);
+  const isBuildLoopingRef = useRef(false);
+  const buildLoopTurnsRef = useRef(0);
+  const buildStallCountRef = useRef(0);
+  // Tracks which conversation ID has already received the auto-greeting so we don't re-send
+  const greetedConvIdRef = useRef<number | null>(null);
+  // ── Abort + elapsed timer ──
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  // ── Build summary (ARO-05) ──
+  const phaseSummaryRef = useRef<PhaseSummaryEntry[]>([]);
+  const [completedBuildSummary, setCompletedBuildSummary] = useState<PhaseSummaryEntry[] | null>(null);
+  // ── Phase queue (BPC-01) ──
+  const buildPhaseIndexRef = useRef(0);
+  const BUILD_PHASES: Array<{key: string; prompt: string; builderMode: boolean}> = [
+    { key: 'scaffold',    prompt: '[BUILD_PHASE:scaffold] Scaffold stages and lenses only. DO NOT fill any cells. DO NOT call batch_update or update_actor_cell_fields. Report what you created.',                                                                                                              builderMode: false },
+    { key: 'identity',    prompt: '[BUILD_PHASE:identity] Fill actor identity fields (persona_description, primary_goal, standing_constraints) for all actor lenses using update_actor_identity only. DO NOT call batch_update. DO NOT write to any cells.',                                                   builderMode: false },
+    { key: 'description', prompt: '[BUILD_PHASE:description] Fill the Description lens ONLY across all stages. Use batch_update only. DO NOT call update_actor_cell_fields. DO NOT touch any other lens.',                                                                                                     builderMode: true  },
+    { key: 'customer',    prompt: '[BUILD_PHASE:customer] Fill Customer actor lenses ONLY (actor_type=customer) across all stages. Use update_actor_cell_fields only. DO NOT call batch_update. DO NOT touch non-customer lenses.',                                                                             builderMode: true  },
+    { key: 'internal',    prompt: '[BUILD_PHASE:internal] Fill Internal actor lenses ONLY (actor_type=internal) across all stages. Use update_actor_cell_fields only. DO NOT call batch_update. DO NOT touch non-internal lenses.',                                                                            builderMode: true  },
+    { key: 'structural',  prompt: '[BUILD_PHASE:structural] Fill structural lenses ONLY (Top Pain Point, Key Variable, Cascade Risk, Systems — actor_type empty) across all stages. Use batch_update only. DO NOT call update_actor_cell_fields. DO NOT touch actor lenses.',                                 builderMode: true  },
+    { key: 'metrics',     prompt: '[BUILD_PHASE:metrics] Fill Metrics and Financial actor lenses ONLY (actor_type=metrics or actor_type=financial) across all stages. Use update_actor_cell_fields only. DO NOT call batch_update. DO NOT touch non-metrics lenses.',                                         builderMode: true  },
+    { key: 'verify',      prompt: '[BUILD_PHASE:verify] Run cross-lens consistency check ONLY. Call get_map_state. Surface inconsistencies only. DO NOT call any write tools (batch_update, update_actor_cell_fields, mutate_structure, scaffold_structure).',                                                builderMode: false },
+  ];
+  const BUILD_LOOP_MAX_TURNS = BUILD_PHASES.length;
+  const BUILD_COMPLETE_THRESHOLD = 95;
+  const BUILD_REQUEST_REGEX = /build.*map|create.*map|generate.*map|map.*journey|fill.*map|build.*journey|walk me through|build.*anti|build.*full/i;
   const [searchTerm, setSearchTerm] = useState('');
   const [conversationList, setConversationList] = useState<ConversationListItem[]>([]);
   const [isSessionPickerOpen, setIsSessionPickerOpen] = useState(false);
@@ -491,6 +605,15 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     // Load smart AI settings — merge persisted values over defaults so null fields fall back cleanly
     setSmartAiSettings({...SMART_AI_DEFAULTS, ...(bundle.journeyMap.smart_ai_settings ?? {})});
 
+    // ── MATRIX LOAD TRACE ──
+    console.group(`[BUNDLE] map ${bundle.journeyMap.id} source=${bundle.source}`);
+    console.log('hasHydratedMatrix:', bundle.hasHydratedMatrix);
+    console.log('stages:', bundle.stages.length, bundle.stages.map(s => `${s.id}:${s.label}`));
+    console.log('lenses:', bundle.lenses.length, bundle.lenses.map(l => `${l.id}:${l.label}`));
+    console.log('cells:', bundle.cells.length);
+    console.groupEnd();
+    // ── END TRACE ──
+
     if (bundle.hasHydratedMatrix) {
       setStages(bundle.stages);
       setLenses(bundle.lenses);
@@ -499,6 +622,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
       return;
     }
 
+    console.warn('[BUNDLE] hasHydratedMatrix=false → falling back to INITIAL_LENSES');
     setStages(INITIAL_STAGES);
     setLenses(INITIAL_LENSES);
     setCells(SCAFFOLD_CELLS);
@@ -854,49 +978,142 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     return explicit ?? calcStageHealth(f);
   }, [selectedCell?.actorFields]);
 
-  const handleSendMessage = useCallback(async () => {
-    const messageText = inputText.trim();
-    if (!messageText) {
-      return;
-    }
-
-    if (!journeyMapRecord) {
-      setXanoError('Create or load a journey map before sending a message.');
-      return;
-    }
+  // Ref so the build loop can call the latest version without stale-closure issues
+  // Auto-greeting: fires when chat opens on a fresh conversation with no messages
+  const handleGreeting = useCallback(async () => {
+    if (!journeyMapRecord || !conversationRecord) return;
+    if (greetedConvIdRef.current === conversationRecord.id) return;
+    greetedConvIdRef.current = conversationRecord.id;
 
     setIsSendingMessage(true);
     setXanoError(null);
-    setInputText('');
+    try {
+      const aiThread = await sendAiMessage({
+        journeyMapId: journeyMapRecord.id,
+        conversationId: conversationRecord.id,
+        content: '[GREET]',
+        mode: isChatMode ? 'chat' : 'interview',
+        journeySettings,
+      });
+      setMessages(aiThread.messages);
+      if (aiThread.suggestedPrompts?.length) setSuggestedPrompts(aiThread.suggestedPrompts);
+    } catch {
+      // silently ignore — user can still type
+    } finally {
+      setIsSendingMessage(false);
+    }
+  }, [journeyMapRecord, conversationRecord, isChatMode, journeySettings]);
 
-    // Show the user's message immediately — don't wait for the AI round-trip.
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `optimistic-${Date.now()}`,
-        role: 'expert' as const,
-        content: messageText,
-        timestamp: new Date(),
-      },
-    ]);
+  // Trigger the greeting when chat opens with a fresh empty session
+  useEffect(() => {
+    if (!isChatOpen) return;
+    if (messages.length > 0) return;
+    if (isSendingMessage) return;
+    if (!journeyMapRecord || !conversationRecord) return;
+    const timer = setTimeout(() => void handleGreeting(), 350);
+    return () => clearTimeout(timer);
+  }, [isChatOpen, messages.length, isSendingMessage, journeyMapRecord, conversationRecord, handleGreeting]);
+
+  // Reset greeted flag when conversation changes so the new session gets its own greeting
+  useEffect(() => {
+    if (conversationRecord?.id && greetedConvIdRef.current !== conversationRecord.id) {
+      // Only reset if messages are empty (genuinely new session, not a loaded history)
+      if (messages.length === 0) greetedConvIdRef.current = null;
+    }
+  }, [conversationRecord?.id, messages.length]);
+
+  const handleSendMessageRef = useRef<(continuationConvId?: number) => Promise<void>>(async () => {});
+
+  const handleSendMessage = useCallback(async (continuationConvId?: number) => {
+    const isContinuation = continuationConvId !== undefined;
+    // For phase continuation, use the current phase prompt; otherwise use user input
+    const currentPhase = isContinuation ? BUILD_PHASES[buildPhaseIndexRef.current] : null;
+    const messageText = currentPhase ? currentPhase.prompt : inputText.trim();
+
+    if (!messageText) return;
+    if (!journeyMapRecord) {
+      if (!isContinuation) setXanoError('Create or load a journey map before sending a message.');
+      return;
+    }
+
+    // US-BPC-07: detect build request before arming so we can skip Turn 0
+    const isBuildRequest = !isContinuation && !isChatMode && BUILD_REQUEST_REGEX.test(messageText);
+
+    if (!isContinuation) {
+      // Create a fresh AbortController for this send chain
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = new AbortController();
+
+      setIsSendingMessage(true);
+      setXanoError(null);
+      setInputText('');
+
+      // Detect a full-map build request and arm the phase queue loop
+      if (isBuildRequest) {
+        isBuildLoopingRef.current = true;
+        buildLoopTurnsRef.current = 0;
+        buildPhaseIndexRef.current = 0;
+        buildStallCountRef.current = 0;
+        phaseSummaryRef.current = [];
+        setCompletedBuildSummary(null);
+        setIsBuildLooping(true);
+        setBuildLoopProgress(0);
+        setBuildLoopTurnDisplay(0);
+      }
+
+      // Show user message immediately (always the raw user text)
+      setMessages((prev) => [
+        ...prev,
+        { id: `optimistic-${Date.now()}`, role: 'expert' as const, content: messageText, timestamp: new Date() },
+      ]);
+    }
+
+    // US-BPC-07: on a build request, send the scaffold phase prompt as the very first
+    // agent message instead of the raw user text — eliminates the 60-90s Turn 0 dead zone.
+    const agentContent = isBuildRequest
+      ? BUILD_PHASES[0].prompt
+      : messageText;
 
     const currentMode = isChatMode ? 'chat' as const : 'interview' as const;
     const selectedCellPayload = buildSelectedCellPayload(selectedCellContext);
+    const resolvedConvId = isContinuation ? continuationConvId : conversationRecord?.id;
 
     try {
       const aiThread = await sendAiMessage({
         journeyMapId: journeyMapRecord.id,
-        conversationId: conversationRecord?.id,
-        content: messageText,
+        conversationId: resolvedConvId,
+        content: agentContent,
         mode: currentMode,
-        selectedCell: selectedCellPayload,
-        journeySettings,
+        selectedCell: isContinuation ? undefined : selectedCellPayload,
+        journeySettings: isContinuation ? undefined : journeySettings,
         parentContext: inboundContext,
+        signal: abortControllerRef.current?.signal,
+        builderMode: currentPhase?.builderMode ?? false,
+        specialistActorKey: chatSubMode === 'specialist' ? activeSpecialistKey : null,
+        consortiumActorKeys: chatSubMode === 'consortium' && activeConsortiumKeys.length > 0 ? activeConsortiumKeys : null,
       });
+
+      // ── TRACE LOGGING — remove once actor-field write chain is verified ──
+      console.group(`[AI TURN] ${isContinuation ? 'continuation' : 'user'} | map ${journeyMapRecord.id}`);
+      console.log('progress:', aiThread.progress);
+      console.log('cellUpdates count:', aiThread.cellUpdates.length);
+      console.log('cellUpdates:', aiThread.cellUpdates.map(u => ({
+        cell_id: u.cell_id,
+        stage_id: u.stage_id,
+        lens_id: u.lens_id,
+        content: u.content,
+        actor_fields: u.actor_fields,
+        status: u.status,
+      })));
+      console.log('stepLimitWarning:', aiThread.stepLimitWarning);
+      console.log('toolTrace:', aiThread.toolTrace?.map((t: ToolTraceEntry) => `${t.toolCategory}:${t.toolName} → ${t.outputSummary}`));
+      console.groupEnd();
+      // ── END TRACE LOGGING ──
 
       setConversationRecord(aiThread.conversation);
       setIsChatMode(aiThread.conversation?.mode === 'chat');
-      setSuggestedPrompts(aiThread.suggestedPrompts.length > 0 ? aiThread.suggestedPrompts : []);
+      if (!isContinuation) setSuggestedPrompts(aiThread.suggestedPrompts.length > 0 ? aiThread.suggestedPrompts : []);
+      setBuildLoopProgress(aiThread.progress.percentage);
 
       // Build activity metadata for the last AI message (Layers 1-3 transparency)
       const activity: MessageActivity = {
@@ -915,14 +1132,18 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         stepLimitWarning: aiThread.stepLimitWarning,
       };
 
-      // Always tag the last AI message so Layer 2 & 3 panels can render
       const taggedMessages = aiThread.messages.map((msg, idx) =>
-        msg.role === 'ai' && idx === aiThread.messages.length - 1
-          ? { ...msg, activity }
-          : msg
+        msg.role === 'ai' && idx === aiThread.messages.length - 1 ? { ...msg, activity } : msg
       );
-
       setMessages(taggedMessages);
+
+      // US-BIM-03: auto-expand trace panel for every turn during an active build loop
+      if (isBuildLoopingRef.current) {
+        const lastAiMsg = [...aiThread.messages].reverse().find((m) => m.role === 'ai');
+        if (lastAiMsg?.id) {
+          setExpandedPanels((prev) => ({ ...prev, [lastAiMsg.id]: 'trace' }));
+        }
+      }
 
       // Apply cell updates from the AI agent to the matrix
       if (aiThread.cellUpdates.length > 0) {
@@ -935,6 +1156,8 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
             return {
               ...cell,
               content: update.content ?? cell.content,
+              // BUG-09: apply actor_fields from AI writes so matrix updates without a page refresh
+              actorFields: update.actor_fields !== undefined ? update.actor_fields : cell.actorFields,
               status: (update.status as CellStatus) ?? cell.status,
               isLocked: update.is_locked ?? cell.isLocked,
             };
@@ -942,18 +1165,102 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         );
       }
 
-      // If structural changes occurred (stages/lenses added or removed), reload the full bundle
+      // If structural changes occurred, reload the full bundle
       if (aiThread.structuralChanges.stages_changed || aiThread.structuralChanges.lenses_changed) {
         const bundle = await loadJourneyMapBundle(journeyMapRecord.id, journeyMapRecord);
         applyJourneyMapBundle(bundle);
       }
+
+      // ── Phase queue build loop (BPC-01) ──
+      if (isBuildLoopingRef.current) {
+        // Collect per-phase summary entry (ARO-05)
+        const completedPhaseIdx = buildPhaseIndexRef.current;
+        phaseSummaryRef.current.push({
+          phase_key: BUILD_PHASES[completedPhaseIdx]?.key ?? `phase_${completedPhaseIdx}`,
+          tools_called: aiThread.toolTrace?.length ?? 0,
+          cells_written: aiThread.cellUpdates.length,
+          step_limit_warning: aiThread.stepLimitWarning ?? false,
+        });
+
+        // Advance to the next phase
+        buildPhaseIndexRef.current += 1;
+        buildLoopTurnsRef.current += 1;
+        const nextPhaseProgress = Math.round((buildPhaseIndexRef.current / BUILD_PHASES.length) * 100);
+        setBuildLoopProgress(nextPhaseProgress);
+        setBuildLoopTurnDisplay(buildPhaseIndexRef.current);
+
+        const allPhasesComplete = buildPhaseIndexRef.current >= BUILD_PHASES.length;
+        const isComplete = aiThread.progress.percentage >= BUILD_COMPLETE_THRESHOLD;
+
+        if (!allPhasesComplete && !isComplete) {
+          // Fire the next phase
+          await handleSendMessageRef.current(aiThread.conversation?.id ?? resolvedConvId);
+        } else {
+          isBuildLoopingRef.current = false;
+          setIsBuildLooping(false);
+          abortControllerRef.current = null;
+          // Freeze the phase summary for display (ARO-05)
+          setCompletedBuildSummary([...phaseSummaryRef.current]);
+        }
+      }
     } catch (error) {
-      setInputText(messageText);
+      isBuildLoopingRef.current = false;
+      setIsBuildLooping(false);
+      abortControllerRef.current = null;
+      // Suppress AbortError — user clicked stop intentionally
+      if (error instanceof Error && error.name === 'AbortError') return;
+      if (!isContinuation) setInputText(messageText);
       setXanoError(getErrorMessage(error, 'Unable to send AI message.'));
     } finally {
-      setIsSendingMessage(false);
+      // Keep isSendingMessage true while phases are still running
+      if (!isContinuation && !isBuildLoopingRef.current) setIsSendingMessage(false);
     }
-  }, [conversationRecord?.id, inputText, isChatMode, journeyMapRecord, selectedCellContext, lenses, stages]);
+  }, [conversationRecord?.id, inputText, isChatMode, chatSubMode, activeSpecialistKey, activeConsortiumKeys, journeyMapRecord, selectedCellContext, lenses, stages, inboundContext, journeySettings, applyJourneyMapBundle]);
+
+  // Keep the ref in sync so recursive continuation calls always use the latest version
+  useEffect(() => { handleSendMessageRef.current = handleSendMessage; }, [handleSendMessage]);
+
+  // ── Elapsed timer — ticks every second while the AI is processing ──
+  useEffect(() => {
+    if (!isSendingMessage) { setElapsedSeconds(0); return; }
+    setElapsedSeconds(0);
+    const interval = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
+    return () => clearInterval(interval);
+  }, [isSendingMessage]);
+
+  // ── Stop build / abort in-flight request ──
+  const handleStopBuild = useCallback(() => {
+    isBuildLoopingRef.current = false;
+    setIsBuildLooping(false);
+    setIsSendingMessage(false);
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `build-stopped-${Date.now()}`,
+        role: 'ai' as const,
+        content: `Build stopped by user at ${buildLoopProgress}% — you can resume anytime.`,
+        timestamp: new Date(),
+        isBuildWarning: true,
+      },
+    ]);
+  }, [buildLoopProgress]);
+
+  // Resume build loop after a stall or max-turns stop (AMBC-06)
+  const handleResumeBuild = useCallback(() => {
+    if (!conversationRecord?.id) return;
+    isBuildLoopingRef.current = true;
+    buildLoopTurnsRef.current = 0;
+    buildPhaseIndexRef.current = 0;
+    buildStallCountRef.current = 0;
+    phaseSummaryRef.current = [];
+    setCompletedBuildSummary(null);
+    abortControllerRef.current = new AbortController();
+    setIsBuildLooping(true);
+    setIsSendingMessage(true);
+    void handleSendMessageRef.current(conversationRecord.id);
+  }, [conversationRecord?.id]);
 
   const handleSaveAllSettings = useCallback(async () => {
     if (!journeyMapRecord) return;
@@ -1722,30 +2029,169 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                           {conversationRecord?.title ?? 'AI Interviewer'}
                           <ChevronDown className={`w-3 h-3 transition-transform ${isSessionPickerOpen ? 'rotate-180' : ''}`} />
                         </button>
-                        <span className="text-[9px] text-zinc-400 font-medium ml-0.5">{isChatMode ? 'Chat Mode' : 'Interview Mode'}</span>
+                        {/* MSR-05: dynamic subtitle */}
+                        <span className="text-[9px] text-zinc-400 font-medium ml-0.5">
+                          {!isChatMode
+                            ? 'Interview Mode'
+                            : chatSubMode === 'specialist' && activeSpecialistKey
+                            ? `🎭 Speaking as ${lenses.find((l) => (l.key ?? l.xanoId?.toString()) === activeSpecialistKey)?.label ?? 'Actor'}`
+                            : chatSubMode === 'specialist'
+                            ? '🎭 Specialist — pick an actor'
+                            : chatSubMode === 'consortium' && activeConsortiumKeys.length > 0
+                            ? `🏛️ Panel · ${activeConsortiumKeys.length} actor${activeConsortiumKeys.length > 1 ? 's' : ''}`
+                            : chatSubMode === 'consortium'
+                            ? '🏛️ Consortium — pick actors'
+                            : 'Chat Mode'}
+                        </span>
                       </div>
-                      <div className="flex items-center rounded-lg border border-zinc-200 bg-white p-0.5 shadow-sm">
+                      {/* MSR-01: compact mode badge → popover */}
+                      <div className="relative">
                         <button
                           type="button"
-                          onClick={() => setIsChatMode(false)}
                           disabled={isSendingMessage}
-                          aria-pressed={!isChatMode}
-                          className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${!isChatMode ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'} disabled:opacity-50`}
+                          onClick={() => setIsModePopoverOpen((o) => !o)}
+                          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-widest leading-none transition-colors shadow-sm disabled:opacity-50 ${
+                            chatSubMode === 'specialist'
+                              ? 'border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100'
+                              : chatSubMode === 'consortium'
+                              ? 'border-indigo-300 bg-indigo-50 text-indigo-800 hover:bg-indigo-100'
+                              : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300'
+                          }`}
                         >
-                          Interview
+                          {!isChatMode
+                            ? 'Interview'
+                            : chatSubMode === 'specialist' && activeSpecialistKey
+                            ? `🎭 ${lenses.find((l) => (l.key ?? l.xanoId?.toString()) === activeSpecialistKey)?.label ?? 'Specialist'}`
+                            : chatSubMode === 'specialist'
+                            ? '🎭 Specialist'
+                            : chatSubMode === 'consortium' && activeConsortiumKeys.length > 0
+                            ? `🏛️ Panel (${activeConsortiumKeys.length})`
+                            : chatSubMode === 'consortium'
+                            ? '🏛️ Consortium'
+                            : 'Chat'}
+                          <ChevronDown className={`w-3 h-3 transition-transform ${isModePopoverOpen ? 'rotate-180' : ''}`} />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setIsChatMode(true)}
-                          disabled={isSendingMessage}
-                          aria-pressed={isChatMode}
-                          className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${isChatMode ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'} disabled:opacity-50`}
-                        >
-                          Chat
-                        </button>
+
+                        {/* Backdrop — closes popover on outside click */}
+                        {isModePopoverOpen && (
+                          <div className="fixed inset-0 z-40" onClick={() => setIsModePopoverOpen(false)} />
+                        )}
+
+                        {/* MSR-02: mode + actor popover */}
+                        {isModePopoverOpen && (
+                          <div className="absolute left-0 top-full mt-1 w-56 bg-white border border-zinc-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                            {/* Mode list */}
+                            <div className="p-2 space-y-0.5">
+                              <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider px-1 pb-1">Switch Mode</p>
+                              {([
+                                { label: 'Interview', value: 'interview' as const },
+                                { label: 'Chat', value: 'chat' as const },
+                                { label: '🎭 Specialist', value: 'specialist' as const },
+                                { label: '🏛️ Consortium', value: 'consortium' as const },
+                              ]).map((m) => {
+                                const isActive =
+                                  m.value === 'interview' ? !isChatMode
+                                  : m.value === 'chat' ? isChatMode && chatSubMode === 'default'
+                                  : isChatMode && chatSubMode === m.value;
+                                return (
+                                  <button
+                                    key={m.value}
+                                    type="button"
+                                    onClick={() => {
+                                      if (m.value === 'interview') { setIsChatMode(false); setChatSubMode('default'); setActiveSpecialistKey(null); setActiveConsortiumKeys([]); }
+                                      else if (m.value === 'chat') { setIsChatMode(true); setChatSubMode('default'); setActiveSpecialistKey(null); setActiveConsortiumKeys([]); }
+                                      else if (m.value === 'specialist') { setIsChatMode(true); setChatSubMode('specialist'); setActiveConsortiumKeys([]); }
+                                      else { setIsChatMode(true); setChatSubMode('consortium'); setActiveSpecialistKey(null); }
+                                    }}
+                                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-colors text-left ${isActive ? 'bg-zinc-900 text-white' : 'text-zinc-700 hover:bg-zinc-100'}`}
+                                  >
+                                    <span className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${isActive ? 'bg-white border-white' : 'border-zinc-300'}`} />
+                                    {m.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* MSR-03/04: actor list */}
+                            {(chatSubMode === 'specialist' || chatSubMode === 'consortium') && lenses.filter((l) => l.actorType).length > 0 && (
+                              <>
+                                <div className="border-t border-zinc-100 mx-2" />
+                                <div className="p-2">
+                                  <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider px-1 pb-1">
+                                    {chatSubMode === 'specialist' ? 'Speaking as' : 'Panel members'}
+                                  </p>
+                                  <div className="space-y-0.5 max-h-44 overflow-y-auto">
+                                    {lenses.filter((l) => l.actorType).map((lens) => {
+                                      const key = lens.key ?? lens.xanoId?.toString() ?? '';
+                                      const isSpecialistActive = chatSubMode === 'specialist' && activeSpecialistKey === key;
+                                      const isConsortiumActive = chatSubMode === 'consortium' && activeConsortiumKeys.includes(key);
+                                      const isActive = isSpecialistActive || isConsortiumActive;
+                                      return (
+                                        <button
+                                          key={key}
+                                          type="button"
+                                          onClick={() => {
+                                            if (chatSubMode === 'specialist') {
+                                              setActiveSpecialistKey(isActive ? null : key);
+                                            } else {
+                                              setActiveConsortiumKeys((prev) => isActive ? prev.filter((k) => k !== key) : [...prev, key]);
+                                            }
+                                          }}
+                                          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] transition-colors text-left ${
+                                            isActive
+                                              ? chatSubMode === 'specialist' ? 'bg-violet-100 text-violet-800 font-medium' : 'bg-indigo-100 text-indigo-800 font-medium'
+                                              : 'text-zinc-700 hover:bg-zinc-100'
+                                          }`}
+                                        >
+                                          {/* Radio (specialist) or checkbox (consortium) indicator */}
+                                          <span className={`w-3 h-3 flex-shrink-0 border-2 ${
+                                            chatSubMode === 'specialist'
+                                              ? `rounded-full ${isActive ? 'bg-violet-600 border-violet-600' : 'border-zinc-300'}`
+                                              : `rounded ${isActive ? 'bg-indigo-600 border-indigo-600' : 'border-zinc-300'}`
+                                          }`} />
+                                          {lens.label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </>
+                            )}
+
+                            {/* MSR-06: footer — clear + done */}
+                            <div className="border-t border-zinc-100 px-3 py-2 flex justify-between items-center">
+                              <button
+                                type="button"
+                                onClick={() => { setIsChatMode(true); setChatSubMode('default'); setActiveSpecialistKey(null); setActiveConsortiumKeys([]); setIsModePopoverOpen(false); }}
+                                className="text-[10px] text-zinc-400 hover:text-zinc-700 transition-colors"
+                              >
+                                Clear
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setIsModePopoverOpen(false)}
+                                className="text-[10px] font-semibold text-zinc-900 hover:text-zinc-600 transition-colors"
+                              >
+                                Done
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
+                      {/* ARO-06: Debug mode badge */}
+                      {isDebugMode && (
+                        <span className="text-[9px] font-bold text-amber-500 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 select-none">DEBUG</span>
+                      )}
+                      {/* ARO-06: Debug mode toggle */}
+                      <button
+                        onClick={toggleDebugMode}
+                        title={isDebugMode ? 'Debug Mode ON — click to disable' : 'Enable Debug Mode'}
+                        className={`p-1.5 rounded transition-colors ${isDebugMode ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' : 'hover:bg-zinc-200 text-zinc-400'}`}
+                      >
+                        <Bug className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => { setIsSmartAiSettingsOpen((o) => !o); setSmartAiSettingsError(null); }}
                         title="Smart AI Settings"
@@ -1940,8 +2386,64 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-white">
+                  {/* Welcome empty state — shown while greeting is loading or before first message */}
+                  {messages.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-full gap-5 pt-4 pb-8 text-center">
+                      <div className="w-12 h-12 rounded-2xl bg-zinc-900 flex items-center justify-center shadow-md">
+                        <Sparkles className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-zinc-800">Your AI Journey Partner</p>
+                        <p className="text-xs text-zinc-400 mt-1 max-w-[220px]">
+                          I read your map, ask the right questions, and help you build faster.
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-2 w-full max-w-[240px]">
+                        {[
+                          { icon: '🗺️', label: 'Build or fill the full map' },
+                          { icon: '🔍', label: 'Spot gaps & contradictions' },
+                          { icon: '✏️', label: 'Refine any stage or lens' },
+                          { icon: '💬', label: 'Answer questions about your journey' },
+                        ].map((item) => (
+                          <div key={item.label} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-zinc-50 border border-zinc-100 text-left">
+                            <span className="text-base leading-none">{item.icon}</span>
+                            <span className="text-[11px] text-zinc-600 font-medium">{item.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {isSendingMessage && (
+                        <div className="flex items-center gap-2 text-xs text-zinc-400">
+                          <div className="flex gap-1">
+                            <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{animationDelay:'0ms'}} />
+                            <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{animationDelay:'150ms'}} />
+                            <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{animationDelay:'300ms'}} />
+                          </div>
+                          Reading your map…
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {messages.map((msg) => (
                     <div key={msg.id} className="space-y-1 group">
+                      {/* Build warning message (AMBC-06) */}
+                      {msg.isBuildWarning ? (
+                        <div className="flex items-start gap-2">
+                          <div className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[8px] font-bold bg-amber-500 text-white">
+                            ⚠
+                          </div>
+                          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-center gap-3">
+                            <span>{msg.content}</span>
+                            <button
+                              type="button"
+                              onClick={handleResumeBuild}
+                              disabled={isSendingMessage}
+                              className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-500 text-white text-[10px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors"
+                            >
+                              Resume →
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
                       <div className={`flex items-start gap-1 ${msg.role === 'ai' ? 'justify-start' : 'justify-end'}`}>
                         {/* Delete button — left side for expert messages */}
                         {msg.role !== 'ai' && (
@@ -1974,8 +2476,9 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                           </button>
                         )}
                       </div>
+                      )}
                       {/* Transparency layers 1-3 */}
-                      {msg.role === 'ai' && msg.activity && (
+                      {!msg.isBuildWarning && msg.role === 'ai' && msg.activity && (
                         <ActivityPanel
                           msgId={msg.id}
                           activity={msg.activity}
@@ -2003,7 +2506,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                         />
                       )}
                       {/* Layer 4: Debug panel — only when ?debug=1 and turn_id available */}
-                      {isDebugMode && msg.role === 'ai' && msg.activity?.turnId && journeyMapRecord && (
+                      {!msg.isBuildWarning && isDebugMode && msg.role === 'ai' && msg.activity?.turnId && journeyMapRecord && (
                         <DebugPanel
                           journeyMapId={journeyMapRecord.id}
                           turnId={msg.activity.turnId}
@@ -2012,17 +2515,46 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                       )}
                     </div>
                   ))}
-                  {/* Thinking indicator — shown while the AI is processing */}
+                  {/* ARO-05: Build Summary Panel — shown after build completes */}
+                  {completedBuildSummary && !isBuildLooping && (
+                    <div className="flex items-start gap-2">
+                      <div className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[8px] font-bold bg-zinc-900 text-white">
+                        AI
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <BuildSummaryPanel phases={completedBuildSummary} />
+                      </div>
+                    </div>
+                  )}
+                  {/* Thinking / build-loop indicator — shown while the AI is processing */}
                   {isSendingMessage && (
                     <div className="flex items-start gap-2">
                       <div className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[8px] font-bold bg-zinc-900 text-white">
                         AI
                       </div>
-                      <div className="p-3 rounded-xl bg-zinc-100 flex gap-1 items-center">
-                        <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:0ms]" />
-                        <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:150ms]" />
-                        <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:300ms]" />
-                      </div>
+                      {isBuildLooping ? (
+                        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2 text-xs text-amber-700">
+                          <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                          <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                          <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                          <span className="ml-1 font-medium">
+                            Building map… {buildLoopProgress}% complete
+                            {buildLoopTurnDisplay > 0 && ` · phase ${buildLoopTurnDisplay}/${BUILD_PHASES.length} (${BUILD_PHASES[buildLoopTurnDisplay - 1]?.key ?? ''})`}
+                          </span>
+                          <span className="ml-auto font-mono text-amber-600">
+                            {`${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, '0')}`}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="p-3 rounded-xl bg-zinc-100 flex gap-1 items-center">
+                          <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                          <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                          <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                          <span className="ml-2 text-xs text-zinc-400 font-mono">
+                            {`${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, '0')}`}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
                   {lastUpdateSummaries.length > 0 && (
@@ -2113,13 +2645,23 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                         </div>
                         
                         <div className="flex items-center gap-1.5">
-                          <button 
-                            onClick={() => void handleSendMessage()}
-                            disabled={!inputText.trim() || isSendingMessage}
-                            className="p-1.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 disabled:opacity-30 transition-all shadow-sm"
-                          >
-                            <Send className="w-3.5 h-3.5" />
-                          </button>
+                          {isSendingMessage ? (
+                            <button
+                              onClick={handleStopBuild}
+                              title="Stop AI"
+                              className="p-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all shadow-sm"
+                            >
+                              <Square className="w-3.5 h-3.5 fill-white" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => void handleSendMessage()}
+                              disabled={!inputText.trim()}
+                              className="p-1.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 disabled:opacity-30 transition-all shadow-sm"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

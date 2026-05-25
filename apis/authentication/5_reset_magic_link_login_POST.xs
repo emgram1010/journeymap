@@ -91,4 +91,5 @@ query "reset/magic-link-login" verb=POST {
 
   response = {authToken: $auth_token, user_id: $user1.id}
   tags = ["xano:quick-start"]
+  guid = "40aIkKxgQ8sVU_StUEjZdvaf10o"
 }

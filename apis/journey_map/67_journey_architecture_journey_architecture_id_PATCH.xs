@@ -51,4 +51,5 @@ query "journey_architecture/{journey_architecture_id}" verb=PATCH {
   }
 
   response = $model
+  guid = "tyD7VAzhBMZ-TGJQMP8JSLuHAcY"
 }

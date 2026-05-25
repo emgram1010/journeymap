@@ -20,7 +20,7 @@ table agent_message {
   
     // The journey interview mode active when this message was created.
     enum mode? {
-      values = ["interview", "chat"]
+      values = ["interview", "chat", "compare"]
     }
   
     // The content of the message, compatible with AI SDK.
@@ -32,10 +32,10 @@ table agent_message {
 
   index = [
     {type: "primary", field: [{name: "id"}]}
-    {type: "gin", field: [{name: "xdo", op: "jsonb_path_op"}]}
     {type: "btree", field: [{name: "created_at", op: "desc"}]}
     {type: "btree", field: [{name: "conversation", op: "asc"}]}
   ]
 
   tags = ["xano:quick-start"]
+  guid = "Pm8449gs_t9AyKigpK_a2b-ActY"
 }

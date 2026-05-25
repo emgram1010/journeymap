@@ -148,4 +148,5 @@ tool set_cell_status {
   }
 
   response = $result
+  guid = "9lF9RCO0o0a_0iP6XMo4eVCBpq8"
 }

@@ -449,4 +449,5 @@ query "journey_lens/add/{journey_map_id}" verb=POST {
     cells                 : $cells
     journey_map_updated_at: $journey_map_touch.updated_at
   }
+  guid = "_B_Lt4cTLPtt4bx5HfzYTlxGqkw"
 }

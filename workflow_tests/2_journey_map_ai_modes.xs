@@ -182,4 +182,5 @@ workflow_test journey_map_ai_modes {
   
     expect.to_be_false ($after_ai_apply.is_locked)
   }
+  guid = "rGFLMr2LYycRum7tXXeNdhrUSLk"
 }

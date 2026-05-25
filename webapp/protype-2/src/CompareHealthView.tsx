@@ -1,9 +1,12 @@
-import React, {useEffect, useState} from 'react';
-import {ArrowLeft, RotateCcw, ExternalLink, Download} from 'lucide-react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
+import {AnimatePresence, motion} from 'framer-motion';
+import {ArrowLeft, Download, ExternalLink, RotateCcw, Sparkles, X} from 'lucide-react';
 import {
   fetchCompareMeta,
   fetchScorecard,
+  sendCompareMessage,
   type CompareMapMeta,
+  type CompareMessageResponse,
   type ScorecardResult,
   type ScorecardStage,
 } from './xano';
@@ -47,6 +50,157 @@ function relativeTime(v: string | number | null | undefined): string {
   return `${days}d ago`;
 }
 
+// ── Compare Analyst Panel ─────────────────────────────────────────────────────
+
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
+interface CompareAnalystPanelProps {
+  archId: number;
+  mapAId: number;
+  mapBId: number;
+  onClose: () => void;
+}
+
+const AUTO_SUMMARY_PROMPT = 'Summarize the key differences between these two scenarios and which one you would recommend focusing on.';
+
+function CompareAnalystPanel({archId, mapAId, mapBId, onClose}: CompareAnalystPanelProps) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [isThinking, setIsThinking] = useState(false);
+  const [conversationId, setConversationId] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const hasAutoOpened = useRef(false);
+
+  const send = useCallback(async (content: string) => {
+    if (!content.trim() || isThinking) return;
+    setMessages(prev => [...prev, {role: 'user', text: content}]);
+    setInput('');
+    setIsThinking(true);
+    setError(null);
+
+    try {
+      const res: CompareMessageResponse = await sendCompareMessage(archId, mapAId, mapBId, content, conversationId);
+      setConversationId(res.conversation_id);
+      setMessages(prev => [...prev, {role: 'assistant', text: res.reply}]);
+    } catch {
+      setError('Something went wrong. Try again.');
+      setMessages(prev => prev.slice(0, -1)); // remove optimistic user msg
+    } finally {
+      setIsThinking(false);
+    }
+  }, [archId, mapAId, mapBId, conversationId, isThinking]);
+
+  // Auto-summary on first open
+  useEffect(() => {
+    if (hasAutoOpened.current) return;
+    hasAutoOpened.current = true;
+    void send(AUTO_SUMMARY_PROMPT);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-scroll
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, isThinking]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void send(input);
+    }
+  };
+
+  return (
+    <motion.div
+      key="compare-analyst-panel"
+      initial={{x: '100%', opacity: 0}}
+      animate={{x: 0, opacity: 1}}
+      exit={{x: '100%', opacity: 0}}
+      transition={{type: 'spring', stiffness: 320, damping: 32}}
+      className="fixed top-0 right-0 h-full w-96 bg-white border-l border-zinc-200 shadow-2xl z-50 flex flex-col"
+    >
+      {/* Header */}
+      <div className="h-14 flex items-center justify-between px-4 border-b border-zinc-200 shrink-0">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-indigo-500" />
+          <span className="text-sm font-semibold text-zinc-800">Compare Analyst</span>
+        </div>
+        <button onClick={onClose} className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Messages */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        {messages.length === 0 && !isThinking && (
+          <p className="text-xs text-zinc-400 text-center mt-8">Loading analysis…</p>
+        )}
+        {messages.map((msg, i) => (
+          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} gap-2`}>
+            {msg.role === 'assistant' && (
+              <div className="w-6 h-6 rounded-full bg-zinc-900 flex items-center justify-center shrink-0 mt-0.5">
+                <span className="text-white text-[10px] font-bold">AI</span>
+              </div>
+            )}
+            <div
+              className={`max-w-[80%] rounded-2xl px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap ${
+                msg.role === 'user'
+                  ? 'bg-zinc-900 text-white rounded-tr-sm'
+                  : 'bg-zinc-100 text-zinc-800 rounded-tl-sm'
+              }`}
+            >
+              {/* Hide the auto-summary prompt from user-visible messages */}
+              {msg.role === 'user' && msg.text === AUTO_SUMMARY_PROMPT ? null : msg.text}
+            </div>
+          </div>
+        ))}
+        {isThinking && (
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-zinc-900 flex items-center justify-center shrink-0">
+              <span className="text-white text-[10px] font-bold">AI</span>
+            </div>
+            <div className="flex gap-1 px-3 py-2 bg-zinc-100 rounded-2xl rounded-tl-sm">
+              {[0, 1, 2].map(d => (
+                <span key={d} className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{animationDelay: `${d * 150}ms`}} />
+              ))}
+            </div>
+          </div>
+        )}
+        {error && <p className="text-xs text-rose-500 text-center">{error}</p>}
+      </div>
+
+      {/* Input */}
+      <div className="shrink-0 px-4 py-3 border-t border-zinc-200">
+        <div className="flex items-end gap-2 bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2">
+          <textarea
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask about this comparison…"
+            rows={1}
+            className="flex-1 resize-none bg-transparent text-xs text-zinc-800 placeholder-zinc-400 outline-none leading-relaxed"
+          />
+          <button
+            onClick={() => void send(input)}
+            disabled={!input.trim() || isThinking}
+            className="shrink-0 w-7 h-7 rounded-lg bg-zinc-900 text-white flex items-center justify-center disabled:opacity-30 hover:bg-zinc-700 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M14.854 1.146a.5.5 0 0 0-.707 0L8 7.293 1.854 1.146a.5.5 0 0 0-.707.707l6.5 6.5a.5.5 0 0 0 .707 0l6.5-6.5a.5.5 0 0 0 0-.707z"/>
+              <path d="M14.854 8.146a.5.5 0 0 0-.707 0L8 14.293 1.854 8.146a.5.5 0 0 0-.707.707l6.5 6.5a.5.5 0 0 0 .707 0l6.5-6.5a.5.5 0 0 0 0-.707z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface MetricRow {
@@ -70,12 +224,14 @@ interface CompareHealthViewProps {
 // ── Inner loaded component (avoids null guards everywhere) ───────────────────
 
 interface LoadedProps {
+  archId: number;
   metaA: CompareMapMeta; metaB: CompareMapMeta;
   scoreA: ScorecardResult; scoreB: ScorecardResult;
   onBack: () => void; onOpenJourney: (id: number) => void;
 }
 
-function CompareLoaded({metaA, metaB, scoreA, scoreB, onBack, onOpenJourney}: LoadedProps) {
+function CompareLoaded({archId, metaA, metaB, scoreA, scoreB, onBack, onOpenJourney}: LoadedProps) {
+  const [chatOpen, setChatOpen] = useState(false);
   const stagesA = scoreA.metrics_rollup.stages;
   const stagesB = scoreB.metrics_rollup.stages;
 
@@ -128,7 +284,7 @@ function CompareLoaded({metaA, metaB, scoreA, scoreB, onBack, onOpenJourney}: Lo
   };
 
   return (
-    <div className="pb-12">
+    <div className="pb-12 relative">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2 text-xs text-zinc-500">
@@ -204,6 +360,27 @@ function CompareLoaded({metaA, metaB, scoreA, scoreB, onBack, onOpenJourney}: Lo
           </tfoot>
         </table>
       </div>
+      {/* Floating Ask AI button */}
+      <button
+        onClick={() => setChatOpen(true)}
+        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-3 bg-zinc-900 text-white text-xs font-semibold rounded-full shadow-lg hover:bg-zinc-800 transition-colors"
+      >
+        <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+        Ask AI
+        <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+      </button>
+
+      {/* Compare Analyst Chat Panel */}
+      <AnimatePresence>
+        {chatOpen && (
+          <CompareAnalystPanel
+            archId={archId}
+            mapAId={metaA.id}
+            mapBId={metaB.id}
+            onClose={() => setChatOpen(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -248,5 +425,5 @@ export default function CompareHealthView({archId, mapAId, mapBId, onBack, onOpe
     </div>
   );
 
-  return <CompareLoaded metaA={metaA} metaB={metaB} scoreA={scoreA} scoreB={scoreB} onBack={onBack} onOpenJourney={onOpenJourney} />;
+  return <CompareLoaded archId={archId} metaA={metaA} metaB={metaB} scoreA={scoreA} scoreB={scoreB} onBack={onBack} onOpenJourney={onOpenJourney} />;
 }

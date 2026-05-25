@@ -295,4 +295,5 @@ tool batch_set_status {
     skipped_count: $skipped_count
     skipped      : $skipped
   }
+  guid = "yc51tCmr-SiYB6FFAiilFM7AYxk"
 }
