@@ -128,11 +128,11 @@ publish_map { journey_map_id: source_map_id } ← re-publish to include link in 
 
 ---
 
-## Tool Summary (All 9 MCP Tools — Epic IL-0 Complete)
+## Tool Summary (All 13 MCP Tools — Epic IL-0 + SCN-MCP + LM-1 Complete)
 
 | Tool | Purpose | Key Input |
 |---|---|---|
-| `build_journey_map` | Legacy AI builder (autonomous) | `journey_map_id` |
+| `build_journey_map` | AI builder (autonomous end-to-end) | `journey_map_id` |
 | `create_workspace` | New architecture/workspace | `title` |
 | `create_journey_map` | New map draft (seeds s1-s8 + description lens) | `title`, `intent?` |
 | `scaffold_map` | Add/rename/remove stages/lenses | `journey_map_id`, `stage_operations?`, `lens_operations?` |
@@ -141,28 +141,39 @@ publish_map { journey_map_id: source_map_id } ← re-publish to include link in 
 | `list_maps` | Browse maps (includes drafts) | `architecture_id?`, `intent?`, `status?` |
 | `get_map` | Full map state | `journey_map_id` |
 | `search_maps` | Semantic search (active maps only) | `query?`, `intent?`, `tags?` |
-| `invoke_map` | Sub-agent delegation | `target_map_id`, `current_map_id` |
-
-**Planned (not yet in Xano MCP):**
-
-| Tool | Purpose | Epic |
-|---|---|---|
-| `list_scenarios` | List all maps in an architecture | SCN-MCP-1 |
-| `clone_scenario` | Deep-clone a map into a new scenario | SCN-MCP-2 |
-| `compare_scenarios` | Compare health scorecard of two maps | SCN-MCP-3 |
-| `link_map` | Create directed cell→map link | LM-1 |
+| `list_scenarios` | List all scenarios in an architecture | `journey_architecture_id` |
+| `clone_scenario` | Deep-clone a map into a new scenario | `journey_architecture_id`, `source_map_id`, `title?` |
+| `compare_scenarios` | Side-by-side health scorecard for two maps | `journey_architecture_id`, `map_a_id`, `map_b_id` |
+| `link_map` | Create directed cell→map link | `journey_architecture_id`, `source_map_id`, `source_cell_id`, `target_map_id`, `link_type` |
 
 `invoke_map` is an orchestrator tool — not exposed as MCP but used internally by the Orchestrator agent.
 `execution_health` is HTTP only: `GET /journey_map/{id}/execution_health`
 
 ---
 
-## ⚠️ Xano MCP vs Instructions Gap
+### User says "create a variant", "try a different version", "what if we changed X"
+```
+list_scenarios    { journey_architecture_id }           ← always first; find source map
+clone_scenario    { journey_architecture_id, source_map_id, title }  ← create variant; note new map id
+fill_cells        { journey_map_id: new_id, ... }       ← make the targeted change
+publish_map       { journey_map_id: new_id }            ← required before compare
+compare_scenarios { journey_architecture_id, map_a_id: original_id, map_b_id: new_id }
+```
 
-The Xano MCP server (`mcp_servers/journey_map.xs`) currently only registers `build_journey_map`.
-The remaining 8 tools (`create_workspace` through `search_maps`) are defined as `.xs` tool files
-but NOT yet added to the `tools = [...]` array in the MCP server. This must be fixed before
-any external agent (CRM, Claude, etc.) can call them via MCP. See PRDs for the scenario/link tools.
+### User says "connect this map to an exception", "wire this cell to another map", "link these maps"
+```
+get_map   { journey_map_id: source_map_id }             ← always first — find source_cell_id
+  → locate correct cell by stage_key + lens_key in cells[]
+link_map  {
+  journey_architecture_id,
+  source_map_id,
+  source_cell_id,   ← from get_map cells[] — never guess this value
+  target_map_id,
+  link_type: "exception" | "anti_journey" | "sub_journey",
+  label?
+}
+publish_map { journey_map_id: source_map_id }           ← re-publish to include link in snapshot
+```
 
 ---
 
