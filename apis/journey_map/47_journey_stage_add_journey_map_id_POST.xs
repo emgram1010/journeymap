@@ -6,6 +6,8 @@ query "journey_stage/add/{journey_map_id}" verb=POST {
   input {
     int journey_map_id? filters=min:1
     text label? filters=trim
+    text stage_goal? filters=trim
+    text primary_actor_lens? filters=trim
   }
 
   stack {
@@ -83,12 +85,14 @@ query "journey_stage/add/{journey_map_id}" verb=POST {
   
     db.add journey_stage {
       data = {
-        created_at   : "now"
-        updated_at   : "now"
-        journey_map  : $input.journey_map_id
-        key          : $stage_key
-        label        : $stage_label
-        display_order: $next_stage_order
+        created_at        : "now"
+        updated_at        : "now"
+        journey_map       : $input.journey_map_id
+        key               : $stage_key
+        label             : $stage_label
+        display_order     : $next_stage_order
+        stage_goal        : $input.stage_goal
+        primary_actor_lens: $input.primary_actor_lens
       }
     } as $journey_stage
   

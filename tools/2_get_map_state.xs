@@ -15,7 +15,9 @@ tool get_map_state {
       Response shape:
       {
         journey_map: { id, title, status, updated_at },
-        stages: [ { id, key, label, display_order } ],
+        stages: [ { id, key, label, display_order, stage_goal, primary_actor_lens } ],
+        // stage_goal: exit condition / definition of done for the stage (null if not set).
+        // primary_actor_lens: lens key of the actor accountable for this stage (null if not set).
         lenses: [ { id, key, label, display_order } ],
         cells: [ { id, stage_id, stage_key, lens_id, lens_key, actor_type, actor_fields, content, status, is_locked, change_source } ],
         // actor_type: the actor type of the parent lens (e.g. "handoff", "customer"); null for non-actor rows.

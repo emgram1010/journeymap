@@ -17,9 +17,11 @@ tool get_slice {
       - lens_key: (optional) The key of the lens to slice
     
       Response shape varies by mode:
-      Column: { slice_type: "column", stage: {...}, cells: [{ lens_key, lens_label, actor_type, actor_fields, content, status, is_locked, change_source }], summary: {...} }
+      Column: { slice_type: "column", stage: { key, label, display_order, stage_goal, primary_actor_lens }, cells: [{ lens_key, lens_label, actor_type, actor_fields, content, status, is_locked, change_source }], summary: {...} }
       Row:    { slice_type: "row",    lens: {...},  cells: [{ stage_key, stage_label, actor_type, actor_fields, content, status, is_locked, change_source }], summary: {...} }
-      Cell:   { slice_type: "cell",  stage: {...}, lens: {...}, cell: { id, actor_type, actor_fields, content, status, is_locked, change_source } }
+      Cell:   { slice_type: "cell",  stage: { key, label, display_order, stage_goal, primary_actor_lens }, lens: {...}, cell: { id, actor_type, actor_fields, content, status, is_locked, change_source } }
+      // stage_goal: exit condition for the stage (null if not set).
+      // primary_actor_lens: lens key of the stage-owning actor (null if not set).
     
       actor_type: the actor type of the lens (e.g. "handoff", "customer"); null for non-actor lenses.
       actor_fields: the structured field object written via update_actor_cell_fields; null when not yet populated.
@@ -135,7 +137,7 @@ tool get_slice {
         var.update $result {
           value = {
             slice_type: "cell"
-            stage     : {key: $stage.key, label: $stage.label, display_order: $stage.display_order}
+            stage     : {key: $stage.key, label: $stage.label, display_order: $stage.display_order, stage_goal: $stage.stage_goal, primary_actor_lens: $stage.primary_actor_lens}
             lens      : {key: $lens.key, label: $lens.label, description: $lens.description, display_order: $lens.display_order}
             cell      : {
               id           : $cell.id
@@ -224,7 +226,7 @@ tool get_slice {
         var.update $result {
           value = {
             slice_type: "column"
-            stage     : {key: $stage.key, label: $stage.label, display_order: $stage.display_order}
+            stage     : {key: $stage.key, label: $stage.label, display_order: $stage.display_order, stage_goal: $stage.stage_goal, primary_actor_lens: $stage.primary_actor_lens}
             cells     : $cells
             summary   : {filled: $filled, empty: ($col_raw_cells|count) - $filled, locked: $locked, confirmed: $confirmed}
           }

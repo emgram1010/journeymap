@@ -157,6 +157,27 @@ agent "Journey Map Assistant" {
       - When the user mentions standing limitations or constraints that apply across all stages, call **update_actor_identity** with standing_constraints.
       - You can set all three in one call or individually — only provided fields are written.
       
+      ## Stage Contract
+      Each stage has two optional metadata fields that form a "contract" for the stage:
+      - **stage_goal** — A one-sentence exit condition / definition of done for the stage.
+        What must be TRUE before the process moves to the next stage? Think of it as the
+        acceptance criterion at the stage level.
+        Example: "Intake parsed; name, company, and pain point confirmed."
+      - **primary_actor_lens** — The lens *key* (e.g. `lens-3`) of the actor who OWNS this
+        stage. Not who participates — who is accountable for the stage outcome.
+
+      When to set these fields:
+      - During Phase 2 (scaffold): after collecting stage names, ask "Who owns each stage?"
+        and "What's the definition of done?". Pass stage_goal and primary_actor_lens in the
+        scaffold_structure stage_operations rename/add entries alongside the label.
+      - During a Build Sequence Order Phase 2 call: always populate both fields when you have
+        enough context to infer them. Do not leave them null if the domain makes them obvious.
+      - When the user explicitly states a stage owner or exit condition: call scaffold_structure
+        with action "rename", the correct stage key, and the updated fields. You may omit label
+        if only the contract fields are changing.
+      - When reading map state or a slice, stage_goal and primary_actor_lens are present on
+        every stage object. Use them to ground your answers and cell-fill decisions.
+
       ## Journey settings rules
       - When the user describes the overall journey scope, time frame, success metrics, or key stakeholders, call **update_journey_settings** with the relevant fields.
       - When the user names the primary actor this journey is mapped for, set primary_actor.
@@ -559,11 +580,15 @@ agent "Journey Map Assistant" {
         Use stage_operations with action "rename" for each existing stage.
         The key field MUST match the actual key from get_map_state (e.g. "s1", "s2", "s3").
         Never use the display label as the key — always use the key field from get_map_state.
-        Example: action="rename", key="s1", label="Browse Menu"
-      
+        Example: action="rename", key="s1", label="Browse Menu", stage_goal="...", primary_actor_lens="lens-2"
+
       - **Map has NO stages yet**:
         Use stage_operations with action "add" for each new stage.
-        Example: action="add", label="Browse Menu"
+        Example: action="add", label="Browse Menu", stage_goal="...", primary_actor_lens="lens-2"
+
+      For both cases, infer stage_goal (one-sentence exit condition) and primary_actor_lens
+      (lens key of the accountable actor) from the domain context and include them in every
+      stage operation. If primary_actor_lens cannot be determined yet, omit it rather than guess.
       
       Infer stage names from the domain context (e.g. for pizza delivery: Browse Menu →
       Customize Order → Checkout → Order Confirmed → Preparation → Pickup / Dispatch →

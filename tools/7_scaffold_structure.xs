@@ -9,8 +9,10 @@ tool scaffold_structure {
     
       Input:
       - journey_map_id: The ID of the journey map
-      - stage_operations: JSON array of { action, key?, label, position? }
+      - stage_operations: JSON array of { action, key?, label, stage_goal?, primary_actor_lens?, position? }
         - action: 'rename' (requires key + label), 'add' (requires label), 'remove' (requires key)
+        - stage_goal (rename/add, optional): one-sentence exit condition / definition of done for the stage.
+        - primary_actor_lens (rename/add, optional): lens key of the actor accountable for this stage's outcome (e.g. "lens-3").
       - lens_operations: JSON array of { action, key?, label, actor_type? }
         - action: 'rename' (requires key + label), 'add' (requires label), 'remove' (requires key)
         - actor_type (add only, optional): one of customer, internal, engineering, ai_agent, handoff, vendor, financial, metrics. When provided the lens is created with the matching template_key, role_prompt, and cells are pre-scaffolded with actor_fields.
@@ -151,7 +153,7 @@ tool scaffold_structure {
                     db.edit journey_stage {
                       field_name = "id"
                       field_value = $rename_target.id
-                      data = {label: $op.label, updated_at: "now"}
+                      data = {label: $op.label, stage_goal: $op.stage_goal, primary_actor_lens: $op.primary_actor_lens, updated_at: "now"}
                     } as $rename_result
 
                     var.update $stages_renamed {
