@@ -73,11 +73,13 @@ invoke_map {
 
 ### User says "create a variant", "try a different version", "what if we changed X"
 ```
-list_scenarios    { journey_architecture_id }           ← always first; find source map
-clone_scenario    { source_map_id, title }              ← create variant; note new map id
-fill_cells        { journey_map_id: new_id, ... }       ← make the targeted change
-publish_map       { journey_map_id: new_id }            ← required before compare
-compare_scenarios { map_a_id: original, map_b_id: new } ← surface the delta
+list_scenarios    { journey_architecture_id }                        ← always first; find source map
+clone_scenario    { source_map_id, title }                           ← create variant; note new map id
+update_cell       { journey_map_id: new_id, stage_key, lens_key, content }  ← single targeted edit
+  — OR —
+batch_update      { journey_map_id: new_id, updates: [{stage_key, lens_key, content}, ...] }  ← bulk edits
+publish_map       { journey_map_id: new_id }                         ← required before compare
+compare_scenarios { map_a_id: original, map_b_id: new }              ← surface the delta
 ```
 
 ### User says "connect this map to an exception", "wire this cell to another map", "link these maps"
@@ -143,6 +145,8 @@ publish_map { journey_map_id: source_map_id } ← re-publish to include link in 
 | `search_maps` | Semantic search (active maps only) | `query?`, `intent?`, `tags?` |
 | `list_scenarios` | List all scenarios in an architecture | `journey_architecture_id` |
 | `clone_scenario` | Deep-clone a map into a new scenario | `journey_architecture_id`, `source_map_id`, `title?` |
+| `update_cell` | Write content into a single cell by stage_key + lens_key | `journey_map_id`, `stage_key`, `lens_key`, `content` |
+| `batch_update` | Write content into multiple cells in one call (respects locked/confirmed) | `journey_map_id`, `updates[]` |
 | `compare_scenarios` | Side-by-side health scorecard for two maps | `journey_architecture_id`, `map_a_id`, `map_b_id` |
 | `link_map` | Create directed cell→map link | `journey_architecture_id`, `source_map_id`, `source_cell_id`, `target_map_id`, `link_type` |
 | `update_stage_contract` | Set/clear stage_goal + primary_actor_lens on a stage | `journey_map_id`, `journey_stage_id`, `stage_goal?`, `primary_actor_lens?` |
@@ -154,10 +158,12 @@ publish_map { journey_map_id: source_map_id } ← re-publish to include link in 
 
 ### User says "create a variant", "try a different version", "what if we changed X"
 ```
-list_scenarios    { journey_architecture_id }           ← always first; find source map
+list_scenarios    { journey_architecture_id }                        ← always first; find source map
 clone_scenario    { journey_architecture_id, source_map_id, title }  ← create variant; note new map id
-fill_cells        { journey_map_id: new_id, ... }       ← make the targeted change
-publish_map       { journey_map_id: new_id }            ← required before compare
+update_cell       { journey_map_id: new_id, stage_key, lens_key, content }  ← single targeted edit
+  — OR —
+batch_update      { journey_map_id: new_id, updates: [{stage_key, lens_key, content}, ...] }  ← bulk edits
+publish_map       { journey_map_id: new_id }                         ← required before compare
 compare_scenarios { journey_architecture_id, map_a_id: original_id, map_b_id: new_id }
 ```
 

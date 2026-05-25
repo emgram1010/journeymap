@@ -15,9 +15,12 @@ mcp_server journey_map {
     list_maps         — browse maps; filter by architecture_id, intent, status
     search_maps       — natural language search across published maps (ai_summary + tags)
 
-    ## Scenario Loop (clone → modify → compare)
+    ## Scenario Loop (clone → edit → compare)
     list_scenarios    — list all maps in an architecture; always call before clone_scenario
     clone_scenario    — deep-clone a map into a new scenario (stages + lenses + cells copied)
+    update_cell       — write content into a single cell by stage_key + lens_key on the clone
+    batch_update      — write improvements to multiple cells in one call; respects locked/confirmed
+    publish_map       — must be called on the clone before compare_scenarios
     compare_scenarios — side-by-side health scorecard for two maps
 
     ## Map Linking (exception / sub-journey / anti-journey wiring)
@@ -33,6 +36,7 @@ mcp_server journey_map {
     - Always pass a valid journey_map_id obtained from create_journey_map, list_maps, or search_maps.
     - publish_map must be called before compare_scenarios or link_map snapshot is included.
     - Never guess a source_cell_id — always read it from get_map cells[] matched by stage_key + lens_key.
+    - Scenario edit loop: clone_scenario → update_cell/batch_update → publish_map → compare_scenarios.
   """
   tags = ["journey_map", "ai"]
   tools = [
@@ -47,6 +51,8 @@ mcp_server journey_map {
     {name: "search_maps"}
     {name: "list_scenarios"}
     {name: "clone_scenario"}
+    {name: "update_cell"}
+    {name: "batch_update"}
     {name: "compare_scenarios"}
     {name: "link_map"}
     {name: "update_stage_contract"}
