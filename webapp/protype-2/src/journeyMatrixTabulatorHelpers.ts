@@ -59,6 +59,34 @@ export const formatLensCellMarkup = ({
   return `<div class="jm-lens-cell">${editBtn}<div class="jm-lens-cell-body"><span class="jm-lens-label">${escapeHtml(label)}</span>${pill}</div></div>`;
 };
 
+export const formatStageHeaderMarkup = ({
+  label,
+  stageGoal,
+  primaryActorLens,
+  primaryActorLabel,
+  stageId,
+}: {
+  label: string;
+  stageGoal?: string;
+  primaryActorLens?: string;
+  primaryActorLabel?: string;
+  stageId: string;
+}): string => {
+  const editBtn = `<button class="jm-stage-edit-btn" data-edit-stage-id="${escapeHtml(stageId)}" title="Edit stage" type="button">✎</button>`;
+
+  const actorPill = primaryActorLens
+    ? `<span class="jm-stage-actor-pill is-set">${escapeHtml(primaryActorLabel ?? primaryActorLens)}</span>`
+    : `<span class="jm-stage-actor-pill is-unset">No owner</span>`;
+
+  const rawGoal = stageGoal?.trim();
+  const goalText = rawGoal ? (rawGoal.length > 120 ? `${rawGoal.slice(0, 120)}\u2026` : rawGoal) : null;
+  const goalEl = goalText
+    ? `<span class="jm-stage-goal">${escapeHtml(goalText)}</span>`
+    : `<span class="jm-stage-goal is-empty">\u26a0 No goal set</span>`;
+
+  return `<div class="jm-stage-header">${editBtn}<span class="jm-stage-label">${escapeHtml(label)}</span><div class="jm-stage-meta">${actorPill}${goalEl}</div></div>`;
+};
+
 const LINK_TYPE_ICON: Record<string, string> = {
   exception: '⚠',
   anti_journey: '↩',

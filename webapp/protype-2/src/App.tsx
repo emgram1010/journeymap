@@ -48,6 +48,7 @@ import JourneyMatrixTabulator from './JourneyMatrixTabulator';
 import { JourneyHealthWidget } from './JourneyHealthWidget';
 import {ActorSetupWizard} from './ActorSetupWizard';
 import type {ActorWizardInput} from './ActorSetupWizard';
+import {StageEditPanel} from './StageEditPanel';
 import {buildCellReferenceLabel, buildCellShorthand, buildSelectedCellContext} from './cellIdentifiers';
 import type {CellUpdateSummary} from './cellIdentifiers';
 import {
@@ -72,6 +73,7 @@ import {
   removeJourneyStage,
   renameJourneyLens,
   renameJourneyStage,
+  updateStageDetails,
   sendAiMessage,
   fetchToolLogs,
   updateConversation,
@@ -541,6 +543,8 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [showActorWizard, setShowActorWizard] = useState(false);
   const [actorWizardEditTarget, setActorWizardEditTarget] = useState<Lens | null>(null);
+  const [editingStageId, setEditingStageId] = useState<string | null>(null);
+  const [isSavingStage, setIsSavingStage] = useState(false);
   const [inboundContext, setInboundContext] = useState<ParentJourneyContext | null>(null);
   // ── Scorecard / Health Widget (US-MET-12/14) ──
   const [scorecard, setScorecard] = useState<ScorecardResult | null>(null);
@@ -1622,6 +1626,58 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     }
   };
 
+  const handleEditStageOpen = (stageId: string) => {
+    setEditingStageId(stageId);
+  };
+
+  const handleStageDetailsSave = async (data: {label: string; primaryActorLens: string | null; stageGoal: string | null}) => {
+    if (!editingStageId) return;
+    const currentStage = stages.find((s) => s.id === editingStageId);
+    if (!currentStage?.xanoId) return;
+
+    // Optimistic update
+    setStages((prev) =>
+      prev.map((s) =>
+        s.id === editingStageId
+          ? {...s, label: data.label, primaryActorLens: data.primaryActorLens ?? undefined, stageGoal: data.stageGoal ?? undefined}
+          : s,
+      ),
+    );
+    setEditingStageId(null);
+
+    setIsSavingStage(true);
+    try {
+      const updated = await updateStageDetails(currentStage.xanoId, {
+        label: data.label,
+        stageGoal: data.stageGoal,
+        primaryActorLens: data.primaryActorLens,
+      });
+      // Sync back with server values
+      setStages((prev) =>
+        prev.map((s) =>
+          s.id === editingStageId || s.xanoId === updated.id
+            ? {
+                ...s,
+                label: updated.label,
+                stageGoal: updated.stage_goal ?? undefined,
+                primaryActorLens: updated.primary_actor_lens ?? undefined,
+              }
+            : s,
+        ),
+      );
+    } catch (error) {
+      // Rollback
+      setStages((prev) =>
+        prev.map((s) =>
+          s.xanoId === currentStage.xanoId ? currentStage : s,
+        ),
+      );
+      setXanoError(getErrorMessage(error, 'Unable to save stage details.'));
+    } finally {
+      setIsSavingStage(false);
+    }
+  };
+
   const removeLens = async (id: string) => {
     if (lenses.length <= 1) {
       return;
@@ -1925,6 +1981,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     onUpdateStageLabel={updateStageLabel}
                     linkedCells={cellLinkMap}
                     onEditLens={handleLensEditFromMatrix}
+                    onEditStage={handleEditStageOpen}
                   />
                 </div>
               </div>
@@ -3064,6 +3121,20 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         onConfirm={handleActorWizardConfirm}
         existingLens={actorWizardEditTarget}
       />
+
+      {/* Stage Edit Panel */}
+      {editingStageId && (() => {
+        const editingStage = stages.find((s) => s.id === editingStageId);
+        return editingStage ? (
+          <StageEditPanel
+            stage={editingStage}
+            lenses={lenses}
+            onSave={(data) => void handleStageDetailsSave(data)}
+            onClose={() => setEditingStageId(null)}
+            isSaving={isSavingStage}
+          />
+        ) : null;
+      })()}
 
       {/* Footer / Legend */}
       <footer className="h-8 border-t border-zinc-200 bg-white flex items-center justify-between px-6 shrink-0 text-[10px] text-zinc-400 font-medium">

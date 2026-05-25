@@ -244,6 +244,10 @@ export interface Stage {
   xanoId?: number;
   displayOrder?: number;
   label: string;
+  /** Exit condition / definition of done for this stage. */
+  stageGoal?: string;
+  /** Lens key of the actor accountable for this stage's outcome. */
+  primaryActorLens?: string;
 }
 
 export interface Lens {

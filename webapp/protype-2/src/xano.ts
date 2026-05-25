@@ -75,6 +75,8 @@ export interface XanoJourneyStage {
   key?: string | null;
   label: string;
   display_order?: number | null;
+  stage_goal?: string | null;
+  primary_actor_lens?: string | null;
 }
 
 export interface XanoJourneyLens {
@@ -454,6 +456,7 @@ const DEFAULT_XANO_AI_MESSAGE_PATH = '/journey_map/:journeyMapId/ai_message';
 const DEFAULT_XANO_JOURNEY_SETTINGS_PATH = '/journey_map/settings/:journeyMapId';
 const DEFAULT_XANO_SMART_AI_SETTINGS_PATH = '/journey_map/smart_ai_settings/:journeyMapId';
 const DEFAULT_XANO_LENS_ACTOR_FIELDS_PATH = '/journey_lens/actor_fields/:journeyLensId';
+const DEFAULT_XANO_UPDATE_STAGE_PATH = '/journey_stage/update/:journeyStageId';
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
 
@@ -559,6 +562,7 @@ export const getXanoJourneySettingsPath = () => normalizeOptionalPath(import.met
 export const getXanoSmartAiSettingsPath = () => normalizeOptionalPath(import.meta.env.VITE_XANO_SMART_AI_SETTINGS_PATH) ?? DEFAULT_XANO_SMART_AI_SETTINGS_PATH;
 
 export const getXanoLensActorFieldsPath = () => normalizeOptionalPath(import.meta.env.VITE_XANO_LENS_ACTOR_FIELDS_PATH) ?? DEFAULT_XANO_LENS_ACTOR_FIELDS_PATH;
+export const getXanoUpdateStagePath = () => normalizeOptionalPath(import.meta.env.VITE_XANO_UPDATE_STAGE_PATH) ?? DEFAULT_XANO_UPDATE_STAGE_PATH;
 
 // ── Auth API group ──────────────────────────────────────────────────────────
 const DEFAULT_XANO_AUTH_BASE_URL = 'https://xdjc-i7zz-jhm2.n7e.xano.io/api:RPonubWS';
@@ -676,6 +680,8 @@ const buildHydratedJourneyMapBundle = (
       xanoId: stage.id,
       displayOrder: stage.display_order ?? undefined,
       label: stage.label,
+      stageGoal: stage.stage_goal ?? undefined,
+      primaryActorLens: stage.primary_actor_lens ?? undefined,
     })),
     lenses: sortedLenses.map((lens) => ({
       id: lensKeyById.get(lens.id)!,
@@ -927,6 +933,23 @@ export async function renameJourneyStage(input: RenameJourneyStageInput): Promis
     method: 'PATCH',
     body: {label: input.label},
   });
+}
+
+export async function updateStageDetails(
+  stageId: number,
+  data: {label: string; stageGoal?: string | null; primaryActorLens?: string | null},
+): Promise<XanoJourneyStage> {
+  return xanoRequest<XanoJourneyStage>(
+    buildParameterizedPath(getXanoUpdateStagePath(), {journeyStageId: stageId}),
+    {
+      method: 'PATCH',
+      body: {
+        label: data.label,
+        stage_goal: data.stageGoal ?? null,
+        primary_actor_lens: data.primaryActorLens ?? null,
+      },
+    },
+  );
 }
 
 export async function renameJourneyLens(input: RenameJourneyLensInput): Promise<void> {

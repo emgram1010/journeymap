@@ -8,7 +8,6 @@ import {
   findMatrixCellIdFromClickTarget,
   formatLensCellMarkup,
   formatMatrixCellMarkup,
-  formatStageHeaderMarkup,
   syncSelectedMatrixCellClasses,
   type CellLinkInfo,
 } from './journeyMatrixTabulatorHelpers';
@@ -24,7 +23,6 @@ type Props = {
   onUpdateLensLabel: (id: string, label: string) => void;
   onUpdateStageLabel: (id: string, label: string) => void;
   onEditLens: (lensId: string) => void;
-  onEditStage: (stageId: string) => void;
   // Optional: map of xanoId → link info for breakpoint indicators
   linkedCells?: Map<number, CellLinkInfo>;
 };
@@ -39,7 +37,6 @@ export default function JourneyMatrixTabulator({
   onUpdateLensLabel,
   onUpdateStageLabel,
   onEditLens,
-  onEditStage,
   linkedCells,
 }: Props) {
   const navigate = useNavigate();
@@ -60,7 +57,6 @@ export default function JourneyMatrixTabulator({
   const onUpdateLensLabelRef = useRef(onUpdateLensLabel);
   const onUpdateStageLabelRef = useRef(onUpdateStageLabel);
   const onEditLensRef = useRef(onEditLens);
-  const onEditStageRef = useRef(onEditStage);
 
   const cellMap = useMemo(
     () => new Map(cells.map((cell) => [`${cell.stageId}:${cell.lensId}`, cell])),
@@ -84,7 +80,7 @@ export default function JourneyMatrixTabulator({
   );
 
   const columnsSignature = useMemo(
-    () => stages.map((s) => `${s.id}:${s.label}:${s.stageGoal ?? ''}:${s.primaryActorLens ?? ''}`).join('|'),
+    () => stages.map((stage) => `${stage.id}:${stage.label}`).join('|'),
     [stages],
   );
 
@@ -120,10 +116,6 @@ export default function JourneyMatrixTabulator({
   }, [onEditLens]);
 
   useEffect(() => {
-    onEditStageRef.current = onEditStage;
-  }, [onEditStage]);
-
-  useEffect(() => {
     linkedCellsRef.current = linkedCells;
     // Re-render table cells when link data changes
     if (tableRef.current) {
@@ -142,18 +134,7 @@ export default function JourneyMatrixTabulator({
     }
 
     const handleClick = (event: MouseEvent) => {
-      // Intercept clicks on the stage edit button.
-      const stageEditBtn = (event.target as HTMLElement).closest?.('[data-edit-stage-id]') as HTMLElement | null;
-      if (stageEditBtn && container.contains(stageEditBtn)) {
-        event.stopPropagation();
-        const stageId = stageEditBtn.dataset.editStageId;
-        if (stageId) {
-          onEditStageRef.current(stageId);
-        }
-        return;
-      }
-
-      // Intercept clicks on the lens edit button.
+      // Intercept clicks on the lens edit button before anything else.
       const editBtn = (event.target as HTMLElement).closest?.('[data-edit-lens-id]') as HTMLElement | null;
       if (editBtn && container.contains(editBtn)) {
         event.stopPropagation();
@@ -192,7 +173,7 @@ export default function JourneyMatrixTabulator({
   }, []);
 
   const buildColumns = useCallback(
-    (currentStages: Stage[], currentLenses: Lens[]) => [
+    (currentStages: Stage[]) => [
       {
         title: 'Lens',
         field: 'lensLabel',
@@ -209,36 +190,26 @@ export default function JourneyMatrixTabulator({
           });
         },
       },
-      ...currentStages.map((stage) => {
-        const ownerLens = stage.primaryActorLens
-          ? currentLenses.find((l) => l.key === stage.primaryActorLens || l.id === stage.primaryActorLens)
-          : undefined;
-        return {
-          title: formatStageHeaderMarkup({
-            label: stage.label,
-            stageGoal: stage.stageGoal,
-            primaryActorLens: stage.primaryActorLens,
-            primaryActorLabel: ownerLens?.label,
-            stageId: stage.id,
-          }),
-          field: stage.id,
-          width: 240,
-          minWidth: 220,
-          headerSort: false,
-          formatter: (cell: any) => {
-            const rowData = cell.getRow().getData();
-            const lensId = String(rowData.id);
-            const meta = cellMapRef.current.get(`${stage.id}:${lensId}`);
-            return formatMatrixCellMarkup({
-              content: cell.getValue(),
-              meta,
-              selectedCellId: selectedCellIdRef.current,
-              linkedCells: linkedCellsRef.current,
-              actorType: rowData.lensActorType || undefined,
-            });
-          },
-        };
-      }),
+      ...currentStages.map((stage) => ({
+        title: stage.label,
+        field: stage.id,
+        width: 240,
+        minWidth: 220,
+        headerSort: false,
+        editableTitle: true,
+        formatter: (cell: any) => {
+          const rowData = cell.getRow().getData();
+          const lensId = String(rowData.id);
+          const meta = cellMapRef.current.get(`${stage.id}:${lensId}`);
+          return formatMatrixCellMarkup({
+            content: cell.getValue(),
+            meta,
+            selectedCellId: selectedCellIdRef.current,
+            linkedCells: linkedCellsRef.current,
+            actorType: rowData.lensActorType || undefined,
+          });
+        },
+      })),
     ],
     [],
   );
@@ -254,7 +225,7 @@ export default function JourneyMatrixTabulator({
 
     const table = new Tabulator(containerRef.current, {
       data: tableData,
-      columns: buildColumns(stages, lenses),
+      columns: buildColumns(stages),
       index: 'id',
       layout: 'fitDataTable',
       height: '100%',
@@ -268,6 +239,14 @@ export default function JourneyMatrixTabulator({
     lastColumnsSignatureRef.current = columnsSignature;
     lastTableDataSignatureRef.current = tableDataSignature;
     lastRenderSignatureRef.current = renderSignature;
+
+    table.on('columnTitleChanged', (column: any) => {
+      const field = column.getField?.();
+      const title = column.getDefinition?.().title;
+      if (field && field !== 'lensLabel' && typeof title === 'string') {
+        onUpdateStageLabelRef.current(field, title);
+      }
+    });
 
     table.on('tableBuilt', () => {
       frameId = window.requestAnimationFrame(() => {
@@ -298,9 +277,9 @@ export default function JourneyMatrixTabulator({
       return;
     }
 
-    table.setColumns(buildColumns(stages, lenses));
+    table.setColumns(buildColumns(stages));
     lastColumnsSignatureRef.current = columnsSignature;
-  }, [buildColumns, columnsSignature, isTableBuilt, lenses, stages]);
+  }, [buildColumns, columnsSignature, isTableBuilt, stages]);
 
   useEffect(() => {
     const table = tableRef.current;

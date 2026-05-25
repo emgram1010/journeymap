@@ -122,6 +122,106 @@
   color: rgb(39 39 42);
 }
 
+/* ── Stage column header ──────────────────────────────────────────────── */
+
+.jm-stage-header {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px;
+}
+
+.jm-stage-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111111;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jm-stage-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.jm-stage-actor-pill {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  align-self: flex-start;
+}
+
+.jm-stage-actor-pill.is-set {
+  background: #6366f1;
+  color: #ffffff;
+}
+
+.jm-stage-actor-pill.is-unset {
+  background: transparent;
+  border: 1px dashed #52525b;
+  color: #71717a;
+}
+
+.jm-stage-goal {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 10px;
+  font-style: italic;
+  color: #a1a1aa;
+  line-height: 1.35;
+}
+
+.jm-stage-goal.is-empty {
+  font-style: normal;
+  color: #f59e0b;
+}
+
+.jm-stage-edit-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: #a1a1aa;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  padding: 0;
+  line-height: 1;
+}
+
+.jm-stage-header:hover .jm-stage-edit-btn {
+  opacity: 1;
+}
+
+.jm-stage-edit-btn:hover {
+  background: rgba(255,255,255,0.15);
+  color: #ffffff;
+}
+
+/* ── Grid cells ──────────────────────────────────────────────────────── */
+
 .jm-grid-cell {
   position: relative;
   min-height: 80px;
