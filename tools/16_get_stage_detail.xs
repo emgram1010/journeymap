@@ -1,6 +1,6 @@
 // Reads all lens cells for a given stage in a journey map, including content and actor_fields.
 // Used by the Journey Compare Analyst to explain why a stage health score is low.
-// This tool is READ-ONLY — it never writes to any cell.
+// This tool is READ-ONLY â€” it never writes to any cell.
 tool get_stage_detail {
   instructions = """
       Use this tool when the user asks WHY a specific stage scores differently between two scenarios,
@@ -20,6 +20,8 @@ tool get_stage_detail {
       {
         stage_label: string,
         stage_key: string,
+        stage_goal: string | null,
+        primary_actor_lens: string | null,
         map_id: number,
         lenses: [
           {
@@ -31,8 +33,20 @@ tool get_stage_detail {
           }
         ]
       }
+<<<<<<<
+
+      stage_goal: the one-liner success condition for this stage (null if not set).
+      primary_actor_lens: the lens key of the actor who owns this stage (e.g. "lens-3"), null if not set.
+
+=======
     
+      stage_goal: the one-liner success condition for this stage (null if not set).
+      primary_actor_lens: the lens key of the actor who owns this stage (e.g. "lens-3"), null if not set.
+    
+>>>>>>>
       Returns an empty lenses array if the stage_key is not found.
+    
+      Always pass conversation_id (integer), turn_id (text), and log_tier (text string: 'full', 'summary', or 'minimal' — NOT a boolean) from the ## Tool Logging section of your context.
     """
 
   input {
@@ -40,6 +54,9 @@ tool get_stage_detail {
     text stage_key filters=trim
     int conversation_id?
     text turn_id?
+
+    // full = capture raw payloads; summary = summaries only (default)
+    text log_tier?
   }
 
   stack {
@@ -106,10 +123,67 @@ tool get_stage_detail {
   
     var $result {
       value = {
-        stage_label: ($stage != null ? $stage.label : $input.stage_key)
-        stage_key  : $input.stage_key
-        map_id     : $input.journey_map_id
-        lenses     : $lenses_out
+<<<<<<<
+        stage_label        : ($stage != null ? $stage.label : $input.stage_key)
+        stage_key          : $input.stage_key
+        stage_goal         : ($stage != null ? $stage.stage_goal : null)
+        primary_actor_lens : ($stage != null ? $stage.primary_actor_lens : null)
+        map_id             : $input.journey_map_id
+        lenses             : $lenses_out
+=======
+        stage_label       : ($stage != null ? $stage.label : $input.stage_key)
+        stage_key         : $input.stage_key
+        stage_goal        : ($stage != null ? $stage.stage_goal : null)
+        primary_actor_lens: ($stage != null ? $stage.primary_actor_lens : null)
+        map_id            : $input.journey_map_id
+        lenses            : $lenses_out
+>>>>>>>
+      }
+    }
+
+  
+    // â”€â”€ Tool trace logging â”€â”€
+
+    conditional {
+      if ($input.conversation_id != null && $input.turn_id != null) {
+
+        var $in_payload {
+          value = null
+        }
+      
+        var $out_payload {
+          value = null
+        }
+      
+        conditional {
+          if ($input.log_tier == "full") {
+            var.update $in_payload {
+              value = {
+                journey_map_id: $input.journey_map_id
+                stage_key     : $input.stage_key
+              }
+            }
+          
+            var.update $out_payload {
+              value = $result
+            }
+          }
+        }
+      
+
+        db.add agent_tool_log {
+          data = {
+            conversation  : $input.conversation_id
+            journey_map   : $input.journey_map_id
+            turn_id       : $input.turn_id
+            tool_name     : "get_stage_detail"
+            tool_category : "read"
+            input_summary : "Stage: " ~ $input.stage_key
+            output_summary: ($lenses_out|count) ~ " lenses returned"
+            input_payload : $in_payload
+            output_payload: $out_payload
+          }
+        } as $tool_log
       }
     }
   }

@@ -20,7 +20,7 @@ table agent_message {
   
     // The journey interview mode active when this message was created.
     enum mode? {
-      values = ["interview", "chat", "compare"]
+      values = ["interview", "chat", "compare", "orchestrator"]
     }
   
     // The content of the message, compatible with AI SDK.

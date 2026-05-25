@@ -48,6 +48,7 @@ query "journey_map/{journey_map_id}/conversation" verb=POST {
       }
     }
 
+
     var $title {
       value = "New Conversation"
     }

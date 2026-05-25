@@ -1,4 +1,4 @@
-// Updates multiple journey map cells in one call. Skips locked and confirmed cells.
+﻿// Updates multiple journey map cells in one call. Skips locked and confirmed cells.
 // Updates multiple cells in a journey map in a single call.
 tool batch_update {
   instructions = """
@@ -27,8 +27,8 @@ tool batch_update {
   
     // Optional: for tool trace logging (transparency layer).
     int conversation_id?
-  
     text turn_id?
+    text log_tier?
   
     // Array of { stage_key, lens_key, content } objects to apply.
     json updates
@@ -173,18 +173,66 @@ tool batch_update {
       }
     }
   
-    // ── Tool trace logging ──
+    // â”€â”€ Tool trace logging â”€â”€
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {
+        var $in_payload {
+          value = null
+        }
+      
+        var $out_payload {
+          value = null
+        }
+      
+        var $payload_trunc {
+          value = false
+        }
+      
+        conditional {
+          if ($input.log_tier == "full") {
+            api.lambda {
+              code = """
+                  const inp = $var.input;
+                  const out = { applied: $var.applied, skipped: $var.skipped, applied_count: $var.applied_count, skipped_count: $var.skipped_count };
+                  const inStr = JSON.stringify(inp);
+                  const outStr = JSON.stringify(out);
+                  const inTrunc = inStr.length > 10240;
+                  const outTrunc = outStr.length > 10240;
+                  return {
+                    in: inTrunc ? { _truncated: true, preview: inStr.slice(0, 500) } : inp,
+                    out: outTrunc ? { _truncated: true, preview: outStr.slice(0, 500) } : out,
+                    truncated: inTrunc || outTrunc
+                  };
+                """
+              timeout = 3
+            } as $pl
+          
+            var.update $in_payload {
+              value = $pl.in
+            }
+          
+            var.update $out_payload {
+              value = $pl.out
+            }
+          
+            var.update $payload_trunc {
+              value = $pl.truncated
+            }
+          }
+        }
+      
         db.add agent_tool_log {
           data = {
-            conversation  : $input.conversation_id
-            journey_map   : $input.journey_map_id
-            turn_id       : $input.turn_id
-            tool_name     : "batch_update"
-            tool_category : "write"
-            input_summary : $applied_count ~ " cells targeted"
-            output_summary: $applied_count ~ " applied, " ~ $skipped_count ~ " skipped"
+            conversation     : $input.conversation_id
+            journey_map      : $input.journey_map_id
+            turn_id          : $input.turn_id
+            tool_name        : "batch_update"
+            tool_category    : "write"
+            input_summary    : ($input.updates|count|to_text) ~ " cells targeted"
+            output_summary   : $applied_count ~ " applied, " ~ $skipped_count ~ " skipped"
+            input_payload    : $in_payload
+            output_payload   : $out_payload
+            payload_truncated: $payload_trunc
           }
         } as $tool_log
       }

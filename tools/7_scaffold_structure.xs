@@ -1,4 +1,4 @@
-// Applies a complete structural blueprint to a journey map in one call.
+﻿// Applies a complete structural blueprint to a journey map in one call.
 // Supports bulk rename, add, and remove operations for both stages and lenses.
 // Replaces 6-8 individual mutate_structure calls at session start.
 tool scaffold_structure {
@@ -41,8 +41,8 @@ tool scaffold_structure {
   
     // Optional: for tool trace logging (transparency layer).
     int conversation_id?
-  
     text turn_id?
+    text log_tier?
   }
 
   stack {
@@ -92,7 +92,7 @@ tool scaffold_structure {
       value = []
     }
   
-    // ── Process stage operations ──
+    // â”€â”€ Process stage operations â”€â”€
     conditional {
       if ($input.stage_operations != null) {
         // Pass 1: removes
@@ -199,7 +199,7 @@ tool scaffold_structure {
       }
     }
   
-    // ── Process lens operations ──
+    // â”€â”€ Process lens operations â”€â”€
     conditional {
       if ($input.lens_operations != null) {
         // Pass 1: removes
@@ -283,7 +283,7 @@ tool scaffold_structure {
         }
       
         // Pass 3: adds
-        // Use direct DB ops — internal api.call does not forward the user auth
+        // Use direct DB ops â€” internal api.call does not forward the user auth
         // context, so the auth-protected journey_lens/add endpoint would reject it.
         foreach ($input.lens_operations) {
           each as $op {
@@ -320,7 +320,7 @@ tool scaffold_structure {
                   value = "lens-%d"|sprintf:$sc_new_lens_order
                 }
               
-                // ── Actor template defaults ──
+                // â”€â”€ Actor template defaults â”€â”€
                 var $sc_template_key {
                   value = null
                 }
@@ -531,7 +531,7 @@ tool scaffold_structure {
                     }
                   
                     var.update $sc_role_prompt {
-                      value = "You are capturing operational metrics at each stage of this journey. For each stage focus on: CSAT Score (customer satisfaction score 1-10 at this stage), Completion Rate (% of users who successfully complete this stage), Drop-off Rate (% who abandon or fail at this stage), Avg Time to Complete (average duration of this stage in minutes or hours), Error Rate (% of interactions at this stage that result in an error or failure), SLA Compliance Rate (% of interactions that meet defined SLA targets), Volume / Frequency (number of interactions or transactions at this stage per period), and Stage Health Score (composite 1-10 health score derived from all other metrics — weight CSAT and completion rate most heavily). Be specific. Use percentages, counts, and time units. Infer from qualitative actor content when direct data is unavailable."
+                      value = "You are capturing operational metrics at each stage of this journey. For each stage focus on: CSAT Score (customer satisfaction score 1-10 at this stage), Completion Rate (% of users who successfully complete this stage), Drop-off Rate (% who abandon or fail at this stage), Avg Time to Complete (average duration of this stage in minutes or hours), Error Rate (% of interactions at this stage that result in an error or failure), SLA Compliance Rate (% of interactions that meet defined SLA targets), Volume / Frequency (number of interactions or transactions at this stage per period), and Stage Health Score (composite 1-10 health score derived from all other metrics â€” weight CSAT and completion rate most heavily). Be specific. Use percentages, counts, and time units. Infer from qualitative actor content when direct data is unavailable."
                     }
                   
                     var.update $sc_actor_fields_scaffold {
@@ -602,7 +602,7 @@ tool scaffold_structure {
       }
     }
   
-    // ── Final counts ──
+    // â”€â”€ Final counts â”€â”€
     db.query journey_stage {
       where = $db.journey_stage.journey_map == $input.journey_map_id
       sort = {display_order: "asc"}
@@ -621,18 +621,66 @@ tool scaffold_structure {
       data = {updated_at: "now", last_interaction_at: "now"}
     } as $map_touch
   
-    // ── Tool trace logging ──
+    // â”€â”€ Tool trace logging â”€â”€
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {
+        var $in_payload {
+          value = null
+        }
+      
+        var $out_payload {
+          value = null
+        }
+      
+        var $payload_trunc {
+          value = false
+        }
+      
+        conditional {
+          if ($input.log_tier == "full") {
+            api.lambda {
+              code = """
+                  const inp = $var.input;
+                  const out = { stages_renamed: $var.stages_renamed, stages_added: $var.stages_added, stages_removed: $var.stages_removed, lenses_added: $var.lenses_added, lenses_removed: $var.lenses_removed, cells_created: $var.cells_created };
+                  const inStr = JSON.stringify(inp);
+                  const outStr = JSON.stringify(out);
+                  const inTrunc = inStr.length > 10240;
+                  const outTrunc = outStr.length > 10240;
+                  return {
+                    in: inTrunc ? { _truncated: true, preview: inStr.slice(0, 500) } : inp,
+                    out: outTrunc ? { _truncated: true, preview: outStr.slice(0, 500) } : out,
+                    truncated: inTrunc || outTrunc
+                  };
+                """
+              timeout = 3
+            } as $pl
+          
+            var.update $in_payload {
+              value = $pl.in
+            }
+          
+            var.update $out_payload {
+              value = $pl.out
+            }
+          
+            var.update $payload_trunc {
+              value = $pl.truncated
+            }
+          }
+        }
+      
         db.add agent_tool_log {
           data = {
-            conversation  : $input.conversation_id
-            journey_map   : $input.journey_map_id
-            turn_id       : $input.turn_id
-            tool_name     : "scaffold_structure"
-            tool_category : "structure"
-            input_summary : $stages_renamed ~ " renamed, " ~ $stages_added ~ " added, " ~ $stages_removed ~ " removed stages"
-            output_summary: ($final_stages|count) ~ " stages, " ~ ($final_lenses|count) ~ " lenses final"
+            conversation     : $input.conversation_id
+            journey_map      : $input.journey_map_id
+            turn_id          : $input.turn_id
+            tool_name        : "scaffold_structure"
+            tool_category    : "structure"
+            input_summary    : $stages_renamed ~ " renamed, " ~ $stages_added ~ " added, " ~ $stages_removed ~ " removed stages"
+            output_summary   : ($final_stages|count) ~ " stages, " ~ ($final_lenses|count) ~ " lenses final"
+            input_payload    : $in_payload
+            output_payload   : $out_payload
+            payload_truncated: $payload_trunc
           }
         } as $tool_log
       }

@@ -181,7 +181,58 @@ export function calcStageHealth(f: MetricsActorFields): number | null {
 /** Union of all actor field shapes. Extend when new actor types are defined. */
 export type ActorFields = CustomerActorFields | InternalActorFields | EngineeringActorFields | AiAgentActorFields | HandoffActorFields | VendorActorFields | FinancialActorFields | MetricsActorFields | Record<string, string | number | null>;
 
-export type ToolTraceCategory = 'read' | 'write' | 'status' | 'structure';
+// ── Automation Machine Layer types ───────────────────────────────────────────
+
+export type TriggerType = 'webhook' | 'inbound_status' | 'schedule' | 'manual';
+export type ActionType = 'sms' | 'email' | 'http_post' | 'jobber_update' | 'slack' | 'none';
+export type AutomationConfigStatus = 'draft' | 'confirmed' | 'disabled';
+
+export interface TriggerConfig {
+  provider?: string | null;
+  event?: string | null;
+  filter?: Record<string, unknown> | null;
+}
+
+export interface ActionConfig {
+  provider?: string | null;
+  template?: string | null;
+  recipient_field?: string | null;
+}
+
+export interface ExceptionCondition {
+  field?: string | null;
+  op?: string | null;
+  value?: unknown;
+}
+
+/** Structured gap object — carries coordinates so the UI can render actionable links */
+export interface AutomationGap {
+  field_key: string;       // e.g. "trigger_event"
+  lens_type: string;       // e.g. "handoff"
+  label: string;           // e.g. "Trigger Event"
+  hint?: string;           // e.g. "e.g. 'New lead added in CRM'"
+  resolvable_inline: boolean; // true = answer in wizard, false = go to map
+}
+
+export interface StageAutomationConfig {
+  id?: number;
+  journey_map?: number;
+  journey_stage?: number;
+  stage_key: string;
+  trigger_type: TriggerType | null;
+  trigger_config: TriggerConfig | null;
+  action_type: ActionType | null;
+  action_config: ActionConfig | null;
+  exception_condition: ExceptionCondition | null;
+  status: AutomationConfigStatus;
+  confidence: number;
+  ai_proposed: boolean;
+  gaps: AutomationGap[];
+}
+
+// ── End Automation types ──────────────────────────────────────────────────────
+
+export type ToolTraceCategory = 'read' | 'write' | 'status' | 'structure' | 'external';
 
 export interface ToolTraceEntry {
   toolName: string;
@@ -206,6 +257,22 @@ export interface MessageActivity {
   turnId?: string | null;
   /** Debug: true when agent tool_count >= 18 (step limit warning) */
   stepLimitWarning?: boolean;
+  /** Debug: LLM token counts from turn_log */
+  tokensInput?: number | null;
+  tokensOutput?: number | null;
+  /** Debug: LLM wall time in ms */
+  durationMs?: number | null;
+  /** Debug: hallucination check result from deterministic backend checks */
+  hallucinationCheck?: {
+    ran?: boolean;
+    risk_level?: 'none' | 'low' | 'medium' | 'high' | null;
+    signals?: Array<{ signal: string; detail?: string }>;
+    cells_claimed_vs_actual?: {
+      write_tools_fired?: number;
+      cells_actually_written?: number;
+      mismatch?: boolean;
+    };
+  } | null;
 }
 
 export interface Message {
@@ -217,6 +284,16 @@ export interface Message {
   activity?: MessageActivity;
   /** True for system-injected build-loop warning messages */
   isBuildWarning?: boolean;
+}
+
+/** Flow break issue on a single cell — derived from validate_workflow report. */
+export interface CellFlowIssue {
+  severity: 'blocker' | 'warning';
+  message: string;
+  /** field code from validate_workflow, e.g. "missing_task_objective" */
+  code?: string;
+  stageKey?: string;
+  lensKey?: string;
 }
 
 export interface MatrixCell {
@@ -244,6 +321,8 @@ export interface Stage {
   xanoId?: number;
   displayOrder?: number;
   label: string;
+  stageGoal?: string;
+  primaryActorLens?: string;
 }
 
 export interface Lens {

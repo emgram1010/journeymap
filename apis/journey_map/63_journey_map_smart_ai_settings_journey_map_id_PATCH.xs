@@ -1,5 +1,5 @@
 // Save smart AI behaviour settings for a journey map.
-// Accepts any subset of the 7 settings fields — only provided fields are written (partial update).
+// Accepts any subset of the 8 settings fields — only provided fields are written (partial update).
 // Returns the updated journey_map record.
 query "journey_map/smart_ai_settings/{journey_map_id}" verb=PATCH {
   api_group = "journey-map"
@@ -27,6 +27,7 @@ query "journey_map/smart_ai_settings/{journey_map_id}" verb=PATCH {
     bool business_impact_framing?
     bool auto_confirm_writes?
     bool show_reasoning?
+    bool neurodivergent_mode?
   }
 
   stack {
@@ -68,6 +69,7 @@ query "journey_map/smart_ai_settings/{journey_map_id}" verb=PATCH {
         "business_impact_framing"
         "auto_confirm_writes"
         "show_reasoning"
+        "neurodivergent_mode"
       ]
     }
   

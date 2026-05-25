@@ -1,5 +1,5 @@
 // Infers metrics field values for a metrics-lens cell from existing data and optional notes.
-// Returns suggested values only — does NOT write to the cell. Agent must confirm with user first.
+// Returns suggested values only â€” does NOT write to the cell. Agent must confirm with user first.
 tool infer_stage_metrics {
   instructions = """
       Use this tool to infer metric values for a cell that belongs to a metrics lens row.
@@ -27,12 +27,23 @@ tool infer_stage_metrics {
         health_label: "healthy" | "at_risk" | "critical" | null,
         notes_received: string | null
       }
+    
+      Always pass conversation_id (integer), turn_id (text), and log_tier (text string: 'full', 'summary', or 'minimal' — NOT a boolean) from the ## Tool Logging section of your context.
     """
 
   input {
     int journey_map_id filters=min:1
     int conversation_id?
     text turn_id?
+<<<<<<<
+    // full = capture raw payloads; summary = summaries only (default)
+    text log_tier?
+=======
+  
+    // full = capture raw payloads; summary = summaries only (default)
+    text log_tier?
+  
+>>>>>>>
     text stage_key filters=trim
     text lens_key filters=trim
     text notes?
@@ -221,8 +232,102 @@ tool infer_stage_metrics {
         }
       }
     }
+<<<<<<<
+=======
+  
+    // â”€â”€ Tool trace logging â”€â”€
+    conditional {
+      if ($input.conversation_id != null && $input.turn_id != null) {
+        var $in_payload {
+          value = null
+        }
+      
+        var $out_payload {
+          value = null
+        }
+      
+        conditional {
+          if ($input.log_tier == "full") {
+            var.update $in_payload {
+              value = {
+                journey_map_id: $input.journey_map_id
+                stage_key     : $input.stage_key
+                lens_key      : $input.lens_key
+              }
+            }
+          
+            var.update $out_payload {
+              value = $result
+            }
+          }
+        }
+      
+        db.add agent_tool_log {
+          data = {
+            conversation  : $input.conversation_id
+            journey_map   : $input.journey_map_id
+            turn_id       : $input.turn_id
+            tool_name     : "infer_stage_metrics"
+            tool_category : "read"
+            input_summary : $input.stage_key ~ " Ã— " ~ $input.lens_key
+            output_summary: $result.cell_found ? ("health: " ~ ($result.computed_stage_health|to_text)) : "cell not found"
+            input_payload : $in_payload
+            output_payload: $out_payload
+          }
+        } as $tool_log
+      }
+    }
   }
+>>>>>>>
 
+    // ── Tool trace logging ──
+    conditional {
+      if ($input.conversation_id != null && $input.turn_id != null) {
+        var $in_payload { value = null }
+        var $out_payload { value = null }
+        var $payload_trunc { value = false }
+
+        conditional {
+          if ($input.log_tier == "full") {
+            api.lambda {
+              code = """
+                const inp = $var.input;
+                const out = $var.result;
+                const inStr = JSON.stringify(inp);
+                const outStr = JSON.stringify(out);
+                const inTrunc = inStr.length > 10240;
+                const outTrunc = outStr.length > 10240;
+                return {
+                  in: inTrunc ? { _truncated: true, preview: inStr.slice(0, 500) } : inp,
+                  out: outTrunc ? { _truncated: true, preview: outStr.slice(0, 500) } : out,
+                  truncated: inTrunc || outTrunc
+                };
+              """
+              timeout = 3
+            } as $pl
+            var.update $in_payload { value = $pl.in }
+            var.update $out_payload { value = $pl.out }
+            var.update $payload_trunc { value = $pl.truncated }
+          }
+        }
+
+        db.add agent_tool_log {
+          data = {
+            conversation     : $input.conversation_id
+            journey_map      : $input.journey_map_id
+            turn_id          : $input.turn_id
+            tool_name        : "infer_stage_metrics"
+            tool_category    : "read"
+            input_summary    : $input.stage_key ~ " × " ~ $input.lens_key
+            output_summary   : $result.cell_found ? ("health: " ~ ($result.computed_stage_health|to_text)) : "cell not found"
+            input_payload    : $in_payload
+            output_payload   : $out_payload
+            payload_truncated: $payload_trunc
+          }
+        } as $tool_log
+      }
+    }
+  }
   response = $result
   guid = "l-dkNdbj-N0hHfoxIIxX9_b5PPY"
 }

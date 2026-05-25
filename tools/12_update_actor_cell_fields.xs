@@ -1,5 +1,10 @@
+﻿<<<<<<<
+﻿// Writes structured actor_fields into a single cell identified by stage_key + lens_key.
+// Skips locked and confirmed cells. Supports partial updates â€” only provided keys are merged.
+=======
 // Writes structured actor_fields into a single cell identified by stage_key + lens_key.
-// Skips locked and confirmed cells. Supports partial updates — only provided keys are merged.
+// Skips locked and confirmed cells. Supports partial updates â€” only provided keys are merged.
+>>>>>>>
 tool update_actor_cell_fields {
   instructions = """
       Use this tool to write one or more structured actor fields into a specific cell.
@@ -8,7 +13,7 @@ tool update_actor_cell_fields {
     
       Identify the cell by stage_key + lens_key. Do NOT pass cell IDs.
     
-      Pass only the fields you have information for — existing values in other keys are preserved.
+      Pass only the fields you have information for â€” existing values in other keys are preserved.
       The cell will be skipped if it is locked (is_locked=true) or has status 'confirmed'.
     
       Input:
@@ -18,8 +23,9 @@ tool update_actor_cell_fields {
       - actor_fields: A JSON object with the fields to set, e.g. { emotions: "Anxious", entry_trigger: "Order confirmed" }
       - conversation_id: (optional) for tool trace logging
       - turn_id: (optional) for tool trace logging
+      - log_tier: (optional) full = capture raw payloads; summary = summaries only
     
-      Valid actor_fields keys by actor_type — use ONLY these exact snake_case keys.
+      Valid actor_fields keys by actor_type â€” use ONLY these exact snake_case keys.
       Do NOT invent keys. Do NOT use human-readable labels as keys.
     
       customer:    entry_trigger, emotions, information_needs, decisions_required,
@@ -63,6 +69,7 @@ tool update_actor_cell_fields {
     int journey_map_id filters=min:1
     int conversation_id?
     text turn_id?
+    text log_tier?
     text stage_key filters=trim
     text lens_key filters=trim
     json actor_fields
@@ -183,15 +190,63 @@ tool update_actor_cell_fields {
     // Tool trace logging
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {
+        var $in_payload {
+          value = null
+        }
+      
+        var $out_payload {
+          value = null
+        }
+      
+        var $payload_trunc {
+          value = false
+        }
+      
+        conditional {
+          if ($input.log_tier == "full") {
+            api.lambda {
+              code = """
+                  const inp = $var.input;
+                  const out = $var.result;
+                  const inStr = JSON.stringify(inp);
+                  const outStr = JSON.stringify(out);
+                  const inTrunc = inStr.length > 10240;
+                  const outTrunc = outStr.length > 10240;
+                  return {
+                    in: inTrunc ? { _truncated: true, preview: inStr.slice(0, 500) } : inp,
+                    out: outTrunc ? { _truncated: true, preview: outStr.slice(0, 500) } : out,
+                    truncated: inTrunc || outTrunc
+                  };
+                """
+              timeout = 3
+            } as $pl
+          
+            var.update $in_payload {
+              value = $pl.in
+            }
+          
+            var.update $out_payload {
+              value = $pl.out
+            }
+          
+            var.update $payload_trunc {
+              value = $pl.truncated
+            }
+          }
+        }
+      
         db.add agent_tool_log {
           data = {
-            conversation  : $input.conversation_id
-            journey_map   : $input.journey_map_id
-            turn_id       : $input.turn_id
-            tool_name     : "update_actor_cell_fields"
-            tool_category : "write"
-            input_summary : $input.stage_key ~ " × " ~ $input.lens_key
-            output_summary: $result.applied ? "Applied actor fields" : "Skipped: " ~ $result.skip_reason
+            conversation     : $input.conversation_id
+            journey_map      : $input.journey_map_id
+            turn_id          : $input.turn_id
+            tool_name        : "update_actor_cell_fields"
+            tool_category    : "write"
+            input_summary    : $input.stage_key ~ " x " ~ $input.lens_key ~ " (actor)"
+            output_summary   : $result.applied ? "Applied actor fields" : "Skipped: " ~ $result.skip_reason
+            input_payload    : $in_payload
+            output_payload   : $out_payload
+            payload_truncated: $payload_trunc
           }
         } as $tool_log
       }

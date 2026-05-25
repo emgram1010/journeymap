@@ -1,8 +1,8 @@
-import type {ActorFields, ActorType, CellStatus, Lens, MatrixCell, Message, Stage, ToolTraceEntry} from './types';
+import type {ActorFields, ActorType, AutomationConfigStatus, ActionType, CellStatus, Lens, MatrixCell, Message, Stage, StageAutomationConfig, ToolTraceEntry, TriggerType} from './types';
 import type {SelectedCellContext} from './cellIdentifiers';
 
 export type JourneyMapStatus = 'draft' | 'active' | 'archived';
-export type ConversationMode = 'interview' | 'chat';
+export type ConversationMode = 'interview' | 'chat' | 'orchestrator';
 
 export interface JourneySettings {
   primary_actor?: string | null;
@@ -30,6 +30,7 @@ export interface SmartAiSettings {
   business_impact_framing?: boolean | null;
   auto_confirm_writes?: boolean | null;
   show_reasoning?: boolean | null;
+  neurodivergent_mode?: boolean | null;
 }
 
 export const SMART_AI_DEFAULTS: Required<SmartAiSettings> = {
@@ -40,6 +41,7 @@ export const SMART_AI_DEFAULTS: Required<SmartAiSettings> = {
   business_impact_framing: false,
   auto_confirm_writes: false,
   show_reasoning: true,
+  neurodivergent_mode: false,
 };
 
 export interface XanoJourneyMap extends JourneySettings {
@@ -75,6 +77,8 @@ export interface XanoJourneyStage {
   key?: string | null;
   label: string;
   display_order?: number | null;
+  stage_goal?: string | null;
+  primary_actor_lens?: string | null;
 }
 
 export interface XanoJourneyLens {
@@ -188,6 +192,13 @@ type RenameJourneyStageInput = {
   label: string;
 };
 
+type UpdateJourneyStageInput = {
+  journeyStageId: number;
+  label: string;
+  stageGoal?: string | null;
+  primaryActorLens?: string | null;
+};
+
 type RenameJourneyLensInput = {
   journeyLensId: number;
   label: string;
@@ -271,7 +282,7 @@ export interface AiCellUpdate {
 
 export interface AiToolTraceEntry {
   tool_name: string;
-  tool_category: 'read' | 'write' | 'status' | 'structure';
+  tool_category: 'read' | 'write' | 'status' | 'structure' | 'external';
   input_summary: string;
   output_summary: string;
   execution_order: number;
@@ -310,17 +321,35 @@ export interface AiMessageResponse {
     tool_count?: number | null;
     status?: string | null;
     error_message?: string | null;
+    tokens_input?: number | null;
+    tokens_output?: number | null;
+    duration_ms?: number | null;
+  } | null;
+  hallucination_check?: {
+    ran?: boolean;
+    risk_level?: 'none' | 'low' | 'medium' | 'high' | null;
+    signals?: Array<{ signal: string; detail?: string }>;
+    cells_claimed_vs_actual?: {
+      write_tools_fired?: number;
+      cells_actually_written?: number;
+      mismatch?: boolean;
+    };
   } | null;
 }
 
 export interface ToolLogEntry {
   id: number;
   tool_name: string;
-  tool_category: 'read' | 'write' | 'status' | 'structure';
+  tool_category: 'read' | 'write' | 'status' | 'structure' | 'external';
   input_summary: string;
   output_summary: string;
   execution_order: number;
   created_at?: string | null;
+  // US-FLV-01: full payloads — populated when log_tier = full (builder/interview mode)
+  input_payload?: unknown | null;
+  output_payload?: unknown | null;
+  payload_truncated?: boolean | null;
+  duration_ms?: number | null;
 }
 
 export interface ToolLogsResponse {
@@ -364,6 +393,12 @@ export interface PersistedAiConversationThread {
   turnId: string | null;
   /** Debug: true when tool_count >= 18 (step limit warning) */
   stepLimitWarning: boolean;
+  /** Debug: tokens, duration from turn_log */
+  tokensInput: number | null;
+  tokensOutput: number | null;
+  durationMs: number | null;
+  /** Debug: hallucination check result */
+  hallucinationCheck: AiMessageResponse['hallucination_check'] | null;
 }
 
 export type SelectedCellPayload = {
@@ -371,6 +406,7 @@ export type SelectedCellPayload = {
   stage_id?: number;
   stage_key: string;
   stage_label: string;
+  stage_goal?: string | null;
   lens_id?: number;
   lens_key: string;
   lens_label: string;
@@ -412,6 +448,10 @@ export const buildSelectedCellPayload = (selectedCell?: SelectedCellContext | nu
     payload.shorthand = selectedCell.shorthand;
   }
 
+  if (selectedCell.stageGoal) {
+    payload.stage_goal = selectedCell.stageGoal;
+  }
+
   return payload;
 };
 
@@ -437,6 +477,8 @@ type SendAiMessageInput = {
   builderMode?: boolean;
   specialistActorKey?: string | null;
   consortiumActorKeys?: string[] | null;
+  // HUX-03: when true forces log_tier=full in the API regardless of mode
+  capturePayloads?: boolean;
 };
 
 const DEFAULT_XANO_BASE_URL = 'https://xdjc-i7zz-jhm2.n7e.xano.io/api:ER4MRRWZ';
@@ -445,6 +487,7 @@ const DEFAULT_XANO_LOAD_MAP_PATH = '/journey_map/load_bundle/:journeyMapId';
 const DEFAULT_XANO_MESSAGE_PATH = '/journey_map/:journeyMapId/message';
 const DEFAULT_XANO_UPDATE_CELL_PATH = '/journey_cell/update/:journeyCellId';
 const DEFAULT_XANO_RENAME_STAGE_PATH = '/journey_stage/rename/:journeyStageId';
+const DEFAULT_XANO_UPDATE_STAGE_PATH = '/journey_stage/update/:journeyStageId';
 const DEFAULT_XANO_RENAME_LENS_PATH = '/journey_lens/rename/:journeyLensId';
 const DEFAULT_XANO_ADD_STAGE_PATH = '/journey_stage/add/:journeyMapId';
 const DEFAULT_XANO_REMOVE_STAGE_PATH = '/journey_stage/remove/:journeyStageId';
@@ -472,7 +515,8 @@ const normalizeCellStatus = (value?: string | null): CellStatus => {
   return 'open';
 };
 
-const normalizeConversationMode = (value?: string | null): ConversationMode => (value === 'chat' ? 'chat' : 'interview');
+const normalizeConversationMode = (value?: string | null): ConversationMode =>
+  value === 'chat' ? 'chat' : value === 'orchestrator' ? 'orchestrator' : 'interview';
 
 const toEpoch = (value?: number | string | null) => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -541,6 +585,7 @@ export const getXanoMessagePath = () => normalizeOptionalPath(import.meta.env.VI
 export const getXanoUpdateCellPath = () => normalizeOptionalPath(import.meta.env.VITE_XANO_UPDATE_CELL_PATH) ?? DEFAULT_XANO_UPDATE_CELL_PATH;
 
 export const getXanoRenameStagePath = () => normalizeOptionalPath(import.meta.env.VITE_XANO_RENAME_STAGE_PATH) ?? DEFAULT_XANO_RENAME_STAGE_PATH;
+export const getXanoUpdateStagePath = () => normalizeOptionalPath(import.meta.env.VITE_XANO_UPDATE_STAGE_PATH) ?? DEFAULT_XANO_UPDATE_STAGE_PATH;
 
 export const getXanoRenameLensPath = () => normalizeOptionalPath(import.meta.env.VITE_XANO_RENAME_LENS_PATH) ?? DEFAULT_XANO_RENAME_LENS_PATH;
 
@@ -676,6 +721,8 @@ const buildHydratedJourneyMapBundle = (
       xanoId: stage.id,
       displayOrder: stage.display_order ?? undefined,
       label: stage.label,
+      stageGoal: stage.stage_goal ?? undefined,
+      primaryActorLens: stage.primary_actor_lens ?? undefined,
     })),
     lenses: sortedLenses.map((lens) => ({
       id: lensKeyById.get(lens.id)!,
@@ -929,6 +976,13 @@ export async function renameJourneyStage(input: RenameJourneyStageInput): Promis
   });
 }
 
+export async function updateJourneyStage(input: UpdateJourneyStageInput): Promise<void> {
+  await xanoRequest<unknown>(buildParameterizedPath(getXanoUpdateStagePath(), {journeyStageId: input.journeyStageId}), {
+    method: 'PATCH',
+    body: {label: input.label, stage_goal: input.stageGoal ?? null, primary_actor_lens: input.primaryActorLens ?? null},
+  });
+}
+
 export async function renameJourneyLens(input: RenameJourneyLensInput): Promise<void> {
   await xanoRequest<unknown>(buildParameterizedPath(getXanoRenameLensPath(), {journeyLensId: input.journeyLensId}), {
     method: 'PATCH',
@@ -1016,10 +1070,14 @@ export async function saveSmartAiSettings(journeyMapId: number, settings: Partia
 }
 
 export async function sendAiMessage(input: SendAiMessageInput): Promise<PersistedAiConversationThread> {
+  // US-WE-05: orchestrator mode is passed as a boolean flag to avoid Xano enum constraint on mode input.
+  // The API resolves $effective_mode = 'orchestrator' when orchestrator_mode=true.
+  const isOrchestrator = input.mode === 'orchestrator';
   const body: Record<string, unknown> = {
     journey_map_id: input.journeyMapId,
     content: input.content,
-    mode: input.mode,
+    mode: isOrchestrator ? 'interview' : input.mode,
+    ...(isOrchestrator ? { orchestrator_mode: true } : {}),
   };
 
   if (typeof input.conversationId === 'number') {
@@ -1059,6 +1117,11 @@ export async function sendAiMessage(input: SendAiMessageInput): Promise<Persiste
     body.consortium_actor_keys = input.consortiumActorKeys;
   }
 
+  // HUX-03: force log_tier=full so tool payloads are captured in debug mode
+  if (input.capturePayloads) {
+    body.capture_payloads = true;
+  }
+
   const response = await xanoRequest<AiMessageResponse>(
     buildJourneyMapPath(getXanoAiMessagePath(), input.journeyMapId),
     {method: 'POST', body, signal: input.signal},
@@ -1091,6 +1154,10 @@ export async function sendAiMessage(input: SendAiMessageInput): Promise<Persiste
       : null,
     turnId: response.turn_log?.turn_id ?? null,
     stepLimitWarning: (response.turn_log?.tool_count ?? 0) >= 18,
+    tokensInput: response.turn_log?.tokens_input ?? null,
+    tokensOutput: response.turn_log?.tokens_output ?? null,
+    durationMs: response.turn_log?.duration_ms ?? null,
+    hallucinationCheck: response.hallucination_check ?? null,
   };
 }
 
@@ -1122,7 +1189,13 @@ type CreateConversationInput = {
 };
 
 export async function createConversation(input: CreateConversationInput): Promise<XanoAgentConversation> {
-  const body: Record<string, unknown> = {mode: input.mode};
+  // US-WE-05: same workaround as sendAiMessage — Xano's conversation POST endpoint doesn't
+  // accept 'orchestrator' as a mode enum value, so pass mode='interview' + orchestrator_mode=true.
+  const isOrchestrator = input.mode === 'orchestrator';
+  const body: Record<string, unknown> = {mode: isOrchestrator ? 'interview' : input.mode};
+  if (isOrchestrator) {
+    body.orchestrator_mode = true;
+  }
   if (input.title) {
     body.title = input.title;
   }
@@ -1433,3 +1506,93 @@ export const getAccountMe = (): Promise<XanoAccount> =>
 
 export const updateAccountMe = (data: Partial<Pick<XanoAccount, 'name' | 'description' | 'location' | 'ai_context'>>): Promise<XanoAccount> =>
   xanoRequest<XanoAccount>('/account/me', {method: 'PATCH', body: data as Record<string, unknown>});
+
+// HUX-01: flag (or un-flag) a turn as hallucinated
+export async function flagTurn(journeyMapId: number, turnId: string, flagged = true): Promise<{ turn_id: string; flagged_by_user: boolean }> {
+  return xanoRequest(`/journey_map/${journeyMapId}/ai_audit/${turnId}/flag`, {
+    method: 'PATCH',
+    body: { flagged },
+  });
+}
+
+// HUX-02: fetch full turn detail for the log drawer (includes full user_message + reply + tool payloads)
+export async function fetchTurnDetail(journeyMapId: number, turnId: string): Promise<import('./xano').AuditTurnDetail | null> {
+  const res = await xanoRequest<{ journey_map_id: number; total: number; turns: import('./xano').AuditTurnDetail[] }>(
+    `/journey_map/${journeyMapId}/ai_audit?turn_id=${encodeURIComponent(turnId)}`,
+  );
+  return res.turns?.[0] ?? null;
+}
+
+export interface AuditTurnDetail {
+  turn_id: string;
+  mode: string | null;
+  tier: string | null;
+  timing: { started_at: string | null; duration_ms: number | null };
+  tokens: { input: number | null; output: number | null };
+  input: { user_message: string | null; system_prompt_hash: string | null; full_user_message?: string | null };
+  output: { reply: string | null; full_reply?: string | null };
+  outcome: { status: string | null; cells_written: number | null; error: string | null };
+  tool_count: number | null;
+  tool_calls: ToolLogEntry[];
+  hallucination_check: { risk_level: string | null; signals: Array<{ signal: string; detail?: string }> | null };
+  flagged_by_user: boolean | null;
+  created_at: string | null;
+}
+
+
+// ── Automation Config (Machine Layer)────────────────────────────────────────
+
+export interface AiExtractResponse {
+  journey_map_id: number;
+  proposed_configs: StageAutomationConfig[];
+  handoff_lens_found: boolean;
+  stage_key_filter?: string | null;
+}
+
+/** Calls the AI extraction endpoint — reads all stage cells and proposes structured configs.
+ *  Pass stageKey to re-extract a single stage only (US-UX-07). */
+export const aiExtractAutomationConfig = (journeyMapId: number, stageKey?: string): Promise<AiExtractResponse> =>
+  xanoRequest<AiExtractResponse>('/stage_automation_config/ai_extract', {
+    method: 'POST',
+    body: {journey_map_id: journeyMapId, ...(stageKey ? {stage_key: stageKey} : {})},
+  });
+
+export interface CreateAutomationConnectionInput {
+  journey_architecture_id: number;
+  provider: 'n8n' | 'make' | 'zapier' | 'custom';
+  label: string;
+  webhook_url: string;
+}
+
+/** Register an n8n/Make webhook so Emgram pushes snapshot updates on every publish. */
+export const createAutomationConnection = (data: CreateAutomationConnectionInput): Promise<{id: number; status: string}> =>
+  xanoRequest<{id: number; status: string}>('/automation_connection', {method: 'POST', body: data as unknown as Record<string, unknown>});
+
+/** List all saved automation configs for a journey map. */
+export const listStageAutomationConfigs = (journeyMapId: number): Promise<StageAutomationConfig[]> =>
+  xanoRequest<StageAutomationConfig[]>(`/stage_automation_config?journey_map_id=${journeyMapId}`);
+
+type SaveAutomationConfigInput = Omit<StageAutomationConfig, 'id'> & {journey_map: number; journey_stage: number};
+
+/** Create a new stage automation config record. */
+export const createStageAutomationConfig = (data: SaveAutomationConfigInput): Promise<StageAutomationConfig> =>
+  xanoRequest<StageAutomationConfig>('/stage_automation_config', {method: 'POST', body: data as unknown as Record<string, unknown>});
+
+type UpdateAutomationConfigInput = {
+  trigger_type?: TriggerType | null;
+  trigger_config?: Record<string, unknown> | null;
+  action_type?: ActionType | null;
+  action_config?: Record<string, unknown> | null;
+  exception_condition?: Record<string, unknown> | null;
+  status?: AutomationConfigStatus;
+  confidence?: number;
+  gaps?: import('./types').AutomationGap[];
+};
+
+/** Patch an existing stage automation config. */
+export const updateStageAutomationConfig = (id: number, data: UpdateAutomationConfigInput): Promise<StageAutomationConfig> =>
+  xanoRequest<StageAutomationConfig>(`/stage_automation_config/${id}`, {method: 'PATCH', body: data as unknown as Record<string, unknown>});
+
+/** Trigger the publish + compile snapshot endpoint. */
+export const publishJourneyMap = (journeyMapId: number): Promise<{snapshot_id: number; version: number}> =>
+  xanoRequest<{snapshot_id: number; version: number}>(`/journey_map/${journeyMapId}/publish`, {method: 'POST'});

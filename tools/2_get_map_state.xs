@@ -5,12 +5,14 @@ tool get_map_state {
   instructions = """
       Use this tool to read the complete state of a journey map before making any updates.
       Returns all stages (columns) and lenses (rows) sorted by display_order, plus every cell
-      at each stage×lens intersection with its current content, status (open/draft/confirmed),
+      at each stageÃ—lens intersection with its current content, status (open/draft/confirmed),
       is_locked flag, and change_source (user/ai/null).
     
       Call this tool first in every conversation to understand what the map looks like before
       asking questions or proposing changes. Use the stage `key` and lens `key` values when
-      calling update_cell or batch_update — never use IDs directly.
+      calling update_cell or batch_update â€” never use IDs directly.
+    
+      Always pass conversation_id (integer), turn_id (text), and log_tier (text string: 'full', 'summary', or 'minimal' — NOT a boolean) from the ## Tool Logging section of your context.
     
       Response shape:
       {
@@ -30,8 +32,17 @@ tool get_map_state {
   
     // Optional: for tool trace logging (transparency layer).
     int conversation_id?
-  
+
     text turn_id?
+<<<<<<<
+
+    // full = capture raw payloads; summary = summaries only (default)
+    text log_tier?
+=======
+  
+    // full = capture raw payloads; summary = summaries only (default)
+    text log_tier?
+>>>>>>>
   }
 
   stack {
@@ -185,9 +196,75 @@ tool get_map_state {
       value = $total_cells - $filled_count
     }
   
-    // ── Tool trace logging ──
+    // â”€â”€ Tool trace logging â”€â”€
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {
+<<<<<<<
+        var $in_payload { value = null }
+        var $out_payload { value = null }
+        var $payload_trunc { value = false }
+
+        conditional {
+          if ($input.log_tier == "full") {
+            var $result {
+              value = {
+                filled_cells: $filled_count
+                empty_cells : $empty_cells
+                locked_cells: $locked_count
+                total_cells : $total_cells
+                stages_count: $stages|count
+                lenses_count: $lenses|count
+              }
+            }
+            api.lambda {
+              code = """
+                const inp = $var.input;
+                const out = $var.result;
+                const inStr = JSON.stringify(inp);
+                const outStr = JSON.stringify(out);
+                const inTrunc = inStr.length > 10240;
+                const outTrunc = outStr.length > 10240;
+                return {
+                  in: inTrunc ? { _truncated: true, preview: inStr.slice(0, 500) } : inp,
+                  out: outTrunc ? { _truncated: true, preview: outStr.slice(0, 500) } : out,
+                  truncated: inTrunc || outTrunc
+                };
+              """
+              timeout = 3
+            } as $pl
+            var.update $in_payload { value = $pl.in }
+            var.update $out_payload { value = $pl.out }
+            var.update $payload_trunc { value = $pl.truncated }
+          }
+        }
+
+=======
+        var $in_payload {
+          value = null
+        }
+      
+        var $out_payload {
+          value = null
+        }
+      
+        conditional {
+          if ($input.log_tier == "full") {
+            var.update $in_payload {
+              value = {journey_map_id: $input.journey_map_id}
+            }
+          
+            var.update $out_payload {
+              value = {
+                filled_cells: $filled_count
+                empty_cells : $empty_cells
+                locked_cells: $locked_count
+                total_cells : $total_cells
+              }
+            }
+          }
+        }
+      
+>>>>>>>
         db.add agent_tool_log {
           data = {
             conversation  : $input.conversation_id
@@ -197,6 +274,8 @@ tool get_map_state {
             tool_category : "read"
             input_summary : "Full map: " ~ $journey_map.title
             output_summary: $filled_count ~ " filled, " ~ $empty_cells ~ " empty, " ~ $locked_count ~ " locked"
+            input_payload : $in_payload
+            output_payload: $out_payload
           }
         } as $tool_log
       }

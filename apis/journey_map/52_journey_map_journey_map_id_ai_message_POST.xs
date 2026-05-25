@@ -1,4 +1,4 @@
-// Calls Anthropic API with debug logging and error handling
+﻿// Calls Anthropic API with debug logging and error handling
 query "journey_map/{journey_map_id}/ai_message" verb=POST {
   api_group = "journey-map"
   auth = "user"
@@ -7,9 +7,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
     int journey_map_id? filters=min:1
     int conversation_id?
     text content? filters=trim
-    enum mode? {
-      values = ["interview", "chat"]
-    }
+    text mode? filters=trim
+    // US-WE-05: set to true to route to the Orchestrator agent (bypasses mode enum constraint)
+    bool orchestrator_mode?
   
     json selected_cell?
     json journey_settings?
@@ -19,6 +19,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
     // Used for fill phases 2-6 in the phase queue build loop.
     bool builder_mode?
 
+    // HUX-03: when true forces log_tier=full regardless of mode (debug payload capture).
+    bool capture_payloads?
+
     // Specialist Mode: lens key of the active actor the AI should embody.
     text specialist_actor_key?
 
@@ -27,18 +30,31 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
   }
 
   stack {
-    // ── Validate inputs ──
+    // â”€â”€ Validate inputs â”€â”€
     precondition ($input.content != null && $input.content != "") {
       error_type = "inputerror"
       error = "Message content is required"
     }
   
-    precondition ($input.mode != null) {
+    precondition ($input.mode != null && $input.mode != "") {
       error_type = "inputerror"
-      error = "Mode is required (interview or chat)"
+      error = "Mode is required"
+    }
+
+    // Resolve effective mode: orchestrator_mode=true overrides the mode field (US-WE-05)
+    var $effective_mode {
+      value = $input.mode
+    }
+
+    conditional {
+      if ($input.orchestrator_mode == true) {
+        var.update $effective_mode {
+          value = "orchestrator"
+        }
+      }
     }
   
-    // ── Load map bundle ──
+    // â”€â”€ Load map bundle â”€â”€
     db.get journey_map {
       field_name = "id"
       field_value = $input.journey_map_id
@@ -71,7 +87,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       return = {type: "list"}
     } as $cells
   
-    // ── Compute fill summary ──
+    // â”€â”€ Compute fill summary â”€â”€
     var $total_cells {
       value = $cells|count
     }
@@ -120,15 +136,58 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       value = $total_cells - $filled_cells
     }
   
-    // ── Build stage and lens label lists for the system prompt ──
+    // â”€â”€ Build stage and lens label lists for the system prompt â”€â”€
     var $stage_labels {
       value = []
     }
   
     foreach ($stages) {
       each as $st {
-        array.push $stage_labels {
+        // SGAC-01: start with "Label (key)"
+        var $stage_entry {
           value = "%s (%s)"|sprintf:$st.label:$st.key
+        }
+      
+        // Append stage goal if set
+        conditional {
+          if ($st.stage_goal != null && $st.stage_goal != "") {
+            var.update $stage_entry {
+              value = $stage_entry ~ " — Goal: " ~ $st.stage_goal
+            }
+          }
+        }
+      
+        // Resolve primary_actor_lens key → lens label and append Owner
+        conditional {
+          if ($st.primary_actor_lens != null && $st.primary_actor_lens != "") {
+            var $actor_label {
+              value = ""
+            }
+          
+            foreach ($lenses) {
+              each as $ln {
+                conditional {
+                  if ($ln.key == $st.primary_actor_lens) {
+                    var.update $actor_label {
+                      value = $ln.label
+                    }
+                  }
+                }
+              }
+            }
+          
+            conditional {
+              if ($actor_label != "") {
+                var.update $stage_entry {
+                  value = $stage_entry ~ " | Owner: " ~ $actor_label
+                }
+              }
+            }
+          }
+        }
+      
+        array.push $stage_labels {
+          value = $stage_entry
         }
       }
     }
@@ -168,7 +227,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
-    // ── Build dynamic system prompt context ──
+    // â”€â”€ Build dynamic system prompt context â”€â”€
     var $dynamic_context {
       value = "\n\n## Current Map Context\n"
     }
@@ -195,7 +254,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
     }
   
     var.update $dynamic_context {
-      value = $dynamic_context|concat:$input.mode:""
+      value = $dynamic_context|concat:$effective_mode:""
     }
   
     var.update $dynamic_context {
@@ -208,7 +267,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
         |concat:($input.journey_map_id|to_text):""
     }
   
-    // ── Inject journey settings context if provided ──
+    // â”€â”€ Inject journey settings context if provided â”€â”€
     conditional {
       if ($input.journey_settings != null && ($input.journey_settings|is_empty) == false) {
         var $settings_section {
@@ -258,8 +317,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
-    // ── Inject smart AI behaviour settings directives ──
-    // Use |get: filter throughout — dot notation throws a fatal error if the column doesn't exist yet.
+    // â”€â”€ Inject smart AI behaviour settings directives â”€â”€
+    // Use |get: filter throughout â€” dot notation throws a fatal error if the column doesn't exist yet.
     conditional {
       if ($journey_map|get:"smart_ai_settings" != null) {
         var $smart_section {
@@ -327,7 +386,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
           if ($insight_standard == "deep_dive") {
             var.update $smart_section {
               value = $smart_section
-                |concat:"- Write the cell with the best available content, then follow up with a probing question to deepen it toward root cause. Use a 5-Whys approach in your follow-ups — always write first, enrich second. For pain points aim to surface across turns: WHAT + WHO + HOW OFTEN + DOWNSTREAM CONSEQUENCE — never as a gate before writing.":""
+                |concat:"- Write the cell with the best available content, then follow up with a probing question to deepen it toward root cause. Use a 5-Whys approach in your follow-ups â€” always write first, enrich second. For pain points aim to surface across turns: WHAT + WHO + HOW OFTEN + DOWNSTREAM CONSEQUENCE â€” never as a gate before writing.":""
             }
           
             var.update $has_smart_directive {
@@ -347,7 +406,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
           if ($emotional_mapping) {
             var.update $smart_section {
               value = $smart_section
-                |concat:"- Write the factual cell content first. Then, before moving to the next topic, ask one follow-up to surface the emotional dimension: 'How does the customer feel at this exact moment — frustrated, uncertain, relieved, trusting?' If the user provides emotional context alongside their answer, capture both in the same write turn. Never withhold writing while waiting for emotional data.":""
+                |concat:"- Write the factual cell content first. Then, before moving to the next topic, ask one follow-up to surface the emotional dimension: 'How does the customer feel at this exact moment â€” frustrated, uncertain, relieved, trusting?' If the user provides emotional context alongside their answer, capture both in the same write turn. Never withhold writing while waiting for emotional data.":""
             }
           
             var.update $has_smart_directive {
@@ -367,7 +426,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
           if ($business_impact_framing) {
             var.update $smart_section {
               value = $smart_section
-                |concat:"- Write the pain point cell with whatever content is available. Then ask the one follow-up that surfaces the missing impact dimension — frequency, severity, or downstream consequence — and enrich the cell on the next turn. Target structure across turns: [What] affects [Who] [How often], causing [Business consequence]. Never withhold writing a pain point cell while waiting for this structure.":""
+                |concat:"- Write the pain point cell with whatever content is available. Then ask the one follow-up that surfaces the missing impact dimension â€” frequency, severity, or downstream consequence â€” and enrich the cell on the next turn. Target structure across turns: [What] affects [Who] [How often], causing [Business consequence]. Never withhold writing a pain point cell while waiting for this structure.":""
             }
           
             var.update $has_smart_directive {
@@ -442,6 +501,25 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
           }
         }
       
+        // Neurodivergent Mode
+        var $neurodivergent_mode {
+          value = $journey_map
+            |get:"smart_ai_settings"
+            |get:"neurodivergent_mode"
+        }
+
+        conditional {
+          if ($neurodivergent_mode) {
+            var.update $smart_section {
+              value = $smart_section
+                |concat:"- OUTPUT FORMAT (Neurodivergent Mode ON): Lead with the answer in one sentence â€” no preamble. Follow with max 3 bullet points, each â‰¤ 15 words. One action item if relevant. Max one question at the end. NEVER use horizontal rules (---) or H1/H2 headers. Bold only the key decision or term â€” not full sentences. Hard cap: 120 words.":""
+            }
+
+            var.update $has_smart_directive {
+              value = true
+            }
+          }
+        }
         // Only append the section if at least one directive was injected
         conditional {
           if ($has_smart_directive) {
@@ -453,7 +531,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
-    // ── Inject account-level AI context ──
+    // â”€â”€ Inject account-level AI context â”€â”€
     conditional {
       if ($journey_map.account_id != null) {
         db.get account {
@@ -541,7 +619,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
         |concat:"\n":""
     }
   
-    // ── ARO-08: Per-lens cell fill grid — shows which stage keys are filled vs empty ──
+    // â”€â”€ ARO-08: Per-lens cell fill grid â€” shows which stage keys are filled vs empty â”€â”€
     // Gives the agent precise per-cell visibility so it doesn't overwrite filled cells
     // or skip empty ones when handling scoped manual requests.
     var $cell_fill_grid {
@@ -579,13 +657,13 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
             conditional {
               if ($cell_filled) {
                 var.update $row_line {
-                  value = $row_line ~ $st.key ~ "✅ "
+                  value = $row_line ~ $st.key ~ "âœ… "
                 }
               }
 
               else {
                 var.update $row_line {
-                  value = $row_line ~ $st.key ~ "⬜ "
+                  value = $row_line ~ $st.key ~ "â¬œ "
                 }
               }
             }
@@ -602,7 +680,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       value = $dynamic_context|concat:$cell_fill_grid:""
     }
 
-    // ── Inject selected cell context (if the user has a cell focused) ──
+    // â”€â”€ Inject selected cell context (if the user has a cell focused) â”€â”€
     conditional {
       if ($input.selected_cell != null && ($input.selected_cell|is_empty) == false) {
         var $cell_section {
@@ -661,7 +739,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
-    // ── Inject actor role context for the selected cell's parent lens ──
+    // â”€â”€ Inject actor role context for the selected cell's parent lens â”€â”€
     conditional {
       if ($input.selected_cell != null && ($input.selected_cell|is_empty) == false) {
         var $selected_lens_id {
@@ -751,7 +829,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
-    // ── Inject structured actor cell fields (filled vs empty) for selected cell ──
+    // â”€â”€ Inject structured actor cell fields (filled vs empty) for selected cell â”€â”€
     conditional {
       if ($input.selected_cell != null && ($input.selected_cell|is_empty) == false) {
         var $cell_id_for_fields {
@@ -786,7 +864,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                 }
               
                 var $fields_section {
-                  value = "\n\n## Cell Actor Fields — Current State\n"
+                  value = "\n\n## Cell Actor Fields â€” Current State\n"
                 }
               
                 var $filled_lines {
@@ -797,12 +875,12 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                   value = ""
                 }
               
-                // single reusable temp — declared once so it stays in scope for all inner conditionals
+                // single reusable temp â€” declared once so it stays in scope for all inner conditionals
                 var $fv_temp {
                   value = null
                 }
               
-                // ── Customer fields ──
+                // â”€â”€ Customer fields â”€â”€
                 conditional {
                   if ($cell_actor_type == "customer") {
                     // entry_trigger
@@ -1014,7 +1092,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                   }
                 }
               
-                // ── Internal employee fields ──
+                // â”€â”€ Internal employee fields â”€â”€
                 conditional {
                   if ($cell_actor_type == "internal") {
                     // task_objective
@@ -1295,7 +1373,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                   }
                 }
               
-                // ── Engineering fields ──
+                // â”€â”€ Engineering fields â”€â”€
                 conditional {
                   if ($cell_actor_type == "engineering") {
                     // system_service_owner
@@ -1531,7 +1609,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                   }
                 }
               
-                // ── AI Agent fields ──
+                // â”€â”€ AI Agent fields â”€â”€
                 conditional {
                   if ($cell_actor_type == "ai_agent") {
                     // ai_model_agent
@@ -1813,7 +1891,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                   }
                 }
               
-                // ── Handoff fields ──
+                // â”€â”€ Handoff fields â”€â”€
                 conditional {
                   if ($cell_actor_type == "handoff") {
                     // trigger_event
@@ -2094,7 +2172,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                   }
                 }
               
-                // ── Vendor fields ──
+                // â”€â”€ Vendor fields â”€â”€
                 conditional {
                   if ($cell_actor_type == "vendor") {
                     // vendor_name_type
@@ -2260,7 +2338,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                   }
                 }
               
-                // ── Vendor fields (continued: fields 8-14) ──
+                // â”€â”€ Vendor fields (continued: fields 8-14) â”€â”€
                 conditional {
                   if ($cell_actor_type == "vendor") {
                     // sla_performance_metrics
@@ -2426,7 +2504,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                   }
                 }
               
-                // ── Financial Intelligence fields ──
+                // â”€â”€ Financial Intelligence fields â”€â”€
                 conditional {
                   if ($cell_actor_type == "financial") {
                     // cost_to_serve
@@ -2546,7 +2624,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                   }
                 }
               
-                // ── Financial Intelligence fields (continued: fields 6-10) ──
+                // â”€â”€ Financial Intelligence fields (continued: fields 6-10) â”€â”€
                 conditional {
                   if ($cell_actor_type == "financial") {
                     // cost_efficiency_note
@@ -2666,7 +2744,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                   }
                 }
               
-                // ── Metrics fields ──
+                // â”€â”€ Metrics fields â”€â”€
                 conditional {
                   if ($cell_actor_type == "metrics") {
                     var.update $fields_section {
@@ -2899,7 +2977,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
-    // ── Load enabled capabilities and append to dynamic context ──
+    // â”€â”€ Load enabled capabilities and append to dynamic context â”€â”€
     db.query agent_capability {
       where = $db.agent_capability.enabled == true
       return = {type: "list"}
@@ -2928,7 +3006,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
-    // ── Inject parent journey context (anti-journey / exception / sub-journey) ──
+    // â”€â”€ Inject parent journey context (anti-journey / exception / sub-journey) â”€â”€
     conditional {
       if ($input.parent_context != null && ($input.parent_context|is_empty) == false) {
         var $parent_section {
@@ -2977,7 +3055,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
           if ($pc_stage != null && $pc_lens != null) {
             var.update $parent_section {
               value = $parent_section
-                |concat:"- **Trigger location:** " ~ $pc_stage ~ " × " ~ $pc_lens ~ "\n":""
+                |concat:"- **Trigger location:** " ~ $pc_stage ~ " Ã— " ~ $pc_lens ~ "\n":""
             }
           }
         }
@@ -2997,7 +3075,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
             
             This map was branched from the above step in the parent happy-path map.
             """:""
-            |concat:"Use this context to ground your suggestions — the friction or failure described ":""
+            |concat:"Use this context to ground your suggestions â€” the friction or failure described ":""
             |concat:"in the trigger cell is the starting point for this scenario.":""
         }
       
@@ -3007,7 +3085,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
-    // ── Resolve or create conversation ──
+    // â”€â”€ Resolve or create conversation â”€â”€
     var $conversation {
       value = null
     }
@@ -3054,7 +3132,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
             created_at     : "now"
             journey_map    : $input.journey_map_id
             title          : "Journey Map Conversation"
-            mode           : $input.mode
+            mode           : $effective_mode
             last_message_at: "now"
           }
         } as $new_conv
@@ -3065,31 +3143,91 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
-    // ── Load conversation history ──
+    // â”€â”€ Load conversation history â”€â”€
     db.query agent_message {
       where = $db.agent_message.conversation == $conversation.id
       sort = {created_at: "asc"}
       return = {type: "list"}
     } as $history_messages
   
-    // ── Build messages array for the agent ──
-    // ── Persist user message first (needed to generate turn_id) ──
+    // â”€â”€ Build messages array for the agent â”€â”€
+    // â”€â”€ Persist user message first (needed to generate turn_id) â”€â”€
     db.add agent_message {
       data = {
         created_at  : "now"
         conversation: $conversation.id
         role        : "user"
-        mode        : $input.mode
+        mode        : $effective_mode
         content     : []|push:({}|set:"type":"text"|set:"text":$input.content)
       }
     } as $user_message
   
-    // ── Generate turn_id for tool trace logging ──
+    // â”€â”€ Generate turn_id for tool trace logging â”€â”€
     var $turn_id {
       value = "turn_" ~ $conversation.id ~ "_" ~ $user_message.id
     }
-  
-    // ── Inject Specialist Persona block (SCM-03) ──
+
+    // â”€â”€ Resolve log tier (US-ATL-01) â”€â”€
+    // full = builder_mode (payloads captured in tools)
+    // minimal = orchestrator / S2S (tool logs written async post-response)
+    // summary = chat / interview (summaries only, existing behaviour)
+    var $log_tier {
+      value = "summary"
+    }
+
+    conditional {
+      // HUX-03: capture_payloads=true also forces full tier (debug payload capture)
+      if ($input.builder_mode == true || $input.capture_payloads == true) {
+        var.update $log_tier {
+          value = "full"
+        }
+      }
+
+      elseif ($effective_mode == "orchestrator") {
+        var.update $log_tier {
+          value = "minimal"
+        }
+      }
+    }
+
+    // â”€â”€ SENTINEL: write turn log BEFORE LLM call (US-ATL-01) â”€â”€
+    // Status = in_progress. Orphaned turns (never patched) are detectable by
+    // querying status=in_progress with started_at older than a threshold.
+    var $sentinel_id {
+      value = null
+    }
+
+    try_catch {
+      try {
+        db.add agent_turn_log {
+          data = {
+            created_at          : "now"
+            started_at          : "now"
+            conversation        : $conversation.id
+            journey_map         : $input.journey_map_id
+            turn_id             : $turn_id
+            mode                : $effective_mode
+            log_tier            : $log_tier
+            status              : "in_progress"
+            user_message_preview: $input.content
+          }
+        } as $sentinel_record
+
+        var.update $sentinel_id {
+          value = $sentinel_record.id
+        }
+      }
+
+      catch {
+        // Sentinel write failed â€” non-fatal, proceed without sentinel id
+        var $sentinel_write_failed {
+          value = true
+        }
+      }
+    }
+
+
+    // â”€â”€ Inject Specialist Persona block (SCM-03) â”€â”€
     conditional {
       if ($input.specialist_actor_key != null && $input.specialist_actor_key != "") {
         db.query journey_lens {
@@ -3107,7 +3245,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
             conditional {
               if ($specialist_lens.persona_description != null && $specialist_lens.persona_description != "") {
                 var.update $specialist_section {
-                  value = $specialist_section|concat:"- Persona: " ~ $specialist_lens.persona_description ~ "\n":""
+                  value = $specialist_section
+                    |concat:"- Persona: " ~ $specialist_lens.persona_description ~ "\n":""
                 }
               }
             }
@@ -3115,7 +3254,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
             conditional {
               if ($specialist_lens.primary_goal != null && $specialist_lens.primary_goal != "") {
                 var.update $specialist_section {
-                  value = $specialist_section|concat:"- Primary Goal: " ~ $specialist_lens.primary_goal ~ "\n":""
+                  value = $specialist_section
+                    |concat:"- Primary Goal: " ~ $specialist_lens.primary_goal ~ "\n":""
                 }
               }
             }
@@ -3123,7 +3263,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
             conditional {
               if ($specialist_lens.standing_constraints != null && $specialist_lens.standing_constraints != "") {
                 var.update $specialist_section {
-                  value = $specialist_section|concat:"- Standing Constraints: " ~ $specialist_lens.standing_constraints ~ "\n":""
+                  value = $specialist_section
+                    |concat:"- Standing Constraints: " ~ $specialist_lens.standing_constraints ~ "\n":""
                 }
               }
             }
@@ -3136,7 +3277,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
 
-    // ── Inject Consortium Panel block (SCM-04) ──
+    // â”€â”€ Inject Consortium Panel block (SCM-04) â”€â”€
     conditional {
       if ($input.consortium_actor_keys != null && ($input.consortium_actor_keys|count) > 0) {
         var $consortium_section {
@@ -3159,7 +3300,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                 conditional {
                   if ($panel_lens.persona_description != null && $panel_lens.persona_description != "") {
                     var.update $panel_line {
-                      value = $panel_line|concat:": " ~ $panel_lens.persona_description:""
+                      value = $panel_line
+                        |concat:": " ~ $panel_lens.persona_description:""
                     }
                   }
                 }
@@ -3167,7 +3309,8 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                 conditional {
                   if ($panel_lens.primary_goal != null && $panel_lens.primary_goal != "") {
                     var.update $panel_line {
-                      value = $panel_line|concat:" | Goal: " ~ $panel_lens.primary_goal:""
+                      value = $panel_line
+                        |concat:" | Goal: " ~ $panel_lens.primary_goal:""
                     }
                   }
                 }
@@ -3185,18 +3328,47 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
         }
       }
     }
+    // â”€â”€ Orchestrator mode: inject session marker (US-WE-05) â”€â”€
+    // The agent's system prompt instructs it to self-initiate validate_workflow
+    // and get_workflow_state on session start. This marker confirms the mode context.
+    conditional {
+      if ($effective_mode == "orchestrator") {
+        var.update $dynamic_context {
+          value = $dynamic_context
+            |concat:"\n\n## Orchestrator Mode Active\n":""
+<<<<<<<
+            |concat:"You are running as the Journey Map Orchestrator (mode=orchestrator).\n":""
+=======
+            |concat:"You are running as the Journey Map Orchestrator (mode=orchestrator).":""
+>>>>>>>
+            |concat:"On your FIRST turn in this session:\n":""
+<<<<<<<
+            |concat:"1. Call validate_workflow to run pre-flight checks.\n":""
+            |concat:"2. Call get_workflow_state to check for a prior execution run.\n":""
+            |concat:"3. Follow the sequencing rules in your system prompt.\n":""
+            |concat:"Do NOT start execution until you have completed steps 1-2.\n":""
+=======
+            |concat:"1. Call validate_workflow to run pre-flight checks.":""
+            |concat:"2. Call get_workflow_state to check for a prior execution run.":""
+            |concat:"3. Follow the sequencing rules in your system prompt.":""
+            |concat:"Do NOT start execution until you have completed steps 1-2.":""
+>>>>>>>
+        }
+      }
+    }
 
-    // ── Inject journey_map_id, conversation_id and turn_id into dynamic context ──
-    // ALL THREE must be passed to every tool call — the agent reads this section.
+    // â”€â”€ Inject journey_map_id, conversation_id and turn_id into dynamic context â”€â”€
+    // ALL THREE must be passed to every tool call â€” the agent reads this section.
     var.update $dynamic_context {
       value = $dynamic_context
         |concat:"\n\n### Tool Logging (pass to every tool call)\n":""
         |concat:"- journey_map_id: " ~ ($input.journey_map_id|to_text):""
         |concat:"\n- conversation_id: " ~ $conversation.id:""
         |concat:"\n- turn_id: " ~ $turn_id:""
+        |concat:"\n- log_tier: " ~ $log_tier:""
     }
   
-    // ── Build messages array (system uses the NOW-complete context) ──
+    // â”€â”€ Build messages array (system uses the NOW-complete context) â”€â”€
     var $agent_messages {
       value = []
     }
@@ -3205,7 +3377,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       value = {role: "system", content: $dynamic_context}
     }
   
-    // ── Cap conversation history to a predictable window (last 20 messages) ──
+    // â”€â”€ Cap conversation history to a predictable window (last 20 messages) â”€â”€
     var $max_history_messages {
       value = 20
     }
@@ -3278,7 +3450,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       value = {role: "user", content: $input.content}
     }
   
-    // ── Call the agent (with error capture for turn logging) ──
+    // â”€â”€ Call the agent (with error capture for turn logging) â”€â”€
     var $agent_run {
       value = null
     }
@@ -3300,11 +3472,20 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
               }
 
               else {
-                // US-CME-02: chat mode → read-only Chat Agent (no write tools loaded)
-                // Specialist and Consortium are sub-modes of chat — route to Chat Agent
+                // Route by mode:
+                // chat â†’ read-only Chat Agent (Specialist/Consortium are sub-modes of chat)
+                // orchestrator â†’ Workflow Execution Orchestrator (US-WE-05)
+                // interview (default) â†’ Journey Map Assistant
                 conditional {
-                  if ($input.mode == "chat") {
+                  if ($effective_mode == "chat") {
                     ai.agent.run "Journey Map Chat Agent" {
+                      args = {}|set:"messages":$agent_messages
+                      allow_tool_execution = true
+                    } as $agent_run_inner
+                  }
+
+                  elseif ($effective_mode == "orchestrator") {
+                    ai.agent.run "Journey Map Orchestrator" {
                       args = {}|set:"messages":$agent_messages
                       allow_tool_execution = true
                     } as $agent_run_inner
@@ -3334,7 +3515,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
-    // ── Retrieve tool trace for this turn ──
+    // â”€â”€ Retrieve tool trace for this turn â”€â”€
     db.query agent_tool_log {
       where = $db.agent_tool_log.turn_id == $turn_id
       sort = {execution_order: "asc", created_at: "asc"}
@@ -3367,12 +3548,12 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
-    // Extract the agent result — guard against null when agent threw an error
+    // Extract the agent result â€” guard against null when agent threw an error
     var $agent_result {
       value = $agent_run|get:"result"
     }
   
-    // ── Extract assistant reply text ──
+    // â”€â”€ Extract assistant reply text â”€â”€
     var $reply_text {
       value = ""
     }
@@ -3393,12 +3574,12 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
-    // ── Extract thinking output (safe: |get returns null if field absent) ──
+    // â”€â”€ Extract thinking output (safe: |get returns null if field absent) â”€â”€
     var $thinking_text {
       value = $agent_run|get:"thinking"
     }
   
-    // ── Persist assistant reply ──
+    // â”€â”€ Persist assistant reply â”€â”€
     conditional {
       if ($reply_text != "") {
         db.add agent_message {
@@ -3406,7 +3587,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
             created_at  : "now"
             conversation: $conversation.id
             role        : "assistant"
-            mode        : $input.mode
+            mode        : $effective_mode
             content     : []|push:({}|set:"type":"text"|set:"text":$reply_text)
             thinking    : $thinking_text
           }
@@ -3414,13 +3595,13 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
-    // ── Re-read cells to capture any agent-applied changes ──
+    // â”€â”€ Re-read cells to capture any agent-applied changes â”€â”€
     db.query journey_cell {
       where = $db.journey_cell.journey_map == $input.journey_map_id
       return = {type: "list"}
     } as $updated_cells
   
-    // ── Detect which cells changed (BUG-07: also track actor_fields) ──
+    // â”€â”€ Detect which cells changed (BUG-07: also track actor_fields) â”€â”€
     var $cell_updates {
       value = []
     }
@@ -3533,7 +3714,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
-    // ── Detect structural changes (compare stage/lens counts) ──
+    // â”€â”€ Detect structural changes (compare stage/lens counts) â”€â”€
     db.query journey_stage {
       where = $db.journey_stage.journey_map == $input.journey_map_id
       sort = {display_order: "asc"}
@@ -3555,7 +3736,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
-    // ── Compute updated progress (BUG-08: count actor cells by actor_fields, not content) ──
+    // â”€â”€ Compute updated progress (BUG-08: count actor cells by actor_fields, not content) â”€â”€
     var $updated_total {
       value = $updated_cells|count
     }
@@ -3632,7 +3813,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
-    // ── Derive skipped_updates from write tool trace entries ──
+    // â”€â”€ Derive skipped_updates from write tool trace entries â”€â”€
     var $skipped_updates {
       value = []
     }
@@ -3652,8 +3833,241 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
         }
       }
     }
-  
-    // ── Build suggested prompts from remaining empty cells ──
+
+    // â”€â”€ Hallucination signal detection (US-ATL-08) â”€â”€
+    // All checks are deterministic â€” no second LLM call.
+    // Wrapped in try_catch so a check failure never surfaces to the user.
+    var $hallucination_signals {
+      value = []
+    }
+
+    var $hallucination_risk {
+      value = "none"
+    }
+
+    var $write_tools_fired {
+      value = 0
+    }
+
+    try_catch {
+      try {
+        // Count write tools that reported success (Applied)
+        foreach ($tool_trace_raw) {
+          each as $htl {
+            conditional {
+              if ($htl.tool_category == "write" && $htl.output_summary == "Applied") {
+                var.update $write_tools_fired {
+                  value = $write_tools_fired + 1
+                }
+              }
+            }
+          }
+        }
+
+        var $cells_actually_written {
+          value = $cell_updates|count
+        }
+
+        var $tool_count_now {
+          value = $tool_trace|count
+        }
+
+        // Signal: no_tools_interview
+        conditional {
+          if ($tool_count_now == 0 && $agent_error == null) {
+            array.push $hallucination_signals {
+              value = {
+                type        : "no_tools_interview"
+                severity    : "medium"
+                detail      : ($effective_mode|to_text) ~ " turn completed with zero tool calls — LLM answered from memory, not live map data"
+                auto_flagged: true
+              }
+            }
+          }
+        }
+
+        // Signal: count_mismatch â€” write tools fired but nothing landed in DB
+        conditional {
+          if ($write_tools_fired > 0 && $cells_actually_written == 0) {
+            api.lambda {
+              code    = """
+                const trace = ($var.tool_trace_raw || []);
+                return trace
+                  .filter(t => t.tool_category === "write" && t.output_summary === "Applied")
+                  .map(t => ({ tool: t.tool_name, target: t.input_summary || null }));
+              """
+              timeout = 3
+            } as $mismatch_offenders
+
+            array.push $hallucination_signals {
+              value = {
+                type        : "count_mismatch"
+                severity    : "high"
+                detail      : "Write tools reported Applied (" ~ ($write_tools_fired|to_text) ~ ") but DB diff shows 0 cells changed"
+                offenders   : $mismatch_offenders
+                auto_flagged: true
+              }
+            }
+          }
+        }
+
+        // Signal: step_limit_truncation â€” mode-aware thresholds
+        var $step_threshold {
+          value = 16
+        }
+
+        conditional {
+          if ($input.builder_mode == true) {
+            var.update $step_threshold { value = 12 }
+          }
+
+          elseif ($effective_mode == "orchestrator") {
+            var.update $step_threshold { value = 24 }
+          }
+
+          elseif ($effective_mode == "chat") {
+            var.update $step_threshold { value = 4 }
+          }
+        }
+
+        conditional {
+          if ($tool_count_now >= $step_threshold) {
+            array.push $hallucination_signals {
+              value = {
+                type        : "step_limit_truncation"
+                severity    : "medium"
+                detail      : "tool_count=" ~ ($tool_count_now|to_text) ~ " is at or near max_steps threshold â€” reasoning may be incomplete"
+                auto_flagged: true
+              }
+            }
+          }
+        }
+
+        // Signal: zero_cells_build â€” builder looped without writing
+        conditional {
+          if ($cells_actually_written == 0 && $tool_count_now > 5) {
+            api.lambda {
+              code    = """
+                const trace = ($var.tool_trace_raw || []);
+                return trace.map(t => ({ tool: t.tool_name, category: t.tool_category }));
+              """
+              timeout = 3
+            } as $zero_build_trace
+
+            array.push $hallucination_signals {
+              value = {
+                type        : "zero_cells_build"
+                severity    : "medium"
+                detail      : ($effective_mode|to_text) ~ " mode ran " ~ ($tool_count_now|to_text) ~ " tool calls but wrote 0 cells"
+                tool_trace  : $zero_build_trace
+                auto_flagged: true
+              }
+            }
+          }
+        }
+
+        // Signal: no_tools_chat — chat turn referenced map data with zero tool calls
+        conditional {
+          if ($effective_mode == "chat" && $tool_count_now == 0 && $agent_error == null) {
+            api.lambda {
+              code    = """
+                const reply = ($var.reply_text || '').toLowerCase();
+                const mapWords = ['map', 'stage', 'lens', 'actor', 'cell', 'gap', 'journey',
+                                  'currently', 'your map', 'the map', 'filled', 'empty'];
+                return mapWords.some(w => reply.includes(w));
+              """
+              timeout = 3
+            } as $has_map_ref
+
+            conditional {
+              if ($has_map_ref == true) {
+                array.push $hallucination_signals {
+                  value = {
+                    type        : "no_tools_chat"
+                    severity    : "medium"
+                    detail      : "Chat turn referenced map data with zero tool calls — LLM answered from memory, not live map"
+                    auto_flagged: true
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Signal: action_without_write â€” reply claims writes but none happened
+        conditional {
+          if ($cells_actually_written == 0 && $write_tools_fired == 0 && $reply_text != null) {
+            api.lambda {
+              code    = """
+                const reply = ($var.reply_text || '').toLowerCase();
+                const actionWords = ['updated', 'wrote', 'filled', 'saved', 'logged',
+                                     'recorded', 'written', 'added', 'captured', 'populated'];
+                const matched = actionWords.filter(w => reply.includes(w));
+                return { triggered: matched.length > 0, matched_words: matched };
+              """
+              timeout = 3
+            } as $action_check
+
+            conditional {
+              if ($action_check.triggered == true) {
+                array.push $hallucination_signals {
+                  value = {
+                    type          : "action_without_write"
+                    severity      : "high"
+                    detail        : "Reply contains write-action language but cells_written=0 and no write tools fired"
+                    matched_words : $action_check.matched_words
+                    auto_flagged  : true
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Signal: write_on_locked â€” agent tried to write locked cells
+        conditional {
+          if (($skipped_updates|count) > 0) {
+            array.push $hallucination_signals {
+              value = {
+                type        : "write_on_locked"
+                severity    : "low"
+                detail      : ($skipped_updates|count|to_text) ~ " write(s) skipped due to locked or confirmed cells"
+                offenders   : $skipped_updates
+                auto_flagged: true
+              }
+            }
+          }
+        }
+
+        // Roll up risk level from worst signal
+        foreach ($hallucination_signals) {
+          each as $sig {
+            conditional {
+              if ($sig.severity == "high") {
+                var.update $hallucination_risk { value = "high" }
+              }
+
+              elseif ($sig.severity == "medium" && $hallucination_risk != "high") {
+                var.update $hallucination_risk { value = "medium" }
+              }
+
+              elseif ($sig.severity == "low" && $hallucination_risk == "none") {
+                var.update $hallucination_risk { value = "low" }
+              }
+            }
+          }
+        }
+      }
+
+      catch {
+        // Hallucination check failed â€” non-fatal, leave signals empty and risk=none
+        var $hallucination_check_failed {
+          value = true
+        }
+      }
+    }
+
+    // â”€â”€ Build suggested prompts from remaining empty cells â”€â”€
     var $suggested_prompts {
       value = []
     }
@@ -3714,56 +4128,158 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
   
-    // ── Write agent_turn_log ──
+    // â”€â”€ Resolve turn status â”€â”€
     var $turn_status {
       value = "success"
     }
-  
+
     conditional {
       if ($agent_error != null) {
         var.update $turn_status {
           value = "error"
         }
       }
-    
+
       elseif ($reply_text == "" || $reply_text == null) {
         var.update $turn_status {
           value = "empty_reply"
         }
       }
     }
-  
-    db.add agent_turn_log {
-      data = {
-        created_at          : "now"
-        conversation        : $conversation.id
-        journey_map         : $input.journey_map_id
-        turn_id             : $turn_id
-        mode                : $input.mode
-        user_message_preview: $input.content
-        reply_preview       : $reply_text
-        tool_count          : $tool_trace|count
-        cells_written       : $cell_updates|count
-        status              : $turn_status
-        error_message       : $agent_error
+
+    // â”€â”€ Compute turn duration (US-ATL-01) â”€â”€
+    var $duration_ms {
+      value = null
+    }
+
+    conditional {
+      if ($sentinel_id != null) {
+        db.get agent_turn_log {
+          field_name  = "id"
+          field_value = $sentinel_id
+          output      = ["started_at"]
+        } as $sentinel_ts
+
+        conditional {
+          if ($sentinel_ts != null && $sentinel_ts.started_at != null) {
+            api.lambda {
+              code    = """
+                const start = $var.sentinel_ts.started_at;
+                return Date.now() - start;
+              """
+              timeout = 3
+            } as $computed_duration
+
+            var.update $duration_ms {
+              value = $computed_duration
+            }
+          }
+        }
       }
-    } as $turn_log
-  
-    // ── Update conversation metadata ──
+    }
+
+    // â”€â”€ Extract token usage from agent run result â”€â”€
+    var $tokens_input {
+      value = $agent_run|get:"input_tokens"
+    }
+
+    var $tokens_output {
+      value = $agent_run|get:"output_tokens"
+    }
+
+    // â”€â”€ PATCH sentinel turn log with final state (US-ATL-01 + US-ATL-02) â”€â”€
+    // Wrapped in try_catch â€” a log failure must NEVER cause the user to lose their reply.
+    var $turn_log {
+      value = null
+    }
+
+    try_catch {
+      try {
+        conditional {
+          if ($sentinel_id != null) {
+            db.patch agent_turn_log {
+              field_name  = "id"
+              field_value = $sentinel_id
+              data        = {
+                reply_preview        : $reply_text
+                tool_count           : $tool_trace|count
+                cells_written        : $cell_updates|count
+                status               : $turn_status
+                error_message        : $agent_error
+                duration_ms          : $duration_ms
+                tokens_input         : $tokens_input
+                tokens_output        : $tokens_output
+                log_tier             : $log_tier
+                hallucination_risk   : $hallucination_risk
+                hallucination_signals: $hallucination_signals
+              }
+            } as $patched_turn_log
+
+            var.update $turn_log {
+              value = $patched_turn_log
+            }
+          }
+
+          else {
+            // Sentinel was never written â€” fall back to insert
+            db.add agent_turn_log {
+              data = {
+                created_at           : "now"
+                conversation         : $conversation.id
+                journey_map          : $input.journey_map_id
+                turn_id              : $turn_id
+                mode                 : $effective_mode
+                log_tier             : $log_tier
+                user_message_preview : $input.content
+                reply_preview        : $reply_text
+                tool_count           : $tool_trace|count
+                cells_written        : $cell_updates|count
+                status               : $turn_status
+                error_message        : $agent_error
+                duration_ms          : $duration_ms
+                tokens_input         : $tokens_input
+                tokens_output        : $tokens_output
+                hallucination_risk   : $hallucination_risk
+                hallucination_signals: $hallucination_signals
+              }
+            } as $fallback_turn_log
+
+            var.update $turn_log {
+              value = $fallback_turn_log
+            }
+          }
+        }
+      }
+
+      catch {
+        // Turn log write failed â€” user is unaffected, response returns with turn_log=null
+        var $turn_log_failed {
+          value = true
+        }
+      }
+    }
+
+    // â”€â”€ Update conversation metadata â”€â”€
     db.patch agent_conversation {
       field_name = "id"
       field_value = $conversation.id
-      data = {mode: $input.mode, last_message_at: "now"}
+      data = {mode: $effective_mode, last_message_at: "now"}
     } as $conversation_record
-  
-    // ── Reload all messages for return ──
+
+    // â”€â”€ Reload last 50 messages for return (US-ATL-03 â€” prevents unbounded growth) â”€â”€
+    // Sort desc to get the most recent 50, then reverse to chronological order.
     db.query agent_message {
-      where = $db.agent_message.conversation == $conversation.id
-      sort = {created_at: "asc"}
+      where  = $db.agent_message.conversation == $conversation.id
+      sort   = {created_at: "desc"}
       return = {type: "list"}
+    } as $all_messages_desc
+
+    api.lambda {
+      code    = "return ($var.all_messages_desc || []).slice(0, 50).reverse();"
+      timeout = 3
     } as $all_messages
-  
-    // ── Touch journey map ──
+
+    // â”€â”€ Touch journey map â”€â”€
     db.patch journey_map {
       field_name = "id"
       field_value = $input.journey_map_id
@@ -3772,23 +4288,35 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
   }
 
   response = {
-    reply             : $reply_text
-    cell_updates      : $cell_updates
-    skipped_updates   : $skipped_updates
-    suggested_prompts : $suggested_prompts
-    structural_changes: $structural_changes
-    progress          : ```
+    reply              : $reply_text
+    cell_updates       : $cell_updates
+    skipped_updates    : $skipped_updates
+    suggested_prompts  : $suggested_prompts
+    structural_changes : $structural_changes
+    progress           : ```
       {
         total_cells : $updated_total
         filled_cells: $updated_filled
         percentage  : $progress_pct
       }
       ```
-    tool_trace        : $tool_trace
-    thinking          : $thinking_text
-    turn_log          : $turn_log
-    conversation      : $conversation_record
-    messages          : $all_messages
+    tool_trace         : $tool_trace
+    thinking           : $thinking_text
+    turn_log           : $turn_log
+    conversation       : $conversation_record
+    messages           : $all_messages
+    hallucination_check: ```
+      {
+        ran                  : true
+        risk_level           : $hallucination_risk
+        signals              : $hallucination_signals
+        cells_claimed_vs_actual: {
+          write_tools_fired     : $write_tools_fired
+          cells_actually_written: $cell_updates|count
+          mismatch              : $write_tools_fired > 0 && ($cell_updates|count) == 0
+        }
+      }
+      ```
   }
   guid = "1DsxYN89rpBm53Lto6pg9xy637U"
 }

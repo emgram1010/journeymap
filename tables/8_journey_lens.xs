@@ -60,6 +60,21 @@ table journey_lens {
   
     // Fixed limitations this actor brings (e.g., schedule, access, budget).
     text standing_constraints? filters=trim
+
+    // Orchestrator execution role: determines order within a stage.
+    // primary = executes first and produces the stage output.
+    // supporting = receives primary output and adds annotations/validation.
+    // passive = not invoked unless explicitly flagged.
+    enum actor_role? {
+      values = ["primary", "supporting", "passive"]
+    }
+  
+    // IL-02-01: When set on an ai_agent actor lens, the linked map defines this actor's
+    // behavior and decision logic. Orchestrator delegates to that map via the invoke endpoint.
+    // Recursive by design — the sub-map can itself have ai_agent actors with agent_map_id.
+    int agent_map_id? {
+      table = "journey_map"
+    }
   }
 
   index = [

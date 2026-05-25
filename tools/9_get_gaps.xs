@@ -19,6 +19,8 @@ tool get_gaps {
       Use at the start of an interview to pick the most productive area.
       Use after batch writes to recalculate next target.
       Use when the user asks 'what's missing?'
+    
+      Always pass conversation_id (integer), turn_id (text), and log_tier (text string: 'full', 'summary', or 'minimal' — NOT a boolean) from the ## Tool Logging section of your context.
     """
 
   input {
@@ -33,8 +35,17 @@ tool get_gaps {
   
     // Optional: for tool trace logging (transparency layer).
     int conversation_id?
-  
+
     text turn_id?
+<<<<<<<
+
+    // full = capture raw payloads; summary = summaries only (default)
+    text log_tier?
+=======
+  
+    // full = capture raw payloads; summary = summaries only (default)
+    text log_tier?
+>>>>>>>
   }
 
   stack {
@@ -369,7 +380,7 @@ tool get_gaps {
       }
     }
   
-    // ── Build by_stage array ──
+    // â”€â”€ Build by_stage array â”€â”€
     var $by_stage {
       value = []
     }
@@ -419,7 +430,7 @@ tool get_gaps {
       }
     }
   
-    // ── Build by_lens array ──
+    // â”€â”€ Build by_lens array â”€â”€
     var $by_lens {
       value = []
     }
@@ -469,7 +480,7 @@ tool get_gaps {
       }
     }
   
-    // ── Find most empty stage and lens ──
+    // â”€â”€ Find most empty stage and lens â”€â”€
     var $most_empty_stage {
       value = null
     }
@@ -526,7 +537,7 @@ tool get_gaps {
       }
     }
   
-    // ── Tool trace logging ──
+    // â”€â”€ Tool trace logging â”€â”€
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {
         var $gaps_input_desc {
@@ -547,6 +558,68 @@ tool get_gaps {
           }
         }
       
+<<<<<<<
+        var $in_payload { value = null }
+        var $out_payload { value = null }
+        var $payload_trunc { value = false }
+
+        conditional {
+          if ($input.log_tier == "full") {
+            var $gaps_result {
+              value = {
+                total_gaps      : $gaps|count
+                most_empty_stage: $most_empty_stage
+                most_empty_lens : $most_empty_lens
+              }
+            }
+            api.lambda {
+              code = """
+                const inp = $var.input;
+                const out = $var.gaps_result;
+                const inStr = JSON.stringify(inp);
+                const outStr = JSON.stringify(out);
+                const inTrunc = inStr.length > 10240;
+                const outTrunc = outStr.length > 10240;
+                return {
+                  in: inTrunc ? { _truncated: true, preview: inStr.slice(0, 500) } : inp,
+                  out: outTrunc ? { _truncated: true, preview: outStr.slice(0, 500) } : out,
+                  truncated: inTrunc || outTrunc
+                };
+              """
+              timeout = 3
+            } as $pl
+            var.update $in_payload { value = $pl.in }
+            var.update $out_payload { value = $pl.out }
+            var.update $payload_trunc { value = $pl.truncated }
+          }
+        }
+
+=======
+        var $in_payload {
+          value = null
+        }
+      
+        var $out_payload {
+          value = null
+        }
+      
+        conditional {
+          if ($input.log_tier == "full") {
+            var.update $in_payload {
+              value = {journey_map_id: $input.journey_map_id}
+            }
+          
+            var.update $out_payload {
+              value = {
+                total_gaps      : $gaps|count
+                most_empty_stage: $most_empty_stage
+                most_empty_lens : $most_empty_lens
+              }
+            }
+          }
+        }
+      
+>>>>>>>
         db.add agent_tool_log {
           data = {
             conversation  : $input.conversation_id
@@ -556,6 +629,8 @@ tool get_gaps {
             tool_category : "read"
             input_summary : $gaps_input_desc
             output_summary: ($gaps|count) ~ " gaps found"
+            input_payload : $in_payload
+            output_payload: $out_payload
           }
         } as $tool_log
       }

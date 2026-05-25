@@ -37,17 +37,26 @@ import {
   LogOut,
   BarChart2,
   Bug,
+  Maximize2,
+  Minimize2,
+  ThumbsDown,
+  ExternalLink,
+  AlertTriangle,
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useAuth } from './AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { Message, MessageActivity, MatrixCell, CellStatus, Stage, Lens, ToolTraceEntry, isMetricsActorFields, parseMetricValue, calcStageHealth } from './types';
-import type {MetricsActorFields} from './types';
+import type {MetricsActorFields, CellFlowIssue} from './types';
 import {cloneCellSnapshot, hasPendingCellChanges, resolveCellPersistenceBaseline} from './cellPersistence';
 import { STAGES as INITIAL_STAGES, LENSES as INITIAL_LENSES, ACTOR_TEMPLATES, METRICS_THRESHOLDS, getMetricColor, METRICS_ACTOR_ENABLED } from './constants';
 import JourneyMatrixTabulator from './JourneyMatrixTabulator';
 import { JourneyHealthWidget } from './JourneyHealthWidget';
 import {ActorSetupWizard} from './ActorSetupWizard';
 import type {ActorWizardInput} from './ActorSetupWizard';
+import {StageEditPanel} from './StageEditPanel';
+import type {StageEditInput} from './StageEditPanel';
 import {buildCellReferenceLabel, buildCellShorthand, buildSelectedCellContext} from './cellIdentifiers';
 import type {CellUpdateSummary} from './cellIdentifiers';
 import {
@@ -71,7 +80,7 @@ import {
   removeJourneyLens,
   removeJourneyStage,
   renameJourneyLens,
-  renameJourneyStage,
+  updateJourneyStage,
   sendAiMessage,
   fetchToolLogs,
   updateConversation,
@@ -144,6 +153,7 @@ const TOOL_CATEGORY_ICON: Record<string, string> = {
   write: '✏️',
   status: '🔒',
   structure: '🏗️',
+  external: '🌐',
 };
 
 /** Returns a coloured dot className based on the tool's output_summary. */
@@ -177,6 +187,7 @@ function ActivityPanel({
   const hasTrace = toolTrace.length > 0;
   const hasThinking = Boolean(activity.thinking);
   const readCount = toolTrace.filter((t) => t.toolCategory === 'read').length;
+  const webSearchEntries = toolTrace.filter((t) => t.toolName === 'web_search');
 
   const showChip =
     activity.cellsUpdated > 0 ||
@@ -210,6 +221,14 @@ function ActivityPanel({
           <>
             <span className="text-zinc-300">·</span>
             <span>{activity.progress.percentage}% complete</span>
+          </>
+        )}
+        {webSearchEntries.length > 0 && (
+          <>
+            <span className="text-zinc-300">·</span>
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-sky-600 font-medium">
+              🌐 {webSearchEntries.length === 1 ? 'Web searched' : `${webSearchEntries.length} web searches`}
+            </span>
           </>
         )}
         {hasTrace && (
@@ -342,17 +361,115 @@ const TOOL_CATEGORY_COLOR: Record<string, string> = {
   structure: 'text-amber-500',
 };
 
+const RISK_COLORS: Record<string, string> = {
+  none  : 'text-emerald-600 bg-emerald-50',
+  low   : 'text-amber-600 bg-amber-50',
+  medium: 'text-orange-600 bg-orange-50',
+  high  : 'text-red-600 bg-red-50',
+};
+
+// US-FLV-02: per-tool-call row with expandable payload view
+function ToolCallRow({ call }: { call: import('./xano').ToolLogEntry }) {
+  const [expanded, setExpanded] = useState(false);
+  const isSkipped = call.output_summary?.toLowerCase().includes('skipped') || call.output_summary?.toLowerCase().includes('not_found');
+  const hasPayload = call.input_payload != null || call.output_payload != null;
+
+  return (
+    <div className={`text-[10px] ${isSkipped ? 'bg-amber-100/60' : ''}`}>
+      <div className="flex items-start gap-2 px-2.5 py-1.5">
+        <span className="text-zinc-400 shrink-0 w-4 text-right">{call.execution_order}</span>
+        <span className={`shrink-0 font-medium ${TOOL_CATEGORY_COLOR[call.tool_category] ?? 'text-zinc-500'}`}>
+          {call.tool_name}
+        </span>
+        {call.duration_ms != null && (
+          <span className="text-zinc-300 shrink-0">{call.duration_ms}ms</span>
+        )}
+        {call.input_summary && (
+          <span className="text-zinc-500 truncate">{call.input_summary}</span>
+        )}
+        {call.output_summary && (
+          <>
+            <span className="text-zinc-300 shrink-0">→</span>
+            <span className={`truncate ${isSkipped ? 'text-amber-600 font-medium' : 'text-zinc-400'}`}>
+              {call.output_summary}
+            </span>
+          </>
+        )}
+        {hasPayload && (
+          <button
+            type="button"
+            onClick={() => setExpanded(v => !v)}
+            className="ml-auto shrink-0 text-zinc-300 hover:text-zinc-500 transition-colors"
+            title="Show full payload"
+          >
+            {expanded ? <ChevronDown className="w-2.5 h-2.5" /> : <ChevronRight className="w-2.5 h-2.5" />}
+          </button>
+        )}
+      </div>
+      {expanded && (
+        <div className="px-2.5 pb-2 space-y-1.5">
+          {call.payload_truncated && (
+            <p className="text-[9px] text-amber-600 font-medium">⚠ payload truncated at 10 KB</p>
+          )}
+          {call.input_payload != null && (
+            <div>
+              <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider mb-0.5">in:</p>
+              <pre className="text-[9px] text-zinc-600 bg-white border border-zinc-100 rounded p-1.5 overflow-auto max-h-[200px] whitespace-pre-wrap break-all">
+                {JSON.stringify(call.input_payload, null, 2)}
+              </pre>
+            </div>
+          )}
+          {call.output_payload != null && (
+            <div>
+              <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider mb-0.5">out:</p>
+              <pre className="text-[9px] text-zinc-600 bg-white border border-zinc-100 rounded p-1.5 overflow-auto max-h-[200px] whitespace-pre-wrap break-all">
+                {JSON.stringify(call.output_payload, null, 2)}
+              </pre>
+            </div>
+          )}
+          {call.input_payload == null && call.output_payload == null && (
+            <p className="text-[9px] text-zinc-400 italic">payload not captured (log_tier ≠ full)</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface DebugPanelProps {
   journeyMapId: number;
   turnId: string;
   stepLimitWarning: boolean;
+  tokensInput?: number | null;
+  tokensOutput?: number | null;
+  durationMs?: number | null;
+  hallucinationCheck?: MessageActivity['hallucinationCheck'];
+  // HUX-01/02/03
+  onOpenDrawer?: () => void;
 }
 
-function DebugPanel({ journeyMapId, turnId, stepLimitWarning }: DebugPanelProps) {
+function DebugPanel({ journeyMapId, turnId, stepLimitWarning, tokensInput, tokensOutput, durationMs, hallucinationCheck, onOpenDrawer }: DebugPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [toolCalls, setToolCalls] = useState<import('./xano').ToolLogEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // HUX-01: flag state
+  const [flagged, setFlagged] = useState(false);
+  const [flagging, setFlagging] = useState(false);
+
+  const handleFlag = useCallback(async () => {
+    if (flagging) return;
+    setFlagging(true);
+    try {
+      const { flagTurn } = await import('./xano');
+      await flagTurn(journeyMapId, turnId, !flagged);
+      setFlagged((f) => !f);
+    } catch {
+      // silently ignore — flag is best-effort
+    } finally {
+      setFlagging(false);
+    }
+  }, [flagging, flagged, journeyMapId, turnId]);
 
   const handleExpand = useCallback(async () => {
     const next = !isExpanded;
@@ -373,17 +490,46 @@ function DebugPanel({ journeyMapId, turnId, stepLimitWarning }: DebugPanelProps)
 
   return (
     <div className="ml-8 mt-0.5">
-      <button
-        type="button"
-        onClick={handleExpand}
-        className="flex items-center gap-1.5 text-[10px] text-amber-500 font-medium hover:text-amber-700 transition-colors"
-      >
-        <span>🔧 Debug</span>
-        {toolCalls !== null && <span className="text-zinc-400">— {toolCalls.length} tool calls</span>}
-        {isExpanded
-          ? <ChevronDown className="w-2.5 h-2.5" />
-          : <ChevronRight className="w-2.5 h-2.5" />}
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleExpand}
+          className="flex items-center gap-1.5 text-[10px] text-amber-500 font-medium hover:text-amber-700 transition-colors"
+        >
+          <span>🔧 Debug</span>
+          {toolCalls !== null && <span className="text-zinc-400">— {toolCalls.length} tool calls</span>}
+          {hallucinationCheck?.risk_level && hallucinationCheck.risk_level !== 'none' && (
+            <span className={`px-1 py-0.5 rounded text-[9px] font-semibold ${RISK_COLORS[hallucinationCheck.risk_level] ?? 'text-zinc-500'}`}>
+              ⚠ {hallucinationCheck.risk_level}
+            </span>
+          )}
+          {isExpanded
+            ? <ChevronDown className="w-2.5 h-2.5" />
+            : <ChevronRight className="w-2.5 h-2.5" />}
+        </button>
+        {/* HUX-01: flag button */}
+        <button
+          type="button"
+          onClick={handleFlag}
+          disabled={flagging}
+          title={flagged ? 'Flagged as hallucination — click to un-flag' : 'Flag this reply as a hallucination'}
+          className={`flex items-center gap-1 text-[9px] px-1 py-0.5 rounded transition-colors ${flagged ? 'text-red-600 bg-red-50 hover:bg-red-100' : 'text-zinc-300 hover:text-red-400'}`}
+        >
+          <ThumbsDown className="w-2.5 h-2.5" />
+          {flagged && <span className="font-medium">Flagged</span>}
+        </button>
+        {/* HUX-02: open log drawer */}
+        {onOpenDrawer && (
+          <button
+            type="button"
+            onClick={onOpenDrawer}
+            title="Open full log drawer"
+            className="flex items-center gap-1 text-[9px] text-zinc-300 hover:text-amber-500 transition-colors"
+          >
+            <ExternalLink className="w-2.5 h-2.5" />
+          </button>
+        )}
+      </div>
 
       {isExpanded && (
         <div className="mt-1 border border-amber-100 rounded-lg bg-amber-50/50 overflow-hidden">
@@ -403,31 +549,30 @@ function DebugPanel({ journeyMapId, turnId, stepLimitWarning }: DebugPanelProps)
           )}
           {!loading && toolCalls !== null && toolCalls.length > 0 && (
             <div className="divide-y divide-amber-100">
-              {toolCalls.map((call, idx) => {
-                const isSkipped = call.output_summary?.toLowerCase().includes('skipped') || call.output_summary?.toLowerCase().includes('not_found');
-                return (
-                  <div
-                    key={call.id ?? idx}
-                    className={`flex items-start gap-2 px-2.5 py-1.5 text-[10px] ${isSkipped ? 'bg-amber-100/60' : ''}`}
-                  >
-                    <span className="text-zinc-400 shrink-0 w-4 text-right">{call.execution_order}</span>
-                    <span className={`shrink-0 font-medium ${TOOL_CATEGORY_COLOR[call.tool_category] ?? 'text-zinc-500'}`}>
-                      {call.tool_name}
-                    </span>
-                    {call.input_summary && (
-                      <span className="text-zinc-500 truncate">{call.input_summary}</span>
-                    )}
-                    {call.output_summary && (
-                      <>
-                        <span className="text-zinc-300 shrink-0">→</span>
-                        <span className={`truncate ${isSkipped ? 'text-amber-600 font-medium' : 'text-zinc-400'}`}>
-                          {call.output_summary}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
+              {toolCalls.map((call, idx) => (
+                <ToolCallRow key={call.id ?? idx} call={call} />
+              ))}
+            </div>
+          )}
+          {/* Audit stats row */}
+          {(tokensInput != null || tokensOutput != null || durationMs != null) && (
+            <div className="px-2.5 py-1.5 border-t border-amber-100 flex items-center gap-3 text-[9px] text-zinc-400 font-mono">
+              {tokensInput != null && <span>in: {tokensInput.toLocaleString()} tk</span>}
+              {tokensOutput != null && <span>out: {tokensOutput.toLocaleString()} tk</span>}
+              {durationMs != null && <span>⏱ {(durationMs / 1000).toFixed(1)}s</span>}
+            </div>
+          )}
+          {/* Hallucination signals */}
+          {hallucinationCheck?.signals && hallucinationCheck.signals.length > 0 && (
+            <div className="px-2.5 py-1.5 border-t border-amber-100 space-y-0.5">
+              <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Hallucination signals</p>
+              {hallucinationCheck.signals.map((s, i) => (
+                <div key={i} className="flex items-start gap-1.5 text-[10px]">
+                  <span className="text-orange-500 shrink-0">⚑</span>
+                  <span className="text-zinc-600 font-medium">{s.signal}</span>
+                  {s.detail && <span className="text-zinc-400 truncate">{s.detail}</span>}
+                </div>
+              ))}
             </div>
           )}
           <div className="px-2.5 py-1 border-t border-amber-100 text-[9px] text-zinc-400 font-mono">
@@ -439,6 +584,100 @@ function DebugPanel({ journeyMapId, turnId, stepLimitWarning }: DebugPanelProps)
   );
 }
 
+// ── HUX-02: Log Drawer ───────────────────────────────────────────────────────
+
+function LogDrawer({ journeyMapId, turnId, onClose }: { journeyMapId: number; turnId: string; onClose: () => void }) {
+  const [detail, setDetail] = useState<import('./xano').AuditTurnDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setErr(null);
+    import('./xano').then(({ fetchTurnDetail }) => fetchTurnDetail(journeyMapId, turnId))
+      .then((d) => { if (!cancelled) { setDetail(d); setLoading(false); } })
+      .catch(() => { if (!cancelled) { setErr('Failed to load turn detail'); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [journeyMapId, turnId]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-xl bg-white shadow-2xl flex flex-col h-full overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 shrink-0">
+          <span className="text-sm font-semibold text-zinc-800">Turn Log</span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-zinc-400 font-mono">{turnId}</span>
+            <button onClick={onClose} className="p-1 rounded hover:bg-zinc-100 text-zinc-400"><X className="w-4 h-4" /></button>
+          </div>
+        </div>
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 text-[11px]">
+          {loading && <p className="text-zinc-400">Loading…</p>}
+          {err && <p className="text-red-500">{err}</p>}
+          {detail && (
+            <>
+              {/* Meta */}
+              <div className="flex flex-wrap gap-2 text-[10px] text-zinc-400 font-mono">
+                <span>mode: {detail.mode ?? '—'}</span>
+                <span>tier: {detail.tier ?? '—'}</span>
+                <span>status: {detail.outcome?.status ?? '—'}</span>
+                {detail.tokens?.input != null && <span>in: {detail.tokens.input.toLocaleString()} tk</span>}
+                {detail.tokens?.output != null && <span>out: {detail.tokens.output.toLocaleString()} tk</span>}
+                {detail.timing?.duration_ms != null && <span>⏱ {(detail.timing.duration_ms / 1000).toFixed(1)}s</span>}
+                {detail.flagged_by_user && <span className="text-red-500 font-semibold">⚑ Flagged</span>}
+              </div>
+              {/* User message */}
+              <div>
+                <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">User Message</p>
+                <pre className="whitespace-pre-wrap break-words bg-zinc-50 border border-zinc-100 rounded p-2 text-zinc-700 max-h-40 overflow-y-auto">
+                  {detail.input?.full_user_message ?? detail.input?.user_message ?? '(not captured)'}
+                </pre>
+              </div>
+              {/* AI Reply */}
+              <div>
+                <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">AI Reply</p>
+                <pre className="whitespace-pre-wrap break-words bg-zinc-50 border border-zinc-100 rounded p-2 text-zinc-700 max-h-48 overflow-y-auto">
+                  {detail.output?.full_reply ?? detail.output?.reply ?? '(not captured)'}
+                </pre>
+              </div>
+              {/* Hallucination signals */}
+              {detail.hallucination_check?.signals && detail.hallucination_check.signals.length > 0 && (
+                <div>
+                  <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Hallucination Signals</p>
+                  <div className="space-y-1">
+                    {detail.hallucination_check.signals.map((s, i) => (
+                      <div key={i} className="flex items-start gap-1.5">
+                        <span className="text-orange-500 shrink-0">⚑</span>
+                        <span className="text-zinc-700 font-medium">{s.signal}</span>
+                        {s.detail && <span className="text-zinc-400">{s.detail}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Tool calls */}
+              <div>
+                <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Tool Calls ({detail.tool_calls?.length ?? 0})</p>
+                {(!detail.tool_calls || detail.tool_calls.length === 0) && (
+                  <p className="text-zinc-400 italic">No tool calls recorded</p>
+                )}
+                <div className="space-y-1">
+                  {detail.tool_calls?.map((call, idx) => (
+                    <ToolCallRow key={call.id ?? idx} call={call} />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 
 export default function App({ journeyMapId }: { journeyMapId?: number }) {
@@ -446,6 +685,10 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const [searchParams] = useSearchParams();
   const architectureId = searchParams.get('arch') ? Number(searchParams.get('arch')) : null;
   const fromScenarios = searchParams.get('tab') === 'scenarios';
+  // Deep-link focus params — set by the Automation Wizard's "Fix in map →" links
+  const focusStage = searchParams.get('focus_stage');
+  const focusLens = searchParams.get('focus_lens');
+  const missingField = searchParams.get('missing_field');
   const [isDebugMode, setIsDebugMode] = useState(() => localStorage.getItem('emgram_debug_mode') === 'true');
   const toggleDebugMode = useCallback(() => {
     setIsDebugMode((v: boolean) => {
@@ -454,6 +697,17 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
       return next;
     });
   }, []);
+  // HUX-03: capture full payloads in chat mode when debug is on
+  const [capturePayloads, setCapturePayloads] = useState(() => localStorage.getItem('emgram_capture_payloads') === 'true');
+  const toggleCapturePayloads = useCallback(() => {
+    setCapturePayloads((v) => {
+      const next = !v;
+      localStorage.setItem('emgram_capture_payloads', String(next));
+      return next;
+    });
+  }, []);
+  // HUX-02: log drawer state — turn_id of the open drawer (null = closed)
+  const [logDrawerTurnId, setLogDrawerTurnId] = useState<string | null>(null);
   const { user, logout } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -481,7 +735,33 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const [selectedCellId, setSelectedCellId] = useState<string | null>(null);
   const [selectedCellSnapshot, setSelectedCellSnapshot] = useState<MatrixCell | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isChatExpanded, setIsChatExpanded] = useState(false);
+  const [chatWidth, setChatWidth] = useState<number>(() => {
+    const stored = localStorage.getItem('chat_panel_width');
+    if (stored) {
+      const parsed = parseInt(stored, 10);
+      if (!isNaN(parsed)) return Math.min(Math.max(parsed, 280), Math.round(window.innerWidth * 0.8));
+    }
+    return 384;
+  });
+  const isDraggingRef = useRef(false);
+  const [inputAreaHeight, setInputAreaHeight] = useState<number>(() => {
+    const stored = localStorage.getItem('chat_input_height');
+    if (stored) {
+      const parsed = parseInt(stored, 10);
+      if (!isNaN(parsed)) return Math.min(Math.max(parsed, 64), 400);
+    }
+    return 120;
+  });
+  const isInputDraggingRef = useRef(false);
   const [isChatMode, setIsChatMode] = useState(false); // false = Interview Mode, true = Chat Mode
+  // US-WE-07: Orchestrator mode — top-level mode, separate from isChatMode
+  const [isOrchestratorMode, setIsOrchestratorMode] = useState(false);
+  const [showLeaveOrchestratorConfirm, setShowLeaveOrchestratorConfirm] = useState(false);
+  // US-WE-03: track last validation time to show stale indicator
+  const [lastValidationAt, setLastValidationAt] = useState<number | null>(null);
+  // FBV: flow break issues parsed from the last validate_workflow run
+  const [flowIssues, setFlowIssues] = useState<Map<string, CellFlowIssue>>(new Map());
   // SCM: sub-mode for chat panel — 'default' | 'specialist' | 'consortium'
   const [chatSubMode, setChatSubMode] = useState<'default' | 'specialist' | 'consortium'>('default');
   const [activeSpecialistKey, setActiveSpecialistKey] = useState<string | null>(null);
@@ -541,6 +821,9 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [showActorWizard, setShowActorWizard] = useState(false);
   const [actorWizardEditTarget, setActorWizardEditTarget] = useState<Lens | null>(null);
+  const [showStageEditPanel, setShowStageEditPanel] = useState(false);
+  const [stageEditTarget, setStageEditTarget] = useState<Stage | null>(null);
+  const [isSavingStage, setIsSavingStage] = useState(false);
   const [inboundContext, setInboundContext] = useState<ParentJourneyContext | null>(null);
   // ── Scorecard / Health Widget (US-MET-12/14) ──
   const [scorecard, setScorecard] = useState<ScorecardResult | null>(null);
@@ -561,15 +844,90 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     }
   }, [messages, isChatOpen]);
 
+  // US-CPL-04: keyboard shortcut Ctrl/Cmd+Shift+F + Escape to collapse
+  useEffect(() => {
+    if (!isChatOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
+        e.preventDefault();
+        setIsChatExpanded((prev) => !prev);
+      }
+      if (e.key === 'Escape' && isChatExpanded) {
+        setIsChatExpanded(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isChatOpen, isChatExpanded]);
+
+  // US-CPL-02: drag-to-resize handlers
+  const handleResizeDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingRef.current = true;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      const newWidth = window.innerWidth - ev.clientX;
+      const clamped = Math.min(Math.max(newWidth, 280), Math.round(window.innerWidth * 0.8));
+      setChatWidth(clamped);
+    };
+
+    const onMouseUp = () => {
+      isDraggingRef.current = false;
+      // US-CPL-03: persist to localStorage on drag end
+      setChatWidth((w) => {
+        localStorage.setItem('chat_panel_width', String(w));
+        return w;
+      });
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, []);
+
+  // US-CPL-05: drag-to-resize input area vertically
+  const handleInputResizeDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isInputDraggingRef.current = true;
+    const startY = e.clientY;
+    const startHeight = inputAreaHeight;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isInputDraggingRef.current) return;
+      const delta = startY - ev.clientY;
+      const newHeight = Math.min(Math.max(startHeight + delta, 64), 400);
+      setInputAreaHeight(newHeight);
+    };
+
+    const onMouseUp = () => {
+      isInputDraggingRef.current = false;
+      setInputAreaHeight((h) => {
+        localStorage.setItem('chat_input_height', String(h));
+        return h;
+      });
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, [inputAreaHeight]);
+
   const applyJourneyMapBundle = useCallback((bundle: HydratedJourneyMapBundle | null) => {
     setSelectedCellId(null);
     setSelectedCellSnapshot(null);
+    // FBV: clear stale flow issues whenever the map reloads
+    setFlowIssues(new Map());
+    setLastValidationAt(null);
 
     if (!bundle) {
       setJourneyMapRecord(null);
       setConversationRecord(null);
       setMessages([]);
       setIsChatMode(false);
+      setIsOrchestratorMode(false);
       setStages([]);
       setLenses([]);
       setCells([]);
@@ -584,6 +942,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     setConversationRecord(bundle.conversation);
     setMessages(bundle.messages);
     setIsChatMode(bundle.conversation?.mode === 'chat');
+    setIsOrchestratorMode(bundle.conversation?.mode === 'orchestrator');
 
     // Populate journey settings from the loaded map record
     const loadedSettings: JourneySettings = {
@@ -756,6 +1115,30 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [architectureId, journeyMapRecord?.id]);
 
+  // ── Deep-link focus: auto-select and scroll to the cell specified in the URL ──
+  // Fires once when the map finishes loading. Skips if the same stage+lens has
+  // already been focused (prevents re-triggering on unrelated state changes).
+  const focusAppliedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (initialLoadState !== 'ready' || !focusStage || !focusLens) return;
+    const focusKey = `${focusStage}:${focusLens}`;
+    if (focusAppliedRef.current === focusKey) return;
+    const target = cells.find((c) => c.stageKey === focusStage && c.lensKey === focusLens);
+    if (!target) return;
+    focusAppliedRef.current = focusKey;
+    const t1 = setTimeout(() => {
+      handleSelectCell(target.id);
+      // Give Tabulator one render cycle to apply the is-selected class before scrolling
+      setTimeout(() => {
+        document
+          .querySelector<HTMLElement>(`[data-cell-id="${CSS.escape(target.id)}"]`)
+          ?.scrollIntoView({behavior: 'smooth', block: 'center', inline: 'center'});
+      }, 200);
+    }, 150);
+    return () => clearTimeout(t1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialLoadState, cells, focusStage, focusLens]);
+
   // Reset link form when the user selects a different cell.
   useEffect(() => {
     setCellLinkType('exception');
@@ -876,6 +1259,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
       setConversationRecord(result.conversation);
       setMessages(result.messages);
       setIsChatMode(result.conversation.mode === 'chat');
+      setIsOrchestratorMode(result.conversation.mode === 'orchestrator');
       setIsSessionPickerOpen(false);
     } catch (error) {
       setXanoError(getErrorMessage(error, 'Unable to load conversation.'));
@@ -889,7 +1273,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     setIsLoadingSessions(true);
     setXanoError(null);
     try {
-      const mode = isChatMode ? 'chat' as const : 'interview' as const;
+      const mode = isOrchestratorMode ? 'orchestrator' as const : isChatMode ? 'chat' as const : 'interview' as const;
       const newConversation = await createConversation({journeyMapId: journeyMapRecord.id, mode});
       setConversationRecord(newConversation);
       setMessages([]);
@@ -900,7 +1284,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     } finally {
       setIsLoadingSessions(false);
     }
-  }, [journeyMapRecord, isChatMode]);
+  }, [journeyMapRecord, isChatMode, isOrchestratorMode]);
 
   const handleRenameSession = useCallback(async (conversationId: number, title: string) => {
     if (!journeyMapRecord || !title.trim()) return;
@@ -931,6 +1315,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
           setConversationRecord(result.conversation);
           setMessages(result.messages);
           setIsChatMode(result.conversation.mode === 'chat');
+          setIsOrchestratorMode(result.conversation.mode === 'orchestrator');
           setLastUpdateSummaries([]);
         } else {
           setConversationRecord(null);
@@ -992,7 +1377,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         journeyMapId: journeyMapRecord.id,
         conversationId: conversationRecord.id,
         content: '[GREET]',
-        mode: isChatMode ? 'chat' : 'interview',
+        mode: isOrchestratorMode ? 'orchestrator' : isChatMode ? 'chat' : 'interview',
         journeySettings,
       });
       setMessages(aiThread.messages);
@@ -1002,7 +1387,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     } finally {
       setIsSendingMessage(false);
     }
-  }, [journeyMapRecord, conversationRecord, isChatMode, journeySettings]);
+  }, [journeyMapRecord, conversationRecord, isChatMode, isOrchestratorMode, journeySettings]);
 
   // Trigger the greeting when chat opens with a fresh empty session
   useEffect(() => {
@@ -1021,6 +1406,98 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
       if (messages.length === 0) greetedConvIdRef.current = null;
     }
   }, [conversationRecord?.id, messages.length]);
+
+  /**
+   * FBV: Parse [VALIDATION_REPORT_JSON]...[/VALIDATION_REPORT_JSON] from the AI reply
+   * and build a Map<cellId, CellFlowIssue> using the current cells/stages/lenses.
+   */
+  const parseValidationReport = useCallback(
+    (replyText: string): Map<string, CellFlowIssue> => {
+      const result = new Map<string, CellFlowIssue>();
+      const match = replyText.match(/\[VALIDATION_REPORT_JSON\]([\s\S]*?)\[\/VALIDATION_REPORT_JSON\]/);
+      if (!match) return result;
+      let report: { stages?: Array<{ stage_key: string; issues: Array<{ severity: string; code?: string; message: string; lens_key?: string | null }> }> };
+      try {
+        report = JSON.parse(match[1].trim());
+      } catch {
+        return result;
+      }
+      if (!Array.isArray(report.stages)) return result;
+
+      for (const stageReport of report.stages) {
+        const stage = stages.find((s) => s.id === stageReport.stage_key || s.label === stageReport.stage_key);
+        if (!stage) continue;
+        for (const issue of stageReport.issues) {
+          if (issue.severity !== 'blocker' && issue.severity !== 'warning') continue;
+          const cellIssue: CellFlowIssue = {
+            severity: issue.severity,
+            message: issue.message,
+            code: issue.code,
+            stageKey: stageReport.stage_key,
+            lensKey: issue.lens_key ?? undefined,
+          };
+          if (issue.lens_key) {
+            // target a specific actor cell
+            const lens = lenses.find((l) => l.id === issue.lens_key);
+            if (lens) {
+              const cell = cells.find((c) => c.stageId === stage.id && c.lensId === lens.id);
+              if (cell) result.set(cell.id, cellIssue);
+            }
+          } else {
+            // stage-wide: tag every cell in this stage
+            for (const cell of cells.filter((c) => c.stageId === stage.id)) {
+              if (!result.has(cell.id)) result.set(cell.id, cellIssue);
+            }
+          }
+        }
+      }
+      return result;
+    },
+    [stages, lenses, cells],
+  );
+
+  // US-WE-03: Validate Workflow button handler
+  const handleValidateWorkflow = useCallback(async () => {
+    if (!journeyMapRecord || !conversationRecord) return;
+    if (isSendingMessage) return;
+    setIsSendingMessage(true);
+    setXanoError(null);
+    try {
+      const mode = isOrchestratorMode ? 'orchestrator' as const : 'interview' as const;
+      const aiThread = await sendAiMessage({
+        journeyMapId: journeyMapRecord.id,
+        conversationId: conversationRecord.id,
+        content: '[VALIDATE]',
+        mode,
+        journeySettings,
+      });
+      setMessages(aiThread.messages);
+      setLastValidationAt(Date.now());
+      // FBV: parse the JSON block embedded in the AI reply and highlight affected cells
+      const lastAiMsg = [...aiThread.messages].reverse().find((m) => m.role === 'ai');
+      if (lastAiMsg?.content) {
+        const parsed = parseValidationReport(lastAiMsg.content);
+        setFlowIssues(parsed);
+      }
+    } catch (err) {
+      setXanoError('Unable to run validation. Try again.');
+    } finally {
+      setIsSendingMessage(false);
+    }
+  }, [journeyMapRecord, conversationRecord, isSendingMessage, isOrchestratorMode, journeySettings, parseValidationReport]);
+
+  /** FBV: triggered when user clicks "AI Fix" on a flow issue tooltip */
+  const handleAiFixCell = useCallback(
+    (cellId: string, stageKey: string, lensKey: string, code: string, message: string) => {
+      const cell = cells.find((c) => c.id === cellId);
+      const stageName = stages.find((s) => s.id === stageKey)?.label ?? stageKey;
+      const lensName = lenses.find((l) => l.id === lensKey)?.label ?? lensKey;
+      const prompt = `[QUICK_FIX] stage="${stageName}" actor="${lensName}" issue="${code}: ${message}" — Please fix this flow break for cell ${cell?.id ?? cellId}.`;
+      setInputText(prompt);
+      setIsChatOpen(true);
+    },
+    [cells, stages, lenses],
+  );
 
   const handleSendMessageRef = useRef<(continuationConvId?: number) => Promise<void>>(async () => {});
 
@@ -1074,7 +1551,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
       ? BUILD_PHASES[0].prompt
       : messageText;
 
-    const currentMode = isChatMode ? 'chat' as const : 'interview' as const;
+    const currentMode = isOrchestratorMode ? 'orchestrator' as const : isChatMode ? 'chat' as const : 'interview' as const;
     const selectedCellPayload = buildSelectedCellPayload(selectedCellContext);
     const resolvedConvId = isContinuation ? continuationConvId : conversationRecord?.id;
 
@@ -1091,6 +1568,8 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         builderMode: currentPhase?.builderMode ?? false,
         specialistActorKey: chatSubMode === 'specialist' ? activeSpecialistKey : null,
         consortiumActorKeys: chatSubMode === 'consortium' && activeConsortiumKeys.length > 0 ? activeConsortiumKeys : null,
+        // HUX-03: force log_tier=full when debug capture-payloads toggle is ON
+        capturePayloads: isDebugMode && capturePayloads,
       });
 
       // ── TRACE LOGGING — remove once actor-field write chain is verified ──
@@ -1112,6 +1591,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
 
       setConversationRecord(aiThread.conversation);
       setIsChatMode(aiThread.conversation?.mode === 'chat');
+      setIsOrchestratorMode(aiThread.conversation?.mode === 'orchestrator');
       if (!isContinuation) setSuggestedPrompts(aiThread.suggestedPrompts.length > 0 ? aiThread.suggestedPrompts : []);
       setBuildLoopProgress(aiThread.progress.percentage);
 
@@ -1130,6 +1610,10 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         thinking: aiThread.thinking,
         turnId: aiThread.turnId,
         stepLimitWarning: aiThread.stepLimitWarning,
+        tokensInput: aiThread.tokensInput,
+        tokensOutput: aiThread.tokensOutput,
+        durationMs: aiThread.durationMs,
+        hallucinationCheck: aiThread.hallucinationCheck,
       };
 
       const taggedMessages = aiThread.messages.map((msg, idx) =>
@@ -1215,7 +1699,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
       // Keep isSendingMessage true while phases are still running
       if (!isContinuation && !isBuildLoopingRef.current) setIsSendingMessage(false);
     }
-  }, [conversationRecord?.id, inputText, isChatMode, chatSubMode, activeSpecialistKey, activeConsortiumKeys, journeyMapRecord, selectedCellContext, lenses, stages, inboundContext, journeySettings, applyJourneyMapBundle]);
+  }, [conversationRecord?.id, inputText, isChatMode, isOrchestratorMode, chatSubMode, activeSpecialistKey, activeConsortiumKeys, journeyMapRecord, selectedCellContext, lenses, stages, inboundContext, journeySettings, applyJourneyMapBundle]);
 
   // Keep the ref in sync so recursive continuation calls always use the latest version
   useEffect(() => { handleSendMessageRef.current = handleSendMessage; }, [handleSendMessage]);
@@ -1426,39 +1910,32 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     setCells((currentCells) => currentCells.map((cell) => (cell.id === id ? {...cell, isLocked: !cell.isLocked} : cell)));
   };
 
-  const updateStageLabel = (id: string, label: string) => {
-    const currentStage = stages.find((stage) => stage.id === id);
-    if (!currentStage) {
-      return;
+  const handleEditStage = (stageId: string) => {
+    const stage = stages.find((s) => s.id === stageId);
+    if (stage) {
+      setStageEditTarget(stage);
+      setShowStageEditPanel(true);
     }
+  };
 
-    const nextLabel = label.trim();
-    if (!nextLabel) {
-      setXanoError('Stage label is required.');
-      return;
+  const handleStageEditConfirm = async (input: StageEditInput) => {
+    const currentStage = stages.find((s) => s.id === input.stageId);
+    if (!currentStage) return;
+    const xanoId = resolveXanoId(currentStage, 'stage');
+    // Optimistic update
+    setStages((prev) => prev.map((s) => s.id === input.stageId ? {...s, label: input.label, stageGoal: input.stageGoal || undefined, primaryActorLens: input.primaryActorLens || undefined} : s));
+    setIsSavingStage(true);
+    setXanoError(null);
+    try {
+      await updateJourneyStage({journeyStageId: xanoId, label: input.label, stageGoal: input.stageGoal || null, primaryActorLens: input.primaryActorLens || null});
+    } catch (error) {
+      // Roll back
+      setStages((prev) => prev.map((s) => s.id === input.stageId ? currentStage : s));
+      setXanoError(getErrorMessage(error, 'Unable to update stage.'));
+      throw error; // Let panel show error state
+    } finally {
+      setIsSavingStage(false);
     }
-
-    if (nextLabel === currentStage.label) {
-      return;
-    }
-
-    // Spread preserves the canonical key — only the display label changes.
-    setStages((currentStages) => currentStages.map((stage) => (stage.id === id ? {...stage, label: nextLabel} : stage)));
-    setLastUpdateSummaries([]);
-
-    void (async () => {
-      setIsXanoSyncing(true);
-      setXanoError(null);
-
-      try {
-        await renameJourneyStage({journeyStageId: resolveXanoId(currentStage, 'stage'), label: nextLabel});
-      } catch (error) {
-        setStages((currentStages) => currentStages.map((stage) => (stage.id === id ? {...stage, label: currentStage.label} : stage)));
-        setXanoError(getErrorMessage(error, 'Unable to rename stage.'));
-      } finally {
-        setIsXanoSyncing(false);
-      }
-    })();
   };
 
   const updateLensLabel = (id: string, label: string) => {
@@ -1922,9 +2399,11 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     searchTerm={searchTerm}
                     onSelectCell={handleSelectCell}
                     onUpdateLensLabel={updateLensLabel}
-                    onUpdateStageLabel={updateStageLabel}
+                    onEditStage={handleEditStage}
                     linkedCells={cellLinkMap}
                     onEditLens={handleLensEditFromMatrix}
+                    flowIssues={flowIssues}
+                    onAiFixCell={handleAiFixCell}
                   />
                 </div>
               </div>
@@ -2010,13 +2489,22 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
               {/* AI Chat Slider (Right Side) */}
               <AnimatePresence>
                 {isChatOpen && (
-                  <motion.div 
+                  <motion.div
                     initial={{ x: '100%' }}
                     animate={{ x: 0 }}
                     exit={{ x: '100%' }}
                     transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                    className="absolute right-0 top-0 bottom-0 w-96 bg-white border-l border-zinc-200 shadow-2xl z-40 flex flex-col"
+                    style={isChatExpanded ? undefined : { width: chatWidth }}
+                    className={`${isChatExpanded ? 'fixed inset-0 z-50' : 'absolute right-0 top-0 bottom-0'} bg-white border-l border-zinc-200 shadow-2xl z-40 flex flex-col`}
                   >
+                    {/* US-CPL-02: drag-to-resize handle — hidden in full-screen */}
+                    {!isChatExpanded && (
+                      <div
+                        onMouseDown={handleResizeDragStart}
+                        className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize z-10 hover:bg-zinc-300 transition-colors"
+                        title="Drag to resize"
+                      />
+                    )}
                 <div className="border-b border-zinc-200 shrink-0 bg-zinc-50">
                   <div className="h-14 flex items-center justify-between px-4">
                     <div className="flex items-center gap-3">
@@ -2031,7 +2519,9 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                         </button>
                         {/* MSR-05: dynamic subtitle */}
                         <span className="text-[9px] text-zinc-400 font-medium ml-0.5">
-                          {!isChatMode
+                          {isOrchestratorMode
+                            ? '⚙️ Orchestrator Mode'
+                            : !isChatMode
                             ? 'Interview Mode'
                             : chatSubMode === 'specialist' && activeSpecialistKey
                             ? `🎭 Speaking as ${lenses.find((l) => (l.key ?? l.xanoId?.toString()) === activeSpecialistKey)?.label ?? 'Actor'}`
@@ -2051,14 +2541,18 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                           disabled={isSendingMessage}
                           onClick={() => setIsModePopoverOpen((o) => !o)}
                           className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-widest leading-none transition-colors shadow-sm disabled:opacity-50 ${
-                            chatSubMode === 'specialist'
+                            isOrchestratorMode
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                              : chatSubMode === 'specialist'
                               ? 'border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100'
                               : chatSubMode === 'consortium'
                               ? 'border-indigo-300 bg-indigo-50 text-indigo-800 hover:bg-indigo-100'
                               : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300'
                           }`}
                         >
-                          {!isChatMode
+                          {isOrchestratorMode
+                            ? '⚙️ Orchestrator'
+                            : !isChatMode
                             ? 'Interview'
                             : chatSubMode === 'specialist' && activeSpecialistKey
                             ? `🎭 ${lenses.find((l) => (l.key ?? l.xanoId?.toString()) === activeSpecialistKey)?.label ?? 'Specialist'}`
@@ -2088,28 +2582,47 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                                 { label: 'Chat', value: 'chat' as const },
                                 { label: '🎭 Specialist', value: 'specialist' as const },
                                 { label: '🏛️ Consortium', value: 'consortium' as const },
+                                { label: '⚙️ Orchestrator', value: 'orchestrator' as const },
                               ]).map((m) => {
                                 const isActive =
-                                  m.value === 'interview' ? !isChatMode
-                                  : m.value === 'chat' ? isChatMode && chatSubMode === 'default'
-                                  : isChatMode && chatSubMode === m.value;
+                                  m.value === 'orchestrator' ? isOrchestratorMode
+                                  : m.value === 'interview' ? !isChatMode && !isOrchestratorMode
+                                  : m.value === 'chat' ? isChatMode && chatSubMode === 'default' && !isOrchestratorMode
+                                  : isChatMode && chatSubMode === m.value && !isOrchestratorMode;
                                 return (
                                   <button
                                     key={m.value}
                                     type="button"
                                     onClick={() => {
-                                      if (m.value === 'interview') { setIsChatMode(false); setChatSubMode('default'); setActiveSpecialistKey(null); setActiveConsortiumKeys([]); }
-                                      else if (m.value === 'chat') { setIsChatMode(true); setChatSubMode('default'); setActiveSpecialistKey(null); setActiveConsortiumKeys([]); }
-                                      else if (m.value === 'specialist') { setIsChatMode(true); setChatSubMode('specialist'); setActiveConsortiumKeys([]); }
-                                      else { setIsChatMode(true); setChatSubMode('consortium'); setActiveSpecialistKey(null); }
+                                      // US-WE-07: leaving orchestrator mid-run shows confirm
+                                      if (isOrchestratorMode && m.value !== 'orchestrator' && messages.length > 2) {
+                                        setShowLeaveOrchestratorConfirm(true);
+                                        return;
+                                      }
+                                      if (m.value === 'orchestrator') { setIsOrchestratorMode(true); setIsChatMode(false); setChatSubMode('default'); setActiveSpecialistKey(null); setActiveConsortiumKeys([]); }
+                                      else if (m.value === 'interview') { setIsOrchestratorMode(false); setIsChatMode(false); setChatSubMode('default'); setActiveSpecialistKey(null); setActiveConsortiumKeys([]); }
+                                      else if (m.value === 'chat') { setIsOrchestratorMode(false); setIsChatMode(true); setChatSubMode('default'); setActiveSpecialistKey(null); setActiveConsortiumKeys([]); }
+                                      else if (m.value === 'specialist') { setIsOrchestratorMode(false); setIsChatMode(true); setChatSubMode('specialist'); setActiveConsortiumKeys([]); }
+                                      else { setIsOrchestratorMode(false); setIsChatMode(true); setChatSubMode('consortium'); setActiveSpecialistKey(null); }
+                                      setIsModePopoverOpen(false);
                                     }}
-                                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-colors text-left ${isActive ? 'bg-zinc-900 text-white' : 'text-zinc-700 hover:bg-zinc-100'}`}
+                                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-colors text-left ${isActive ? (m.value === 'orchestrator' ? 'bg-emerald-700 text-white' : 'bg-zinc-900 text-white') : 'text-zinc-700 hover:bg-zinc-100'}`}
                                   >
                                     <span className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${isActive ? 'bg-white border-white' : 'border-zinc-300'}`} />
                                     {m.label}
                                   </button>
                                 );
                               })}
+                              {/* US-WE-07: leave orchestrator confirmation banner */}
+                              {showLeaveOrchestratorConfirm && (
+                                <div className="mt-1 rounded-lg bg-amber-50 border border-amber-200 p-2 text-[10px]">
+                                  <p className="font-semibold text-amber-800 mb-1">You have an active workflow run. Leave anyway?</p>
+                                  <div className="flex gap-2">
+                                    <button type="button" onClick={() => { setShowLeaveOrchestratorConfirm(false); setIsOrchestratorMode(false); setIsChatMode(false); setChatSubMode('default'); setIsModePopoverOpen(false); }} className="flex-1 py-1 rounded bg-amber-600 text-white font-semibold">Leave</button>
+                                    <button type="button" onClick={() => setShowLeaveOrchestratorConfirm(false)} className="flex-1 py-1 rounded bg-white border border-amber-300 text-amber-700 font-semibold">Stay</button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
 
                             {/* MSR-03/04: actor list */}
@@ -2184,6 +2697,16 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                       {isDebugMode && (
                         <span className="text-[9px] font-bold text-amber-500 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 select-none">DEBUG</span>
                       )}
+                      {/* HUX-03: capture payloads toggle — only visible in debug mode */}
+                      {isDebugMode && (
+                        <button
+                          onClick={toggleCapturePayloads}
+                          title={capturePayloads ? 'Payload capture ON — click to disable' : 'Enable payload capture (forces log_tier=full)'}
+                          className={`text-[9px] px-1.5 py-0.5 rounded border transition-colors ${capturePayloads ? 'border-amber-400 text-amber-600 bg-amber-50' : 'border-zinc-200 text-zinc-400 hover:border-amber-300'}`}
+                        >
+                          {capturePayloads ? '📦 payloads ON' : '📦'}
+                        </button>
+                      )}
                       {/* ARO-06: Debug mode toggle */}
                       <button
                         onClick={toggleDebugMode}
@@ -2199,7 +2722,15 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                       >
                         <Settings className="w-4 h-4" />
                       </button>
-                      <button onClick={() => { setIsChatOpen(false); setIsSmartAiSettingsOpen(false); }} className="p-1.5 hover:bg-zinc-200 rounded text-zinc-400 transition-colors">
+                      {/* US-CPL-01: expand/collapse toggle */}
+                      <button
+                        onClick={() => setIsChatExpanded((prev) => !prev)}
+                        title={isChatExpanded ? 'Collapse chat panel' : 'Expand chat to full screen'}
+                        className="p-1.5 hover:bg-zinc-200 rounded text-zinc-400 transition-colors"
+                      >
+                        {isChatExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                      </button>
+                      <button onClick={() => { setIsChatOpen(false); setIsSmartAiSettingsOpen(false); setIsChatExpanded(false); }} className="p-1.5 hover:bg-zinc-200 rounded text-zinc-400 transition-colors">
                         <X className="w-4 h-4" />
                       </button>
                     </div>
@@ -2266,6 +2797,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                             {key: 'business_impact_framing',  label: 'Business Impact Framing',  desc: 'Frame every pain point with frequency, severity and business consequence'},
                             {key: 'auto_confirm_writes',      label: 'Auto-Confirm AI Writes',   desc: 'AI-written cells land as Confirmed (not Draft)'},
                             {key: 'show_reasoning',           label: 'Show AI Reasoning',        desc: "Show the AI's thinking process beneath each message"},
+                            {key: 'neurodivergent_mode',      label: '⚡ Neurodivergent Mode',    desc: 'Bottom-line-first responses — short, structured, no filler or long headers'},
                           ] as {key: keyof SmartAiSettings; label: string; desc: string}[]
                         ).map(({key, label, desc}) => (
                           <div key={key} className="flex items-start justify-between gap-3">
@@ -2461,7 +2993,28 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                             {msg.role === 'ai' ? 'AI' : 'EX'}
                           </div>
                           <div className={`p-3 rounded-xl text-xs leading-relaxed ${msg.role === 'ai' ? 'bg-zinc-100 text-zinc-800' : 'bg-zinc-900 text-white'}`}>
-                            {msg.content}
+                            {msg.role === 'ai' ? (
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                                  strong: ({ children }) => <strong className="font-semibold text-zinc-900">{children}</strong>,
+                                  ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-0.5">{children}</ul>,
+                                  ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-0.5">{children}</ol>,
+                                  li: ({ children }) => <li className="leading-snug">{children}</li>,
+                                  h1: ({ children }) => <p className="font-bold text-zinc-900 mb-1 mt-2">{children}</p>,
+                                  h2: ({ children }) => <p className="font-bold text-zinc-900 mb-1 mt-2">{children}</p>,
+                                  h3: ({ children }) => <p className="font-semibold text-zinc-700 mb-1 mt-1">{children}</p>,
+                                  hr: () => null,
+                                  blockquote: ({ children }) => <div className="border-l-2 border-zinc-300 pl-2 text-zinc-500 italic mb-2">{children}</div>,
+                                  code: ({ children }) => <code className="bg-zinc-200 px-1 rounded text-[10px] font-mono">{children}</code>,
+                                }}
+                              >
+                                {msg.content}
+                              </ReactMarkdown>
+                            ) : (
+                              msg.content
+                            )}
                           </div>
                         </div>
                         {/* Delete button — right side for AI messages */}
@@ -2511,6 +3064,11 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                           journeyMapId={journeyMapRecord.id}
                           turnId={msg.activity.turnId}
                           stepLimitWarning={msg.activity.stepLimitWarning ?? false}
+                          tokensInput={msg.activity.tokensInput}
+                          tokensOutput={msg.activity.tokensOutput}
+                          durationMs={msg.activity.durationMs}
+                          hallucinationCheck={msg.activity.hallucinationCheck}
+                          onOpenDrawer={() => setLogDrawerTurnId(msg.activity!.turnId!)}
                         />
                       )}
                     </div>
@@ -2545,16 +3103,29 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                             {`${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, '0')}`}
                           </span>
                         </div>
-                      ) : (
-                        <div className="p-3 rounded-xl bg-zinc-100 flex gap-1 items-center">
-                          <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:0ms]" />
-                          <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:150ms]" />
-                          <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:300ms]" />
-                          <span className="ml-2 text-xs text-zinc-400 font-mono">
-                            {`${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, '0')}`}
-                          </span>
-                        </div>
-                      )}
+                      ) : (() => {
+                        const WEB_SEARCH_LABELS = [
+                          { label: 'Thinking…',          icon: null },
+                          { label: 'Reading the map…',   icon: null },
+                          { label: 'Searching the web…', icon: '🌐' },
+                          { label: 'Analyzing…',         icon: null },
+                        ];
+                        const phase = WEB_SEARCH_LABELS[Math.floor(elapsedSeconds / 6) % WEB_SEARCH_LABELS.length];
+                        const isWebPhase = phase.icon === '🌐';
+                        return (
+                          <div className={`p-3 rounded-xl flex gap-1 items-center transition-colors ${isWebPhase ? 'bg-sky-50 border border-sky-200' : 'bg-zinc-100'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full animate-bounce [animation-delay:0ms]   ${isWebPhase ? 'bg-sky-400' : 'bg-zinc-400'}`} />
+                            <span className={`w-1.5 h-1.5 rounded-full animate-bounce [animation-delay:150ms] ${isWebPhase ? 'bg-sky-400' : 'bg-zinc-400'}`} />
+                            <span className={`w-1.5 h-1.5 rounded-full animate-bounce [animation-delay:300ms] ${isWebPhase ? 'bg-sky-400' : 'bg-zinc-400'}`} />
+                            <span className={`ml-2 text-xs font-medium ${isWebPhase ? 'text-sky-600' : 'text-zinc-400'}`}>
+                              {phase.icon && <span className="mr-1">{phase.icon}</span>}{phase.label}
+                            </span>
+                            <span className={`ml-auto text-xs font-mono ${isWebPhase ? 'text-sky-400' : 'text-zinc-400'}`}>
+                              {`${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, '0')}`}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                   {lastUpdateSummaries.length > 0 && (
@@ -2574,8 +3145,17 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                   <div ref={chatEndRef} />
                 </div>
 
-                <div className="p-4 border-t border-zinc-100 bg-zinc-50/80">
-                  <div className="space-y-3">
+                <div
+                  className="relative px-4 pb-4 pt-3 border-t border-zinc-100 bg-zinc-50/80 shrink-0 flex flex-col"
+                  style={{ height: inputAreaHeight }}
+                >
+                  {/* US-CPL-05: vertical resize handle */}
+                  <div
+                    onMouseDown={handleInputResizeDragStart}
+                    className="absolute top-0 left-0 right-0 h-1.5 cursor-row-resize hover:bg-zinc-300 transition-colors z-10"
+                    title="Drag to resize input"
+                  />
+                  <div className="space-y-3 flex flex-col flex-1 min-h-0">
                     {suggestedPrompts.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
                         {suggestedPrompts.map(chip => (
@@ -2586,7 +3166,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                       </div>
                     )}
                     
-                    <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-zinc-900/5 focus-within:border-zinc-400 transition-all shadow-sm">
+                    <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-zinc-900/5 focus-within:border-zinc-400 transition-all shadow-sm flex flex-col flex-1 min-h-0">
                       {/* Context Bar */}
                       <div className="px-3 py-2 bg-zinc-50/50 border-b border-zinc-100 flex items-center gap-3 overflow-x-auto no-scrollbar">
                         <div className="flex items-center gap-2 shrink-0">
@@ -2611,14 +3191,14 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                         )}
                       </div>
 
-                      <div className="px-3 pt-3 flex items-start gap-2">
+                      <div className="px-3 pt-3 flex items-start gap-2 flex-1 min-h-0 overflow-hidden">
                         {isQuestionMode && (
                           <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-600 text-white rounded-md shrink-0 shadow-sm">
                             <MessageSquare className="w-3 h-3" />
                             <span className="text-[10px] font-bold whitespace-nowrap">Ask a Question</span>
                           </div>
                         )}
-                        <textarea 
+                        <textarea
                           value={inputText}
                           onChange={(e) => setInputText(e.target.value)}
                           onKeyDown={(e) => {
@@ -2628,20 +3208,35 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                             }
                           }}
                           placeholder="Type your message..."
-                          rows={2}
                           disabled={isSendingMessage}
-                          className="w-full bg-transparent border-none p-0 text-xs focus:ring-0 resize-none min-h-[40px] placeholder:text-zinc-400"
+                          className="w-full h-full bg-transparent border-none p-0 text-xs focus:ring-0 resize-none placeholder:text-zinc-400"
                         />
                       </div>
                       
                       <div className="px-3 py-2 flex items-center justify-between bg-zinc-50/50 border-t border-zinc-100">
                         <div className="flex items-center gap-2">
-                          <button 
+                          <button
                             onClick={() => setIsQuestionMode(!isQuestionMode)}
                             className={`p-1.5 rounded-md transition-all ${isQuestionMode ? 'bg-blue-100 text-blue-600' : 'hover:bg-zinc-200 text-zinc-400'}`}
                           >
                             <MessageSquare className="w-3.5 h-3.5" />
                           </button>
+                          {/* US-WE-03: Validate Workflow button — Interview + Orchestrator modes only */}
+                          {(!isChatMode || isOrchestratorMode) && journeyMapRecord && (
+                            <button
+                              type="button"
+                              disabled={isSendingMessage}
+                              onClick={() => void handleValidateWorkflow()}
+                              title={lastValidationAt !== null && typeof journeyMapRecord.updated_at === 'number' && journeyMapRecord.updated_at > lastValidationAt ? 'Map edited since last validation — re-validate' : 'Validate workflow readiness'}
+                              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all disabled:opacity-40 ${
+                                lastValidationAt !== null && typeof journeyMapRecord.updated_at === 'number' && journeyMapRecord.updated_at > lastValidationAt
+                                  ? 'bg-amber-100 text-amber-700 border border-amber-300'
+                                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                              }`}
+                            >
+                              {lastValidationAt !== null && typeof journeyMapRecord.updated_at === 'number' && journeyMapRecord.updated_at > lastValidationAt ? '⚠️ Re-validate' : '✓ Validate'}
+                            </button>
+                          )}
                         </div>
                         
                         <div className="flex items-center gap-1.5">
@@ -2703,7 +3298,31 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     <X className="w-4 h-4" />
                   </button>
                 </div>
-                
+
+                {/* Automation deep-link banner — shown when wizard sends user here to fix a specific field */}
+                {(() => {
+                  if (!missingField || !focusStage) return null;
+                  if (selectedCell?.stageKey !== focusStage) return null;
+                  const FIELD_LABELS: Record<string, string> = {
+                    trigger_event: 'Trigger Event',
+                    communication_method: 'Communication Method',
+                    failure_recovery: 'Failure / Recovery',
+                    downstream_actor: 'Downstream Actor',
+                  };
+                  const fieldLabel = FIELD_LABELS[missingField] ?? missingField.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+                  return (
+                    <div className="mx-4 mt-3 rounded-lg bg-amber-50 border border-amber-300 px-3 py-2.5 flex items-start gap-2">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs font-semibold text-amber-800">Automation setup needs this cell</p>
+                        <p className="text-xs text-amber-700 mt-0.5">
+                          Fill in <span className="font-semibold">{fieldLabel}</span> in the Handoff row below, then return to the wizard and re-extract.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                   <div>
                     <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-2">Context</label>
@@ -3065,6 +3684,16 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         existingLens={actorWizardEditTarget}
       />
 
+      {/* Stage Edit Panel */}
+      <StageEditPanel
+        isOpen={showStageEditPanel}
+        stage={stageEditTarget}
+        lenses={lenses}
+        isSaving={isSavingStage}
+        onClose={() => { setShowStageEditPanel(false); setStageEditTarget(null); }}
+        onConfirm={handleStageEditConfirm}
+      />
+
       {/* Footer / Legend */}
       <footer className="h-8 border-t border-zinc-200 bg-white flex items-center justify-between px-6 shrink-0 text-[10px] text-zinc-400 font-medium">
         <div className="flex items-center gap-4">
@@ -3085,6 +3714,14 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
           Last updated: Today at 04:24 PM • Version 1.0.4
         </div>
       </footer>
+      {/* HUX-02: Log Drawer — rendered at root so it overlays everything */}
+      {logDrawerTurnId && journeyMapRecord && (
+        <LogDrawer
+          journeyMapId={journeyMapRecord.id}
+          turnId={logDrawerTurnId}
+          onClose={() => setLogDrawerTurnId(null)}
+        />
+      )}
     </div>
   );
 }

@@ -24,6 +24,12 @@ table journey_stage {
   
     // The order in which the stage should be displayed.
     int display_order?
+  
+    // One-liner: what must be true when this stage is done
+    text stage_goal? filters=trim
+  
+    // Key of the lens that owns this stage (e.g. lens-3)
+    text primary_actor_lens? filters=trim
   }
 
   index = [

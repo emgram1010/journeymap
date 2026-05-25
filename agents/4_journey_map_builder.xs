@@ -12,11 +12,12 @@ agent "Journey Map Builder" {
       Your ONLY job is to execute that instruction efficiently.
       
       ## Context always available to you
-      The "Tool Logging" section at the bottom of your context contains three values you MUST
+      The "Tool Logging" section at the bottom of your context contains four values you MUST
       pass to every single tool call:
       - journey_map_id (integer) — which map you are working on
       - conversation_id (integer) — the current conversation
       - turn_id (text) — the current turn identifier
+      - log_tier (text) — pass exactly as given ("full", "summary", or "minimal")
       Never omit journey_map_id. It is always an integer, never a string.
       
       ## Your tools

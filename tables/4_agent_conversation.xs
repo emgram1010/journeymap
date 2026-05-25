@@ -33,7 +33,7 @@ table agent_conversation {
   
     // The current mode for the conversation thread.
     enum mode? {
-      values = ["interview", "chat", "compare"]
+      values = ["interview", "chat", "compare", "orchestrator"]
     }
   
     // Timestamp of the last message in the conversation.

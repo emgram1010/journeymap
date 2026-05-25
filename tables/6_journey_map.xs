@@ -86,6 +86,18 @@ table journey_map {
     int cloned_from_map_id? {
       table = "journey_map"
     }
+  
+    // IL-01-01: Map intent category. Null = unset (standalone/legacy maps unaffected).
+    enum intent? {
+      values = ["sop", "automation", "hybrid"]
+    }
+  
+    // IL-01-01: AI-generated summary written at publish time. Max ~500 chars. Structured text.
+    // Format: Process / Actor / Domain / Triggers / Outcome / Stages / Intent
+    text ai_summary?
+  
+    // IL-01-01: Array of searchable topic tags. e.g. ["onboarding", "linkedin", "crm"]
+    json tags?
   }
 
   index = [

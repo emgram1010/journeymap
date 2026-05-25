@@ -172,6 +172,7 @@ export interface SelectedCellContext {
   stageId: number | null;
   stageKey: string;
   stageLabel: string;
+  stageGoal?: string;
   lensId: number | null;
   lensKey: string;
   lensLabel: string;
@@ -211,6 +212,7 @@ export const buildSelectedCellContext = ({
     stageId: cell.stageXanoId ?? stage.xanoId ?? null,
     stageKey: cell.stageKey ?? resolveStageKey(stage),
     stageLabel: stage.label,
+    ...(stage.stageGoal ? {stageGoal: stage.stageGoal} : {}),
     lensId: cell.lensXanoId ?? lens.xanoId ?? null,
     lensKey: cell.lensKey ?? resolveLensKey(lens),
     lensLabel: lens.label,

@@ -36,6 +36,88 @@
   color: rgb(24 24 27);
 }
 
+/* Borderless editable title input — looks like plain text, shows affordance on hover/focus */
+.journey-tabulator .tabulator-title-editor {
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+  width: 100%;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(24 24 27);
+  cursor: default;
+}
+
+.journey-tabulator .tabulator-title-editor:hover,
+.journey-tabulator .tabulator-title-editor:focus {
+  background: rgb(244 244 245);
+  border-radius: 3px;
+  padding: 1px 3px;
+  cursor: text;
+}
+
+/* Stage goal subtitle — injected via DOM after table build */
+.jm-stage-goal-subtitle {
+  text-transform: none;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: #71717a;
+  line-height: 1.35;
+  margin-top: 5px;
+  padding: 2px 2px 2px 7px;
+  border-left: 2px solid #818cf8;
+  white-space: normal;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.jm-stage-goal-subtitle--missing {
+  color: #f59e0b;
+  border-left-color: #f59e0b;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.jm-stage-primary-actor {
+  text-transform: none;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: #8b5cf6;
+  line-height: 1.35;
+  margin-top: 4px;
+  padding: 2px 2px 2px 7px;
+  border-left: 2px solid #8b5cf6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Muted keyword prefix inside goal/actor header lines */
+.jm-stage-header-label {
+  font-weight: 600;
+  opacity: 0.55;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-right: 2px;
+}
+
+/* Make goal/actor lines show pointer and highlight on hover */
+.jm-stage-header-hoverable {
+  cursor: default;
+  transition: opacity 0.1s;
+}
+.jm-stage-header-hoverable:hover {
+  opacity: 0.75;
+}
+
 .journey-tabulator .tabulator-row {
   background: white;
 }
@@ -344,4 +426,122 @@
 
 ::-webkit-scrollbar-corner {
   background: rgb(249 250 251);
+}
+
+
+/* ── Flow Break Visual Indicators (FBV) ──────────────────────────────────── */
+
+/* Cell-level severity dot */
+.jm-flow-issue-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+  outline-offset: 2px;
+}
+
+.jm-flow-issue-dot:focus-visible {
+  outline: 2px solid currentColor;
+}
+
+.jm-flow-issue-dot--blocker {
+  background: #ef4444; /* red-500 */
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25);
+}
+
+.jm-flow-issue-dot--warning {
+  background: #f59e0b; /* amber-500 */
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+}
+
+/* Lens header rollup dot */
+.jm-lens-issue-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-left: 5px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.jm-lens-issue-dot--blocker {
+  background: #ef4444;
+}
+
+.jm-lens-issue-dot--warning {
+  background: #f59e0b;
+}
+
+/* Hover tooltip */
+.jm-flow-tooltip {
+  width: 240px;
+  background: #1c1c1e;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #f4f4f5;
+  pointer-events: auto;
+}
+
+.jm-flow-tooltip-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.jm-flow-tooltip-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.jm-flow-tooltip-title {
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #e4e4e7;
+}
+
+.jm-flow-tooltip-message {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #a1a1aa;
+  margin-bottom: 10px;
+}
+
+.jm-flow-tooltip-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.jm-flow-tooltip-btn {
+  flex: 1;
+  border: none;
+  border-radius: 5px;
+  padding: 5px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.jm-flow-tooltip-btn:hover {
+  opacity: 0.85;
+}
+
+.jm-flow-tooltip-btn--ai {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.jm-flow-tooltip-btn--manual {
+  background: #3f3f46;
+  color: #e4e4e7;
 }

@@ -127,7 +127,7 @@ query "journey_map/{journey_map_id}/build_full" verb=POST {
     // Phases 2-6 use Journey Map Builder (reasoning OFF, max_steps 15) for speed.
     var $phase_prompts {
       value = [
-        "[BUILD_PHASE:scaffold] Scaffold stages and lenses only. DO NOT fill any cells. DO NOT call batch_update or update_actor_cell_fields. Report what you created."
+        "[BUILD_PHASE:scaffold] Scaffold stages and lenses only. DO NOT fill any cells. DO NOT call batch_update or update_actor_cell_fields. After creating each stage, call the journey_stage/update/{journey_stage_id} PATCH endpoint to set a concise stage_goal (one sentence: what must be true when this stage is complete) and assign primary_actor_lens to the lens key of the actor most responsible for driving this stage. Report what you created and which goals and owners you set."
         "[BUILD_PHASE:identity] Fill actor identity fields (persona_description, primary_goal, standing_constraints) for all actor lenses using update_actor_identity only. DO NOT call batch_update. DO NOT write to any cells."
         "[BUILD_PHASE:description] Fill the Description lens ONLY across all stages. Use batch_update only. DO NOT call update_actor_cell_fields. DO NOT touch any other lens."
         "[BUILD_PHASE:customer] Fill Customer actor lenses ONLY (actor_type=customer) across all stages. Use update_actor_cell_fields only. DO NOT call batch_update. DO NOT touch non-customer lenses."

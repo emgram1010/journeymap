@@ -14,11 +14,13 @@ query "journey_stage/{journey_stage_id}" verb=PUT {
       field_name = "id"
       field_value = $input.journey_stage_id
       data = {
-        updated_at   : $input.updated_at
-        journey_map  : $input.journey_map
-        key          : $input.key
-        label        : $input.label
-        display_order: $input.display_order
+        updated_at        : $input.updated_at
+        journey_map       : $input.journey_map
+        key               : $input.key
+        label             : $input.label
+        display_order     : $input.display_order
+        stage_goal        : $input.stage_goal
+        primary_actor_lens: $input.primary_actor_lens
       }
     } as $model
   }

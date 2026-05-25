@@ -28,6 +28,8 @@ tool batch_set_status {
         skipped_count: int,
         skipped: [ { stage_key, lens_key, reason } ]
       }
+    
+      Always pass conversation_id (integer), turn_id (text), and log_tier (text string: 'full', 'summary', or 'minimal' — NOT a boolean) from the ## Tool Logging section of your context.
     """
 
   input {
@@ -47,6 +49,15 @@ tool batch_set_status {
     int conversation_id?
   
     text turn_id?
+<<<<<<<
+
+    // full = capture raw payloads; summary = summaries only (default)
+    text log_tier?
+=======
+  
+    // full = capture raw payloads; summary = summaries only (default)
+    text log_tier?
+>>>>>>>
   }
 
   stack {
@@ -138,7 +149,7 @@ tool batch_set_status {
       value = 0
     }
   
-    // ── Build set of target cells ──
+    // â”€â”€ Build set of target cells â”€â”€
     // If explicit targets, resolve each to cell IDs
     // If filter, iterate all cells and check criteria
     foreach ($all_cells) {
@@ -211,7 +222,7 @@ tool batch_set_status {
           }
         }
       
-        // ── Apply or skip ──
+        // â”€â”€ Apply or skip â”€â”€
         conditional {
           if ($should_apply) {
             // Build patch data
@@ -271,9 +282,60 @@ tool batch_set_status {
       }
     }
   
-    // ── Tool trace logging ──
+    // â”€â”€ Tool trace logging â”€â”€
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {
+<<<<<<<
+        var $in_payload { value = null }
+        var $out_payload { value = null }
+        var $payload_trunc { value = false }
+
+        conditional {
+          if ($input.log_tier == "full") {
+            api.lambda {
+              code = """
+                const inp = $var.input;
+                const out = { applied: $var.applied_count, skipped: $var.skipped_count };
+                const inStr = JSON.stringify(inp);
+                const outStr = JSON.stringify(out);
+                const inTrunc = inStr.length > 10240;
+                const outTrunc = outStr.length > 10240;
+                return {
+                  in: inTrunc ? { _truncated: true, preview: inStr.slice(0, 500) } : inp,
+                  out: outTrunc ? { _truncated: true, preview: outStr.slice(0, 500) } : out,
+                  truncated: inTrunc || outTrunc
+                };
+              """
+              timeout = 3
+            } as $pl
+            var.update $in_payload { value = $pl.in }
+            var.update $out_payload { value = $pl.out }
+            var.update $payload_trunc { value = $pl.truncated }
+          }
+        }
+
+=======
+        var $in_payload {
+          value = null
+        }
+      
+        var $out_payload {
+          value = null
+        }
+      
+        conditional {
+          if ($input.log_tier == "full") {
+            var.update $in_payload {
+              value = {journey_map_id: $input.journey_map_id, set: $input.set}
+            }
+          
+            var.update $out_payload {
+              value = {applied: $applied_count, skipped: $skipped_count}
+            }
+          }
+        }
+      
+>>>>>>>
         db.add agent_tool_log {
           data = {
             conversation  : $input.conversation_id
@@ -283,6 +345,8 @@ tool batch_set_status {
             tool_category : "status"
             input_summary : $applied_count ~ " cells targeted"
             output_summary: $applied_count ~ " applied, " ~ $skipped_count ~ " skipped"
+            input_payload : $in_payload
+            output_payload: $out_payload
           }
         } as $tool_log
       }

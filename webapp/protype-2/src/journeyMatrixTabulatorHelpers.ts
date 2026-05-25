@@ -1,6 +1,8 @@
-import type {MatrixCell, Stage, MetricsActorFields, CustomerActorFields, InternalActorFields, EngineeringActorFields, AiAgentActorFields, HandoffActorFields, VendorActorFields, FinancialActorFields} from './types';
+import type {MatrixCell, Stage, MetricsActorFields, CustomerActorFields, InternalActorFields, EngineeringActorFields, AiAgentActorFields, HandoffActorFields, VendorActorFields, FinancialActorFields, CellFlowIssue} from './types';
 import {parseMetricValue, calcStageHealth} from './types';
 import {METRICS_THRESHOLDS, getMetricColor} from './constants';
+
+export type {CellFlowIssue};
 
 type ToggleableClassList = {
   toggle(className: string, force?: boolean): void;
@@ -45,10 +47,13 @@ export const formatLensCellMarkup = ({
   label,
   actorType,
   lensId,
+  issueLevel,
 }: {
   label: string;
   actorType?: string;
   lensId?: string;
+  /** Rollup severity dot — 'blocker' = red, 'warning' = amber, null = none */
+  issueLevel?: 'blocker' | 'warning' | null;
 }) => {
   const pill = actorType
     ? `<span class="jm-lens-actor-pill">${escapeHtml(actorType.replace('_', ' '))}</span>`
@@ -56,7 +61,10 @@ export const formatLensCellMarkup = ({
   const editBtn = lensId
     ? `<button class="jm-lens-edit-btn" data-edit-lens-id="${escapeHtml(lensId)}" title="Edit actor role" type="button">✎</button>`
     : '';
-  return `<div class="jm-lens-cell">${editBtn}<div class="jm-lens-cell-body"><span class="jm-lens-label">${escapeHtml(label)}</span>${pill}</div></div>`;
+  const issueDot = issueLevel
+    ? `<span class="jm-lens-issue-dot jm-lens-issue-dot--${issueLevel}" title="${issueLevel === 'blocker' ? 'Flow blocker in this row' : 'Flow warning in this row'}"></span>`
+    : '';
+  return `<div class="jm-lens-cell">${editBtn}<div class="jm-lens-cell-body"><span class="jm-lens-label">${escapeHtml(label)}</span>${pill}${issueDot}</div></div>`;
 };
 
 const LINK_TYPE_ICON: Record<string, string> = {
@@ -277,12 +285,14 @@ export const formatMatrixCellMarkup = ({
   selectedCellId,
   linkedCells,
   actorType,
+  flowIssues,
 }: {
   content: unknown;
   meta?: MatrixCell;
   selectedCellId: string | null;
   linkedCells?: Map<number, CellLinkInfo>;
   actorType?: string;
+  flowIssues?: Map<string, CellFlowIssue>;
 }) => {
   const contentText = String(content ?? '');
   const selectedClass = meta?.id === selectedCellId ? 'is-selected' : '';
@@ -300,6 +310,24 @@ export const formatMatrixCellMarkup = ({
     linkIndicator = `<span class="jm-link-indicator" data-link-target="${info.targetMapId}" title="View linked map →" style="position:absolute;bottom:4px;right:20px;font-size:11px;cursor:pointer;opacity:0.7;line-height:1">${icon}</span>`;
   }
 
+  // Flow issue dot — shown when a validation has run and this cell has an issue
+  let flowDot = '';
+  if (meta?.id && flowIssues?.has(meta.id)) {
+    const issue = flowIssues.get(meta.id)!;
+    flowDot = `<span
+      class="jm-flow-issue-dot jm-flow-issue-dot--${issue.severity}"
+      tabindex="0"
+      role="button"
+      aria-label="Flow ${issue.severity}: ${issue.message}"
+      data-cell-id="${escapeHtml(meta.id)}"
+      data-severity="${escapeHtml(issue.severity)}"
+      data-message="${escapeHtml(issue.message)}"
+      data-code="${escapeHtml(issue.code ?? '')}"
+      data-stage-key="${escapeHtml(issue.stageKey ?? '')}"
+      data-lens-key="${escapeHtml(issue.lensKey ?? '')}"
+    ></span>`;
+  }
+
   // Metrics actor — render compact scorecard instead of text + badge.
   if (actorType === 'metrics' && meta?.actorFields && typeof meta.actorFields === 'object') {
     const scorecard = formatMetricsScorecardMarkup(meta.actorFields as MetricsActorFields);
@@ -307,7 +335,7 @@ export const formatMatrixCellMarkup = ({
       <div class="jm-grid-cell ${selectedClass}"${cellIdAttribute} style="position:relative">
         <div class="jm-grid-content" style="overflow:visible">${scorecard}</div>
         <div class="jm-grid-meta">${indicator}</div>
-        ${linkIndicator}
+        ${linkIndicator}${flowDot}
       </div>
     `;
   }
@@ -329,7 +357,7 @@ export const formatMatrixCellMarkup = ({
       <div class="jm-grid-cell ${selectedClass}"${cellIdAttribute} style="position:relative">
         <div class="jm-grid-content" style="overflow:visible">${tile}</div>
         <div class="jm-grid-meta">${indicator}</div>
-        ${linkIndicator}
+        ${linkIndicator}${flowDot}
       </div>
     `;
   }
@@ -356,9 +384,32 @@ export const formatMatrixCellMarkup = ({
     <div class="jm-grid-cell ${selectedClass}"${cellIdAttribute} style="position:relative">
       <div class="jm-grid-content ${isEmpty ? 'is-empty' : ''}"${hasContent ? ` title="${escapeHtml(contentText)}"` : ''}>${displayText}</div>
       <div class="jm-grid-meta">${actorBadge}${indicator}</div>
-      ${linkIndicator}
+      ${linkIndicator}${flowDot}
     </div>
   `;
+};
+
+/**
+ * Computes the worst-severity flow issue for a given lens row.
+ * Returns 'blocker' if any cell has a blocker, 'warning' if warnings only, null if clean.
+ */
+export const computeLensIssueLevel = (
+  lensId: string,
+  flowIssues: Map<string, CellFlowIssue> | undefined,
+  cellMap: Map<string, MatrixCell>,
+  stages: Stage[],
+): 'blocker' | 'warning' | null => {
+  if (!flowIssues || flowIssues.size === 0) return null;
+  let worst: 'blocker' | 'warning' | null = null;
+  for (const stage of stages) {
+    const cell = cellMap.get(`${stage.id}:${lensId}`);
+    if (!cell) continue;
+    const issue = flowIssues.get(cell.id);
+    if (!issue) continue;
+    if (issue.severity === 'blocker') return 'blocker';
+    worst = 'warning';
+  }
+  return worst;
 };
 
 export const syncSelectedMatrixCellClasses = (

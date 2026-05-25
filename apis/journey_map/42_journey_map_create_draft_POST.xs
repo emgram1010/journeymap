@@ -20,6 +20,11 @@ query "journey_map/create_draft" verb=POST {
     // Optional: group this map under an existing Journey Architecture.
     // When provided, owner_user and account_id are inherited from the architecture.
     int journey_architecture_id?
+  
+    // IL-01-02: Map intent category — sop, automation, or hybrid.
+    enum intent? {
+      values = ["sop", "automation", "hybrid"]
+    }
   }
 
   stack {
@@ -197,6 +202,7 @@ query "journey_map/create_draft" verb=POST {
             last_interaction_at : "now"
             settings            : $input.settings
             journey_architecture: $resolved_journey_architecture
+            intent              : $input.intent
           }
         } as $created_map
       
@@ -216,6 +222,7 @@ query "journey_map/create_draft" verb=POST {
             account_id         : $resolved_account_id
             last_interaction_at: "now"
             settings           : $input.settings
+            intent             : $input.intent
           }
         } as $created_map
       

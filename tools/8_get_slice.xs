@@ -24,6 +24,8 @@ tool get_slice {
       actor_type: the actor type of the lens (e.g. "handoff", "customer"); null for non-actor lenses.
       actor_fields: the structured field object written via update_actor_cell_fields; null when not yet populated.
       Use actor_fields after writing with update_actor_cell_fields to verify the correct keys were saved.
+    
+      Always pass conversation_id (integer), turn_id (text), and log_tier (text string: 'full', 'summary', or 'minimal' — NOT a boolean) from the ## Tool Logging section of your context.
     """
 
   input {
@@ -38,8 +40,17 @@ tool get_slice {
   
     // Optional: for tool trace logging (transparency layer).
     int conversation_id?
-  
+
     text turn_id?
+<<<<<<<
+
+    // full = capture raw payloads; summary = summaries only (default)
+    text log_tier?
+=======
+  
+    // full = capture raw payloads; summary = summaries only (default)
+    text log_tier?
+>>>>>>>
   }
 
   stack {
@@ -124,7 +135,7 @@ tool get_slice {
       value = 0
     }
   
-    // ── Mode: single cell (both keys provided) ──
+    // â”€â”€ Mode: single cell (both keys provided) â”€â”€
     conditional {
       if ($stage != null && $lens != null) {
         db.query journey_cell {
@@ -150,7 +161,7 @@ tool get_slice {
         }
       }
     
-      // ── Mode: column (stage_key only) ──
+      // â”€â”€ Mode: column (stage_key only) â”€â”€
       elseif ($stage != null) {
         db.query journey_cell {
           where = $db.journey_cell.journey_map == $input.journey_map_id && $db.journey_cell.stage == $stage.id
@@ -231,7 +242,7 @@ tool get_slice {
         }
       }
     
-      // ── Mode: row (lens_key only) ──
+      // â”€â”€ Mode: row (lens_key only) â”€â”€
       elseif ($lens != null) {
         db.query journey_cell {
           where = $db.journey_cell.journey_map == $input.journey_map_id && $db.journey_cell.lens == $lens.id
@@ -313,7 +324,7 @@ tool get_slice {
       }
     }
   
-    // ── Tool trace logging ──
+    // â”€â”€ Tool trace logging â”€â”€
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {
         var $slice_summary {
@@ -323,7 +334,7 @@ tool get_slice {
         conditional {
           if ($input.stage_key != null && $input.lens_key != null) {
             var.update $slice_summary {
-              value = "Cell: " + $input.stage_key + " × " + $input.lens_key
+              value = "Cell: " + $input.stage_key + " Ã— " + $input.lens_key
             }
           }
         
@@ -340,6 +351,61 @@ tool get_slice {
           }
         }
       
+<<<<<<<
+        var $in_payload { value = null }
+        var $out_payload { value = null }
+        var $payload_trunc { value = false }
+
+        conditional {
+          if ($input.log_tier == "full") {
+            api.lambda {
+              code = """
+                const inp = $var.input;
+                const out = $var.result;
+                const inStr = JSON.stringify(inp);
+                const outStr = JSON.stringify(out);
+                const inTrunc = inStr.length > 10240;
+                const outTrunc = outStr.length > 10240;
+                return {
+                  in: inTrunc ? { _truncated: true, preview: inStr.slice(0, 500) } : inp,
+                  out: outTrunc ? { _truncated: true, preview: outStr.slice(0, 500) } : out,
+                  truncated: inTrunc || outTrunc
+                };
+              """
+              timeout = 3
+            } as $pl
+            var.update $in_payload { value = $pl.in }
+            var.update $out_payload { value = $pl.out }
+            var.update $payload_trunc { value = $pl.truncated }
+          }
+        }
+
+=======
+        var $in_payload {
+          value = null
+        }
+      
+        var $out_payload {
+          value = null
+        }
+      
+        conditional {
+          if ($input.log_tier == "full") {
+            var.update $in_payload {
+              value = {
+                journey_map_id: $input.journey_map_id
+                stage_key     : $input.stage_key
+                lens_key      : $input.lens_key
+              }
+            }
+          
+            var.update $out_payload {
+              value = $result
+            }
+          }
+        }
+      
+>>>>>>>
         db.add agent_tool_log {
           data = {
             conversation  : $input.conversation_id
@@ -349,6 +415,8 @@ tool get_slice {
             tool_category : "read"
             input_summary : $slice_summary
             output_summary: $slice_summary
+            input_payload : $in_payload
+            output_payload: $out_payload
           }
         } as $tool_log
       }

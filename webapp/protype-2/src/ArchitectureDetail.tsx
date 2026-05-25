@@ -1,7 +1,8 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {useNavigate, useParams, useSearchParams} from 'react-router-dom';
 import ArchitectureGraph from './ArchitectureGraph';
-import {Plus, RotateCcw, MoreHorizontal, Pencil, Archive, Trash2, Check, X, ArrowLeft, LayoutGrid, ArrowRight, Network, Layers, Copy} from 'lucide-react';
+import {Plus, RotateCcw, MoreHorizontal, Pencil, Archive, Trash2, Check, X, ArrowLeft, LayoutGrid, ArrowRight, Network, Layers, Copy, Zap, AlertTriangle, CheckCircle2} from 'lucide-react';
+import {AutomationConfigWizard} from './AutomationConfigWizard';
 import {
   loadJourneyArchitectureBundle,
   updateJourneyArchitecture,
@@ -11,6 +12,7 @@ import {
   updateJourneyMapMeta,
   deleteJourneyMap,
   deleteJourneyLink,
+  listJourneyStagesForMap,
   type XanoJourneyArchitecture,
   type XanoJourneyMap,
   type XanoJourneyLink,
@@ -18,6 +20,7 @@ import {
   type JourneyMapStatus,
   type JourneyLinkType,
 } from './xano';
+import type {Stage} from './types';
 import ScenariosTab from './ScenariosTab';
 import CompareHealthView from './CompareHealthView';
 
@@ -57,19 +60,23 @@ const LINK_TYPE_ICONS: Record<JourneyLinkType, string> = {
 };
 
 // ── Map tile (reused pattern from Dashboard) ─────────────────────────────────
+type MapReadiness = 'unknown' | 'empty' | 'ready';
+
 interface MapTileProps {
   map: XanoJourneyMap;
   links: XanoJourneyLink[];
   allMaps: XanoJourneyMap[];
+  readiness: MapReadiness;
   onOpen: () => void;
   onRename: (title: string) => Promise<void>;
   onDelete: () => void;
   onArchive: () => void;
   onDuplicate: () => void;
   onRemoveLink: (linkId: number) => Promise<void>;
+  onSetupAutomation: () => void;
 }
 
-function MapTile({map, links, allMaps, onOpen, onRename, onDelete, onArchive, onDuplicate, onRemoveLink}: MapTileProps) {
+function MapTile({map, links, allMaps, readiness, onOpen, onRename, onDelete, onArchive, onDuplicate, onRemoveLink, onSetupAutomation}: MapTileProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(map.title);
@@ -160,6 +167,27 @@ function MapTile({map, links, allMaps, onOpen, onRename, onDelete, onArchive, on
           )}
           <span className="text-[11px] text-zinc-400 ml-auto">{relativeTime(ts)}</span>
         </div>
+        {/* Readiness badge — shown after wizard has been triggered at least once */}
+        {readiness === 'empty' && (
+          <div className="mt-1.5 flex items-center gap-1 text-[10px] text-amber-600 font-medium">
+            <AlertTriangle className="w-3 h-3" />
+            Add stages first
+          </div>
+        )}
+        {readiness === 'ready' && (
+          <div className="mt-1.5 flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
+            <CheckCircle2 className="w-3 h-3" />
+            Ready for automation
+          </div>
+        )}
+        {/* Automation setup button — visible on tile hover */}
+        <button
+          onClick={(e) => {e.stopPropagation(); onSetupAutomation();}}
+          className="mt-2 w-full flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 text-[11px] font-medium py-1.5"
+        >
+          <Zap className="w-3 h-3" />
+          Set Up Automation
+        </button>
       </div>
       <div ref={menuRef} className="absolute top-3 right-3" onClick={(e) => e.stopPropagation()}>
         <button onClick={() => setMenuOpen((v) => !v)} className="p-1 rounded hover:bg-zinc-100 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -208,6 +236,12 @@ export default function ArchitectureDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreatingMap, setIsCreatingMap] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Automation wizard state
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardMapId, setWizardMapId] = useState<number | null>(null);
+  const [wizardMapTitle, setWizardMapTitle] = useState('');
+  const [wizardStages, setWizardStages] = useState<Stage[]>([]);
+  const [mapReadiness, setMapReadiness] = useState<Record<number, 'unknown' | 'empty' | 'ready'>>({});
   // Link drawer state
   // View tab toggle — initialise from ?tab= URL param so back-nav from editor restores the right tab
   const initialTab = searchParams.get('tab');
@@ -345,6 +379,32 @@ export default function ArchitectureDetail() {
     setLinks((ls) => ls.filter((l) => l.id !== linkId));
     try { await deleteJourneyLink(linkId); }
     catch { if (prev) setLinks((ls) => [prev, ...ls]); }
+  };
+
+  const handleSetupAutomation = async (map: XanoJourneyMap) => {
+    const stageRecords = await listJourneyStagesForMap(map.id);
+    if (stageRecords.length === 0) {
+      setMapReadiness((prev) => ({...prev, [map.id]: 'empty'}));
+      return; // don't open wizard — tile now shows "Add stages first"
+    }
+    const stages: Stage[] = stageRecords.map((s) => ({
+      id: s.key ?? `stage-${s.id}`,
+      key: s.key ?? `stage-${s.id}`,
+      xanoId: s.id,
+      label: s.label,
+      displayOrder: s.display_order ?? undefined,
+    }));
+    setMapReadiness((prev) => ({...prev, [map.id]: 'ready'}));
+    setWizardMapId(map.id);
+    setWizardMapTitle(map.title);
+    setWizardStages(stages);
+    setWizardOpen(true);
+  };
+
+  const handleOpenMapFromWizard = (stageKey: string, fieldKey?: string) => {
+    if (!wizardMapId) return;
+    const extra = fieldKey ? `&missing_field=${fieldKey}` : '';
+    navigate(`/maps/${wizardMapId}?arch=${archId}&focus_stage=${stageKey}&focus_lens=handoff${extra}`);
   };
 
   if (isLoading) {
@@ -535,18 +595,31 @@ export default function ArchitectureDetail() {
                 map={map}
                 links={links.filter((l) => l.source_map === map.id)}
                 allMaps={maps}
+                readiness={mapReadiness[map.id] ?? 'unknown'}
                 onOpen={() => navigate(`/maps/${map.id}?arch=${archId}`)}
                 onRename={(title) => handleRenameMap(map.id, title)}
                 onDuplicate={() => void handleDuplicateMap(map)}
                 onArchive={() => void handleArchiveMap(map)}
                 onDelete={() => void handleDeleteMap(map.id)}
                 onRemoveLink={handleRemoveLink}
+                onSetupAutomation={() => void handleSetupAutomation(map)}
               />
             ))}
           </div>
         ) : null}
       </main>
 
+      {wizardMapId != null && (
+        <AutomationConfigWizard
+          isOpen={wizardOpen}
+          onClose={() => setWizardOpen(false)}
+          journeyMapId={wizardMapId}
+          journeyMapTitle={wizardMapTitle}
+          archId={archId}
+          stages={wizardStages}
+          onOpenMap={handleOpenMapFromWizard}
+        />
+      )}
     </div>
   );
 }

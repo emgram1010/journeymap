@@ -1,4 +1,4 @@
-// Updates a single journey map cell identified by stage_key + lens_key.
+﻿// Updates a single journey map cell identified by stage_key + lens_key.
 // Respects is_locked — returns a skip result instead of writing if locked.
 // Updates a single cell in a journey map by stage key and lens key.
 tool update_cell {
@@ -30,9 +30,10 @@ tool update_cell {
   
     // Optional: for tool trace logging (transparency layer).
     int conversation_id?
-  
     text turn_id?
-  
+    // full = capture raw payloads (builder mode); summary = summaries only (default)
+    text log_tier?
+
     // The key of the stage (column) for the target cell.
     text stage_key filters=trim
   
@@ -147,15 +148,46 @@ tool update_cell {
     // ── Tool trace logging ──
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {
+        var $in_payload { value = null }
+        var $out_payload { value = null }
+        var $payload_trunc { value = false }
+
+        conditional {
+          if ($input.log_tier == "full") {
+            api.lambda {
+              code = """
+                const inp = $var.input;
+                const out = $var.result;
+                const inStr = JSON.stringify(inp);
+                const outStr = JSON.stringify(out);
+                const inTrunc = inStr.length > 10240;
+                const outTrunc = outStr.length > 10240;
+                return {
+                  in: inTrunc ? { _truncated: true, preview: inStr.slice(0, 500) } : inp,
+                  out: outTrunc ? { _truncated: true, preview: outStr.slice(0, 500) } : out,
+                  truncated: inTrunc || outTrunc
+                };
+              """
+              timeout = 3
+            } as $pl
+            var.update $in_payload { value = $pl.in }
+            var.update $out_payload { value = $pl.out }
+            var.update $payload_trunc { value = $pl.truncated }
+          }
+        }
+
         db.add agent_tool_log {
           data = {
-            conversation  : $input.conversation_id
-            journey_map   : $input.journey_map_id
-            turn_id       : $input.turn_id
-            tool_name     : "update_cell"
-            tool_category : "write"
-            input_summary : $input.stage_key ~ " × " ~ $input.lens_key
-            output_summary: $result.applied ? "Applied" : "Skipped: " ~ $result.skip_reason
+            conversation     : $input.conversation_id
+            journey_map      : $input.journey_map_id
+            turn_id          : $input.turn_id
+            tool_name        : "update_cell"
+            tool_category    : "write"
+            input_summary    : $input.stage_key ~ " × " ~ $input.lens_key
+            output_summary   : $result.applied ? "Applied" : "Skipped: " ~ $result.skip_reason
+            input_payload    : $in_payload
+            output_payload   : $out_payload
+            payload_truncated: $payload_trunc
           }
         } as $tool_log
       }

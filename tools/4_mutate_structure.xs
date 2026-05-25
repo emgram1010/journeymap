@@ -1,4 +1,4 @@
-// Adds, removes, or renames stages and lenses in a journey map.
+﻿// Adds, removes, or renames stages and lenses in a journey map.
 // Delegates to the existing journey-map API endpoints for scaffolding and cleanup.
 // Adds, removes, or renames stages and lenses in a journey map.
 tool mutate_structure {
@@ -39,8 +39,8 @@ tool mutate_structure {
   
     // Optional: for tool trace logging (transparency layer).
     int conversation_id?
-  
     text turn_id?
+    text log_tier?
   
     // The structural action: add_stage, remove_stage, rename_stage, add_lens, remove_lens, rename_lens, reorder_stages, reorder_lenses.
     text action filters=trim
@@ -167,7 +167,7 @@ tool mutate_structure {
           error = "label is required for add_lens"
         }
       
-        // Use direct DB ops — internal api.call does not forward the user auth
+        // Use direct DB ops â€” internal api.call does not forward the user auth
         // context, so the auth-protected journey_lens/add endpoint would reject it.
         db.query journey_lens {
           where = $db.journey_lens.journey_map == $input.journey_map_id
@@ -200,7 +200,7 @@ tool mutate_structure {
           value = "lens-%d"|sprintf:$new_lens_order
         }
       
-        // ── Actor template defaults ──
+        // â”€â”€ Actor template defaults â”€â”€
         var $ms_template_key {
           value = null
         }
@@ -671,7 +671,7 @@ tool mutate_structure {
       }
     }
   
-    // ── Tool trace logging ──
+    // â”€â”€ Tool trace logging â”€â”€
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {
         var $ms_input_summary {
@@ -694,15 +694,63 @@ tool mutate_structure {
           }
         }
       
+        var $in_payload {
+          value = null
+        }
+      
+        var $out_payload {
+          value = null
+        }
+      
+        var $payload_trunc {
+          value = false
+        }
+      
+        conditional {
+          if ($input.log_tier == "full") {
+            api.lambda {
+              code = """
+                  const inp = $var.input;
+                  const out = $var.result;
+                  const inStr = JSON.stringify(inp);
+                  const outStr = JSON.stringify(out);
+                  const inTrunc = inStr.length > 10240;
+                  const outTrunc = outStr.length > 10240;
+                  return {
+                    in: inTrunc ? { _truncated: true, preview: inStr.slice(0, 500) } : inp,
+                    out: outTrunc ? { _truncated: true, preview: outStr.slice(0, 500) } : out,
+                    truncated: inTrunc || outTrunc
+                  };
+                """
+              timeout = 3
+            } as $pl
+          
+            var.update $in_payload {
+              value = $pl.in
+            }
+          
+            var.update $out_payload {
+              value = $pl.out
+            }
+          
+            var.update $payload_trunc {
+              value = $pl.truncated
+            }
+          }
+        }
+      
         db.add agent_tool_log {
           data = {
-            conversation  : $input.conversation_id
-            journey_map   : $input.journey_map_id
-            turn_id       : $input.turn_id
-            tool_name     : "mutate_structure"
-            tool_category : "structure"
-            input_summary : $ms_input_summary
-            output_summary: $result.success ? "Success" : "Failed: " ~ $result.error
+            conversation     : $input.conversation_id
+            journey_map      : $input.journey_map_id
+            turn_id          : $input.turn_id
+            tool_name        : "mutate_structure"
+            tool_category    : "structure"
+            input_summary    : $ms_input_summary
+            output_summary   : $result.success ? "Success" : "Failed: " ~ $result.error
+            input_payload    : $in_payload
+            output_payload   : $out_payload
+            payload_truncated: $payload_trunc
           }
         } as $tool_log
       }
