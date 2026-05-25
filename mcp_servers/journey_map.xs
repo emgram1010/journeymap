@@ -23,6 +23,9 @@ mcp_server journey_map {
     ## Map Linking (exception / sub-journey / anti-journey wiring)
     link_map          — create a directed cell→map link; always call get_map first to find source_cell_id
 
+    ## Stage Contract (goal + actor ownership per stage)
+    update_stage_contract — set or clear stage_goal and primary_actor_lens on a stage; always call get_map first to find journey_stage_id and lens keys
+
     ## Autonomous Build
     build_journey_map — runs the AI builder end-to-end; returns when complete, stalled, or at max_turns
 
@@ -46,6 +49,7 @@ mcp_server journey_map {
     {name: "clone_scenario"}
     {name: "compare_scenarios"}
     {name: "link_map"}
+    {name: "update_stage_contract"}
   ]
   guid = "Hin32z0HEnscqbQVs1kSquiHiQ4"
 }

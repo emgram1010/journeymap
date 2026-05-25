@@ -145,6 +145,7 @@ publish_map { journey_map_id: source_map_id } ← re-publish to include link in 
 | `clone_scenario` | Deep-clone a map into a new scenario | `journey_architecture_id`, `source_map_id`, `title?` |
 | `compare_scenarios` | Side-by-side health scorecard for two maps | `journey_architecture_id`, `map_a_id`, `map_b_id` |
 | `link_map` | Create directed cell→map link | `journey_architecture_id`, `source_map_id`, `source_cell_id`, `target_map_id`, `link_type` |
+| `update_stage_contract` | Set/clear stage_goal + primary_actor_lens on a stage | `journey_map_id`, `journey_stage_id`, `stage_goal?`, `primary_actor_lens?` |
 
 `invoke_map` is an orchestrator tool — not exposed as MCP but used internally by the Orchestrator agent.
 `execution_health` is HTTP only: `GET /journey_map/{id}/execution_health`
@@ -173,6 +174,17 @@ link_map  {
   label?
 }
 publish_map { journey_map_id: source_map_id }           ← re-publish to include link in snapshot
+```
+
+### User says "set the goal for this stage", "who owns this stage", "set primary actor"
+```
+get_map { journey_map_id }                              ← find journey_stage_id from stages[].xanoId; find lens keys from cells[]
+update_stage_contract {
+  journey_map_id,
+  journey_stage_id,   ← from get_map stages[].xanoId — never guess
+  stage_goal?,        ← exit condition / definition of done; null to clear
+  primary_actor_lens? ← lens key (e.g. "l1"), NOT lens label; null to clear
+}
 ```
 
 ---

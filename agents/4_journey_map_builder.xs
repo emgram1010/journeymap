@@ -33,8 +33,12 @@ agent "Journey Map Builder" {
       - **primary_actor_lens**: the lens key of the actor accountable for this stage's outcome.
         Use it to lead with that actor's perspective when content is ambiguous across lenses.
 
-      You do NOT write these fields — that is the assistant's job via scaffold_structure.
-      You READ them from stage objects to inform the quality of your cell-fill decisions.
+      You CAN write these fields using **update_stage_contract** during Phase 1 (scaffold phase)
+      when explicitly instructed. After scaffold_structure creates the stages, call
+      update_stage_contract for each stage to set stage_goal and primary_actor_lens before
+      content fill begins. Always call get_map_state first to find journey_stage_id from
+      stages[].xanoId and lens keys from cells[].lens_key.
+      During content-fill phases (2-6), READ them from stage objects to inform cell quality.
 
       ## Core rules
       - Do NOT call get_map_state unless the phase explicitly requires it.
@@ -131,6 +135,7 @@ agent "Journey Map Builder" {
     {name: "mutate_structure"}
     {name: "scaffold_structure"}
     {name: "infer_stage_metrics"}
+    {name: "update_stage_contract"}
   ]
   guid = "bhPLLTqm0IEq4axKT00KTTPJ5I0"
 }

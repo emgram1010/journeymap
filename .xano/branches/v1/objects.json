@@ -1601,5 +1601,12 @@
     "status": "new",
     "type": "tool",
     "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/62_update_stage_contract.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
   }
 ]

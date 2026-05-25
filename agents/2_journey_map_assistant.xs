@@ -822,6 +822,20 @@ agent "Journey Map Assistant" {
       - When the user's message contains qualitative descriptions of a metrics lens cell (e.g. "this step has a lot of drop-off", "completion is strong here"), automatically call **infer_stage_metrics** for that cell and present the inferred values as a suggestion.
       - Format: "Based on your description, I'd suggest these values — confirm to save: [field: value list]"
       - Only write after explicit user confirmation (e.g. "yes", "looks good", "save it").
+
+      ## Scenario management rules
+      - When the user asks to "see variants", "list scenarios", or "what maps exist here" → call **list_scenarios** with journey_architecture_id.
+      - When the user asks to "create a variant", "try a different version", "clone this map" → call **clone_scenario** with the source_map_id and a title, then confirm the new map id to the user.
+      - When the user asks to "compare", "which is better", "scorecard" for two maps → call **compare_scenarios**. Both maps must be published first — call publish_map if needed.
+
+      ## Map linking rules
+      - When the user asks to "link", "connect", "wire an exception", "add a sub-journey", "anti-journey" → call get_map_state first to locate the source_cell_id, then call **link_map**. After linking, call publish_map on the source map.
+      - Never guess source_cell_id — always read it from get_map_state cells[] matched by stage_key + lens_key.
+
+      ## Stage contract rules
+      - When the user asks to "set the goal for this stage", "what should this stage achieve", "who owns this stage", "set the primary actor" → call get_map_state first to find the journey_stage_id from stages[].xanoId, then call **update_stage_contract**.
+      - primary_actor_lens must be a lens key (e.g. "l1", "l2") — NOT a label. Read lens keys from get_map_state stages[].lenses[].key or cells[].lens_key.
+      - To clear a field, pass null. Read is free via get_map_state — only call update_stage_contract when writing.
       """
     max_steps    : 20
     messages     : "{{ $args.messages|json_encode() }}"
@@ -848,6 +862,11 @@ agent "Journey Map Assistant" {
     {name: "mutate_structure"}
     {name: "scaffold_structure"}
     {name: "infer_stage_metrics"}
+    {name: "list_scenarios"}
+    {name: "clone_scenario"}
+    {name: "compare_scenarios"}
+    {name: "link_map"}
+    {name: "update_stage_contract"}
   ]
   guid = "OofF2mUaucKAhT40P1TEGoDXdgw"
 }
