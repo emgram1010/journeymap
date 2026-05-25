@@ -1,4 +1,4 @@
-# Agent Authority Layer Epic
+You're asking me that everything that I **** do outside of work is yours I can't help you do that John# Agent Authority Layer Epic
 
 **Status:** Planning (Post-AB-4)
 **Goal:** Prevent data manipulation collisions and decision authority conflicts between multiple AI agents operating within the same journey architecture — across maps, across workspaces, and across concurrent sessions.
