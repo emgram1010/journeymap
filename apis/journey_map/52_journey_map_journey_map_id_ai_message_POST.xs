@@ -18,12 +18,21 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
     // When true, routes to Journey Map Builder (reasoning:false, max_steps:15)
     // Used for fill phases 2-6 in the phase queue build loop.
     bool builder_mode?
+<<<<<<<
 
     // Specialist Mode: lens key of the active actor the AI should embody.
     text specialist_actor_key?
 
     // Consortium Mode: array of lens keys for the panel of active actors.
     json consortium_actor_keys?
+=======
+  
+    // Specialist Mode: lens key of the active actor the AI should embody.
+    text specialist_actor_key?
+  
+    // Consortium Mode: array of lens keys for the panel of active actors.
+    json consortium_actor_keys?
+>>>>>>>
   }
 
   stack {
@@ -3089,6 +3098,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       value = "turn_" ~ $conversation.id ~ "_" ~ $user_message.id
     }
   
+<<<<<<<
     // ── Inject Specialist Persona block (SCM-03) ──
     conditional {
       if ($input.specialist_actor_key != null && $input.specialist_actor_key != "") {
@@ -3186,6 +3196,122 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
       }
     }
 
+=======
+    // ── Inject Specialist Persona block (SCM-03) ──
+    conditional {
+      if ($input.specialist_actor_key != null && $input.specialist_actor_key != "") {
+        db.query journey_lens {
+          where = $db.journey_lens.journey_map == $input.journey_map_id && $db.journey_lens.key == $input.specialist_actor_key
+          return = {type: "single"}
+        } as $specialist_lens
+      
+        conditional {
+          if ($specialist_lens != null) {
+            var $specialist_section {
+              value = """
+                
+                
+                ## Specialist Persona
+                You ARE this actor for this entire conversation. Speak in first person.
+                """
+                |concat:"- Actor: " ~ $specialist_lens.label ~ " (" ~ ($specialist_lens.actor_type ?? "internal") ~ ")\n":""
+            }
+          
+            conditional {
+              if ($specialist_lens.persona_description != null && $specialist_lens.persona_description != "") {
+                var.update $specialist_section {
+                  value = $specialist_section
+                    |concat:"- Persona: " ~ $specialist_lens.persona_description ~ "\n":""
+                }
+              }
+            }
+          
+            conditional {
+              if ($specialist_lens.primary_goal != null && $specialist_lens.primary_goal != "") {
+                var.update $specialist_section {
+                  value = $specialist_section
+                    |concat:"- Primary Goal: " ~ $specialist_lens.primary_goal ~ "\n":""
+                }
+              }
+            }
+          
+            conditional {
+              if ($specialist_lens.standing_constraints != null && $specialist_lens.standing_constraints != "") {
+                var.update $specialist_section {
+                  value = $specialist_section
+                    |concat:"- Standing Constraints: " ~ $specialist_lens.standing_constraints ~ "\n":""
+                }
+              }
+            }
+          
+            var.update $dynamic_context {
+              value = $dynamic_context|concat:$specialist_section:""
+            }
+          }
+        }
+      }
+    }
+  
+    // ── Inject Consortium Panel block (SCM-04) ──
+    conditional {
+      if ($input.consortium_actor_keys != null && ($input.consortium_actor_keys|count) > 0) {
+        var $consortium_section {
+          value = """
+            
+            
+            ## Consortium Panel
+            You represent ALL of the following actors simultaneously.
+            For each question give each actor's perspective labeled with their name.
+            End with a Synthesis line.
+            """
+        }
+      
+        foreach ($input.consortium_actor_keys) {
+          each as $cak {
+            db.query journey_lens {
+              where = $db.journey_lens.journey_map == $input.journey_map_id && $db.journey_lens.key == $cak
+              return = {type: "single"}
+            } as $panel_lens
+          
+            conditional {
+              if ($panel_lens != null) {
+                var $panel_line {
+                  value = "- " ~ $panel_lens.label
+                }
+              
+                conditional {
+                  if ($panel_lens.persona_description != null && $panel_lens.persona_description != "") {
+                    var.update $panel_line {
+                      value = $panel_line
+                        |concat:": " ~ $panel_lens.persona_description:""
+                    }
+                  }
+                }
+              
+                conditional {
+                  if ($panel_lens.primary_goal != null && $panel_lens.primary_goal != "") {
+                    var.update $panel_line {
+                      value = $panel_line
+                        |concat:" | Goal: " ~ $panel_lens.primary_goal:""
+                    }
+                  }
+                }
+              
+                var.update $consortium_section {
+                  value = $consortium_section|concat:$panel_line ~ "\n":""
+                }
+              }
+            }
+          }
+        }
+      
+        var.update $dynamic_context {
+          value = $dynamic_context|concat:$consortium_section:""
+        }
+      }
+    }
+  
+>>>>>>>
     // ── Inject journey_map_id, conversation_id and turn_id into dynamic context ──
     // ALL THREE must be passed to every tool call — the agent reads this section.
     var.update $dynamic_context {

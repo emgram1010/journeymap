@@ -10,8 +10,14 @@ query "journey_map/{journey_map_id}/conversation" verb=POST {
     enum mode? {
       values = ["interview", "chat", "orchestrator"]
     }
+<<<<<<<
     // US-WE-05: set to true to store conversation as orchestrator mode (bypasses enum constraint)
     bool orchestrator_mode?
+=======
+  
+    // US-WE-05: set to true to store conversation as orchestrator mode (bypasses enum constraint)
+    bool orchestrator_mode?
+>>>>>>>
   }
 
   stack {
@@ -34,6 +40,7 @@ query "journey_map/{journey_map_id}/conversation" verb=POST {
       error_type = "inputerror"
       error = "Mode is required (interview, chat, or orchestrator)"
     }
+<<<<<<<
 
     // Resolve effective mode: orchestrator_mode=true stores as 'orchestrator' (US-WE-05)
     var $effective_mode {
@@ -48,6 +55,22 @@ query "journey_map/{journey_map_id}/conversation" verb=POST {
       }
     }
 
+=======
+  
+    // Resolve effective mode: orchestrator_mode=true stores as 'orchestrator' (US-WE-05)
+    var $effective_mode {
+      value = $input.mode
+    }
+  
+    conditional {
+      if ($input.orchestrator_mode) {
+        var.update $effective_mode {
+          value = "orchestrator"
+        }
+      }
+    }
+  
+>>>>>>>
     var $title {
       value = "New Conversation"
     }
