@@ -1,5 +1,6 @@
 // Update actor identity fields on an existing journey lens row.
 // Accepts any subset of the actor fields — only provided fields are written.
+// agent_map_id: set on ai_agent lenses to wire the sub-journey operating manual.
 // Returns the updated journey_lens record.
 query "journey_lens/actor_fields/{journey_lens_id}" verb=PATCH {
   api_group = "journey-map"
@@ -28,6 +29,7 @@ query "journey_lens/actor_fields/{journey_lens_id}" verb=PATCH {
     text persona_description? filters=trim
     text primary_goal? filters=trim
     text standing_constraints? filters=trim
+    int agent_map_id?
   }
 
   stack {
@@ -57,6 +59,7 @@ query "journey_lens/actor_fields/{journey_lens_id}" verb=PATCH {
         "persona_description"
         "primary_goal"
         "standing_constraints"
+        "agent_map_id"
       ]
     }
   

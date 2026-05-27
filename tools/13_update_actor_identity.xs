@@ -1,5 +1,6 @@
-// Writes actor identity fields (persona, goal, constraints) to a lens row.
+// Writes actor identity fields (persona, goal, constraints, agent_map_id) to a lens row.
 // Resolves the lens by lens_key within the journey map. Partial updates allowed.
+// agent_map_id: wires an ai_agent lens to its sub-journey operating manual.
 tool update_actor_identity {
   instructions = """
       Use this tool to populate the actor identity profile on a row (lens) of the journey map.
@@ -9,29 +10,33 @@ tool update_actor_identity {
       - persona_description: Who this actor is — their role, background, and context
       - primary_goal: The overarching outcome they are trying to achieve in this journey
       - standing_constraints: Ongoing limitations, policies, or restrictions that always apply
-    
+      - agent_map_id: (ai_agent lenses only) ID of the sub-journey map that is this agent's
+        operating manual. Once set, the Orchestrator delegates this stage to that map.
+
       Identify the lens by lens_key. Do NOT pass lens IDs.
       Provide only the fields you have information for — other fields are left unchanged.
-    
+
       When to use:
       - When the user describes who the actor is (persona_description)
       - When the user states the actor's goal (primary_goal)
       - When the user mentions standing limitations or constraints (standing_constraints)
+      - When wiring an ai_agent lens to its sub-journey map (agent_map_id)
       - Proactively after gathering enough context from the interview
-    
+
       Input:
       - journey_map_id: The ID of the journey map
       - lens_key: The key of the target lens (e.g. 'customer', 'driver', 'engineer')
       - persona_description: (optional) text
       - primary_goal: (optional) text
       - standing_constraints: (optional) text
+      - agent_map_id: (optional) int — only meaningful for actor_type ai_agent
       - conversation_id: (optional) for tool trace logging
       - turn_id: (optional) for tool trace logging
-    
+
       Response shape:
       {
         applied: true/false,
-        lens: { id, lens_key, label, persona_description, primary_goal, standing_constraints },
+        lens: { id, lens_key, label, persona_description, primary_goal, standing_constraints, agent_map_id },
         skip_reason: null | 'not_found' | 'nothing_to_write'
       }
     """
@@ -44,6 +49,7 @@ tool update_actor_identity {
     text persona_description?
     text primary_goal?
     text standing_constraints?
+    int agent_map_id?
   }
 
   stack {
@@ -94,7 +100,15 @@ tool update_actor_identity {
             }
           }
         }
-      
+
+        conditional {
+          if ($input.agent_map_id != null) {
+            var.update $has_data {
+              value = true
+            }
+          }
+        }
+
         conditional {
           if ($has_data == false) {
             var.update $result {
@@ -140,7 +154,16 @@ tool update_actor_identity {
                 }
               }
             }
-          
+
+            conditional {
+              if ($input.agent_map_id != null) {
+                var.update $patch_data {
+                  value = $patch_data
+                    |set:"agent_map_id":$input.agent_map_id
+                }
+              }
+            }
+
             db.patch journey_lens {
               field_name = "id"
               field_value = $lens.id
@@ -157,6 +180,7 @@ tool update_actor_identity {
                   persona_description : $updated_lens.persona_description
                   primary_goal        : $updated_lens.primary_goal
                   standing_constraints: $updated_lens.standing_constraints
+                  agent_map_id        : $updated_lens.agent_map_id
                 }
                 skip_reason: null
               }

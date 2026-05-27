@@ -1,6 +1,6 @@
 # Actor-to-AI-Agent Conversion Epic
 
-**Status:** Planning
+**Status:** In Progress — US-IL-02-01 (`agent_map_id` on `journey_lens`) implemented; wizard UI pending
 **Goal:** Give users a structured, guided workflow to convert any actor row on a journey map into a deployed AI agent spec — including sub-journey creation, map linking, actor type promotion, and 12-field specification.
 
 ---
@@ -172,11 +172,16 @@ User triggers "Convert to AI Agent" on actor lens
 
 | Dependency | Status |
 |---|---|
-| `link_map` MCP tool (Epic LM-1) | Planning — blocks US-A2A-03 |
+| `agent_map_id` FK on `journey_lens` (US-IL-02-01) | ✅ Complete — field added to schema + all lens APIs |
+| `link_map` MCP tool (Epic LM-1) | ✅ Complete (`tools/61_link_map.xs`) |
 | `journey_link` table + link endpoint | ✅ Complete |
 | `ai_agent` template + 12 fields | ✅ Complete |
 | `update_actor_cell_fields` tool | ✅ Complete |
-| Automation Bridge (Epic AB-4) | Future — runtime consumer |
+| `update_actor_identity` tool supports `agent_map_id` | ✅ Complete |
+| Orchestrator delegation logic (`invoke_map`) | ✅ Complete |
+| Conversion Wizard UI (Steps 1–4) | ❌ Not built — frontend gap |
+| Completeness validator badge UI | ❌ Not built — frontend gap |
+| Automation Bridge runtime (Epic AB-4) | 🔮 Future |
 
 ---
 

@@ -146,14 +146,22 @@ Intent: [sop | automation | hybrid]
 ## Epic IL-2 — Actor → Sub-Agent Binding
 **An actor's intelligence is defined by a journey map.**
 
-### US-IL-02-01 — Add `agent_map_id` to `journey_lens` table
-**File:** `table/journey_lens.xs`
+### US-IL-02-01 — Add `agent_map_id` to `journey_lens` table ✅ COMPLETE
+**File:** `tables/8_journey_lens.xs`
 **Addition:**
 ```
+// FK to the journey map that acts as this AI agent's operating manual.
+// When set on an ai_agent lens, the Orchestrator delegates execution to this map
+// instead of generating text output directly. Null for all non-ai_agent lenses.
 int agent_map_id? {
   table = "journey_map"
 }
 ```
+**Also updated:**
+- `apis/journey_map/63_journey_lens_actor_fields_journey_lens_id_PATCH.xs` — accepts + writes `agent_map_id`
+- `apis/journey_map/49_journey_lens_add_journey_map_id_POST.xs` — accepts + writes `agent_map_id`
+- `tools/13_update_actor_identity.xs` — accepts + writes `agent_map_id`, included in response shape
+
 **Meaning:** when an `ai_agent` actor lens has `agent_map_id` set, the linked map defines that actor's behavior and decision logic. Recursive by design — that map can itself have `ai_agent` actors with their own `agent_map_id`.
 
 ### US-IL-02-02 — Orchestrator reads `agent_map_id` and delegates
