@@ -12,6 +12,8 @@ mcp_server journey_map {
 
     ## Read / Query
     get_map           — full map state (stages, lenses, cells, fill summary)
+    get_slice         — targeted read of a single stage column, lens row, or individual cell
+    get_gaps          — find all empty cells; ranked by density to drive interview targeting
     list_maps         — browse maps; filter by architecture_id, intent, status
     search_maps       — natural language search across published maps (ai_summary + tags)
 
@@ -28,6 +30,11 @@ mcp_server journey_map {
 
     ## Stage Contract (goal + actor ownership per stage)
     update_stage_contract — set or clear stage_goal and primary_actor_lens on a stage; always call get_map first to find journey_stage_id and lens keys
+
+    ## Map Settings
+    update_journey_settings — write map-level context fields (primary_actor, journey_scope, start_point,
+                              end_point, duration, success_metrics, key_stakeholders, dependencies,
+                              pain_points_summary, opportunities). Call after create_journey_map.
 
     ## Actor Identity & AI Agent Wiring
     update_actor_identity — write persona_description, primary_goal, standing_constraints, and agent_map_id on a lens row. Use agent_map_id to wire an ai_agent lens to its sub-journey operating manual (the map that runs when the Orchestrator delegates to this actor). Always resolve lens_key from get_map before calling.
@@ -74,7 +81,10 @@ mcp_server journey_map {
     {name: "publish_map"}
     {name: "list_maps"}
     {name: "get_map"}
+    {name: "get_slice"}
+    {name: "get_gaps"}
     {name: "search_maps"}
+    {name: "update_journey_settings"}
     {name: "list_scenarios"}
     {name: "clone_scenario"}
     {name: "update_cell"}
