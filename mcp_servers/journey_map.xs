@@ -29,8 +29,34 @@ mcp_server journey_map {
     ## Stage Contract (goal + actor ownership per stage)
     update_stage_contract — set or clear stage_goal and primary_actor_lens on a stage; always call get_map first to find journey_stage_id and lens keys
 
+    ## Actor Identity & AI Agent Wiring
+    update_actor_identity — write persona_description, primary_goal, standing_constraints, and agent_map_id on a lens row. Use agent_map_id to wire an ai_agent lens to its sub-journey operating manual (the map that runs when the Orchestrator delegates to this actor). Always resolve lens_key from get_map before calling.
+
     ## Autonomous Build
     build_journey_map — runs the AI builder end-to-end; returns when complete, stalled, or at max_turns
+
+    ## CRUD Pre-Flight Protocol
+    Before executing any Create, Update, or Delete operation, follow this sequence:
+
+    **Step 1 — Read first**
+    Always call get_map (or list_maps / search_maps to locate the map first) before calling
+    fill_cells, update_cell, batch_update, scaffold_map, clone_scenario, or update_stage_contract.
+    This gives you the current structure, stage keys, lens keys, fill state, and locked/confirmed
+    cells — ground truth required before touching anything.
+
+    **Step 2 — Assess ambiguity**
+    Using the map state, check whether the requested operation is fully specified:
+    - Is the target stage or lens unambiguous, or could it match multiple candidates?
+    - Are target cells already filled — will this overwrite content the user did not intend to change?
+    - Is the scope (single cell, full stage, full lens, full map) clear from the request?
+
+    **Step 3 — Clarify before writing (if needed)**
+    If anything in Step 2 is ambiguous, surface ONE question to the caller before proceeding.
+    Reference actual stage or lens names from the map state you read. Never assume scope that
+    could lead to unintended overwrites.
+
+    **Step 4 — Act**
+    Once the map is read and intent is clear, proceed with the CRUD operation.
 
     ## Rules
     - Always pass a valid journey_map_id obtained from create_journey_map, list_maps, or search_maps.
@@ -56,6 +82,7 @@ mcp_server journey_map {
     {name: "compare_scenarios"}
     {name: "link_map"}
     {name: "update_stage_contract"}
+    {name: "update_actor_identity"}
   ]
   guid = "Hin32z0HEnscqbQVs1kSquiHiQ4"
 }

@@ -129,6 +129,9 @@ agent "Journey Map Builder" {
       ai_agent: ai_model_agent, input_data, decision_output, confidence_threshold,
         escalation_logic, training_data, retraining_frequency, bias_fairness_considerations,
         failure_scenarios, performance_metrics, model_owner, explainability_needs
+
+      For ai_agent lenses, agent_map_id is set via update_actor_identity (lens-level field, not a cell field).
+      It points to the sub-journey map the Orchestrator runs when this actor is the primary actor at a stage.
       """
     max_steps    : 15
     messages     : "{{ $args.messages|json_encode() }}"
