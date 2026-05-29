@@ -1,6 +1,7 @@
-# Emgram MCP — Agent Instructions
+# Emgram Journey Map — Agent Instructions
 
-This file is the decision brain for any AI operating Emgram via MCP in a new session.
+This file is the decision brain for any AI operating the **Journey Map MCP server** in a new session.
+The journey map tools are exposed via the `journey_map` MCP server in Xano (id: 8, canonical: ju0Zh1JM).
 Read this first. Then orient with `list_maps`. Then act.
 
 ---
@@ -73,11 +74,13 @@ invoke_map {
 
 ### User says "create a variant", "try a different version", "what if we changed X"
 ```
-list_scenarios    { journey_architecture_id }           ← always first; find source map
-clone_scenario    { source_map_id, title }              ← create variant; note new map id
-fill_cells        { journey_map_id: new_id, ... }       ← make the targeted change
-publish_map       { journey_map_id: new_id }            ← required before compare
-compare_scenarios { map_a_id: original, map_b_id: new } ← surface the delta
+list_scenarios    { journey_architecture_id }                        ← always first; find source map
+clone_scenario    { source_map_id, title }                           ← create variant; note new map id
+update_cell       { journey_map_id: new_id, stage_key, lens_key, content }  ← single targeted edit
+  — OR —
+batch_update      { journey_map_id: new_id, updates: [{stage_key, lens_key, content}, ...] }  ← bulk edits
+publish_map       { journey_map_id: new_id }                         ← required before compare
+compare_scenarios { map_a_id: original, map_b_id: new }              ← surface the delta
 ```
 
 ### User says "connect this map to an exception", "wire this cell to another map", "link these maps"
@@ -128,43 +131,82 @@ publish_map { journey_map_id: source_map_id } ← re-publish to include link in 
 
 ---
 
-## Tool Summary (All 9 MCP Tools — Epic IL-0 Complete)
+## Tool Summary (All 20 MCP Tools — Epic IL-0 + SCN-MCP + LM-1 Complete)
 
 | Tool | Purpose | Key Input |
 |---|---|---|
-| `build_journey_map` | Legacy AI builder (autonomous) | `journey_map_id` |
+| `build_journey_map` | AI builder (autonomous end-to-end) | `journey_map_id` |
 | `create_workspace` | New architecture/workspace | `title` |
 | `create_journey_map` | New map draft (seeds s1-s8 + description lens) | `title`, `intent?` |
 | `scaffold_map` | Add/rename/remove stages/lenses | `journey_map_id`, `stage_operations?`, `lens_operations?` |
+| `update_journey_settings` | Write map-level metadata after create | `journey_map_id`, `primary_actor`, `journey_scope`, etc. |
 | `fill_cells` | Write cell content/actor_fields | `journey_map_id`, `cell_updates` |
 | `publish_map` | Publish + compile snapshot + generate ai_summary | `journey_map_id` |
 | `list_maps` | Browse maps (includes drafts) | `architecture_id?`, `intent?`, `status?` |
 | `get_map` | Full map state | `journey_map_id` |
+| `get_slice` | Targeted read — single stage, lens row, or cell | `journey_map_id`, `stage_key?`, `lens_key?` |
+| `get_gaps` | Find empty cells ranked by density | `journey_map_id`, `stage_key?`, `lens_key?` |
 | `search_maps` | Semantic search (active maps only) | `query?`, `intent?`, `tags?` |
-| `invoke_map` | Sub-agent delegation | `target_map_id`, `current_map_id` |
-
-**Planned (not yet in Xano MCP):**
-
-| Tool | Purpose | Epic |
-|---|---|---|
-| `list_scenarios` | List all maps in an architecture | SCN-MCP-1 |
-| `clone_scenario` | Deep-clone a map into a new scenario | SCN-MCP-2 |
-| `compare_scenarios` | Compare health scorecard of two maps | SCN-MCP-3 |
-| `link_map` | Create directed cell→map link | LM-1 |
+| `list_scenarios` | List all scenarios in an architecture | `journey_architecture_id` |
+| `clone_scenario` | Deep-clone a map into a new scenario | `journey_architecture_id`, `source_map_id`, `title?` |
+| `update_cell` | Write content into a single cell by stage_key + lens_key | `journey_map_id`, `stage_key`, `lens_key`, `content` |
+| `batch_update` | Write content into multiple cells in one call (respects locked/confirmed) | `journey_map_id`, `updates[]` |
+| `compare_scenarios` | Side-by-side health scorecard for two maps | `journey_architecture_id`, `map_a_id`, `map_b_id` |
+| `link_map` | Create directed cell→map link | `journey_architecture_id`, `source_map_id`, `source_cell_id`, `target_map_id`, `link_type` |
+| `update_stage_contract` | Set/clear stage_goal + primary_actor_lens on a stage | `journey_map_id`, `journey_stage_id`, `stage_goal?`, `primary_actor_lens?` |
+| `update_actor_identity` | Write persona/goal/constraints/agent_map_id on a lens | `journey_map_id`, `lens_key`, `persona_description?`, `agent_map_id?` |
 
 `invoke_map` is an orchestrator tool — not exposed as MCP but used internally by the Orchestrator agent.
 `execution_health` is HTTP only: `GET /journey_map/{id}/execution_health`
 
 ---
 
-## ⚠️ Xano MCP vs Instructions Gap
+### User says "create a variant", "try a different version", "what if we changed X"
+```
+list_scenarios    { journey_architecture_id }                        ← always first; find source map
+clone_scenario    { journey_architecture_id, source_map_id, title }  ← create variant; note new map id
+update_cell       { journey_map_id: new_id, stage_key, lens_key, content }  ← single targeted edit
+  — OR —
+batch_update      { journey_map_id: new_id, updates: [{stage_key, lens_key, content}, ...] }  ← bulk edits
+publish_map       { journey_map_id: new_id }                         ← required before compare
+compare_scenarios { journey_architecture_id, map_a_id: original_id, map_b_id: new_id }
+```
 
-The Xano MCP server (`mcp_servers/journey_map.xs`) currently only registers `build_journey_map`.
-The remaining 8 tools (`create_workspace` through `search_maps`) are defined as `.xs` tool files
-but NOT yet added to the `tools = [...]` array in the MCP server. This must be fixed before
-any external agent (CRM, Claude, etc.) can call them via MCP. See PRDs for the scenario/link tools.
+### User says "connect this map to an exception", "wire this cell to another map", "link these maps"
+```
+get_map   { journey_map_id: source_map_id }             ← always first — find source_cell_id
+  → locate correct cell by stage_key + lens_key in cells[]
+link_map  {
+  journey_architecture_id,
+  source_map_id,
+  source_cell_id,   ← from get_map cells[] — never guess this value
+  target_map_id,
+  link_type: "exception" | "anti_journey" | "sub_journey",
+  label?
+}
+publish_map { journey_map_id: source_map_id }           ← re-publish to include link in snapshot
+```
+
+### User says "set the goal for this stage", "who owns this stage", "set primary actor"
+```
+get_map { journey_map_id }                              ← find journey_stage_id from stages[].xanoId; find lens keys from cells[]
+update_stage_contract {
+  journey_map_id,
+  journey_stage_id,   ← from get_map stages[].xanoId — never guess
+  stage_goal?,        ← exit condition / definition of done; null to clear
+  primary_actor_lens? ← lens key (e.g. "l1"), NOT lens label; null to clear
+}
+```
 
 ---
+
+## Server Info
+
+- **MCP Server**: `journey_map` (Xano id: 8, canonical: `ju0Zh1JM`)
+- **Server file**: `mcp_servers/journey_map.xs`
+- **Tools live in Xano** — they write directly to the DB via XanoScript, NOT via the REST API
+- **emgram-skills folder** = agent instructions only; NOT an MCP server itself
+- **Xano base URL**: `https://xdjc-i7zz-jhm2.n7e.xano.io/api:ER4MRRWZ` (for external HTTP consumers)
 
 ## Reference
 
@@ -172,5 +214,3 @@ any external agent (CRM, Claude, etc.) can call them via MCP. See PRDs for the s
 - Automation PRD: `product/stories/automation-epic.md`
 - Scenarios MCP PRD: `product/stories/scenarios/scenarios-mcp-epic.md`
 - Link Map MCP PRD: `product/stories/link-map-mcp-epic.md`
-- MCP server: `mcp_servers/journey_map.xs`
-- Xano base URL: `https://xdjc-i7zz-jhm2.n7e.xano.io/api:ER4MRRWZ`
