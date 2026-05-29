@@ -60,6 +60,7 @@ table journey_lens {
   
     // Fixed limitations this actor brings (e.g., schedule, access, budget).
     text standing_constraints? filters=trim
+<<<<<<<
 
     // FK to the journey map that acts as this AI agent's operating manual.
     // When set on an ai_agent lens, the Orchestrator delegates execution to this map
@@ -67,6 +68,15 @@ table journey_lens {
     int agent_map_id? {
       table = "journey_map"
     }
+=======
+  
+    // FK to the journey map that acts as this AI agent's operating manual.
+    // When set on an ai_agent lens, the Orchestrator delegates execution to this map
+    // instead of generating text output directly. Null for all non-ai_agent lenses.
+    int agent_map_id? {
+      table = "journey_map"
+    }
+>>>>>>>
   }
 
   index = [

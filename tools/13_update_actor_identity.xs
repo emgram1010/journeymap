@@ -10,9 +10,15 @@ tool update_actor_identity {
       - persona_description: Who this actor is — their role, background, and context
       - primary_goal: The overarching outcome they are trying to achieve in this journey
       - standing_constraints: Ongoing limitations, policies, or restrictions that always apply
+<<<<<<<
       - agent_map_id: (ai_agent lenses only) ID of the sub-journey map that is this agent's
         operating manual. Once set, the Orchestrator delegates this stage to that map.
 
+=======
+      - agent_map_id: (ai_agent lenses only) ID of the sub-journey map that is this agent's
+        operating manual. Once set, the Orchestrator delegates this stage to that map.
+    
+>>>>>>>
       Identify the lens by lens_key. Do NOT pass lens IDs.
       Provide only the fields you have information for — other fields are left unchanged.
 
@@ -102,6 +108,7 @@ tool update_actor_identity {
         }
 
         conditional {
+<<<<<<<
           if ($input.agent_map_id != null) {
             var.update $has_data {
               value = true
@@ -110,6 +117,16 @@ tool update_actor_identity {
         }
 
         conditional {
+=======
+          if ($input.agent_map_id != null) {
+            var.update $has_data {
+              value = true
+            }
+          }
+        }
+      
+        conditional {
+>>>>>>>
           if ($has_data == false) {
             var.update $result {
               value = {
@@ -154,6 +171,7 @@ tool update_actor_identity {
                 }
               }
             }
+<<<<<<<
 
             conditional {
               if ($input.agent_map_id != null) {
@@ -164,6 +182,18 @@ tool update_actor_identity {
               }
             }
 
+=======
+          
+            conditional {
+              if ($input.agent_map_id != null) {
+                var.update $patch_data {
+                  value = $patch_data
+                    |set:"agent_map_id":$input.agent_map_id
+                }
+              }
+            }
+          
+>>>>>>>
             db.patch journey_lens {
               field_name = "id"
               field_value = $lens.id
