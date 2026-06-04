@@ -1,16 +1,22 @@
 // IL-00-06: MCP tool — list journey maps for the authenticated scope.
 // Optional filters: architecture_id, intent, status.
 tool list_maps {
-  instructions = "List journey maps. Optionally filter by architecture_id, intent (sop|automation|hybrid), or status (draft|active|archived). Returns an array of { id, title, intent, status, last_interaction_at }."
+  instructions = "List journey maps. Optionally filter by architecture_id, intent (sop|automation|hybrid), status (draft|active|archived), or map_level (architecture|actor-journey|atomic). Returns an array of { id, title, intent, status, map_level, last_interaction_at }."
 
   input {
     int architecture_id?
     enum intent? {
       values = ["sop", "automation", "hybrid"]
     }
-  
+
     enum status? {
       values = ["draft", "active", "archived"]
+    }
+
+    // LA-4: filter by Intelligence Layer map level.
+    // Use map_level='atomic' to find L3 maps valid for leakage analysis.
+    enum map_level? {
+      values = ["architecture", "actor-journey", "atomic"]
     }
   }
 
@@ -54,7 +60,15 @@ tool list_maps {
             }
           }
         }
-      
+
+        conditional {
+          if ($input.map_level != null && $m.map_level != $input.map_level) {
+            var.update $pass {
+              value = false
+            }
+          }
+        }
+
         conditional {
           if ($pass) {
             array.push $results {
@@ -63,6 +77,7 @@ tool list_maps {
                 title              : $m.title
                 intent             : $m.intent
                 status             : $m.status
+                map_level          : $m.map_level
                 last_interaction_at: $m.last_interaction_at
               }
             }

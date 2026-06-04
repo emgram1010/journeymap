@@ -9,8 +9,14 @@ tool search_maps {
     enum intent? {
       values = ["sop", "automation", "hybrid"]
     }
-  
+
     json tags?
+
+    // LA-4: filter by Intelligence Layer map level.
+    // Use map_level='atomic' to find L3 maps valid for leakage analysis.
+    enum map_level? {
+      values = ["architecture", "actor-journey", "atomic"]
+    }
   }
 
   stack {
@@ -35,7 +41,7 @@ tool search_maps {
         var $intent_ok {
           value = true
         }
-      
+
         conditional {
           if ($input.intent != null && $m.intent != $input.intent) {
             var.update $intent_ok {
@@ -43,7 +49,16 @@ tool search_maps {
             }
           }
         }
-      
+
+        // Map level filter (LA-4)
+        conditional {
+          if ($input.map_level != null && $m.map_level != $input.map_level) {
+            var.update $intent_ok {
+              value = false
+            }
+          }
+        }
+
         conditional {
           if ($intent_ok) {
             var $summary_lower {
