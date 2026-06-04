@@ -11,25 +11,18 @@ tool calculate_leakage {
   stack {
     // 1 — Load the map (need measurement_frequency + map_level guard)
     db.get journey_map {
-      where = $db.journey_map.id == $input.journey_map_id
+      field_name  = "id"
+      field_value = $input.journey_map_id
     } as $map
 
-    conditional {
-      if ($map == null) {
-        exception {
-          message = "Map not found"
-          code    = 404
-        }
-      }
+    precondition ($map != null) {
+      error_type = "notfound"
+      error      = "Journey map not found"
     }
 
-    conditional {
-      if ($map.map_level != "atomic") {
-        exception {
-          message = "Leakage math requires an atomic (L3) map. This map is level: " + ($map.map_level ?? "unset")
-          code    = 422
-        }
-      }
+    precondition ($map.map_level == "atomic") {
+      error_type = "validation"
+      error      = "Leakage math requires an atomic (L3) map. This map is level: " ~ ($map.map_level ?? "unset")
     }
 
     var $frequency {
@@ -66,7 +59,7 @@ tool calculate_leakage {
         foreach ($cells) {
           each as $cell {
             conditional {
-              if ($cell.journey_stage == $stage.id) {
+              if ($cell.stage == $stage.id) {
 
                 // Find matching lens for cost_rate
                 var $lens_cost_rate  { value = null }
@@ -75,7 +68,7 @@ tool calculate_leakage {
                 foreach ($lenses) {
                   each as $lens {
                     conditional {
-                      if ($lens.id == $cell.journey_lens) {
+                      if ($lens.id == $cell.lens) {
                         var.update $lens_cost_rate { value = $lens.cost_rate_value }
                         var.update $lens_cost_unit { value = $lens.cost_rate_unit }
                       }
