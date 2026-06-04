@@ -31,14 +31,9 @@ query "journey_lens/add/{journey_map_id}" verb=POST {
     text persona_description? filters=trim
     text primary_goal? filters=trim
     text standing_constraints? filters=trim
-<<<<<<<
+
     // For ai_agent lenses: FK to the sub-journey map that is this agent's operating manual.
     int agent_map_id?
-=======
-  
-    // For ai_agent lenses: FK to the sub-journey map that is this agent's operating manual.
-    int agent_map_id?
->>>>>>>
   }
 
   stack {

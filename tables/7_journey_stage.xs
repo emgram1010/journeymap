@@ -24,18 +24,12 @@ table journey_stage {
   
     // The order in which the stage should be displayed.
     int display_order?
-<<<<<<<
 
     // Exit condition / definition of done for this stage (one-liner).
     text stage_goal? filters=trim
 
     // Lens key identifying the actor accountable for this stage's outcome.
     text primary_actor_lens? filters=trim
-=======
-  
-    text stage_goal? filters=trim
-    text primary_actor_lens? filters=trim
->>>>>>>
   }
 
   index = [
