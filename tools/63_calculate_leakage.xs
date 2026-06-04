@@ -165,11 +165,23 @@ tool calculate_leakage {
                     }
 
                   } else {
+                    var $missing_field {
+                      value = "cost_rate"
+                    }
+
+                    conditional {
+                      if ($cell.time_duration_value == null) {
+                        var.update $missing_field {
+                          value = "time_duration"
+                        }
+                      }
+                    }
+
                     array.push $incomplete {
                       value = {
                         stage_key: $stage.key
                         lens_id  : $cell.lens
-                        missing  : ($cell.time_duration_value == null ? "time_duration" : "cost_rate")
+                        missing  : $missing_field
                       }
                     }
                   }
