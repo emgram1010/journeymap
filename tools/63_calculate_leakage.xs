@@ -164,7 +164,9 @@ tool calculate_leakage {
                       value = $total_per_event + $cell_cost
                     }
 
-                  } else {
+                  }
+
+                  else {
                     var $missing_field {
                       value = "cost_rate"
                     }
