@@ -18,6 +18,8 @@ query "journey_map/settings/{journey_map_id}" verb=PATCH {
     text pain_points_summary? filters=trim
     text opportunities? filters=trim
     text version? filters=trim
+    int measurement_frequency?
+    text measurement_period_label? filters=trim
   }
 
   stack {
@@ -56,6 +58,8 @@ query "journey_map/settings/{journey_map_id}" verb=PATCH {
         "pain_points_summary"
         "opportunities"
         "version"
+        "measurement_frequency"
+        "measurement_period_label"
       ]
     }
   

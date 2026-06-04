@@ -47,6 +47,16 @@ table journey_cell {
   
     // Stores structured actor-specific sub-fields for this cell. The JSON keys vary by actor type (e.g., entry_trigger, emotions, information_needs for a customer actor cell).
     json actor_fields?
+
+    // ── Ring 2: Time duration fields (LA-3) ──────────────────────────────────
+    // Planned time this actor spends at this stage.
+    // Used in leakage formula: stage_cost = time_duration_value × cost_rate_value (normalized)
+    decimal time_duration_value?
+
+    // The unit for time_duration_value.
+    enum time_duration_unit? {
+      values = ["minutes","hours","days","weeks"]
+    }
   }
 
   index = [

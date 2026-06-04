@@ -86,6 +86,15 @@ table journey_map {
     int cloned_from_map_id? {
       table = "journey_map"
     }
+
+    // ── Ring 2: Measurement fields (LA-1) ────────────────────────────────────
+    // How many times per year this process runs — the compounding multiplier
+    // for leakage math.  Example: 15924 (1327 jobs/month × 12)
+    int measurement_frequency?
+
+    // Human-readable label for the measurement period cadence.
+    // Examples: "per job", "per shift", "per call", "per inquiry"
+    text measurement_period_label? filters=trim
   }
 
   index = [

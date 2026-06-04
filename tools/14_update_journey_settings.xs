@@ -19,6 +19,8 @@ tool update_journey_settings {
       - pain_points_summary: High-level summary of recurring pain points across the journey
       - opportunities: Key improvement opportunities identified
       - version: Version or iteration label for this journey map (e.g. 'v1.2 - Q2 2026')
+      - measurement_frequency: How many times per year this process runs (int). The compounding multiplier for leakage math. Example: 15924
+      - measurement_period_label: Human-readable cadence label. Examples: "per job", "per shift", "per call"
     
       When to use:
       - When the user describes the overall journey scope, goals, or timeframe
@@ -28,14 +30,14 @@ tool update_journey_settings {
     
       Input:
       - journey_map_id: The ID of the journey map
-      - Any subset of the 11 fields above
+      - Any subset of the 13 fields above
       - conversation_id: (optional) for tool trace logging
       - turn_id: (optional) for tool trace logging
-    
+
       Response shape:
       {
         applied: true/false,
-        settings: { primary_actor, journey_scope, start_point, end_point, duration, success_metrics, key_stakeholders, dependencies, pain_points_summary, opportunities, version },
+        settings: { primary_actor, journey_scope, start_point, end_point, duration, success_metrics, key_stakeholders, dependencies, pain_points_summary, opportunities, version, measurement_frequency, measurement_period_label },
         skip_reason: null | 'nothing_to_write'
       }
     """
@@ -55,6 +57,8 @@ tool update_journey_settings {
     text pain_points_summary?
     text opportunities?
     text version?
+    int measurement_frequency?
+    text measurement_period_label?
   }
 
   stack {
@@ -208,13 +212,37 @@ tool update_journey_settings {
         var.update $patch_data {
           value = $patch_data|set:"version":$input.version
         }
-      
+
         var.update $field_count {
           value = $field_count + 1
         }
       }
     }
-  
+
+    conditional {
+      if ($input.measurement_frequency != null) {
+        var.update $patch_data {
+          value = $patch_data|set:"measurement_frequency":$input.measurement_frequency
+        }
+
+        var.update $field_count {
+          value = $field_count + 1
+        }
+      }
+    }
+
+    conditional {
+      if ($input.measurement_period_label != null && $input.measurement_period_label != "") {
+        var.update $patch_data {
+          value = $patch_data|set:"measurement_period_label":$input.measurement_period_label
+        }
+
+        var.update $field_count {
+          value = $field_count + 1
+        }
+      }
+    }
+
     conditional {
       if ($field_count > 0) {
         db.patch journey_map {
@@ -227,17 +255,19 @@ tool update_journey_settings {
           value = {
             applied    : true
             settings   : {
-              primary_actor       : $updated_map.primary_actor
-              journey_scope       : $updated_map.journey_scope
-              start_point         : $updated_map.start_point
-              end_point           : $updated_map.end_point
-              duration            : $updated_map.duration
-              success_metrics     : $updated_map.success_metrics
-              key_stakeholders    : $updated_map.key_stakeholders
-              dependencies        : $updated_map.dependencies
-              pain_points_summary : $updated_map.pain_points_summary
-              opportunities       : $updated_map.opportunities
-              version             : $updated_map.version
+              primary_actor            : $updated_map.primary_actor
+              journey_scope            : $updated_map.journey_scope
+              start_point              : $updated_map.start_point
+              end_point                : $updated_map.end_point
+              duration                 : $updated_map.duration
+              success_metrics          : $updated_map.success_metrics
+              key_stakeholders         : $updated_map.key_stakeholders
+              dependencies             : $updated_map.dependencies
+              pain_points_summary      : $updated_map.pain_points_summary
+              opportunities            : $updated_map.opportunities
+              version                  : $updated_map.version
+              measurement_frequency    : $updated_map.measurement_frequency
+              measurement_period_label : $updated_map.measurement_period_label
             }
             skip_reason: null
           }

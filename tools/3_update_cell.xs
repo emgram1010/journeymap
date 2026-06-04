@@ -15,11 +15,13 @@ tool update_cell {
       - stage_key: The key of the target stage (e.g. 'awareness', 'consideration')
       - lens_key: The key of the target lens (e.g. 'goals', 'touchpoints')
       - content: The text content to write into the cell
-    
+      - time_duration_value: (optional) decimal — planned time the actor spends at this stage
+      - time_duration_unit: (optional) enum — minutes | hours | days | weeks
+
       Response shape:
       {
         applied: true/false,
-        cell: { id, stage_key, lens_key, content, status, is_locked, change_source },
+        cell: { id, stage_key, lens_key, content, status, is_locked, change_source, time_duration_value, time_duration_unit },
         skip_reason: null | 'locked' | 'confirmed' | 'not_found'
       }
     """
@@ -41,6 +43,14 @@ tool update_cell {
   
     // The text content to write into the cell.
     text content filters=trim
+
+    // Planned time this actor spends at this stage (optional — leakage math input).
+    decimal time_duration_value?
+
+    // Unit for time_duration_value.
+    enum time_duration_unit? {
+      values = ["minutes","hours","days","weeks"]
+    }
   }
 
   stack {
@@ -116,25 +126,29 @@ tool update_cell {
               field_name = "id"
               field_value = $cell.id
               data = {
-                content        : $input.content
-                status         : "draft"
-                change_source  : "ai"
-                updated_at     : "now"
-                last_updated_at: "now"
+                content             : $input.content
+                status              : "draft"
+                change_source       : "ai"
+                updated_at          : "now"
+                last_updated_at     : "now"
+                time_duration_value : $input.time_duration_value ?? $cell.time_duration_value
+                time_duration_unit  : $input.time_duration_unit ?? $cell.time_duration_unit
               }
             } as $updated_cell
-          
+
             var.update $result {
               value = {
                 applied    : true
                 cell       : {
-                  id           : $updated_cell.id
-                  stage_key    : $input.stage_key
-                  lens_key     : $input.lens_key
-                  content      : $updated_cell.content
-                  status       : $updated_cell.status
-                  is_locked    : $updated_cell.is_locked
-                  change_source: $updated_cell.change_source
+                  id                  : $updated_cell.id
+                  stage_key           : $input.stage_key
+                  lens_key            : $input.lens_key
+                  content             : $updated_cell.content
+                  status              : $updated_cell.status
+                  is_locked           : $updated_cell.is_locked
+                  change_source       : $updated_cell.change_source
+                  time_duration_value : $updated_cell.time_duration_value
+                  time_duration_unit  : $updated_cell.time_duration_unit
                 }
                 skip_reason: null
               }
