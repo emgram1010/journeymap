@@ -9,6 +9,13 @@ tool create_journey_map {
     enum intent? {
       values = ["sop", "automation", "hybrid"]
     }
+    // Map level for intelligence layer taxonomy (LA-4).
+    // Only 'atomic' (L3) maps are valid for leakage analysis.
+    enum map_level? {
+      values = ["architecture","actor-journey","atomic"]
+    }
+    // FK to the parent L1/L2 map this map drills down from (optional).
+    int parent_map_id?
   }
 
   stack {
@@ -59,6 +66,8 @@ tool create_journey_map {
         journey_architecture: $resolved_architecture
         account_id          : $resolved_account_id
         intent              : $input.intent
+        map_level           : $input.map_level
+        parent_map_id       : $input.parent_map_id
       }
     } as $journey_map
   

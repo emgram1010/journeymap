@@ -95,6 +95,20 @@ table journey_map {
     // Human-readable label for the measurement period cadence.
     // Examples: "per job", "per shift", "per call", "per inquiry"
     text measurement_period_label? filters=trim
+
+    // ── Map Level Taxonomy (LA-4) ─────────────────────────────────────────────
+    // L1 = Architecture overview map (no leakage math)
+    // L2 = Actor Journey map (one actor's full path; no leakage math)
+    // L3 = Atomic Stage map — only L3 maps are valid for leakage analysis
+    enum map_level? {
+      values = ["architecture","actor-journey","atomic"]
+    }
+
+    // FK to the parent L1 or L2 map this map drills down from.
+    // Null for standalone or top-level architecture maps.
+    int parent_map_id? {
+      table = "journey_map"
+    }
   }
 
   index = [

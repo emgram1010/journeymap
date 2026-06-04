@@ -20,6 +20,10 @@ query "journey_map/settings/{journey_map_id}" verb=PATCH {
     text version? filters=trim
     int measurement_frequency?
     text measurement_period_label? filters=trim
+    enum map_level? {
+      values = ["architecture","actor-journey","atomic"]
+    }
+    int parent_map_id?
   }
 
   stack {
@@ -60,6 +64,8 @@ query "journey_map/settings/{journey_map_id}" verb=PATCH {
         "version"
         "measurement_frequency"
         "measurement_period_label"
+        "map_level"
+        "parent_map_id"
       ]
     }
   
