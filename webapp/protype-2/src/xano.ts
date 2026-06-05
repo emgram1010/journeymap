@@ -57,6 +57,9 @@ export interface XanoJourneyMap extends JourneySettings {
   journey_architecture?: number | null;
   // Non-null when this map was cloned from another map.
   cloned_from_map_id?: number | null;
+  // Intelligence Layer taxonomy level: architecture | actor-journey | atomic
+  map_level?: string | null;
+  intent?: string | null;
 }
 
 // Lightweight scenario record returned by GET /journey_architecture/{id}/scenarios.
@@ -174,6 +177,8 @@ type CreateDraftJourneyMapInput = {
   account_id?: number;
   // When provided the map is grouped under this architecture and inherits its ownership
   journey_architecture_id?: number;
+  map_level?: string;
+  intent?: string;
 };
 
 type SendJourneyMapMessageInput = {
@@ -1229,7 +1234,7 @@ export async function deleteJourneyMap(journeyMapId: number): Promise<void> {
 
 export async function updateJourneyMapMeta(
   journeyMapId: number,
-  data: {title?: string; status?: JourneyMapStatus},
+  data: {title?: string; status?: JourneyMapStatus; map_level?: string},
 ): Promise<XanoJourneyMap> {
   return xanoRequest<XanoJourneyMap>(`/journey_map/${journeyMapId}`, {method: 'PATCH', body: data});
 }

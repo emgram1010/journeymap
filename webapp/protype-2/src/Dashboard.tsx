@@ -33,6 +33,17 @@ const STATUS_STYLES: Record<JourneyMapStatus, string> = {
   archived: 'bg-amber-50 text-amber-700',
 };
 
+const MAP_LEVEL_STYLES: Record<string, string> = {
+  architecture: 'bg-blue-50 text-blue-700',
+  'actor-journey': 'bg-violet-50 text-violet-700',
+  atomic: 'bg-orange-50 text-orange-700',
+};
+const MAP_LEVEL_LABELS: Record<string, string> = {
+  architecture: 'L1 · Architecture',
+  'actor-journey': 'L2 · Actor Journey',
+  atomic: 'L3 · Atomic',
+};
+
 interface MapTileProps {
   map: XanoJourneyMap;
   onOpen: () => void;
@@ -137,11 +148,16 @@ function MapTile({ map, onOpen, onRename, onDelete, onArchive }: MapTileProps) {
         </div>
 
         {/* Status & timestamp */}
-        <div className="flex items-center justify-between mt-auto">
+        <div className="flex items-center gap-2 mt-auto flex-wrap">
           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${STATUS_STYLES[map.status]}`}>
             {map.status}
           </span>
-          <span className="text-[11px] text-zinc-400">{relativeTime(ts)}</span>
+          {map.map_level && MAP_LEVEL_STYLES[map.map_level] && (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide ${MAP_LEVEL_STYLES[map.map_level]}`}>
+              {MAP_LEVEL_LABELS[map.map_level] ?? map.map_level}
+            </span>
+          )}
+          <span className="text-[11px] text-zinc-400 ml-auto">{relativeTime(ts)}</span>
         </div>
       </div>
     </div>
@@ -159,6 +175,9 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [createTitle, setCreateTitle] = useState('Untitled Journey Map');
+  const [createLevel, setCreateLevel] = useState<string>('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -192,10 +211,23 @@ export default function Dashboard() {
 
   useEffect(() => { void loadMaps(); }, []);
 
+  const openCreateDialog = () => {
+    setCreateTitle('Untitled Journey Map');
+    setCreateLevel('');
+    setShowCreateDialog(true);
+  };
+
   const handleCreate = async () => {
     setIsCreating(true);
+    setShowCreateDialog(false);
     try {
-      const bundle = await createDraftJourneyMap({ title: 'Untitled Journey Map', status: 'draft', account_id: user?.account_id ?? undefined });
+      const input: Parameters<typeof createDraftJourneyMap>[0] = {
+        title: createTitle.trim() || 'Untitled Journey Map',
+        status: 'draft',
+        account_id: user?.account_id ?? undefined,
+      };
+      if (createLevel) input.map_level = createLevel;
+      const bundle = await createDraftJourneyMap(input);
       setMaps((prev) => [bundle.journeyMap, ...prev]);
       navigate(`/maps/${bundle.journeyMap.id}`);
     } catch {
@@ -288,7 +320,7 @@ export default function Dashboard() {
             )}
           </div>
           <button
-            onClick={() => void handleCreate()}
+            onClick={openCreateDialog}
             disabled={isCreating}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-zinc-900 text-white text-sm font-semibold rounded-xl hover:bg-zinc-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors shadow-sm"
           >
@@ -322,7 +354,7 @@ export default function Dashboard() {
             </div>
             <h2 className="text-lg font-semibold text-zinc-800 mb-2">No journey maps yet</h2>
             <p className="text-sm text-zinc-500 max-w-xs mb-6">Create your first map to start capturing expert knowledge.</p>
-            <button onClick={() => void handleCreate()} disabled={isCreating}
+            <button onClick={openCreateDialog} disabled={isCreating}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-900 text-white text-sm font-semibold rounded-xl hover:bg-zinc-800 disabled:opacity-60 transition-colors shadow-sm">
               {isCreating ? <RotateCcw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
               Create your first journey map
@@ -346,6 +378,53 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+
+      {/* Create dialog */}
+      {showCreateDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowCreateDialog(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-base font-bold text-zinc-900 mb-4">New Journey Map</h2>
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-xs font-medium text-zinc-600 mb-1 block">Title</label>
+                <input
+                  autoFocus
+                  className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent"
+                  value={createTitle}
+                  onChange={(e) => setCreateTitle(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void handleCreate(); if (e.key === 'Escape') setShowCreateDialog(false); }}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-zinc-600 mb-1 block">Map Level <span className="text-zinc-400 font-normal">(optional)</span></label>
+                <select
+                  className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900 bg-white"
+                  value={createLevel}
+                  onChange={(e) => setCreateLevel(e.target.value)}
+                >
+                  <option value="">— unset —</option>
+                  <option value="architecture">L1 · Architecture</option>
+                  <option value="actor-journey">L2 · Actor Journey</option>
+                  <option value="atomic">L3 · Atomic</option>
+                </select>
+                {createLevel === 'atomic' && (
+                  <p className="text-[11px] text-orange-600 mt-1">L3 Atomic maps support leakage analysis.</p>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button onClick={() => void handleCreate()} disabled={isCreating}
+                className="flex-1 py-2 bg-zinc-900 text-white text-sm font-semibold rounded-xl hover:bg-zinc-800 disabled:opacity-60 transition-colors">
+                Create
+              </button>
+              <button onClick={() => setShowCreateDialog(false)}
+                className="flex-1 py-2 bg-zinc-100 text-zinc-700 text-sm font-semibold rounded-xl hover:bg-zinc-200 transition-colors">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
