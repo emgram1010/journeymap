@@ -37,6 +37,7 @@ query "user/join_account" verb=POST {
     db.edit user {
       field_name = "id"
       field_value = $user.id
+      enforce_hidden_fields = false
       data = {account_id: $input.account_id}
     } as $updated_user
   
@@ -53,5 +54,4 @@ query "user/join_account" verb=POST {
 
   response = $updated_user
   tags = ["xano:quick-start"]
-  guid = "B2bEbozHjxX6flWhYNpn_u7zJow"
 }

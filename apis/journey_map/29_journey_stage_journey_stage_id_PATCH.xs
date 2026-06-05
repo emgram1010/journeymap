@@ -23,5 +23,4 @@ query "journey_stage/{journey_stage_id}" verb=PATCH {
   }
 
   response = $model
-  guid = "KXMrE6k3uHKLyxElrvauRHqMYL8"
 }

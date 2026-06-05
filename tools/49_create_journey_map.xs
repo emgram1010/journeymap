@@ -9,11 +9,13 @@ tool create_journey_map {
     enum intent? {
       values = ["sop", "automation", "hybrid"]
     }
+  
     // Map level for intelligence layer taxonomy (LA-4).
     // Only 'atomic' (L3) maps are valid for leakage analysis.
     enum map_level? {
-      values = ["architecture","actor-journey","atomic"]
+      values = ["architecture", "actor-journey", "atomic"]
     }
+  
     // FK to the parent L1/L2 map this map drills down from (optional).
     int parent_map_id?
   }
@@ -57,6 +59,7 @@ tool create_journey_map {
   
     // Create the map
     db.add journey_map {
+      enforce_hidden_fields = false
       data = {
         created_at          : "now"
         updated_at          : "now"
@@ -83,6 +86,7 @@ tool create_journey_map {
     foreach ([1, 2, 3, 4, 5, 6, 7, 8]) {
       each as $n {
         db.add journey_stage {
+          enforce_hidden_fields = false
           data = {
             created_at   : "now"
             updated_at   : "now"
@@ -101,6 +105,7 @@ tool create_journey_map {
   
     // Seed default description lens
     db.add journey_lens {
+      enforce_hidden_fields = false
       data = {
         created_at   : "now"
         updated_at   : "now"
@@ -124,6 +129,7 @@ tool create_journey_map {
     foreach ($stages) {
       each as $stg {
         db.add journey_cell {
+          enforce_hidden_fields = false
           data = {
             created_at : "now"
             updated_at : "now"

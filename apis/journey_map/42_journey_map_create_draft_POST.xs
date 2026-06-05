@@ -187,6 +187,7 @@ query "journey_map/create_draft" verb=POST {
     conditional {
       if ($resolved_journey_architecture != null) {
         db.add journey_map {
+          enforce_hidden_fields = false
           data = {
             created_at          : "now"
             updated_at          : "now"
@@ -207,6 +208,7 @@ query "journey_map/create_draft" verb=POST {
     
       else {
         db.add journey_map {
+          enforce_hidden_fields = false
           data = {
             created_at         : "now"
             updated_at         : "now"
@@ -228,6 +230,7 @@ query "journey_map/create_draft" verb=POST {
     foreach ($stage_seeds) {
       each as $stage_seed {
         db.add journey_stage {
+          enforce_hidden_fields = false
           data = {
             created_at   : "now"
             updated_at   : "now"
@@ -247,6 +250,7 @@ query "journey_map/create_draft" verb=POST {
     foreach ($lens_seeds) {
       each as $lens_seed {
         db.add journey_lens {
+          enforce_hidden_fields = false
           data = {
             created_at   : "now"
             updated_at   : "now"
@@ -269,6 +273,7 @@ query "journey_map/create_draft" verb=POST {
         foreach ($lenses) {
           each as $lens {
             db.add journey_cell {
+              enforce_hidden_fields = false
               data = {
                 created_at : "now"
                 updated_at : "now"
@@ -296,5 +301,4 @@ query "journey_map/create_draft" verb=POST {
     lenses     : $lenses
     cells      : $cells
   }
-  guid = "9j0volxckMS4LNVYw5nUxk4i3iY"
 }

@@ -548,6 +548,7 @@ tool get_gaps {
         }
       
         db.add agent_tool_log {
+          enforce_hidden_fields = false
           data = {
             conversation  : $input.conversation_id
             journey_map   : $input.journey_map_id
@@ -570,5 +571,4 @@ tool get_gaps {
     most_empty_stage: $most_empty_stage
     most_empty_lens : $most_empty_lens
   }
-  guid = "QUrIMwblX6lMHDr8mSLNas0ajmY"
 }

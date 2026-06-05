@@ -31,5 +31,4 @@ table event_log {
   ]
 
   tags = ["xano:quick-start"]
-  guid = "1WU0dsjwTspaCRptoCGJ3TLn26w"
 }

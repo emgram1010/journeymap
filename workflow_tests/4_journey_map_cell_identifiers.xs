@@ -133,5 +133,4 @@ workflow_test journey_map_cell_identifiers {
       input = {journey_lens_id: $new_lens.lens.id}
     }
   }
-  guid = "phZ25PpFBkcd8kM8BwCzZx_DC9k"
 }

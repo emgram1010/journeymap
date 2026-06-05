@@ -19,6 +19,10 @@ export interface JourneySettings {
   // Intelligence Layer — L3 Atomic measurement fields
   measurement_frequency?: number | null;
   measurement_period_label?: string | null;
+  // Revenue at Risk fields (TL-4)
+  average_deal_value?: number | null;
+  miss_rate?: number | null;
+  conversion_rate?: number | null;
 }
 
 export type InterviewDepth = 'strategic' | 'discovery' | 'rapid_capture';
@@ -63,6 +67,8 @@ export interface XanoJourneyMap extends JourneySettings {
   // Intelligence Layer taxonomy level: architecture | actor-journey | atomic
   map_level?: string | null;
   intent?: string | null;
+  // FK to parent L1/L2 map (TL-3)
+  parent_map_id?: number | null;
 }
 
 // Lightweight scenario record returned by GET /journey_architecture/{id}/scenarios.
@@ -117,6 +123,12 @@ export interface XanoJourneyCell {
   last_updated_at?: string | null;
   journey_map_updated_at?: string | null;
   actor_fields?: Record<string, unknown> | null;
+  // Ring 2 time duration
+  time_duration_value?: number | null;
+  time_duration_unit?: string | null;
+  // Plan vs Actual (TL-6)
+  planned_duration?: number | null;
+  actual_duration?: number | null;
 }
 
 export interface XanoAgentConversation {
@@ -252,6 +264,8 @@ type UpdateJourneyCellInput = {
   actorFields?: ActorFields | null;
   timeDurationValue?: number | null;
   timeDurationUnit?: string | null;
+  plannedDuration?: number | null;
+  actualDuration?: number | null;
 };
 
 type BusinessBundleResponse = {
@@ -733,6 +747,8 @@ const buildHydratedJourneyMapBundle = (
         actorFields: (cell.actor_fields ?? null) as ActorFields | null,
         timeDurationValue: cell.time_duration_value ?? null,
         timeDurationUnit: cell.time_duration_unit ?? null,
+        plannedDuration: cell.planned_duration ?? null,
+        actualDuration: cell.actual_duration ?? null,
       })),
   };
 };
@@ -1052,6 +1068,12 @@ export async function updateJourneyCell(input: UpdateJourneyCellInput): Promise<
   }
   if (input.timeDurationUnit !== undefined) {
     body.time_duration_unit = input.timeDurationUnit;
+  }
+  if (input.plannedDuration !== undefined) {
+    body.planned_duration = input.plannedDuration;
+  }
+  if (input.actualDuration !== undefined) {
+    body.actual_duration = input.actualDuration;
   }
   return xanoRequest<XanoJourneyCell>(buildParameterizedPath(getXanoUpdateCellPath(), {journeyCellId: input.journeyCellId}), {
     method: 'PATCH',

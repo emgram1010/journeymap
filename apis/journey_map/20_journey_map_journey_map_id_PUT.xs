@@ -29,6 +29,7 @@ query "journey_map/{journey_map_id}" verb=PUT {
     db.edit journey_map {
       field_name = "id"
       field_value = $input.journey_map_id
+      enforce_hidden_fields = false
       data = {
         updated_at         : $input.updated_at
         title              : $input.title
@@ -42,5 +43,4 @@ query "journey_map/{journey_map_id}" verb=PUT {
   }
 
   response = $model
-  guid = "Bd4-6Z67NURctGPTY9VjqYIjZoc"
 }

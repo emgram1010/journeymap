@@ -19,5 +19,4 @@ query "journey_stage/{journey_stage_id}" verb=GET {
   }
 
   response = $model
-  guid = "jtG8x6QnI65HnTFJ3oAUw3P31iM"
 }

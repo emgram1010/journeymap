@@ -214,5 +214,4 @@ workflow_test ai_transparency {
       value = "status"
     }
   }
-  guid = "SOZQuQWY1QXUQwTiU0P7Jtev0K4"
 }

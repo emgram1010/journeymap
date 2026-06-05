@@ -99,4 +99,5 @@ query "journey_lens/actor_fields/{journey_lens_id}" verb=PATCH {
   }
 
   response = $updated_lens
+  guid = "6wCr41ohu2vKWMB5zqifMKzF4Rw"
 }

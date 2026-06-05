@@ -10,7 +10,7 @@ query test verb=GET {
       value = [{role: "user", content: $input.message}]
     }
   
-    ai.agent.run "Journey Map Assistant" {
+    ai.agent.run "" {
       args = {}|set:"messages":$messages
       allow_tool_execution = true
       version = "v5"
@@ -18,5 +18,4 @@ query test verb=GET {
   }
 
   response = $Journey_Map_Assistant1
-  guid = "almi53eEs1d-WM6EeToyAN0G2mw"
 }

@@ -14,5 +14,4 @@ query "journey_lens/{journey_lens_id}" verb=DELETE {
   }
 
   response = null
-  guid = "B_7_BElALfzWQQlqSxOEjPpBRus"
 }

@@ -224,5 +224,4 @@ tool infer_stage_metrics {
   }
 
   response = $result
-  guid = "l-dkNdbj-N0hHfoxIIxX9_b5PPY"
 }

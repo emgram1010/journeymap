@@ -190,6 +190,7 @@ tool save_workflow_state {
       else {
         // Create minimal record first (db.add requires inline literal)
         db.add workflow_execution {
+          enforce_hidden_fields = false
           data = {
             created_at : "now"
             journey_map: $input.journey_map_id
@@ -235,6 +236,7 @@ tool save_workflow_state {
     conditional {
       if ($input.conversation_id_log != null && $input.turn_id != null) {
         db.add agent_tool_log {
+          enforce_hidden_fields = false
           data = {
             conversation  : $input.conversation_id_log
             journey_map   : $input.journey_map_id

@@ -25,5 +25,4 @@ query "journey_map/{journey_map_id}" verb=GET {
   }
 
   response = $model
-  guid = "5PRZS9God_CcCQDXaZhs-Fmf1Bo"
 }

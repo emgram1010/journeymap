@@ -245,6 +245,7 @@ query "journey_map/{journey_map_id}/publish" verb=POST {
     
       else {
         db.add automation_snapshot {
+          enforce_hidden_fields = false
           data = {
             created_at          : "now"
             compiled_at         : "now"
@@ -283,11 +284,11 @@ query "journey_map/{journey_map_id}/publish" verb=POST {
     }
   
     var $map_context_for_summary {
-      value = "Map title: " ~ $journey_map.title ~ " | Level: " ~ ($journey_map.map_level ?? "unset") ~ " | Stages: " ~ $summary_stage_labels ~ " | Scope: " ~ ($journey_map.journey_scope ?? "") ~ " | Primary actor: " ~ ($journey_map.primary_actor ?? "") ~ " | Start: " ~ ($journey_map.start_point ?? "") ~ " | End: " ~ ($journey_map.end_point ?? "") ~ " | Measurement frequency: " ~ ($journey_map.measurement_frequency ?? "") ~ " | Period label: " ~ ($journey_map.measurement_period_label ?? "")
+      value = "Map title: " ~ $journey_map.title ~ " | Stages: " ~ $summary_stage_labels ~ " | Scope: " ~ ($journey_map.journey_scope ?? "") ~ " | Primary actor: " ~ ($journey_map.primary_actor ?? "") ~ " | Start: " ~ ($journey_map.start_point ?? "") ~ " | End: " ~ ($journey_map.end_point ?? "")
     }
-
+  
     var $summary_prompt_text {
-      value = "Summarise this journey map for a search index. Use EXACTLY this 8-line format:\n\nProcess: [one sentence]\nActor: [primary actor]\nDomain: [industry/function]\nLevel: [architecture | actor-journey | atomic]\nTriggers: [what starts it]\nOutcome: [what it produces]\nStages: " ~ $summary_stage_labels ~ "\nIntent: [sop | automation | hybrid]\n\nMap: " ~ $map_context_for_summary ~ "\n\nOutput the 8 lines only. No extra text. Max 600 chars total."
+      value = "Summarise this journey map for a search index. Use EXACTLY this 7-line format:\n\nProcess: [one sentence]\nActor: [primary actor]\nDomain: [industry/function]\nTriggers: [what starts it]\nOutcome: [what it produces]\nStages: " ~ $summary_stage_labels ~ "\nIntent: [sop | automation | hybrid]\n\nMap: " ~ $map_context_for_summary ~ "\n\nOutput the 7 lines only. No extra text. Max 500 chars total."
     }
   
     var $summary_messages {

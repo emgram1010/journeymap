@@ -14,17 +14,17 @@ tool update_actor_identity {
         operating manual. Once set, the Orchestrator delegates this stage to that map.
       - cost_rate_value: (optional) decimal — the actor's labor cost rate (e.g. 30.00)
       - cost_rate_unit: (optional) enum — unit for cost_rate_value: per_minute | per_hour | per_day | per_week | per_event
-
+    
       Identify the lens by lens_key. Do NOT pass lens IDs.
       Provide only the fields you have information for — other fields are left unchanged.
-
+    
       When to use:
       - When the user describes who the actor is (persona_description)
       - When the user states the actor's goal (primary_goal)
       - When the user mentions standing limitations or constraints (standing_constraints)
       - When wiring an ai_agent lens to its sub-journey map (agent_map_id)
       - Proactively after gathering enough context from the interview
-
+    
       Input:
       - journey_map_id: The ID of the journey map
       - lens_key: The key of the target lens (e.g. 'customer', 'driver', 'engineer')
@@ -34,7 +34,7 @@ tool update_actor_identity {
       - agent_map_id: (optional) int — only meaningful for actor_type ai_agent
       - conversation_id: (optional) for tool trace logging
       - turn_id: (optional) for tool trace logging
-
+    
       Response shape:
       {
         applied: true/false,
@@ -54,7 +54,7 @@ tool update_actor_identity {
     int agent_map_id?
     decimal cost_rate_value?
     enum cost_rate_unit? {
-      values = ["per_minute","per_hour","per_day","per_week","per_event"]
+      values = ["per_minute", "per_hour", "per_day", "per_week", "per_event"]
     }
   }
 
@@ -106,7 +106,7 @@ tool update_actor_identity {
             }
           }
         }
-
+      
         conditional {
           if ($input.agent_map_id != null) {
             var.update $has_data {
@@ -114,7 +114,7 @@ tool update_actor_identity {
             }
           }
         }
-
+      
         conditional {
           if ($input.cost_rate_value != null) {
             var.update $has_data {
@@ -122,7 +122,7 @@ tool update_actor_identity {
             }
           }
         }
-
+      
         conditional {
           if ($input.cost_rate_unit != null) {
             var.update $has_data {
@@ -130,7 +130,7 @@ tool update_actor_identity {
             }
           }
         }
-
+      
         conditional {
           if ($has_data == false) {
             var.update $result {
@@ -176,7 +176,7 @@ tool update_actor_identity {
                 }
               }
             }
-
+          
             conditional {
               if ($input.agent_map_id != null) {
                 var.update $patch_data {
@@ -185,7 +185,7 @@ tool update_actor_identity {
                 }
               }
             }
-
+          
             conditional {
               if ($input.cost_rate_value != null) {
                 var.update $patch_data {
@@ -194,7 +194,7 @@ tool update_actor_identity {
                 }
               }
             }
-
+          
             conditional {
               if ($input.cost_rate_unit != null) {
                 var.update $patch_data {
@@ -203,7 +203,7 @@ tool update_actor_identity {
                 }
               }
             }
-
+          
             db.patch journey_lens {
               field_name = "id"
               field_value = $lens.id
@@ -236,6 +236,7 @@ tool update_actor_identity {
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {
         db.add agent_tool_log {
+          enforce_hidden_fields = false
           data = {
             conversation  : $input.conversation_id
             journey_map   : $input.journey_map_id
@@ -251,5 +252,4 @@ tool update_actor_identity {
   }
 
   response = $result
-  guid = "iL-sxpd9Q87d_IlMlynURHog9nY"
 }

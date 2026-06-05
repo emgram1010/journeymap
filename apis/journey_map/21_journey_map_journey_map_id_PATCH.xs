@@ -39,5 +39,4 @@ query "journey_map/{journey_map_id}" verb=PATCH {
   }
 
   response = $model
-  guid = "HqAG_wye5ZwHBY_ylnsr7TP_aQM"
 }

@@ -23,5 +23,4 @@ query "journey_lens/{journey_lens_id}" verb=PATCH {
   }
 
   response = $model
-  guid = "IhPEsbVSXEnSV-OuIfp1FbuEQr0"
 }

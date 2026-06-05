@@ -48,5 +48,4 @@ query "user/edit_profile" verb=PATCH {
 
   response = $updated_user_info
   tags = ["xano:quick-start"]
-  guid = "5R4htFRkM9GoFsr3RKvJFTBK08I"
 }

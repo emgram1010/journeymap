@@ -83,5 +83,4 @@ query "journey_map/load_bundle/{journey_map_id}" verb=GET {
     conversation: $conversation
     messages    : $messages
   }
-  guid = "BL4guMeIdsQC9QhPh52MU4x9ZX0"
 }

@@ -96,6 +96,7 @@ tool web_search {
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {
         db.add agent_tool_log {
+          enforce_hidden_fields = false
           data = {
             conversation  : $input.conversation_id
             turn_id       : $input.turn_id

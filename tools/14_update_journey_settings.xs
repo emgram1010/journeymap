@@ -21,7 +21,10 @@ tool update_journey_settings {
       - version: Version or iteration label for this journey map (e.g. 'v1.2 - Q2 2026')
       - measurement_frequency: How many times per year this process runs (int). The compounding multiplier for leakage math. Example: 15924
       - measurement_period_label: Human-readable cadence label. Examples: "per job", "per shift", "per call"
-    
+      - average_deal_value: Average revenue per successful event (decimal). Example: 350.00
+      - miss_rate: Percentage of events mishandled, stored as 0.0–1.0. Example: 0.40 = 40%
+      - conversion_rate: Percentage of prospects that convert, stored as 0.0–1.0. Example: 0.35
+
       When to use:
       - When the user describes the overall journey scope, goals, or timeframe
       - When the user mentions who this journey is for (primary_actor)
@@ -33,7 +36,7 @@ tool update_journey_settings {
       - Any subset of the 13 fields above
       - conversation_id: (optional) for tool trace logging
       - turn_id: (optional) for tool trace logging
-
+    
       Response shape:
       {
         applied: true/false,
@@ -59,6 +62,9 @@ tool update_journey_settings {
     text version?
     int measurement_frequency?
     text measurement_period_label?
+    decimal average_deal_value?
+    decimal miss_rate?
+    decimal conversion_rate?
   }
 
   stack {
@@ -212,17 +218,31 @@ tool update_journey_settings {
         var.update $patch_data {
           value = $patch_data|set:"version":$input.version
         }
-
+      
         var.update $field_count {
           value = $field_count + 1
         }
       }
     }
-
+  
     conditional {
       if ($input.measurement_frequency != null) {
         var.update $patch_data {
-          value = $patch_data|set:"measurement_frequency":$input.measurement_frequency
+          value = $patch_data
+            |set:"measurement_frequency":$input.measurement_frequency
+        }
+      
+        var.update $field_count {
+          value = $field_count + 1
+        }
+      }
+    }
+  
+    conditional {
+      if ($input.measurement_period_label != null && $input.measurement_period_label != "") {
+        var.update $patch_data {
+          value = $patch_data
+            |set:"measurement_period_label":$input.measurement_period_label
         }
 
         var.update $field_count {
@@ -232,9 +252,35 @@ tool update_journey_settings {
     }
 
     conditional {
-      if ($input.measurement_period_label != null && $input.measurement_period_label != "") {
+      if ($input.average_deal_value != null) {
         var.update $patch_data {
-          value = $patch_data|set:"measurement_period_label":$input.measurement_period_label
+          value = $patch_data
+            |set:"average_deal_value":$input.average_deal_value
+        }
+
+        var.update $field_count {
+          value = $field_count + 1
+        }
+      }
+    }
+
+    conditional {
+      if ($input.miss_rate != null) {
+        var.update $patch_data {
+          value = $patch_data|set:"miss_rate":$input.miss_rate
+        }
+
+        var.update $field_count {
+          value = $field_count + 1
+        }
+      }
+    }
+
+    conditional {
+      if ($input.conversion_rate != null) {
+        var.update $patch_data {
+          value = $patch_data
+            |set:"conversion_rate":$input.conversion_rate
         }
 
         var.update $field_count {
@@ -268,6 +314,9 @@ tool update_journey_settings {
               version                  : $updated_map.version
               measurement_frequency    : $updated_map.measurement_frequency
               measurement_period_label : $updated_map.measurement_period_label
+              average_deal_value       : $updated_map.average_deal_value
+              miss_rate                : $updated_map.miss_rate
+              conversion_rate          : $updated_map.conversion_rate
             }
             skip_reason: null
           }
@@ -279,6 +328,7 @@ tool update_journey_settings {
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {
         db.add agent_tool_log {
+          enforce_hidden_fields = false
           data = {
             conversation  : $input.conversation_id
             journey_map   : $input.journey_map_id
@@ -294,5 +344,4 @@ tool update_journey_settings {
   }
 
   response = $result
-  guid = "gVc08xvshx4T4N02woJVr71lVAY"
 }

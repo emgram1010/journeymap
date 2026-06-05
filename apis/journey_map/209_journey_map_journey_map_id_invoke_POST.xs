@@ -49,6 +49,7 @@ query "journey_map/{journey_map_id}/invoke" verb=POST {
   
     // Create child workflow_execution linked to parent
     db.add workflow_execution {
+      enforce_hidden_fields = false
       data = {
         created_at         : "now"
         updated_at         : "now"

@@ -16,6 +16,7 @@ tool create_workspace {
     }
   
     db.add journey_architecture {
+      enforce_hidden_fields = false
       data = {
         created_at : "now"
         updated_at : "now"

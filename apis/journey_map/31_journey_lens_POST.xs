@@ -10,6 +10,7 @@ query journey_lens verb=POST {
 
   stack {
     db.add journey_lens {
+      enforce_hidden_fields = false
       data = {
         created_at   : "now"
         updated_at   : $input.updated_at
@@ -22,5 +23,4 @@ query journey_lens verb=POST {
   }
 
   response = $model
-  guid = "Lo0ehxu8ByikiOi6gPfOnABcAJQ"
 }

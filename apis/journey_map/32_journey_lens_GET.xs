@@ -12,5 +12,4 @@ query journey_lens verb=GET {
   }
 
   response = $model
-  guid = "5nXgzSh25QHsbuPORNlhJ4KCLoY"
 }

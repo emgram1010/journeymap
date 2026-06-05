@@ -39,5 +39,4 @@ table user {
   ]
 
   tags = ["xano:quick-start"]
-  guid = "NUeb6U7x1PNcOkiaHSGfVTyZtgE"
 }

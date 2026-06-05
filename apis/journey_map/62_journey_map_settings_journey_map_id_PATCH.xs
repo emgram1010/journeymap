@@ -21,9 +21,15 @@ query "journey_map/settings/{journey_map_id}" verb=PATCH {
     int measurement_frequency?
     text measurement_period_label? filters=trim
     enum map_level? {
-      values = ["architecture","actor-journey","atomic"]
+      values = ["architecture", "actor-journey", "atomic"]
     }
+  
     int parent_map_id?
+
+    // Revenue at Risk fields (TL-4)
+    decimal average_deal_value?
+    decimal miss_rate?
+    decimal conversion_rate?
   }
 
   stack {
@@ -66,6 +72,9 @@ query "journey_map/settings/{journey_map_id}" verb=PATCH {
         "measurement_period_label"
         "map_level"
         "parent_map_id"
+        "average_deal_value"
+        "miss_rate"
+        "conversion_rate"
       ]
     }
   
@@ -97,5 +106,4 @@ query "journey_map/settings/{journey_map_id}" verb=PATCH {
   }
 
   response = $updated
-  guid = "0xKUZuCJWt9Tmm0DGaLamk3CMdU"
 }

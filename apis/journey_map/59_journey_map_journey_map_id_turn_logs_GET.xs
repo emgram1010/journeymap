@@ -61,5 +61,4 @@ query "journey_map/{journey_map_id}/turn-logs" verb=GET {
     count         : $annotated_turns|count
     turns         : $annotated_turns
   }
-  guid = "hnGpnVfIc3MqVV0ZdqehLAPmaoM"
 }

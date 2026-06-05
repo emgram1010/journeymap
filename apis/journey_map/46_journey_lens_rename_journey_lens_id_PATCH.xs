@@ -30,6 +30,7 @@ query "journey_lens/rename/{journey_lens_id}" verb=PATCH {
     db.edit journey_lens {
       field_name = "id"
       field_value = $input.journey_lens_id
+      enforce_hidden_fields = false
       data = {label: $input.label, updated_at: "now"}
     } as $journey_lens_patch
   
@@ -62,5 +63,4 @@ query "journey_lens/rename/{journey_lens_id}" verb=PATCH {
     lens                  : $journey_lens
     journey_map_updated_at: $journey_map_touch.updated_at
   }
-  guid = "5FLT0HoUZNYIlKxOHEUdhmH7NiQ"
 }

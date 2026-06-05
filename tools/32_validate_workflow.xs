@@ -406,6 +406,7 @@ tool validate_workflow {
         }
       
         db.add agent_tool_log {
+          enforce_hidden_fields = false
           data = {
             conversation  : $input.conversation_id
             journey_map   : $input.journey_map_id

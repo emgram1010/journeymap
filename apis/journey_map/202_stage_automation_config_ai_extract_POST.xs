@@ -268,6 +268,7 @@ query "stage_automation_config/ai_extract" verb=POST {
                 }
               
                 db.add stage_automation_config {
+                  enforce_hidden_fields = false
                   data = {
                     created_at         : "now"
                     updated_at         : "now"

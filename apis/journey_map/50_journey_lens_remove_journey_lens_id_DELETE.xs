@@ -59,5 +59,4 @@ query "journey_lens/remove/{journey_lens_id}" verb=DELETE {
     deleted_cell_count    : $lens_cells|count
     journey_map_updated_at: $journey_map_touch.updated_at
   }
-  guid = "Pz48AATubFZqD2QMdAIR5iG6tG4"
 }

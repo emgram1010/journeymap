@@ -148,9 +148,10 @@ tool mutate_structure {
         db.edit journey_stage {
           field_name = "id"
           field_value = $rename_stage_target.id
+          enforce_hidden_fields = false
           data = {label: $input.label, updated_at: "now"}
         } as $rename_stage_result
-
+      
         var.update $result {
           value = {
             action : "rename_stage"
@@ -379,6 +380,7 @@ tool mutate_structure {
         }
       
         db.add journey_lens {
+          enforce_hidden_fields = false
           data = {
             created_at   : "now"
             updated_at   : "now"
@@ -399,6 +401,7 @@ tool mutate_structure {
         foreach ($stages_for_cells) {
           each as $stg {
             db.add journey_cell {
+              enforce_hidden_fields = false
               data = {
                 created_at  : "now"
                 updated_at  : "now"
@@ -489,9 +492,10 @@ tool mutate_structure {
         db.edit journey_lens {
           field_name = "id"
           field_value = $rename_lens_target.id
+          enforce_hidden_fields = false
           data = {label: $input.label, updated_at: "now"}
         } as $rename_lens_result
-
+      
         var.update $result {
           value = {
             action : "rename_lens"
@@ -695,6 +699,7 @@ tool mutate_structure {
         }
       
         db.add agent_tool_log {
+          enforce_hidden_fields = false
           data = {
             conversation  : $input.conversation_id
             journey_map   : $input.journey_map_id
@@ -710,5 +715,4 @@ tool mutate_structure {
   }
 
   response = $result
-  guid = "v_CjcVOpEMS-4JZXVT3nSQ9kb0I"
 }

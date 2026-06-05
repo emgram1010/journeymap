@@ -228,6 +228,7 @@ tool search_cells {
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {
         db.add agent_tool_log {
+          enforce_hidden_fields = false
           data = {
             conversation  : $input.conversation_id
             journey_map   : $input.journey_map_id
@@ -247,5 +248,4 @@ tool search_cells {
     count  : $results|count
     results: $results
   }
-  guid = "s3O2FmbC-9ORogPzmqNDBZ_wKSI"
 }

@@ -239,6 +239,9 @@ export interface MatrixCell {
   /** Ring 2 time duration fields — used in L3 leakage math */
   timeDurationValue?: number | null;
   timeDurationUnit?: string | null;
+  /** Plan vs Actual duration fields (TL-6) */
+  plannedDuration?: number | null;
+  actualDuration?: number | null;
 }
 
 export interface Stage {

@@ -8,11 +8,11 @@ tool list_maps {
     enum intent? {
       values = ["sop", "automation", "hybrid"]
     }
-
+  
     enum status? {
       values = ["draft", "active", "archived"]
     }
-
+  
     // LA-4: filter by Intelligence Layer map level.
     // Use map_level='atomic' to find L3 maps valid for leakage analysis.
     enum map_level? {
@@ -60,7 +60,7 @@ tool list_maps {
             }
           }
         }
-
+      
         conditional {
           if ($input.map_level != null && $m.map_level != $input.map_level) {
             var.update $pass {
@@ -68,7 +68,7 @@ tool list_maps {
             }
           }
         }
-
+      
         conditional {
           if ($pass) {
             array.push $results {

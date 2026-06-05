@@ -23,6 +23,7 @@ query "auth/signup" verb=POST {
   
     // Create a new user record
     db.add user {
+      enforce_hidden_fields = false
       data = {
         created_at: "now"
         name      : $input.name
@@ -53,5 +54,4 @@ query "auth/signup" verb=POST {
 
   response = {authToken: $authToken, user_id: $user.id}
   tags = ["xano:quick-start"]
-  guid = "Y9Sl5iKLly9mTFlAb9is2dshOW8"
 }

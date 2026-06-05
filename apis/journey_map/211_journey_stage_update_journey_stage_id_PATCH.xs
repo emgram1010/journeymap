@@ -31,6 +31,7 @@ query "journey_stage/update/{journey_stage_id}" verb=PATCH {
     db.edit journey_stage {
       field_name = "id"
       field_value = $input.journey_stage_id
+      enforce_hidden_fields = false
       data = {
         label             : $input.label
         stage_goal        : $input.stage_goal

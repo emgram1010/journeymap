@@ -3,5 +3,4 @@ api_group "Event Logs" {
   canonical = "nxvgYWqv"
   swagger = {token: "394JnWYKvLHg4LgXYQxWceSVCDY"}
   tags = ["xano:quick-start"]
-  guid = "3WmhtRauLDPpt9EQj3su5tKYUHs"
 }

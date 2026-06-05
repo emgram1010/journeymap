@@ -14,7 +14,7 @@ mcp_server_trigger "Auth Gate" {
         text instructions
       }
     }
-
+  
     object[] tools {
       schema {
         int id
@@ -28,11 +28,11 @@ mcp_server_trigger "Auth Gate" {
     var $toolset {
       value = $input.toolset
     }
-
+  
     var $tools {
       value = $input.tools
     }
-
+  
     // Reject unauthenticated connections — requires a valid Xano auth token in the URL
     precondition ($auth.id != null) {
       error_type = "accessdenied"

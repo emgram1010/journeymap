@@ -19,5 +19,4 @@ query "journey_cell/{journey_cell_id}" verb=GET {
   }
 
   response = $model
-  guid = "P3PuDrbxWx_SFCTQaSOsDicXIM8"
 }

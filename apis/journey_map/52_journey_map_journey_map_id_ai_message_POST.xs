@@ -18,10 +18,10 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
     // When true, routes to Journey Map Builder (reasoning:false, max_steps:15)
     // Used for fill phases 2-6 in the phase queue build loop.
     bool builder_mode?
-
+  
     // Specialist Mode: lens key of the active actor the AI should embody.
     text specialist_actor_key?
-
+  
     // Consortium Mode: array of lens keys for the panel of active actors.
     json consortium_actor_keys?
   }
@@ -143,7 +143,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
         var $at_suffix {
           value = ""
         }
-
+      
         conditional {
           if ($ln.actor_type != null && $ln.actor_type != "") {
             var.update $at_suffix {
@@ -151,14 +151,14 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
             }
           }
         }
-
+      
         conditional {
           if ($ln.description != null && $ln.description != "") {
             array.push $lens_labels {
               value = "- **" ~ $ln.label ~ "** (" ~ $ln.key ~ ")" ~ $at_suffix ~ ": " ~ $ln.description
             }
           }
-
+        
           else {
             array.push $lens_labels {
               value = "- " ~ $ln.label ~ " (" ~ $ln.key ~ ")" ~ $at_suffix
@@ -461,7 +461,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
           field_value = $journey_map.account_id
           output = ["id", "name", "ai_context"]
         } as $account
-
+      
         conditional {
           if ($account != null && $account.ai_context != null && $account.ai_context != "") {
             var $company_section {
@@ -471,7 +471,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                 |concat:"\n":""
                 |concat:$account.ai_context:""
             }
-
+          
             var.update $dynamic_context {
               value = $dynamic_context|concat:$company_section:""
             }
@@ -479,7 +479,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
         }
       }
     }
-
+  
     var.update $dynamic_context {
       value = $dynamic_context
         |concat:"\n\n### Stages (columns)\n":""
@@ -547,19 +547,19 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
     var $cell_fill_grid {
       value = "\n\n### Cell Fill Grid\n"
     }
-
+  
     foreach ($lenses) {
       each as $ln {
         var $row_line {
           value = "- " ~ $ln.key ~ ": "
         }
-
+      
         foreach ($stages) {
           each as $st {
             var $cell_filled {
               value = false
             }
-
+          
             foreach ($cells) {
               each as $c {
                 conditional {
@@ -575,14 +575,14 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                 }
               }
             }
-
+          
             conditional {
               if ($cell_filled) {
                 var.update $row_line {
                   value = $row_line ~ $st.key ~ "✅ "
                 }
               }
-
+            
               else {
                 var.update $row_line {
                   value = $row_line ~ $st.key ~ "⬜ "
@@ -591,17 +591,17 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
             }
           }
         }
-
+      
         var.update $cell_fill_grid {
           value = $cell_fill_grid ~ $row_line ~ "\n"
         }
       }
     }
-
+  
     var.update $dynamic_context {
       value = $dynamic_context|concat:$cell_fill_grid:""
     }
-
+  
     // ── Inject selected cell context (if the user has a cell focused) ──
     conditional {
       if ($input.selected_cell != null && ($input.selected_cell|is_empty) == false) {
@@ -3050,6 +3050,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
     conditional {
       if ($conversation == null) {
         db.add agent_conversation {
+          enforce_hidden_fields = false
           data = {
             created_at     : "now"
             journey_map    : $input.journey_map_id
@@ -3075,6 +3076,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
     // ── Build messages array for the agent ──
     // ── Persist user message first (needed to generate turn_id) ──
     db.add agent_message {
+      enforce_hidden_fields = false
       data = {
         created_at  : "now"
         conversation: $conversation.id
@@ -3096,19 +3098,19 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
           where = $db.journey_lens.journey_map == $input.journey_map_id && $db.journey_lens.key == $input.specialist_actor_key
           return = {type: "single"}
         } as $specialist_lens
-
+      
         conditional {
           if ($specialist_lens != null) {
             var $specialist_section {
               value = """
-
-
-              ## Specialist Persona
-              You ARE this actor for this entire conversation. Speak in first person.
-              """
+                
+                
+                ## Specialist Persona
+                You ARE this actor for this entire conversation. Speak in first person.
+                """
                 |concat:"- Actor: " ~ $specialist_lens.label ~ " (" ~ ($specialist_lens.actor_type ?? "internal") ~ ")\n":""
             }
-
+          
             conditional {
               if ($specialist_lens.persona_description != null && $specialist_lens.persona_description != "") {
                 var.update $specialist_section {
@@ -3117,7 +3119,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                 }
               }
             }
-
+          
             conditional {
               if ($specialist_lens.primary_goal != null && $specialist_lens.primary_goal != "") {
                 var.update $specialist_section {
@@ -3126,7 +3128,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                 }
               }
             }
-
+          
             conditional {
               if ($specialist_lens.standing_constraints != null && $specialist_lens.standing_constraints != "") {
                 var.update $specialist_section {
@@ -3135,7 +3137,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                 }
               }
             }
-
+          
             var.update $dynamic_context {
               value = $dynamic_context|concat:$specialist_section:""
             }
@@ -3143,34 +3145,34 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
         }
       }
     }
-
+  
     // ── Inject Consortium Panel block (SCM-04) ──
     conditional {
       if ($input.consortium_actor_keys != null && ($input.consortium_actor_keys|count) > 0) {
         var $consortium_section {
           value = """
-
-
-          ## Consortium Panel
-          You represent ALL of the following actors simultaneously.
-          For each question give each actor's perspective labeled with their name.
-          End with a Synthesis line.
-          """
+            
+            
+            ## Consortium Panel
+            You represent ALL of the following actors simultaneously.
+            For each question give each actor's perspective labeled with their name.
+            End with a Synthesis line.
+            """
         }
-
+      
         foreach ($input.consortium_actor_keys) {
           each as $cak {
             db.query journey_lens {
               where = $db.journey_lens.journey_map == $input.journey_map_id && $db.journey_lens.key == $cak
               return = {type: "single"}
             } as $panel_lens
-
+          
             conditional {
               if ($panel_lens != null) {
                 var $panel_line {
                   value = "- " ~ $panel_lens.label
                 }
-
+              
                 conditional {
                   if ($panel_lens.persona_description != null && $panel_lens.persona_description != "") {
                     var.update $panel_line {
@@ -3179,7 +3181,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     }
                   }
                 }
-
+              
                 conditional {
                   if ($panel_lens.primary_goal != null && $panel_lens.primary_goal != "") {
                     var.update $panel_line {
@@ -3188,7 +3190,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                     }
                   }
                 }
-
+              
                 var.update $consortium_section {
                   value = $consortium_section|concat:$panel_line ~ "\n":""
                 }
@@ -3196,13 +3198,13 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
             }
           }
         }
-
+      
         var.update $dynamic_context {
           value = $dynamic_context|concat:$consortium_section:""
         }
       }
     }
-
+  
     // ── Inject journey_map_id, conversation_id and turn_id into dynamic context ──
     // ALL THREE must be passed to every tool call — the agent reads this section.
     var.update $dynamic_context {
@@ -3315,7 +3317,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                   allow_tool_execution = true
                 } as $agent_run_inner
               }
-
+            
               else {
                 // US-CME-02: chat mode → read-only Chat Agent (no write tools loaded)
                 // Specialist and Consortium are sub-modes of chat — route to Chat Agent
@@ -3326,9 +3328,9 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                       allow_tool_execution = true
                     } as $agent_run_inner
                   }
-
+                
                   else {
-                    ai.agent.run "Journey Map Assistant" {
+                    ai.agent.run "" {
                       args = {}|set:"messages":$agent_messages
                       allow_tool_execution = true
                     } as $agent_run_inner
@@ -3419,6 +3421,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
     conditional {
       if ($reply_text != "") {
         db.add agent_message {
+          enforce_hidden_fields = false
           data = {
             created_at  : "now"
             conversation: $conversation.id
@@ -3751,6 +3754,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
     }
   
     db.add agent_turn_log {
+      enforce_hidden_fields = false
       data = {
         created_at          : "now"
         conversation        : $conversation.id
@@ -3807,5 +3811,4 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
     conversation      : $conversation_record
     messages          : $all_messages
   }
-  guid = "1DsxYN89rpBm53Lto6pg9xy637U"
 }

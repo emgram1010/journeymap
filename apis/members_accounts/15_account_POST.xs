@@ -17,6 +17,7 @@ query account verb=POST {
   stack {
     // Create a new account record in the database.
     db.add account {
+      enforce_hidden_fields = false
       data = {
         name       : $input.name
         description: $input.description
@@ -29,6 +30,7 @@ query account verb=POST {
     db.edit user {
       field_name = "id"
       field_value = $auth.id
+      enforce_hidden_fields = false
       data = {account_id: $new_account.id, role: "admin"}
     } as $updated_user
   
@@ -45,5 +47,4 @@ query account verb=POST {
 
   response = {account: $new_account}
   tags = ["xano:quick-start"]
-  guid = "58dbRahQyPciwW-0SrULUvL1xLA"
 }

@@ -10,6 +10,7 @@ query journey_map verb=POST {
 
   stack {
     db.add journey_map {
+      enforce_hidden_fields = false
       data = {
         created_at         : "now"
         updated_at         : $input.updated_at
@@ -24,5 +25,4 @@ query journey_map verb=POST {
   }
 
   response = $model
-  guid = "Pl1oqkw4uysDJFSc6eqSbFZxxdU"
 }

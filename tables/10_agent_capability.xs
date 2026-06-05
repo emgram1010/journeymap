@@ -34,5 +34,4 @@ table agent_capability {
     {type: "btree|unique", field: [{name: "key", op: "asc"}]}
     {type: "btree", field: [{name: "enabled", op: "asc"}]}
   ]
-  guid = "yetCCi5a-U-mFwmzCyKotoz6nBc"
 }

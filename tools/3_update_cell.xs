@@ -17,11 +17,13 @@ tool update_cell {
       - content: The text content to write into the cell
       - time_duration_value: (optional) decimal — planned time the actor spends at this stage
       - time_duration_unit: (optional) enum — minutes | hours | days | weeks
+      - planned_duration: (optional) decimal — blueprint/SOP target duration for this stage
+      - actual_duration: (optional) decimal — real-world observed duration for this stage
 
       Response shape:
       {
         applied: true/false,
-        cell: { id, stage_key, lens_key, content, status, is_locked, change_source, time_duration_value, time_duration_unit },
+        cell: { id, stage_key, lens_key, content, status, is_locked, change_source, time_duration_value, time_duration_unit, planned_duration, actual_duration },
         skip_reason: null | 'locked' | 'confirmed' | 'not_found'
       }
     """
@@ -43,14 +45,18 @@ tool update_cell {
   
     // The text content to write into the cell.
     text content filters=trim
-
+  
     // Planned time this actor spends at this stage (optional — leakage math input).
     decimal time_duration_value?
-
+  
     // Unit for time_duration_value.
     enum time_duration_unit? {
-      values = ["minutes","hours","days","weeks"]
+      values = ["minutes", "hours", "days", "weeks"]
     }
+
+    // Plan vs Actual fields (TL-6)
+    decimal planned_duration?
+    decimal actual_duration?
   }
 
   stack {
@@ -126,16 +132,18 @@ tool update_cell {
               field_name = "id"
               field_value = $cell.id
               data = {
-                content             : $input.content
-                status              : "draft"
-                change_source       : "ai"
-                updated_at          : "now"
-                last_updated_at     : "now"
-                time_duration_value : $input.time_duration_value ?? $cell.time_duration_value
-                time_duration_unit  : $input.time_duration_unit ?? $cell.time_duration_unit
+                content            : $input.content
+                status             : "draft"
+                change_source      : "ai"
+                updated_at         : "now"
+                last_updated_at    : "now"
+                time_duration_value: $input.time_duration_value ?? $cell.time_duration_value
+                time_duration_unit : $input.time_duration_unit ?? $cell.time_duration_unit
+                planned_duration   : $input.planned_duration ?? $cell.planned_duration
+                actual_duration    : $input.actual_duration ?? $cell.actual_duration
               }
             } as $updated_cell
-
+          
             var.update $result {
               value = {
                 applied    : true
@@ -149,6 +157,8 @@ tool update_cell {
                   change_source       : $updated_cell.change_source
                   time_duration_value : $updated_cell.time_duration_value
                   time_duration_unit  : $updated_cell.time_duration_unit
+                  planned_duration    : $updated_cell.planned_duration
+                  actual_duration     : $updated_cell.actual_duration
                 }
                 skip_reason: null
               }
@@ -162,6 +172,7 @@ tool update_cell {
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {
         db.add agent_tool_log {
+          enforce_hidden_fields = false
           data = {
             conversation  : $input.conversation_id
             journey_map   : $input.journey_map_id
@@ -177,5 +188,4 @@ tool update_cell {
   }
 
   response = $result
-  guid = "LYVQ2a9fLK0u8U1Edrur3X42Rtw"
 }

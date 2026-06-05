@@ -30,6 +30,7 @@ query "journey_stage/rename/{journey_stage_id}" verb=PATCH {
     db.edit journey_stage {
       field_name = "id"
       field_value = $input.journey_stage_id
+      enforce_hidden_fields = false
       data = {label: $input.label, updated_at: "now"}
     } as $journey_stage
   
@@ -51,5 +52,4 @@ query "journey_stage/rename/{journey_stage_id}" verb=PATCH {
 
   response = $journey_stage
     |set:"journey_map_updated_at":$journey_map_touch.updated_at
-    guid = "pq01_vkdyYyCaHm6LJoKc17EidU"
 }

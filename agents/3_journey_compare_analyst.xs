@@ -63,5 +63,4 @@ agent "Journey Compare Analyst" {
   }
 
   tools = [{name: "get_stage_detail"}]
-  guid = "2b9lESmsXref1b-vE-gx-J4EYCk"
 }

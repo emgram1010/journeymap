@@ -133,6 +133,7 @@ tool set_cell_status {
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {
         db.add agent_tool_log {
+          enforce_hidden_fields = false
           data = {
             conversation  : $input.conversation_id
             journey_map   : $input.journey_map_id
@@ -148,5 +149,4 @@ tool set_cell_status {
   }
 
   response = $result
-  guid = "9lF9RCO0o0a_0iP6XMo4eVCBpq8"
 }

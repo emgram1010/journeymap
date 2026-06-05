@@ -90,13 +90,15 @@ tool fill_cells {
                   field_name = "id"
                   field_value = $cell.id
                   data = {
-                    content             : $upd.content ?? $cell.content
-                    actor_fields        : $upd.actor_fields ?? $cell.actor_fields
-                    time_duration_value : $upd.time_duration_value ?? $cell.time_duration_value
-                    time_duration_unit  : $upd.time_duration_unit ?? $cell.time_duration_unit
-                    status              : "draft"
-                    change_source       : "ai"
-                    updated_at          : "now"
+                    content            : $upd.content ?? $cell.content
+                    actor_fields       : $upd.actor_fields ?? $cell.actor_fields
+                    time_duration_value: $upd.time_duration_value ?? $cell.time_duration_value
+                    time_duration_unit : $upd.time_duration_unit ?? $cell.time_duration_unit
+                    planned_duration   : $upd.planned_duration ?? $cell.planned_duration
+                    actual_duration    : $upd.actual_duration ?? $cell.actual_duration
+                    status             : "draft"
+                    change_source      : "ai"
+                    updated_at         : "now"
                   }
                 } as $patched_cell
               

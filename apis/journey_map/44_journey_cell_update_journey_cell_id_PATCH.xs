@@ -21,6 +21,10 @@ query "journey_cell/update/{journey_cell_id}" verb=PATCH {
     enum time_duration_unit? {
       values = ["minutes", "hours", "days", "weeks"]
     }
+
+    // Plan vs Actual fields (TL-6)
+    decimal planned_duration?
+    decimal actual_duration?
   }
 
   stack {
@@ -106,6 +110,9 @@ query "journey_cell/update/{journey_cell_id}" verb=PATCH {
     actor_fields          : $journey_cell.actor_fields
     time_duration_value   : $journey_cell.time_duration_value
     time_duration_unit    : $journey_cell.time_duration_unit
+    planned_duration      : $journey_cell.planned_duration
+    actual_duration       : $journey_cell.actual_duration
     journey_map_updated_at: $journey_map_touch.updated_at
   }
+  guid = "ZJAB2wVMjzTwvBKmr45toAV38II"
 }

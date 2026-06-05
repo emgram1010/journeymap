@@ -153,9 +153,15 @@ tool scaffold_structure {
                     db.edit journey_stage {
                       field_name = "id"
                       field_value = $rename_target.id
-                      data = {label: $op.label, stage_goal: $op.stage_goal, primary_actor_lens: $op.primary_actor_lens, updated_at: "now"}
+                      enforce_hidden_fields = false
+                      data = {
+                        label             : $op.label
+                        stage_goal        : $op.stage_goal
+                        primary_actor_lens: $op.primary_actor_lens
+                        updated_at        : "now"
+                      }
                     } as $rename_result
-
+                  
                     var.update $stages_renamed {
                       value = $stages_renamed + 1
                     }
@@ -260,9 +266,10 @@ tool scaffold_structure {
                     db.edit journey_lens {
                       field_name = "id"
                       field_value = $rename_lens_target.id
+                      enforce_hidden_fields = false
                       data = {label: $op.label, updated_at: "now"}
                     } as $rename_lens_result
-
+                  
                     var.update $lenses_renamed {
                       value = $lenses_renamed + 1
                     }
@@ -551,6 +558,7 @@ tool scaffold_structure {
                 }
               
                 db.add journey_lens {
+                  enforce_hidden_fields = false
                   data = {
                     created_at   : "now"
                     updated_at   : "now"
@@ -571,6 +579,7 @@ tool scaffold_structure {
                 foreach ($stages_for_scaffold) {
                   each as $sc_stg {
                     db.add journey_cell {
+                      enforce_hidden_fields = false
                       data = {
                         created_at  : "now"
                         updated_at  : "now"
@@ -627,6 +636,7 @@ tool scaffold_structure {
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {
         db.add agent_tool_log {
+          enforce_hidden_fields = false
           data = {
             conversation  : $input.conversation_id
             journey_map   : $input.journey_map_id
@@ -657,5 +667,4 @@ tool scaffold_structure {
     lenses           : $final_lenses
     errors           : $errors
   }
-  guid = "DAqeKjJsXv8qump_B7THhNN1qoQ"
 }

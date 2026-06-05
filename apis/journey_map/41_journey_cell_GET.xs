@@ -12,5 +12,4 @@ query journey_cell verb=GET {
   }
 
   response = $model
-  guid = "PNTBG12i78LjHCu-v4_Y7DjRfoI"
 }

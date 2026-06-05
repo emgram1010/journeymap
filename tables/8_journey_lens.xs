@@ -60,22 +60,22 @@ table journey_lens {
   
     // Fixed limitations this actor brings (e.g., schedule, access, budget).
     text standing_constraints? filters=trim
-
+  
     // FK to the journey map that acts as this AI agent's operating manual.
     // When set on an ai_agent lens, the Orchestrator delegates execution to this map
     // instead of generating text output directly. Null for all non-ai_agent lenses.
     int agent_map_id? {
       table = "journey_map"
     }
-
+  
     // ── Ring 2: Cost rate fields (LA-2) ──────────────────────────────────────
     // The actor's labor cost rate used in leakage calculations.
     // Example: 30.00 (dollars per hour)
     decimal cost_rate_value?
-
+  
     // The unit that cost_rate_value is expressed in.
     enum cost_rate_unit? {
-      values = ["per_minute","per_hour","per_day","per_week","per_event"]
+      values = ["per_minute", "per_hour", "per_day", "per_week", "per_event"]
     }
   }
 
@@ -98,5 +98,4 @@ table journey_lens {
       ]
     }
   ]
-  guid = "lYetKsxROKKnWHGaMC2cv5crn5I"
 }

@@ -29,6 +29,7 @@ query "reset/update_password" verb=POST {
     db.edit user {
       field_name = "id"
       field_value = $auth.id
+      enforce_hidden_fields = false
       data = {password: $input.password}
     } as $user
   
@@ -49,5 +50,4 @@ query "reset/update_password" verb=POST {
       |set:"message":"Password updated"
     )
   tags = ["xano:quick-start"]
-  guid = "6Ly3X38RymTCrwB6xlZp12ppGVE"
 }

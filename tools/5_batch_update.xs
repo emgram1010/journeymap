@@ -177,6 +177,7 @@ tool batch_update {
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {
         db.add agent_tool_log {
+          enforce_hidden_fields = false
           data = {
             conversation  : $input.conversation_id
             journey_map   : $input.journey_map_id
@@ -197,5 +198,4 @@ tool batch_update {
     applied_count: $applied_count
     skipped_count: $skipped_count
   }
-  guid = "1OEvC7xLCFvw6hAh0wee8rdzEkk"
 }

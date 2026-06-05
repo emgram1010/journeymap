@@ -65,5 +65,4 @@ query "journey_lens/backfill_descriptions" verb=POST {
     updated: $updated_count
     message: "Backfill complete. Custom or already-described lenses were skipped."
   }
-  guid = "OatzUdJlhv0R-iEA3m_6muv4z5A"
 }

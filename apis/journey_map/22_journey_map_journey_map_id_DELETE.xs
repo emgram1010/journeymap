@@ -45,5 +45,4 @@ query "journey_map/{journey_map_id}" verb=DELETE {
   }
 
   response = null
-  guid = "MmMMFKgRJdI_bl46pulBHFUYLhg"
 }

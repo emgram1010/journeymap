@@ -31,7 +31,7 @@ query "journey_lens/add/{journey_map_id}" verb=POST {
     text persona_description? filters=trim
     text primary_goal? filters=trim
     text standing_constraints? filters=trim
-
+  
     // For ai_agent lenses: FK to the sub-journey map that is this agent's operating manual.
     int agent_map_id?
   }
@@ -402,6 +402,7 @@ query "journey_lens/add/{journey_map_id}" verb=POST {
     }
   
     db.add journey_lens {
+      enforce_hidden_fields = false
       data = {
         created_at          : "now"
         updated_at          : "now"
@@ -422,6 +423,7 @@ query "journey_lens/add/{journey_map_id}" verb=POST {
     foreach ($existing_stages) {
       each as $stage {
         db.add journey_cell {
+          enforce_hidden_fields = false
           data = {
             created_at  : "now"
             updated_at  : "now"
@@ -453,5 +455,4 @@ query "journey_lens/add/{journey_map_id}" verb=POST {
     cells                 : $cells
     journey_map_updated_at: $journey_map_touch.updated_at
   }
-  guid = "_B_Lt4cTLPtt4bx5HfzYTlxGqkw"
 }

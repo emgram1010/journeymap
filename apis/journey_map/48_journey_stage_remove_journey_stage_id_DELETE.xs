@@ -68,5 +68,4 @@ query "journey_stage/remove/{journey_stage_id}" verb=DELETE {
     deleted_cell_count    : $stage_cells|count
     journey_map_updated_at: $journey_map_touch.updated_at
   }
-  guid = "drSkCWzLcp8SBJHt36bG4EzbVAw"
 }

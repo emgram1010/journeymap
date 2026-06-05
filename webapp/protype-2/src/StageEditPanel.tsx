@@ -7,6 +7,9 @@ export type StageEditData = {
   stageGoal: string | null;
   timeDurationValue: number | null;
   timeDurationUnit: string | null;
+  /** Plan vs Actual (TL-6) */
+  plannedDuration: number | null;
+  actualDuration: number | null;
 };
 
 type Props = {
@@ -33,6 +36,12 @@ export function StageEditPanel({stage, lenses, cells, onSave, onClose, isSaving}
   const [timeDurationUnit, setTimeDurationUnit] = useState<string>(
     primaryCell?.timeDurationUnit ?? 'minutes',
   );
+  const [plannedDuration, setPlannedDuration] = useState<string>(
+    primaryCell?.plannedDuration != null ? String(primaryCell.plannedDuration) : '',
+  );
+  const [actualDuration, setActualDuration] = useState<string>(
+    primaryCell?.actualDuration != null ? String(primaryCell.actualDuration) : '',
+  );
 
   const overlayRef = useRef<HTMLDivElement>(null);
 
@@ -53,12 +62,16 @@ export function StageEditPanel({stage, lenses, cells, onSave, onClose, isSaving}
   const handleSave = () => {
     if (!label.trim()) return;
     const parsedDuration = timeDurationValue.trim() !== '' ? parseFloat(timeDurationValue) : null;
+    const parsedPlanned = plannedDuration.trim() !== '' ? parseFloat(plannedDuration) : null;
+    const parsedActual = actualDuration.trim() !== '' ? parseFloat(actualDuration) : null;
     onSave({
       label: label.trim(),
       primaryActorLens: primaryActorLens || null,
       stageGoal: stageGoal.trim() || null,
       timeDurationValue: parsedDuration,
       timeDurationUnit: timeDurationUnit || null,
+      plannedDuration: parsedPlanned,
+      actualDuration: parsedActual,
     });
   };
 
@@ -165,6 +178,35 @@ export function StageEditPanel({stage, lenses, cells, onSave, onClose, isSaving}
                   </select>
                 </div>
                 <p className="mt-1 text-[10px] text-zinc-400">Saved to the primary actor's cell for this stage.</p>
+
+                {/* Plan vs Actual (TL-6) */}
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">Planned</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={plannedDuration}
+                      onChange={(e) => setPlannedDuration(e.target.value)}
+                      placeholder="Blueprint"
+                      className="w-full text-sm border border-zinc-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-zinc-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">Actual</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={actualDuration}
+                      onChange={(e) => setActualDuration(e.target.value)}
+                      placeholder="Real-world"
+                      className="w-full text-sm border border-zinc-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-zinc-900"
+                    />
+                  </div>
+                </div>
+                <p className="mt-1 text-[10px] text-zinc-400">Plan vs actual in same unit as duration above.</p>
               </>
             )}
           </div>

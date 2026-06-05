@@ -57,5 +57,4 @@ query "journey_map/{journey_map_id}/conversation/{conversation_id}" verb=DELETE 
   }
 
   response = {id: $input.conversation_id, deleted: true}
-  guid = "Ksm0DtMDX5N3iWO8cv0IRjIHoc0"
 }

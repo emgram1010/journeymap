@@ -83,6 +83,7 @@ tool publish_map {
     
       else {
         db.add automation_snapshot {
+          enforce_hidden_fields = false
           data = {
             created_at          : "now"
             compiled_at         : "now"

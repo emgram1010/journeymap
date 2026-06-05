@@ -39,6 +39,7 @@ function "Getting Started Template/generate_magic_link" {
     db.edit user {
       field_name = "id"
       field_value = $user|get:"id":0
+      enforce_hidden_fields = false
       data = {password_reset: $password_reset}
     } as $updated_password_reset
   }
@@ -47,5 +48,4 @@ function "Getting Started Template/generate_magic_link" {
     |set:"token":$token
     |set:"email":$updated_password_reset.email
   tags = ["xano:quick-start"]
-  guid = "rNjC5XhTt9jz4SNKqeB2IKEeBV0"
 }

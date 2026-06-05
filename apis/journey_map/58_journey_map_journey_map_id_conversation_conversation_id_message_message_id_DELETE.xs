@@ -88,5 +88,4 @@ query "journey_map/{journey_map_id}/conversation/{conversation_id}/message/{mess
   }
 
   response = {id: $input.message_id, deleted: true}
-  guid = "t6kV_CqTREk1vtatXyEjuerlIFg"
 }

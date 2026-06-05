@@ -47,6 +47,7 @@ query "admin/user_role" verb=POST {
     db.edit user {
       field_name = "id"
       field_value = $input.user_id
+      enforce_hidden_fields = false
       data = {role: $input.new_role}
     } as $updated_user
   
@@ -63,5 +64,4 @@ query "admin/user_role" verb=POST {
 
   response = $updated_user
   tags = ["xano:quick-start"]
-  guid = "8h80uyVWH8L3WkYh9rYy59bla28"
 }

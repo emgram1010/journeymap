@@ -86,29 +86,39 @@ table journey_map {
     int cloned_from_map_id? {
       table = "journey_map"
     }
-
+  
     // ── Ring 2: Measurement fields (LA-1) ────────────────────────────────────
     // How many times per year this process runs — the compounding multiplier
     // for leakage math.  Example: 15924 (1327 jobs/month × 12)
     int measurement_frequency?
-
+  
     // Human-readable label for the measurement period cadence.
     // Examples: "per job", "per shift", "per call", "per inquiry"
     text measurement_period_label? filters=trim
-
+  
     // ── Map Level Taxonomy (LA-4) ─────────────────────────────────────────────
     // L1 = Architecture overview map (no leakage math)
     // L2 = Actor Journey map (one actor's full path; no leakage math)
     // L3 = Atomic Stage map — only L3 maps are valid for leakage analysis
     enum map_level? {
-      values = ["architecture","actor-journey","atomic"]
+      values = ["architecture", "actor-journey", "atomic"]
     }
-
+  
     // FK to the parent L1 or L2 map this map drills down from.
     // Null for standalone or top-level architecture maps.
     int parent_map_id? {
       table = "journey_map"
     }
+
+    // ── Revenue at Risk fields (TL-4) ──────────────────────────────────────────
+    // Average revenue per successful event (e.g. 350.00)
+    decimal average_deal_value?
+
+    // Percentage of events mishandled — stored as 0.0–1.0 (e.g. 0.40 = 40%)
+    decimal miss_rate?
+
+    // Percentage of engaged prospects that convert — stored as 0.0–1.0 (e.g. 0.35)
+    decimal conversion_rate?
   }
 
   index = [
@@ -128,5 +138,4 @@ table journey_map {
       field: [{name: "journey_architecture", op: "asc"}]
     }
   ]
-  guid = "TiXb2_1mjNzPCEt-ebY-xIQhFsg"
 }

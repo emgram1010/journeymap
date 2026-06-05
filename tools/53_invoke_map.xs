@@ -34,6 +34,7 @@ tool invoke_map {
   
     // Create child workflow_execution
     db.add workflow_execution {
+      enforce_hidden_fields = false
       data = {
         created_at         : "now"
         updated_at         : "now"

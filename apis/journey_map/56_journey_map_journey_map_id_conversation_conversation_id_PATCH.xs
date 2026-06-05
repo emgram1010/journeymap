@@ -81,5 +81,4 @@ query "journey_map/{journey_map_id}/conversation/{conversation_id}" verb=PATCH {
   }
 
   response = $updated_conversation
-  guid = "iUG_2FCCDIELi0zY2Tkmnge-IHU"
 }

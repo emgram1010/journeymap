@@ -24,6 +24,7 @@ query "demo-agent/conversation" verb=POST {
       if ($input.conversation_id == null || $input.conversation_id == 0) {
         // Create a new conversation if one doesn't exist.
         db.add agent_conversation {
+          enforce_hidden_fields = false
           data = {created_at: "now", owner_user: $auth.id}
         } as $conversation1
       
@@ -34,6 +35,7 @@ query "demo-agent/conversation" verb=POST {
       
         // Save the current user message to the database
         db.add agent_message {
+          enforce_hidden_fields = false
           data = {
             created_at  : "now"
             conversation: $conversation_id
@@ -51,6 +53,7 @@ query "demo-agent/conversation" verb=POST {
       else {
         // Save the current user message to the database
         db.add agent_message {
+          enforce_hidden_fields = false
           data = {
             created_at  : "now"
             conversation: $conversation_id
@@ -89,6 +92,7 @@ query "demo-agent/conversation" verb=POST {
   
     // Add a new record to the message table
     db.add agent_message {
+      enforce_hidden_fields = false
       data = {
         created_at  : "now"
         conversation: $conversation_id
@@ -104,5 +108,4 @@ query "demo-agent/conversation" verb=POST {
   }
 
   tags = ["xano:quick-start"]
-  guid = "szd-66R8p8G6hKJW8Y6YbvB5KmE"
 }

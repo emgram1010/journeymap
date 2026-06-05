@@ -546,6 +546,10 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
   const [isSavingStage, setIsSavingStage] = useState(false);
   const [inboundContext, setInboundContext] = useState<ParentJourneyContext | null>(null);
+  // ── TL-3: Parent map breadcrumb ──
+  const [parentMapTitle, setParentMapTitle] = useState<string | null>(null);
+  // ── TL-5: Leakage panel toggle ──
+  const [isLeakagePanelOpen, setIsLeakagePanelOpen] = useState(false);
   // ── Scorecard / Health Widget (US-MET-12/14) ──
   const [scorecard, setScorecard] = useState<ScorecardResult | null>(null);
   const [scorecardBaseline, setScorecardBaseline] = useState<ScorecardResult | null>(null);
@@ -604,6 +608,9 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
       version:                 bundle.journeyMap.version ?? null,
       measurement_frequency:   bundle.journeyMap.measurement_frequency ?? null,
       measurement_period_label: bundle.journeyMap.measurement_period_label ?? null,
+      average_deal_value:      bundle.journeyMap.average_deal_value ?? null,
+      miss_rate:               bundle.journeyMap.miss_rate ?? null,
+      conversion_rate:         bundle.journeyMap.conversion_rate ?? null,
     };
     setJourneySettings(loadedSettings);
     setSettingsDraft(loadedSettings);
@@ -761,6 +768,15 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
       .catch(() => setInboundContext(null));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [architectureId, journeyMapRecord?.id]);
+
+  // TL-3: Fetch parent map title when parent_map_id is set.
+  useEffect(() => {
+    const parentId = journeyMapRecord?.parent_map_id;
+    if (!parentId) { setParentMapTitle(null); return; }
+    loadJourneyMapBundle(parentId)
+      .then((b) => setParentMapTitle(b.journeyMap.title ?? `Map ${parentId}`))
+      .catch(() => setParentMapTitle(`Map ${parentId}`));
+  }, [journeyMapRecord?.parent_map_id]);
 
   // Reset link form when the user selects a different cell.
   useEffect(() => {
@@ -1634,7 +1650,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     setEditingStageId(stageId);
   };
 
-  const handleStageDetailsSave = async (data: {label: string; primaryActorLens: string | null; stageGoal: string | null; timeDurationValue: number | null; timeDurationUnit: string | null}) => {
+  const handleStageDetailsSave = async (data: {label: string; primaryActorLens: string | null; stageGoal: string | null; timeDurationValue: number | null; timeDurationUnit: string | null; plannedDuration: number | null; actualDuration: number | null}) => {
     if (!editingStageId) return;
     const currentStage = stages.find((s) => s.id === editingStageId);
     if (!currentStage?.xanoId) return;
@@ -1670,8 +1686,11 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         ),
       );
 
-      // Save time duration to the primary actor's cell if provided
-      if (data.primaryActorLens && data.timeDurationValue != null) {
+      // Save time duration + plan vs actual to the primary actor's cell if provided
+      const hasDurationUpdate = data.primaryActorLens && (
+        data.timeDurationValue != null || data.plannedDuration != null || data.actualDuration != null
+      );
+      if (hasDurationUpdate) {
         const targetCell = cells.find(
           (c) => c.stageId === editingStageId && c.lensId === data.primaryActorLens,
         );
@@ -1680,6 +1699,8 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
             journeyCellId: targetCell.journeyCellId,
             timeDurationValue: data.timeDurationValue,
             timeDurationUnit: data.timeDurationUnit,
+            plannedDuration: data.plannedDuration,
+            actualDuration: data.actualDuration,
           });
         }
       }
@@ -1748,6 +1769,17 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
             {architectureId ? (fromScenarios ? 'Scenarios' : 'Architecture') : 'Dashboard'}
           </span>
         </button>
+        {/* TL-3: Parent map breadcrumb */}
+        {parentMapTitle && journeyMapRecord?.parent_map_id && (
+          <button
+            onClick={() => navigate(`/maps/${journeyMapRecord.parent_map_id}`)}
+            className="flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-800 transition-colors shrink-0 ml-2"
+            title={`Go to parent: ${parentMapTitle}`}
+          >
+            <ArrowLeft className="w-3 h-3" />
+            <span className="font-medium truncate max-w-[100px]">{parentMapTitle}</span>
+          </button>
+        )}
         <span className="text-xs font-semibold text-zinc-700 truncate max-w-xs px-2">
           {journeyMapRecord?.title ?? ''}
         </span>
@@ -1982,6 +2014,17 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     <Settings className="h-3.5 w-3.5" />
                     Settings
                   </button>
+                  {/* TL-5: Leakage panel toggle — L3 atomic only */}
+                  {journeyMapRecord?.map_level === 'atomic' && (
+                    <button
+                      onClick={() => setIsLeakagePanelOpen((v) => !v)}
+                      title="Leakage Results"
+                      className={`inline-flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-[11px] font-medium transition-colors ${isLeakagePanelOpen ? 'border-orange-400 bg-orange-50 text-orange-700' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
+                    >
+                      <BarChart2 className="h-3.5 w-3.5" />
+                      Leakage
+                    </button>
+                  )}
                 </div>
                 </div>
               </div>
@@ -2096,6 +2139,68 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                               className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-zinc-300 disabled:opacity-50"
                             />
                           </div>
+                          {/* Revenue at Risk (TL-4) */}
+                          <div className="border-t border-orange-100 pt-3 space-y-3">
+                            <p className="text-[10px] font-bold text-orange-400 uppercase tracking-wider">Revenue at Risk</p>
+                            <div>
+                              <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">
+                                Avg Deal Value <span className="text-zinc-300 font-normal">($)</span>
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={settingsDraft.average_deal_value ?? ''}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setSettingsDraft((d) => ({...d, average_deal_value: v === '' ? null : parseFloat(v)}));
+                                }}
+                                placeholder="e.g. 350.00"
+                                disabled={!journeyMapRecord}
+                                className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-zinc-300 disabled:opacity-50"
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">
+                                  Miss Rate <span className="text-zinc-300 font-normal">(0–1)</span>
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="1"
+                                  step="0.01"
+                                  value={settingsDraft.miss_rate ?? ''}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setSettingsDraft((d) => ({...d, miss_rate: v === '' ? null : parseFloat(v)}));
+                                  }}
+                                  placeholder="e.g. 0.40"
+                                  disabled={!journeyMapRecord}
+                                  className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-zinc-300 disabled:opacity-50"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">
+                                  Conversion <span className="text-zinc-300 font-normal">(0–1)</span>
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="1"
+                                  step="0.01"
+                                  value={settingsDraft.conversion_rate ?? ''}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setSettingsDraft((d) => ({...d, conversion_rate: v === '' ? null : parseFloat(v)}));
+                                  }}
+                                  placeholder="e.g. 0.35"
+                                  disabled={!journeyMapRecord}
+                                  className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-zinc-300 disabled:opacity-50"
+                                />
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       )}
 
@@ -2119,6 +2224,132 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     </div>
                   </motion.div>
                 )}
+              </AnimatePresence>
+
+              {/* TL-5: Leakage Results Panel (Right Side) */}
+              <AnimatePresence>
+                {isLeakagePanelOpen && journeyMapRecord?.map_level === 'atomic' && (() => {
+                  // Client-side leakage math — mirrors tools/76_calculate_leakage.xs
+                  const frequency = journeyMapRecord.measurement_frequency ?? 0;
+                  const toHours = (val: number, unit: string | null | undefined) => {
+                    if (unit === 'minutes') return val / 60;
+                    if (unit === 'days') return val * 8;
+                    if (unit === 'weeks') return val * 40;
+                    return val; // default: hours
+                  };
+                  const lensMap = new Map(lenses.map((l) => [l.id, l]));
+                  let totalPerEvent = 0;
+                  const incomplete: string[] = [];
+                  const byStage = stages.map((stage) => {
+                    let stageCost = 0;
+                    cells
+                      .filter((c) => c.stageId === stage.id)
+                      .forEach((cell) => {
+                        const lens = lensMap.get(cell.lensId ?? '');
+                        const rate = lens?.costRateValue ?? null;
+                        const rateUnit = lens?.costRateUnit ?? null;
+                        if (cell.timeDurationValue != null && rate != null) {
+                          const hours = toHours(cell.timeDurationValue, cell.timeDurationUnit);
+                          let cost = 0;
+                          if (rateUnit === 'per_event') cost = rate;
+                          else if (rateUnit === 'per_minute') cost = hours * rate * 60;
+                          else if (rateUnit === 'per_day') cost = hours * (rate / 8);
+                          else if (rateUnit === 'per_week') cost = hours * (rate / 40);
+                          else cost = hours * rate;
+                          stageCost += cost;
+                          totalPerEvent += cost;
+                        } else {
+                          const missing = cell.timeDurationValue == null ? 'time' : 'cost rate';
+                          if (!incomplete.includes(`${stage.label} (${missing})`)) {
+                            incomplete.push(`${stage.label} (${missing})`);
+                          }
+                        }
+                      });
+                    return {label: stage.label, costPerEvent: stageCost, annualCost: stageCost * frequency};
+                  });
+                  const annual = totalPerEvent * frequency;
+                  const monthly = annual / 12;
+                  const threeYr = annual * 3;
+                  // Revenue at risk
+                  const adv = journeyMapRecord.average_deal_value ?? null;
+                  const mr = journeyMapRecord.miss_rate ?? null;
+                  const cr = journeyMapRecord.conversion_rate ?? null;
+                  const revenueAtRisk = (adv != null && mr != null && cr != null && frequency > 0)
+                    ? adv * mr * cr * frequency
+                    : null;
+                  const fmt = (n: number) => n.toLocaleString('en-US', {style: 'currency', currency: 'USD', maximumFractionDigits: 0});
+                  return (
+                    <motion.div
+                      initial={{ x: '100%' }}
+                      animate={{ x: 0 }}
+                      exit={{ x: '100%' }}
+                      transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                      className="absolute right-0 top-0 bottom-0 w-80 bg-white border-l border-zinc-200 shadow-2xl z-40 flex flex-col"
+                    >
+                      <div className="h-14 flex items-center justify-between px-4 border-b border-zinc-200 bg-orange-50 shrink-0">
+                        <div className="flex items-center gap-2">
+                          <BarChart2 className="w-4 h-4 text-orange-400" />
+                          <span className="text-xs font-semibold text-orange-700 uppercase tracking-tight">Leakage Results</span>
+                        </div>
+                        <button onClick={() => setIsLeakagePanelOpen(false)} className="p-1.5 hover:bg-orange-100 rounded text-orange-400 transition-colors">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
+                        {/* Summary */}
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Cost of Inaction</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              {label: 'Per event', value: fmt(totalPerEvent)},
+                              {label: 'Monthly', value: fmt(monthly)},
+                              {label: 'Annual', value: fmt(annual)},
+                              {label: '3-Year', value: fmt(threeYr)},
+                            ].map(({label, value}) => (
+                              <div key={label} className="bg-orange-50 border border-orange-100 rounded p-2">
+                                <p className="text-[10px] text-zinc-400">{label}</p>
+                                <p className="font-semibold text-orange-700 text-sm">{value}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        {/* Revenue at Risk */}
+                        {revenueAtRisk != null && (
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Revenue at Risk</p>
+                            <div className="bg-red-50 border border-red-100 rounded p-2">
+                              <p className="text-[10px] text-zinc-400">Annual revenue gap</p>
+                              <p className="font-semibold text-red-700 text-sm">{fmt(revenueAtRisk)}</p>
+                              <p className="text-[10px] text-zinc-400 mt-0.5">3-yr: {fmt(revenueAtRisk * 3)}</p>
+                            </div>
+                          </div>
+                        )}
+                        {/* Per-stage breakdown */}
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">By Stage</p>
+                          {byStage.filter((s) => s.costPerEvent > 0).map((s) => (
+                            <div key={s.label} className="flex items-center justify-between">
+                              <span className="text-zinc-600 truncate max-w-[130px]">{s.label}</span>
+                              <span className="font-medium text-zinc-700">{fmt(s.annualCost)}/yr</span>
+                            </div>
+                          ))}
+                        </div>
+                        {/* Incomplete fields callout (US-TL-18) */}
+                        {incomplete.length > 0 && (
+                          <div className="bg-amber-50 border border-amber-200 rounded p-3 space-y-1">
+                            <p className="text-[10px] font-bold text-amber-600">{incomplete.length} stage{incomplete.length > 1 ? 's' : ''} missing fields — total is partial</p>
+                            {incomplete.map((s) => (
+                              <p key={s} className="text-[10px] text-amber-700">· {s}</p>
+                            ))}
+                          </div>
+                        )}
+                        {frequency === 0 && (
+                          <p className="text-[10px] text-zinc-400 italic">Set Measurement Frequency in Settings to see totals.</p>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })()}
               </AnimatePresence>
 
               {/* AI Chat Slider (Right Side) */}

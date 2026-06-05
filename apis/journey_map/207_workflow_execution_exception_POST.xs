@@ -59,6 +59,7 @@ query "workflow_execution/exception" verb=POST {
   
     // Create the paused execution record
     db.add workflow_execution {
+      enforce_hidden_fields = false
       data = {
         created_at       : "now"
         updated_at       : "now"
