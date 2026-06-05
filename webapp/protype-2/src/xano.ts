@@ -16,6 +16,9 @@ export interface JourneySettings {
   pain_points_summary?: string | null;
   opportunities?: string | null;
   version?: string | null;
+  // Intelligence Layer — L3 Atomic measurement fields
+  measurement_frequency?: number | null;
+  measurement_period_label?: string | null;
 }
 
 export type InterviewDepth = 'strategic' | 'discovery' | 'rapid_capture';
@@ -95,6 +98,9 @@ export interface XanoJourneyLens {
   persona_description?: string | null;
   primary_goal?: string | null;
   standing_constraints?: string | null;
+  // Intelligence Layer — Ring 2 cost rate fields (LA-2)
+  cost_rate_value?: number | null;
+  cost_rate_unit?: string | null;
 }
 
 export interface XanoJourneyCell {
@@ -229,6 +235,8 @@ type UpdateLensActorFieldsInput = {
   personaDescription?: string;
   primaryGoal?: string;
   standingConstraints?: string;
+  costRateValue?: number | null;
+  costRateUnit?: string | null;
 };
 
 type RemoveJourneyLensInput = {
@@ -242,6 +250,8 @@ type UpdateJourneyCellInput = {
   isLocked?: boolean;
   /** Structured actor-specific fields — only sent when explicitly changed. */
   actorFields?: ActorFields | null;
+  timeDurationValue?: number | null;
+  timeDurationUnit?: string | null;
 };
 
 type BusinessBundleResponse = {
@@ -700,6 +710,8 @@ const buildHydratedJourneyMapBundle = (
       personaDescription: lens.persona_description ?? undefined,
       primaryGoal: lens.primary_goal ?? undefined,
       standingConstraints: lens.standing_constraints ?? undefined,
+      costRateValue: lens.cost_rate_value ?? null,
+      costRateUnit: lens.cost_rate_unit ?? null,
     })),
     cells: cellRecords
       .filter((cell) => stageKeyById.has(cell.stage) && lensKeyById.has(cell.lens))
@@ -719,6 +731,8 @@ const buildHydratedJourneyMapBundle = (
         isLocked: Boolean(cell.is_locked),
         lastUpdated: cell.last_updated_at ? new Date(cell.last_updated_at) : undefined,
         actorFields: (cell.actor_fields ?? null) as ActorFields | null,
+        timeDurationValue: cell.time_duration_value ?? null,
+        timeDurationUnit: cell.time_duration_unit ?? null,
       })),
   };
 };
@@ -1001,6 +1015,16 @@ export async function updateLensActorFields(input: UpdateLensActorFieldsInput): 
   if (input.personaDescription !== undefined) body.persona_description = input.personaDescription;
   if (input.primaryGoal !== undefined) body.primary_goal = input.primaryGoal;
   if (input.standingConstraints !== undefined) body.standing_constraints = input.standingConstraints;
+
+  // Cost rate goes via raw PATCH — actor_fields endpoint has an allowlist that excludes it
+  const hasCostRate = input.costRateValue !== undefined || input.costRateUnit !== undefined;
+  if (hasCostRate) {
+    const costBody: Record<string, unknown> = {};
+    if (input.costRateValue !== undefined) costBody.cost_rate_value = input.costRateValue;
+    if (input.costRateUnit !== undefined) costBody.cost_rate_unit = input.costRateUnit;
+    await xanoRequest<XanoJourneyLens>(`/journey_lens/${input.journeyLensId}`, {method: 'PATCH', body: costBody});
+  }
+
   return xanoRequest<XanoJourneyLens>(
     buildParameterizedPath(getXanoLensActorFieldsPath(), {journeyLensId: input.journeyLensId}),
     {method: 'PATCH', body},
@@ -1022,6 +1046,12 @@ export async function updateJourneyCell(input: UpdateJourneyCellInput): Promise<
   // Only include actor_fields when explicitly provided — avoids null-write on unrelated saves.
   if (input.actorFields !== undefined) {
     body.actor_fields = input.actorFields;
+  }
+  if (input.timeDurationValue !== undefined) {
+    body.time_duration_value = input.timeDurationValue;
+  }
+  if (input.timeDurationUnit !== undefined) {
+    body.time_duration_unit = input.timeDurationUnit;
   }
   return xanoRequest<XanoJourneyCell>(buildParameterizedPath(getXanoUpdateCellPath(), {journeyCellId: input.journeyCellId}), {
     method: 'PATCH',

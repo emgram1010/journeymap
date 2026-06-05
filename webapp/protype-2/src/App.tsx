@@ -591,17 +591,19 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
 
     // Populate journey settings from the loaded map record
     const loadedSettings: JourneySettings = {
-      primary_actor:       bundle.journeyMap.primary_actor ?? null,
-      journey_scope:       bundle.journeyMap.journey_scope ?? null,
-      start_point:         bundle.journeyMap.start_point ?? null,
-      end_point:           bundle.journeyMap.end_point ?? null,
-      duration:            bundle.journeyMap.duration ?? null,
-      success_metrics:     bundle.journeyMap.success_metrics ?? null,
-      key_stakeholders:    bundle.journeyMap.key_stakeholders ?? null,
-      dependencies:        bundle.journeyMap.dependencies ?? null,
-      pain_points_summary: bundle.journeyMap.pain_points_summary ?? null,
-      opportunities:       bundle.journeyMap.opportunities ?? null,
-      version:             bundle.journeyMap.version ?? null,
+      primary_actor:           bundle.journeyMap.primary_actor ?? null,
+      journey_scope:           bundle.journeyMap.journey_scope ?? null,
+      start_point:             bundle.journeyMap.start_point ?? null,
+      end_point:               bundle.journeyMap.end_point ?? null,
+      duration:                bundle.journeyMap.duration ?? null,
+      success_metrics:         bundle.journeyMap.success_metrics ?? null,
+      key_stakeholders:        bundle.journeyMap.key_stakeholders ?? null,
+      dependencies:            bundle.journeyMap.dependencies ?? null,
+      pain_points_summary:     bundle.journeyMap.pain_points_summary ?? null,
+      opportunities:           bundle.journeyMap.opportunities ?? null,
+      version:                 bundle.journeyMap.version ?? null,
+      measurement_frequency:   bundle.journeyMap.measurement_frequency ?? null,
+      measurement_period_label: bundle.journeyMap.measurement_period_label ?? null,
     };
     setJourneySettings(loadedSettings);
     setSettingsDraft(loadedSettings);
@@ -1602,6 +1604,8 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         personaDescription: input.personaDescription,
         primaryGoal: input.primaryGoal,
         standingConstraints: input.standingConstraints,
+        costRateValue: input.costRateValue,
+        costRateUnit: input.costRateUnit,
       });
       if (journeyMapRecord) {
         await refreshCurrentJourneyMap(journeyMapRecord);
@@ -1630,7 +1634,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     setEditingStageId(stageId);
   };
 
-  const handleStageDetailsSave = async (data: {label: string; primaryActorLens: string | null; stageGoal: string | null}) => {
+  const handleStageDetailsSave = async (data: {label: string; primaryActorLens: string | null; stageGoal: string | null; timeDurationValue: number | null; timeDurationUnit: string | null}) => {
     if (!editingStageId) return;
     const currentStage = stages.find((s) => s.id === editingStageId);
     if (!currentStage?.xanoId) return;
@@ -1665,6 +1669,20 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
             : s,
         ),
       );
+
+      // Save time duration to the primary actor's cell if provided
+      if (data.primaryActorLens && data.timeDurationValue != null) {
+        const targetCell = cells.find(
+          (c) => c.stageId === editingStageId && c.lensId === data.primaryActorLens,
+        );
+        if (targetCell?.journeyCellId) {
+          await updateJourneyCell({
+            journeyCellId: targetCell.journeyCellId,
+            timeDurationValue: data.timeDurationValue,
+            timeDurationUnit: data.timeDurationUnit,
+          });
+        }
+      }
     } catch (error) {
       // Rollback
       setStages((prev) =>
@@ -2042,6 +2060,45 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                           )}
                         </div>
                       ))}
+                      {/* L3 Atomic — measurement fields for leakage math */}
+                      {journeyMapRecord?.map_level === 'atomic' && (
+                        <div className="border-t border-orange-100 pt-4 space-y-4">
+                          <p className="text-[10px] font-bold text-orange-500 uppercase tracking-wider">L3 Atomic — Leakage Inputs</p>
+                          <div>
+                            <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">
+                              Measurement Frequency <span className="text-zinc-300 font-normal">(per year)</span>
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={settingsDraft.measurement_frequency ?? ''}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setSettingsDraft((d) => ({...d, measurement_frequency: v === '' ? null : parseInt(v, 10)}));
+                              }}
+                              placeholder="e.g. 15924"
+                              disabled={!journeyMapRecord}
+                              className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-zinc-300 disabled:opacity-50"
+                            />
+                            <p className="mt-1 text-[10px] text-zinc-400">How many times per year does this process run?</p>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">
+                              Measurement Period Label
+                            </label>
+                            <input
+                              type="text"
+                              value={settingsDraft.measurement_period_label ?? ''}
+                              onChange={(e) => setSettingsDraft((d) => ({...d, measurement_period_label: e.target.value}))}
+                              placeholder="e.g. per job, per shift, per inquiry"
+                              disabled={!journeyMapRecord}
+                              className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-zinc-300 disabled:opacity-50"
+                            />
+                          </div>
+                        </div>
+                      )}
+
                       {!journeyMapRecord && (
                         <p className="text-[10px] text-zinc-400 italic">Create or load a journey map to edit settings.</p>
                       )}
@@ -3129,6 +3186,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
           <StageEditPanel
             stage={editingStage}
             lenses={lenses}
+            cells={cells}
             onSave={(data) => void handleStageDetailsSave(data)}
             onClose={() => setEditingStageId(null)}
             isSaving={isSavingStage}

@@ -12,6 +12,8 @@ export interface ActorWizardInput {
   personaDescription: string;
   primaryGoal: string;
   standingConstraints: string;
+  costRateValue?: number | null;
+  costRateUnit?: string | null;
 }
 
 interface ActorSetupWizardProps {
@@ -30,6 +32,8 @@ export function ActorSetupWizard({isOpen, onClose, onConfirm, existingLens}: Act
   const [personaDescription, setPersonaDescription] = useState(existingLens?.personaDescription ?? '');
   const [primaryGoal, setPrimaryGoal] = useState(existingLens?.primaryGoal ?? '');
   const [standingConstraints, setStandingConstraints] = useState(existingLens?.standingConstraints ?? '');
+  const [costRateValue, setCostRateValue] = useState<string>(existingLens?.costRateValue != null ? String(existingLens.costRateValue) : '');
+  const [costRateUnit, setCostRateUnit] = useState<string>(existingLens?.costRateUnit ?? 'per_hour');
   const [isRolePromptOpen, setIsRolePromptOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +48,8 @@ export function ActorSetupWizard({isOpen, onClose, onConfirm, existingLens}: Act
       setPersonaDescription(existingLens?.personaDescription ?? '');
       setPrimaryGoal(existingLens?.primaryGoal ?? '');
       setStandingConstraints(existingLens?.standingConstraints ?? '');
+      setCostRateValue(existingLens?.costRateValue != null ? String(existingLens.costRateValue) : '');
+      setCostRateUnit(existingLens?.costRateUnit ?? 'per_hour');
       setIsRolePromptOpen(false);
       setError(null);
       setIsLoading(false);
@@ -65,6 +71,7 @@ export function ActorSetupWizard({isOpen, onClose, onConfirm, existingLens}: Act
     setError(null);
     setIsLoading(true);
     try {
+      const parsedRate = costRateValue.trim() !== '' ? parseFloat(costRateValue) : null;
       await onConfirm({
         actorType: selectedType,
         templateKey: activeTemplate.templateKey ?? '',
@@ -73,6 +80,8 @@ export function ActorSetupWizard({isOpen, onClose, onConfirm, existingLens}: Act
         personaDescription: personaDescription.trim(),
         primaryGoal: primaryGoal.trim(),
         standingConstraints: standingConstraints.trim(),
+        costRateValue: parsedRate,
+        costRateUnit: costRateUnit || null,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
@@ -186,6 +195,38 @@ export function ActorSetupWizard({isOpen, onClose, onConfirm, existingLens}: Act
                   className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-zinc-400 resize-none"
                 />
               </div>
+
+              {/* Cost Rate — shown for non-customer actors */}
+              {selectedType !== 'customer' && (
+                <div>
+                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">
+                    Cost Rate <span className="text-zinc-300 font-normal">(for leakage math)</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={costRateValue}
+                      onChange={(e) => setCostRateValue(e.target.value)}
+                      placeholder="e.g. 30"
+                      className="w-28 p-2.5 bg-zinc-50 border border-zinc-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-zinc-400"
+                    />
+                    <select
+                      value={costRateUnit}
+                      onChange={(e) => setCostRateUnit(e.target.value)}
+                      className="flex-1 p-2.5 bg-zinc-50 border border-zinc-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-zinc-400"
+                    >
+                      <option value="per_hour">per hour</option>
+                      <option value="per_minute">per minute</option>
+                      <option value="per_day">per day</option>
+                      <option value="per_week">per week</option>
+                      <option value="per_event">per event</option>
+                    </select>
+                  </div>
+                  <p className="mt-1 text-[10px] text-zinc-400">Used in L3 Atomic leakage calculations.</p>
+                </div>
+              )}
 
               {/* Role prompt preview (collapsible) */}
               {activeTemplate?.rolePrompt && (

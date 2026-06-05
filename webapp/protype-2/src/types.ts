@@ -236,6 +236,9 @@ export interface MatrixCell {
   lastUpdated?: Date;
   /** Structured actor-specific fields — populated when the parent lens has an actor_type. */
   actorFields?: ActorFields | null;
+  /** Ring 2 time duration fields — used in L3 leakage math */
+  timeDurationValue?: number | null;
+  timeDurationUnit?: string | null;
 }
 
 export interface Stage {
@@ -263,4 +266,7 @@ export interface Lens {
   personaDescription?: string;
   primaryGoal?: string;
   standingConstraints?: string;
+  /** Ring 2 cost rate — used in L3 leakage math */
+  costRateValue?: number | null;
+  costRateUnit?: string | null;
 }

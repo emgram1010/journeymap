@@ -1,24 +1,39 @@
 import {useEffect, useRef, useState} from 'react';
-import type {Stage, Lens} from './types';
+import type {Stage, Lens, MatrixCell} from './types';
 
-type StageEditData = {
+export type StageEditData = {
   label: string;
   primaryActorLens: string | null;
   stageGoal: string | null;
+  timeDurationValue: number | null;
+  timeDurationUnit: string | null;
 };
 
 type Props = {
   stage: Stage;
   lenses: Lens[];
+  cells: MatrixCell[];
   onSave: (data: StageEditData) => void;
   onClose: () => void;
   isSaving: boolean;
 };
 
-export function StageEditPanel({stage, lenses, onSave, onClose, isSaving}: Props) {
+export function StageEditPanel({stage, lenses, cells, onSave, onClose, isSaving}: Props) {
   const [label, setLabel] = useState(stage.label);
   const [primaryActorLens, setPrimaryActorLens] = useState(stage.primaryActorLens ?? '');
   const [stageGoal, setStageGoal] = useState(stage.stageGoal ?? '');
+
+  // Find the primary actor's cell for this stage to pre-fill time duration
+  const primaryCell = cells.find(
+    (c) => c.stageId === stage.id && c.lensId === (stage.primaryActorLens ?? primaryActorLens),
+  );
+  const [timeDurationValue, setTimeDurationValue] = useState<string>(
+    primaryCell?.timeDurationValue != null ? String(primaryCell.timeDurationValue) : '',
+  );
+  const [timeDurationUnit, setTimeDurationUnit] = useState<string>(
+    primaryCell?.timeDurationUnit ?? 'minutes',
+  );
+
   const overlayRef = useRef<HTMLDivElement>(null);
 
   // Close on Escape
@@ -37,10 +52,13 @@ export function StageEditPanel({stage, lenses, onSave, onClose, isSaving}: Props
 
   const handleSave = () => {
     if (!label.trim()) return;
+    const parsedDuration = timeDurationValue.trim() !== '' ? parseFloat(timeDurationValue) : null;
     onSave({
       label: label.trim(),
       primaryActorLens: primaryActorLens || null,
       stageGoal: stageGoal.trim() || null,
+      timeDurationValue: parsedDuration,
+      timeDurationUnit: timeDurationUnit || null,
     });
   };
 
@@ -112,6 +130,43 @@ export function StageEditPanel({stage, lenses, onSave, onClose, isSaving}: Props
               placeholder="What must be TRUE when this stage is done?"
             />
             <p className="mt-1 text-[10px] text-zinc-400">One sentence exit condition — the definition of done for this stage.</p>
+          </div>
+
+          {/* Time Duration — L3 leakage math input */}
+          <div>
+            <label className="block text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">
+              Time on Task <span className="text-zinc-400 font-normal normal-case">(leakage math)</span>
+            </label>
+            {!primaryActorLens ? (
+              <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                Set a Primary Actor above to enable time tracking.
+              </p>
+            ) : (
+              <>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={timeDurationValue}
+                    onChange={(e) => setTimeDurationValue(e.target.value)}
+                    placeholder="e.g. 15"
+                    className="w-24 text-sm border border-zinc-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-zinc-900"
+                  />
+                  <select
+                    value={timeDurationUnit}
+                    onChange={(e) => setTimeDurationUnit(e.target.value)}
+                    className="flex-1 text-sm border border-zinc-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-zinc-900 bg-white"
+                  >
+                    <option value="minutes">minutes</option>
+                    <option value="hours">hours</option>
+                    <option value="days">days</option>
+                    <option value="weeks">weeks</option>
+                  </select>
+                </div>
+                <p className="mt-1 text-[10px] text-zinc-400">Saved to the primary actor's cell for this stage.</p>
+              </>
+            )}
           </div>
         </div>
 

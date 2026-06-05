@@ -10,11 +10,17 @@ query "journey_cell/update/{journey_cell_id}" verb=PATCH {
     enum status? {
       values = ["open", "draft", "confirmed"]
     }
-  
+
     bool is_locked?
-  
+
     // Structured actor-specific sub-fields — keyed by actor template (e.g. customer-v1).
     json actor_fields?
+
+    // Ring 2 leakage math fields — time spent by the primary actor at this stage.
+    decimal time_duration_value?
+    enum time_duration_unit? {
+      values = ["minutes", "hours", "days", "weeks"]
+    }
   }
 
   stack {
@@ -98,7 +104,8 @@ query "journey_cell/update/{journey_cell_id}" verb=PATCH {
     change_source         : $journey_cell.change_source
     last_updated_at       : $journey_cell.last_updated_at
     actor_fields          : $journey_cell.actor_fields
+    time_duration_value   : $journey_cell.time_duration_value
+    time_duration_unit    : $journey_cell.time_duration_unit
     journey_map_updated_at: $journey_map_touch.updated_at
   }
-  guid = "UFmyq_gip8Mmtd2gy5jLENww6Co"
 }
