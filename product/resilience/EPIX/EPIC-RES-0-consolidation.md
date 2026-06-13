@@ -23,76 +23,94 @@ applied to the wrong copy silently does nothing in production — the most expen
 of bug because it looks done. Every other epic in this PRD edits files that currently
 have a twin, so this must land first.
 
-## Known duplicate pairs
+## Directory classification (verified against `.xano/config.json`)
 
-| Artifact | Pair A | Pair B |
-|---|---|---|
-| Tables | `table/` | `tables/` |
-| APIs | `api/` | `apis/` |
-| Functions | `function/` | `functions/` |
-| Tools | `tools/` | `ai/tool/` |
-| Workflow tests | `workflow_test/` | `workflow_tests/` |
-| Webapp | `webapp/protype-1` | `webapp/protype-2` |
+The source of truth is `.xano/config.json` — its `paths` block lists the live Xano-synced
+directories. Anything not listed there does not deploy.
+
+| Artifact | ✅ Canonical (live) | ❌ Dead snapshot — DELETE | 🔁 Intentional mirror — KEEP |
+|---|---|---|---|
+| Tables | `tables/` | `table/` | — |
+| APIs | `apis/` | `api/` | — |
+| Functions | `functions/` | `function/` | — |
+| Workflow tests | `workflow_tests/` | `workflow_test/` | — |
+| Tools | `tools/` | — | `ai/tool/` (mirror per leakage epic) |
+| MCP servers | `mcp_servers/` | — | `ai/mcp_server/` (mirror per leakage epic) |
+| Webapp | TBD by user | — | `webapp/protype-1` vs `protype-2` — out of scope, owner decides |
+
+The `guid =` line is **not** a canonical marker. It's an artifact of an older export
+format and appears in the dead snapshots. Ignore it.
+
+The fresh Xano pull (commit `11e4689`) confirmed the classification: Xano CLI itself
+renamed `function/getting_started_template/role_based_access_control.xs` →
+`functions/role_based_access_control.xs` (git rename R100). The three other singular
+dirs (`table/`, `api/`, `workflow_test/`) follow the same pattern — Xano just hasn't
+gotten to them yet.
 
 ---
 
 ## Stories
 
-### US-RES-0-01 — Diff the mirrored directories
-**Change:** Produce a byte/content diff report for each duplicate pair; flag any files
-that differ between copies.
+### US-RES-0-01 — Verify classification ✅ DONE (this PR)
+**Change:** Confirm the dead/canonical/mirror classification against `.xano/config.json`
+and the fresh Xano pull state.
 **Acceptance:**
-- A report lists, per pair: identical files, differing files, files unique to one side.
-- No file is deleted in this story.
+- Each of `table/`, `api/`, `function/`, `workflow_test/` has a name-for-name (or
+  content-equivalent) counterpart in its canonical plural dir.
+- Where content differs, the canonical dir has the **newer** leakage-math fields —
+  confirming canonical is live (e.g. `apis/journey_map/63_...` has `cost_rate_value`,
+  `cost_rate_unit` while `api/journey_map/journey_lens/actor_fields/...` does not).
 
-### US-RES-0-02 — Reconcile divergent copies
-**Change:** For every differing file, decide and merge the correct canonical content.
+### US-RES-0-02 — Delete dead singular directories
+**Change:** `git rm -r` the four dead singular dirs.
 **Acceptance:**
-- Each divergence is resolved into one agreed version.
-- Resolution rationale is recorded in the PR description.
+- `table/`, `api/`, `function/`, `workflow_test/` no longer exist in the tree.
+- No code references them (grep returns zero hits in tracked source).
+- `tools/`, `ai/tool/`, `mcp_servers/`, `ai/mcp_server/` are **untouched** — both halves
+  of those intentional mirror pairs survive.
 
-### US-RES-0-03 — Choose canonical dirs and remove mirrors
-**Change:** Pick one canonical directory per artifact type and delete the redundant
-mirror. Update any path references / imports.
+### US-RES-0-03 — Quarantine scratch artifacts
+**Change:** Add `tmp/` and root scratch `*.txt` to `.gitignore`. Remove any tracked
+scratch files from the index.
 **Acceptance:**
-- Only one directory remains per artifact type.
-- Build, tests, and deploy config resolve with no broken paths.
+- `tmp/` and root `*.txt` are gitignored.
+- `git status` shows no scratch noise.
 
-### US-RES-0-04 — Quarantine scratch artifacts
-**Change:** Move one-off scripts (`tmp/fix_*.py`) and loose root `*.txt` dumps out of the
-tracked tree; add them to `.gitignore`.
-**Acceptance:**
-- `tmp/` and root scratch `.txt` files are gitignored.
-- Repo root contains only intentional, documented files.
+### US-RES-0-04 — Webapp prototype decision (DEFERRED)
+**Change:** Decide whether `webapp/protype-1` and/or `protype-2` is canonical. **Out of
+scope for this PR** — owner decides separately; not Xano-managed.
 
 ---
 
 ## Executor Contract (read before coding)
 
-**Touchpoints (only):** the six duplicate pairs — `table/`↔`tables/`, `api/`↔`apis/`,
-`function/`↔`functions/`, `tools/`↔`ai/tool/`, `workflow_test/`↔`workflow_tests/`,
-`webapp/protype-1`↔`webapp/protype-2`. Plus `tmp/` and root `*.txt` for US-RES-0-04.
+**Touchpoints (only):** the four dead singular dirs (`table/`, `api/`, `function/`,
+`workflow_test/`), plus `.gitignore` and `tmp/`. Nothing else.
 
-**Canonical rule:** keep the copy that contains a `guid =` line (live Xano-synced);
-the copy without a guid is the stale mirror. Verified example: `table/account.xs` has
-`guid = "937..."`, `tables/2_account.xs` does not — so `table/` wins for that file.
+**Canonical rule:** `.xano/config.json` `paths` block is the source of truth. The `guid =`
+heuristic is wrong — do not use it.
 
-**Do NOT touch:** the *content* of any `.xs` file. This epic only **moves/deletes**
-files. Zero logic edits in the same PR — that keeps the diff a pure pathing change.
+**Do NOT touch:**
+- The *content* of any `.xs` file. This epic only deletes files; zero logic edits.
+- `tools/`, `ai/tool/`, `mcp_servers/`, `ai/mcp_server/` — these are intentional mirrors
+  (see EXECUTOR-PLAYBOOK Mirror-sync rule). Both halves stay live.
+- `webapp/protype-1` and `webapp/protype-2` — deferred decision, not Xano-managed.
 
 **Verify with:**
-- Hash-compare each surviving file against its deleted twin (or record the reconciled
-  diff in US-RES-0-02).
-- Repo-wide grep for the deleted directory name → zero references remain.
-- CI/build green on the consolidated tree.
+- `Test-Path table/, api/, function/, workflow_test/` → all return `False`.
+- `git grep -l "^table/" -- . ; git grep -l "^api/" -- . ; ...` → zero hits in tracked
+  source (path references in PRDs or docs are fine).
+- `tools/`, `ai/tool/`, `mcp_servers/`, `ai/mcp_server/`, `tables/`, `apis/`,
+  `functions/`, `workflow_tests/` all present, file counts unchanged.
 
-**Parity:** surviving file content is byte-identical to the canonical input (no edits).
-
-**Stop-and-ask if:** the two copies of a file differ and it's not obvious which is live
-(guid present on both, or neither) — do not pick blindly.
+**Stop-and-ask if:** a file in a "dead" dir contains content not present in the canonical
+dir (would require a content-merge before delete — none expected after fresh Xano pull).
 
 ## Definition of Done
 
-- One canonical source per artifact; mirrors deleted.
-- CI green on the consolidated tree.
-- A short note in the PR documents which directory won for each artifact type.
+- The four dead singular dirs removed.
+- `.gitignore` updated for scratch.
+- Intentional mirrors (`tools/`↔`ai/tool/`, `mcp_servers/`↔`ai/mcp_server/`) preserved.
+- Plural canonical dirs untouched, file counts unchanged.
+- PR description notes the classification source (`.xano/config.json`) and the Xano
+  rename evidence.

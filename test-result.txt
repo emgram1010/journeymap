@@ -1,2 +1,0 @@
-STATUS: 404
-ERROR: {"type":"not_found_error","message":"model: claude-3-5-sonnet-20240620"}

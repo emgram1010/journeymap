@@ -27,19 +27,44 @@ drift preventer for 4.6.
 
 ## Canonical-file rule (most important anti-drift anchor)
 
-This repo has mirrored directories. The **live, deployable** copy is the one that
-contains a `guid =` line. The mirror without a guid is a stale export.
+The **source of truth is `.xano/config.json`** — its `paths` block lists every
+directory Xano CLI syncs to the live workspace. Anything not in that block does not
+deploy.
 
-- Edit only the `guid`-bearing copy.
-- If both copies still exist for the file you're touching, **RES-0 is not finished** —
-  stop and flag it. Do not pick one yourself mid-feature.
+Current `paths` (verified):
 
-| Likely canonical (has guid) | Likely stale mirror |
+| Artifact | Canonical dir (`.xano/config.json`) | Dead sibling (delete in RES-0) |
+|---|---|---|
+| Tables | `tables/` | `table/` |
+| APIs | `apis/` | `api/` |
+| Functions | `functions/` | `function/` |
+| Tools | `tools/` | `ai/tool/` is **NOT dead** — see Mirror-sync rule below |
+| Workflow tests | `workflow_tests/` | `workflow_test/` |
+| Agents | `agents/` | — |
+| MCP servers | `mcp_servers/` | `ai/mcp_server/` is **NOT dead** — see Mirror-sync rule |
+
+The `guid =` line that appears in some files is **not** a canonical marker — it's an
+artifact of an older export format. Ignore it. The `.xano/config.json` `paths` block is
+the only source of truth.
+
+**Rule:** edit only files inside a path listed in `.xano/config.json`. If you find
+yourself opening a file in `table/`, `api/`, `function/`, or `workflow_test/`,
+**RES-0 is not finished** — stop and flag it.
+
+---
+
+## Mirror-sync rule (tools and MCP servers)
+
+Two pairs are **intentionally mirrored** and both copies are live. Editing one without
+the other causes silent drift (the canonical leakage epic uses this convention):
+
+| Canonical (Xano-synced) | Mirror (kept in sync manually) |
 |---|---|
-| `table/` | `tables/` |
-| `api/` | `apis/` |
-| `function/` | `functions/` |
-| `tools/` / `ai/tool/` | resolve in RES-0 — confirm by guid |
+| `tools/N_name.xs` | `ai/tool/name.xs` |
+| `mcp_servers/N_name.xs` | `ai/mcp_server/name.xs` |
+
+When you change a tool or MCP server file, **edit both halves of the pair in the same
+PR**. RES-0 does NOT delete either side of these pairs.
 
 ---
 
@@ -51,8 +76,8 @@ contains a `guid =` line. The mirror without a guid is a stale export.
   index block, or filter — **copy the pattern from an existing file** and adapt values.
 - Good reference files to copy from:
   - Query + in-memory lookup done right: `tools/2_get_map_state.xs`
-  - Scoped query with `$auth`: `api/journey_map/journey_map/search_GET.xs`
-  - Index block syntax: `table/journey_cell.xs`, `table/journey_map.xs`
+  - Scoped query with `$auth`: `apis/journey_map/` (search-style endpoints)
+  - Index block syntax: `tables/9_journey_cell.xs`, `tables/6_journey_map.xs`
 - If an operation (e.g. transactions, partitioning, batch upsert) has **no example in
   the repo**, it may not be supported. **Stop and ask** — do not emit Postgres DDL or a
   made-up filter to make it "work".
@@ -89,9 +114,10 @@ If you cannot satisfy all five, the story is **blocked** — report why, don't f
 - Xano native **partitioning** support (RES-3).
 - Xano **transaction / atomic batch** primitive (RES-6).
 - Where `intent` is stored on `journey_map` — referenced in `list_maps` but absent from
-  `table/journey_map.xs` schema (RES-4).
+  `tables/6_journey_map.xs` schema (RES-4).
 - The **telemetry sink** for metrics (RES-8).
-- Any case where two non-identical mirror copies of a file still exist (RES-0).
+- Any case where `tools/` and `ai/tool/` (or `mcp_servers/` and `ai/mcp_server/`) have
+  diverged in content — flag the drift; do not pick one blindly.
 
 ---
 
