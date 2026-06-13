@@ -1,13 +1,14 @@
 // Writes map-level context fields to a journey map (journey settings panel).
-// Accepts any subset of the 11 settings fields — only provided fields are written.
+// Accepts any subset of the 14 settings fields — only provided fields are written.
 tool update_journey_settings {
   instructions = """
       Use this tool to populate map-level context fields (the journey settings panel).
       These fields describe the journey at a high level — scope, actors, start/end points, success metrics, etc.
-    
+
       Provide only the fields you have information for. Existing values are not overwritten unless you explicitly supply a new value.
-    
+
       Fields available:
+      - intent: Map intent — sop | automation | hybrid. Set this immediately after create_journey_map if not set at creation time.
       - primary_actor: The main actor or persona this journey is mapped for
       - journey_scope: The overall scope or boundary of this journey (what's in and out of scope)
       - start_point: Where the journey begins (triggering event or first touchpoint)
@@ -21,23 +22,24 @@ tool update_journey_settings {
       - version: Version or iteration label for this journey map (e.g. 'v1.2 - Q2 2026')
       - measurement_frequency: How many times per year this process runs (int). The compounding multiplier for leakage math. Example: 15924
       - measurement_period_label: Human-readable cadence label. Examples: "per job", "per shift", "per call"
-    
+
       When to use:
       - When the user describes the overall journey scope, goals, or timeframe
       - When the user mentions who this journey is for (primary_actor)
       - When the user identifies key stakeholders or success metrics
+      - When intent was not set at create time or needs to be corrected
       - Proactively as journey-level context emerges from the interview
-    
+
       Input:
       - journey_map_id: The ID of the journey map
-      - Any subset of the 13 fields above
+      - Any subset of the 14 fields above
       - conversation_id: (optional) for tool trace logging
       - turn_id: (optional) for tool trace logging
-    
+
       Response shape:
       {
         applied: true/false,
-        settings: { primary_actor, journey_scope, start_point, end_point, duration, success_metrics, key_stakeholders, dependencies, pain_points_summary, opportunities, version, measurement_frequency, measurement_period_label },
+        settings: { intent, primary_actor, journey_scope, start_point, end_point, duration, success_metrics, key_stakeholders, dependencies, pain_points_summary, opportunities, version, measurement_frequency, measurement_period_label },
         skip_reason: null | 'nothing_to_write'
       }
     """
@@ -46,6 +48,9 @@ tool update_journey_settings {
     int journey_map_id filters=min:1
     int conversation_id?
     text turn_id?
+    enum intent? {
+      values = ["sop", "automation", "hybrid"]
+    }
     text primary_actor?
     text journey_scope?
     text start_point?
@@ -220,6 +225,18 @@ tool update_journey_settings {
     }
   
     conditional {
+      if ($input.intent != null && $input.intent != "") {
+        var.update $patch_data {
+          value = $patch_data|set:"intent":$input.intent
+        }
+
+        var.update $field_count {
+          value = $field_count + 1
+        }
+      }
+    }
+
+    conditional {
       if ($input.measurement_frequency != null) {
         var.update $patch_data {
           value = $patch_data
@@ -257,6 +274,7 @@ tool update_journey_settings {
           value = {
             applied    : true
             settings   : {
+              intent                   : $updated_map.intent
               primary_actor            : $updated_map.primary_actor
               journey_scope            : $updated_map.journey_scope
               start_point              : $updated_map.start_point

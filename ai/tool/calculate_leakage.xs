@@ -21,8 +21,8 @@ tool calculate_leakage {
     }
   
     precondition ($map.map_level == "atomic") {
-      error_type = "validation"
-      error = "Leakage math requires an atomic (L3) map."
+      error_type = "inputerror"
+      error = "Leakage math requires an atomic (L3) map. Set map_level = atomic in Settings first."
     }
   
     var $frequency {

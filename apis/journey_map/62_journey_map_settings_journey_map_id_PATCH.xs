@@ -25,9 +25,10 @@ query "journey_map/settings/{journey_map_id}" verb=PATCH {
     }
   
     int parent_map_id?
-
+  
     // Revenue at Risk fields (TL-4)
     decimal average_deal_value?
+  
     decimal miss_rate?
     decimal conversion_rate?
   }

@@ -1,7 +1,7 @@
 // IL-00-04: MCP tool — fill journey map cells with content and/or actor_fields.
 // Maps to batch cell writes. Input: journey_map_id + array of { stage_key, lens_key, content?, actor_fields? }.
 tool fill_cells {
-  instructions = "Write content into journey map cells. Pass journey_map_id and an array of cell updates, each with stage_key, lens_key, and optionally content (text) and actor_fields (JSON object). Returns count of cells written and skipped."
+  instructions = "Write content into journey map cells. Pass journey_map_id and an array of cell updates, each with stage_key, lens_key, and optionally content (text), actor_fields (JSON object), time_duration_value (decimal), time_duration_unit (minutes|hours|days|weeks), planned_duration (decimal), and actual_duration (decimal). Returns count of cells written and skipped."
 
   input {
     int journey_map_id filters=min:1
@@ -94,6 +94,8 @@ tool fill_cells {
                     actor_fields       : $upd.actor_fields ?? $cell.actor_fields
                     time_duration_value: $upd.time_duration_value ?? $cell.time_duration_value
                     time_duration_unit : $upd.time_duration_unit ?? $cell.time_duration_unit
+                    planned_duration   : $upd.planned_duration ?? $cell.planned_duration
+                    actual_duration    : $upd.actual_duration ?? $cell.actual_duration
                     status             : "draft"
                     change_source      : "ai"
                     updated_at         : "now"

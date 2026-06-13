@@ -109,14 +109,14 @@ table journey_map {
     int parent_map_id? {
       table = "journey_map"
     }
-
+  
     // ── Revenue at Risk fields (TL-4) ──────────────────────────────────────────
     // Average revenue per successful event (e.g. 350.00)
     decimal average_deal_value?
-
+  
     // Percentage of events mishandled — stored as 0.0–1.0 (e.g. 0.40 = 40%)
     decimal miss_rate?
-
+  
     // Percentage of engaged prospects that convert — stored as 0.0–1.0 (e.g. 0.35)
     decimal conversion_rate?
   }

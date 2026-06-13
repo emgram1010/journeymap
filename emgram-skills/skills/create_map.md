@@ -42,14 +42,24 @@ Additional lenses must be added via `scaffold_map` in the next step.
 1. search_maps         { query: "user's process description" }
 2. resolve_workspace   ask user or create_workspace
 3. create_journey_map  { title, intent: "sop", journey_architecture_id }
-4. scaffold_map        { lens_operations: [
+4. update_journey_settings { intent, primary_actor, journey_scope, start_point, end_point,
+                             duration, success_metrics, key_stakeholders, dependencies,
+                             pain_points_summary, opportunities, version }
+5. scaffold_map        { lens_operations: [
                            { action: "add", label: "Customer",  actor_type: "customer"  },
                            { action: "add", label: "Internal",  actor_type: "internal"  },
                            { action: "add", label: "Metrics",   actor_type: "metrics"   }
                          ]}
-5. scaffold_map        { stage_operations: [rename stages with stage_goal + primary_actor_lens] }
-6. fill_cells          { cell_updates: [...] }
-7. publish_map         (with user confirmation)
+6. scaffold_map        { stage_operations: [
+                           { action: "rename", key: "s1", label: "...",
+                             stage_goal: "...",          ← REQUIRED — exit condition one-liner
+                             primary_actor_lens: "lens-N" ← REQUIRED — use key from get_map, not a label
+                           },
+                           ... repeat for every stage
+                         ]}
+7. get_map             ← REQUIRED after scaffold — read actual auto-assigned lens keys before fill_cells
+8. fill_cells          { cell_updates: [...] }
+9. publish_map         (with user confirmation)
 ```
 
 ---
@@ -66,27 +76,59 @@ Then execute:
 1. search_maps         { query: "...", intent: "automation" }
 2. resolve_workspace
 3. create_journey_map  { title, intent: "automation", journey_architecture_id }
-4. scaffold_map        { lens_operations: [customer, internal, handoff, engineering] }
-5. scaffold_map        { stage_operations: [rename s1–sN with stage_goal + primary_actor_lens] }
-6. fill_cells          { cell_updates: [handoff cells pre-filled from intake answers] }
-7. publish_map         (with user confirmation)
+4. update_journey_settings { intent, primary_actor, journey_scope, start_point, end_point,
+                             duration, success_metrics, key_stakeholders, dependencies,
+                             pain_points_summary, opportunities, version,
+                             measurement_frequency, measurement_period_label }
+5. scaffold_map        { lens_operations: [customer, internal, handoff, engineering] }
+6. scaffold_map        { stage_operations: [
+                           { action: "rename", key: "s1", label: "...",
+                             stage_goal: "...",           ← REQUIRED
+                             primary_actor_lens: "lens-N" ← REQUIRED — use key from get_map
+                           },
+                           ... repeat for every stage
+                         ]}
+7. get_map             ← REQUIRED after scaffold — resolve actual lens keys
+8. fill_cells          { cell_updates: [handoff cells pre-filled from intake answers] }
+9. publish_map         (with user confirmation)
 ```
 
 ---
 
-## ⚠️ Mandatory: Fill Journey Settings After create_journey_map
+## 🚨 HARD RULE: Every Stage Must Have a stage_goal and primary_actor_lens
 
-`create_journey_map` leaves map-level metadata blank. PATCH before filling cells:
+**Never call scaffold_map with a rename that omits stage_goal or primary_actor_lens.**
+
+- `stage_goal` = the exit condition / definition of done for that stage (one clear sentence)
+- `primary_actor_lens` = the lens **key** (e.g. `lens-2`) of the accountable actor — **not a label**
+- Both must be passed in the **same** scaffold_map rename call — passing one without the other resets the missing field
+- After scaffold_map, call `get_map` to verify both fields are set on every stage before proceeding
+
+Stages with empty `stage_goal` or `primary_actor_lens` will **fail the publish checklist** and block `publish_map`.
+
+---
+
+## 🚨 HARD RULE: Fill Journey Settings Immediately After create_journey_map
+
+**Never call `scaffold_map` with blank settings. Call `update_journey_settings` first — always.**
+
+`create_journey_map` leaves all metadata null. Fill it before any other step:
 
 ```
-PATCH /journey_map/{id}
-{
-  "primary_actor": "...", "journey_scope": "...", "start_point": "...",
-  "end_point": "...", "duration": "...", "success_metrics": "...",
-  "key_stakeholders": "...", "dependencies": "...",
-  "pain_points_summary": "...", "opportunities": "..."
+update_journey_settings {
+  journey_map_id,
+  intent: "sop" | "automation" | "hybrid",  ← REQUIRED — never null
+  primary_actor, journey_scope, start_point, end_point,
+  duration, success_metrics, key_stakeholders, dependencies,
+  pain_points_summary, opportunities, version,
+
+  # ATOMIC L3 only — required for calculate_leakage:
+  measurement_frequency,      ← annual run count (int), e.g. 500
+  measurement_period_label    ← human label, e.g. "per call"
 }
 ```
+
+All 14 fields are required on atomic maps. Skipping any field leaves the publish checklist incomplete and calculate_leakage returning $0.
 
 ---
 

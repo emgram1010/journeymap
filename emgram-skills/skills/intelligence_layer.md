@@ -14,9 +14,6 @@ Not every map yields leakage data. This skill determines which level to build.
 3. **One primary actor per stage** — if two actors share a stage, split it or link a sub-journey
 4. **Every stage must pass the 5 Guard Rail Tests before it is considered metric-ready**
 5. **Do not accept vague stage names** — "handle operations" is invalid; "driver confirms job completion on-site" is valid
-
----
-
 ## The Three Map Levels
 
 | Level | Name | Purpose | Yields Leakage? |

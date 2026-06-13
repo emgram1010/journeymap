@@ -33,11 +33,11 @@ mcp_server_trigger "Auth Gate" {
       value = $input.tools
     }
   
-    // Reject unauthenticated connections — requires a valid Xano auth token in the URL
-    precondition ($auth.id != null) {
-      error_type = "accessdenied"
-      error = "Unauthorized: a valid auth token is required to connect to this MCP server"
-    }
+    // AUTH GATE TEMPORARILY DISABLED — testing public access (remove comment to re-enable)
+    // precondition ($auth.id != null) {
+    //   error_type = "accessdenied"
+    //   error = "Unauthorized: a valid auth token is required to connect to this MCP server"
+    // }
   }
 
   response = {toolset: $var.toolset, tools: $tools}

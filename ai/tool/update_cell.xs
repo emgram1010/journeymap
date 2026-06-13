@@ -14,14 +14,16 @@ tool update_cell {
       - journey_map_id: The ID of the journey map
       - stage_key: The key of the target stage (e.g. 'awareness', 'consideration')
       - lens_key: The key of the target lens (e.g. 'goals', 'touchpoints')
-      - content: The text content to write into the cell
+      - content: The text content to write into the cell (optional — omit to update only time fields)
       - time_duration_value: (optional) decimal — planned time the actor spends at this stage
       - time_duration_unit: (optional) enum — minutes | hours | days | weeks
-    
+      - planned_duration: (optional) decimal — SOP/target time for this stage (same unit as time_duration_unit)
+      - actual_duration: (optional) decimal — real observed time for this stage; gap vs planned is the leakage signal
+
       Response shape:
       {
         applied: true/false,
-        cell: { id, stage_key, lens_key, content, status, is_locked, change_source, time_duration_value, time_duration_unit },
+        cell: { id, stage_key, lens_key, content, status, is_locked, change_source, time_duration_value, time_duration_unit, planned_duration, actual_duration },
         skip_reason: null | 'locked' | 'confirmed' | 'not_found'
       }
     """
@@ -41,16 +43,22 @@ tool update_cell {
     // The key of the lens (row) for the target cell.
     text lens_key filters=trim
   
-    // The text content to write into the cell.
-    text content filters=trim
-  
+    // The text content to write into the cell (optional — omit to update only time fields).
+    text content? filters=trim
+
     // Planned time this actor spends at this stage (optional — leakage math input).
     decimal time_duration_value?
-  
+
     // Unit for time_duration_value.
     enum time_duration_unit? {
       values = ["minutes", "hours", "days", "weeks"]
     }
+
+    // SOP/target time for this stage — used in plan vs actual leakage gap.
+    decimal planned_duration?
+
+    // Real observed time for this stage — gap vs planned_duration is the leakage signal.
+    decimal actual_duration?
   }
 
   stack {
@@ -126,16 +134,18 @@ tool update_cell {
               field_name = "id"
               field_value = $cell.id
               data = {
-                content            : $input.content
+                content            : $input.content ?? $cell.content
                 status             : "draft"
                 change_source      : "ai"
                 updated_at         : "now"
                 last_updated_at    : "now"
                 time_duration_value: $input.time_duration_value ?? $cell.time_duration_value
                 time_duration_unit : $input.time_duration_unit ?? $cell.time_duration_unit
+                planned_duration   : $input.planned_duration ?? $cell.planned_duration
+                actual_duration    : $input.actual_duration ?? $cell.actual_duration
               }
             } as $updated_cell
-          
+
             var.update $result {
               value = {
                 applied    : true
@@ -149,6 +159,8 @@ tool update_cell {
                   change_source       : $updated_cell.change_source
                   time_duration_value : $updated_cell.time_duration_value
                   time_duration_unit  : $updated_cell.time_duration_unit
+                  planned_duration    : $updated_cell.planned_duration
+                  actual_duration     : $updated_cell.actual_duration
                 }
                 skip_reason: null
               }

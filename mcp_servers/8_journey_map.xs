@@ -32,9 +32,11 @@ mcp_server journey_map {
       update_stage_contract — set or clear stage_goal and primary_actor_lens on a stage; always call get_map first to find journey_stage_id and lens keys
     
       ## Map Settings
-      update_journey_settings — write map-level context fields (primary_actor, journey_scope, start_point,
+      update_journey_settings — write map-level context fields (intent, primary_actor, journey_scope, start_point,
                                 end_point, duration, success_metrics, key_stakeholders, dependencies,
-                                pain_points_summary, opportunities, version). Call after create_journey_map.
+                                pain_points_summary, opportunities, version, measurement_frequency,
+                                measurement_period_label). Use intent to set or correct sop|automation|hybrid
+                                after map creation. Call after create_journey_map.
     
       ## Actor Identity & AI Agent Wiring
       update_actor_identity — write persona_description, primary_goal, standing_constraints, and agent_map_id on a lens row. Use agent_map_id to wire an ai_agent lens to its sub-journey operating manual (the map that runs when the Orchestrator delegates to this actor). Always resolve lens_key from get_map before calling.

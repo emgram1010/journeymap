@@ -57,11 +57,11 @@ table journey_cell {
     enum time_duration_unit? {
       values = ["minutes", "hours", "days", "weeks"]
     }
-
+  
     // ── Plan vs Actual fields (TL-6) ──────────────────────────────────────────
     // What the blueprint/SOP says this stage should take (in same unit as time_duration_unit).
     decimal planned_duration?
-
+  
     // What the operator says actually happens today — the real-world number.
     decimal actual_duration?
   }
