@@ -13,7 +13,11 @@ test-key*.cjs
 
 # Temp / local working data
 .tmp/
+tmp/
 *.log
+
+# Root-level scratch text dumps (RES-0-03)
+/*.txt
 
 # Local environment files
 **/.env

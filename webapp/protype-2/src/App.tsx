@@ -611,6 +611,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
       average_deal_value:      bundle.journeyMap.average_deal_value ?? null,
       miss_rate:               bundle.journeyMap.miss_rate ?? null,
       conversion_rate:         bundle.journeyMap.conversion_rate ?? null,
+      map_level:               (bundle.journeyMap.map_level as JourneySettings['map_level']) ?? null,
     };
     setJourneySettings(loadedSettings);
     setSettingsDraft(loadedSettings);
@@ -2103,8 +2104,24 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                           )}
                         </div>
                       ))}
+                      {/* Map Level selector (LA-4 / TL-4) */}
+                      <div className="border-t border-zinc-100 pt-4">
+                        <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">Map Level</label>
+                        <select
+                          value={settingsDraft.map_level ?? ''}
+                          onChange={(e) => setSettingsDraft((d) => ({...d, map_level: (e.target.value || null) as JourneySettings['map_level']}))}
+                          disabled={!journeyMapRecord}
+                          className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-zinc-300 disabled:opacity-50"
+                        >
+                          <option value="">— Not set —</option>
+                          <option value="architecture">L1 — Architecture</option>
+                          <option value="actor-journey">L2 — Actor Journey</option>
+                          <option value="atomic">L3 — Atomic (enables leakage analysis)</option>
+                        </select>
+                      </div>
+
                       {/* L3 Atomic — measurement fields for leakage math */}
-                      {journeyMapRecord?.map_level === 'atomic' && (
+                      {settingsDraft.map_level === 'atomic' && (
                         <div className="border-t border-orange-100 pt-4 space-y-4">
                           <p className="text-[10px] font-bold text-orange-500 uppercase tracking-wider">L3 Atomic — Leakage Inputs</p>
                           <div>

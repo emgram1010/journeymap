@@ -166,15 +166,44 @@ tool scaffold_map {
                 db.add journey_stage {
                   enforce_hidden_fields = false
                   data = {
-                    created_at   : "now"
-                    updated_at   : "now"
-                    journey_map  : $input.journey_map_id
-                    key          : "s" ~ ($new_order|to_text)
-                    label        : $op.label
-                    display_order: $new_order
+                    created_at        : "now"
+                    updated_at        : "now"
+                    journey_map       : $input.journey_map_id
+                    key               : "s" ~ ($new_order|to_text)
+                    label             : $op.label
+                    display_order     : $new_order
+                    stage_goal        : $op.stage_goal
+                    primary_actor_lens: $op.primary_actor_lens
                   }
                 } as $new_stage
-              
+
+                // Create cells for every existing lens at this new stage
+                db.query journey_lens {
+                  where = $db.journey_lens.journey_map == $input.journey_map_id
+                  return = {type: "list"}
+                } as $existing_lenses_for_stage
+
+                foreach ($existing_lenses_for_stage) {
+                  each as $lens_for_stage {
+                    db.add journey_cell {
+                      enforce_hidden_fields = false
+                      data = {
+                        created_at : "now"
+                        updated_at : "now"
+                        journey_map: $input.journey_map_id
+                        stage      : $new_stage.id
+                        lens       : $lens_for_stage.id
+                        status     : "open"
+                        is_locked  : false
+                      }
+                    } as $new_cell_for_stage
+
+                    var.update $cells_created {
+                      value = $cells_created + 1
+                    }
+                  }
+                }
+
                 var.update $stages_added {
                   value = $stages_added + 1
                 }

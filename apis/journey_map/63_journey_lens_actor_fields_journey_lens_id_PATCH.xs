@@ -30,9 +30,10 @@ query "journey_lens/actor_fields/{journey_lens_id}" verb=PATCH {
     text primary_goal? filters=trim
     text standing_constraints? filters=trim
     int agent_map_id?
-
+  
     // Ring 2 leakage math — labor cost rate for this actor.
     decimal cost_rate_value?
+  
     enum cost_rate_unit? {
       values = ["per_minute", "per_hour", "per_day", "per_week", "per_event"]
     }
@@ -99,5 +100,4 @@ query "journey_lens/actor_fields/{journey_lens_id}" verb=PATCH {
   }
 
   response = $updated_lens
-  guid = "6wCr41ohu2vKWMB5zqifMKzF4Rw"
 }

@@ -29,7 +29,8 @@ tool update_stage_contract {
       error = "Stage does not belong to this journey map"
     }
   
-    // 3 — Write; preserve existing label (endpoint 211 requires it non-null)
+    // 3 — Write; preserve existing label and any field not explicitly passed.
+    // Passing null = "clear this field". Omitting (undefined) = keep existing value.
     db.edit journey_stage {
       field_name = "id"
       field_value = $input.journey_stage_id
@@ -37,8 +38,8 @@ tool update_stage_contract {
       data = {
         updated_at        : "now"
         label             : $stage.label
-        stage_goal        : $input.stage_goal
-        primary_actor_lens: $input.primary_actor_lens
+        stage_goal        : $input.stage_goal != null ? $input.stage_goal : $stage.stage_goal
+        primary_actor_lens: $input.primary_actor_lens != null ? $input.primary_actor_lens : $stage.primary_actor_lens
       }
     } as $updated
   }
