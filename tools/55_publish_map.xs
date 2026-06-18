@@ -91,6 +91,7 @@ tool publish_map {
             journey_architecture: $journey_map.journey_architecture
             version             : $new_version
             graph               : $graph
+            owner_user          : $journey_map.owner_user
           }
         } as $snapshot
       }

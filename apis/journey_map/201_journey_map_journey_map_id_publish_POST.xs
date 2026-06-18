@@ -253,7 +253,7 @@ query "journey_map/{journey_map_id}/publish" verb=POST {
             journey_architecture: $journey_map.journey_architecture
             version             : $new_version
             graph               : $graph
-            owner_user          : $auth.id
+            owner_user          : $journey_map.owner_user
           }
         } as $snapshot
       }

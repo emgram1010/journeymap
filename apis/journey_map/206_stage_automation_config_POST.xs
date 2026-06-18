@@ -93,7 +93,7 @@ query stage_automation_config verb=POST {
         linked_map_id       : $input.linked_map_id
         linked_map_link_type: $input.linked_map_link_type
         status              : $effective_status
-        owner_user          : $auth.id
+        owner_user          : $journey_map.owner_user
       }
     } as $config
   }
