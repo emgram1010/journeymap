@@ -1,4 +1,8 @@
 // Stores content for each cell within a journey map (intersection of stage and lens).
+// US-RES-1-03 — `btree|unique` on (journey_map, stage, lens) guarantees
+// single-cell lookups (fill_cells, get_map_state) are unambiguous. The
+// existing composite btree is kept for its sort tails (updated_at,
+// last_updated_at).
 table journey_cell {
   auth = false
 
@@ -77,6 +81,14 @@ table journey_cell {
         {name: "lens", op: "asc"}
         {name: "updated_at", op: "desc"}
         {name: "last_updated_at", op: "desc"}
+      ]
+    }
+    {
+      type : "btree|unique"
+      field: [
+        {name: "journey_map", op: "asc"}
+        {name: "stage", op: "asc"}
+        {name: "lens", op: "asc"}
       ]
     }
   ]

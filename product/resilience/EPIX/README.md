@@ -41,7 +41,12 @@ parity). Each epic's title carries an **EXECUTOR MODEL** banner — obey it befo
 ## Suggested order of execution
 
 1. ~~**RES-0** (🔴 higher model)~~ — ✅ **Done** (`aaf4263`).
-2. **RES-1** (🟡) — dedupe→constraint; higher model reviews the dedupe PR. **← next**
+2. **RES-1** (🟡) — dedupe→constraint. **In progress:**
+   - ✅ US-RES-1-01 dedupe scan (`apis/journey_map/212_*`)
+   - ✅ US-RES-1-02 dedupe apply (`apis/journey_map/213_*`)
+   - ✅ US-RES-1-03 unique constraint on `journey_cell(journey_map, stage, lens)`
+   - ✅ US-RES-1-04 derived-FK consistency guard (single-write-path: deleted unauth'd CRUD 38/39/40)
+   - ⏳ US-RES-1-05 owner inheritance enforcement **← next**
 3. **RES-2** (✅ 4.6) — lowest risk; indexes the critical path.
 4. **RES-5** (✅ 4.6) — produce the parity fixture first, then de-nest hot paths.
 5. **RES-4** (🟡) — resolve the `intent` + pagination decisions, then 4.6 implements.

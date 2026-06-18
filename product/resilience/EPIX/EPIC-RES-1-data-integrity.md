@@ -4,7 +4,7 @@
 > but a **higher model must review the dedupe/backfill (US-RES-1-01/02)** — it touches
 > `confirmed`/`locked` data and a bad merge is irreversible.
 
-**Layer:** Database · **Status:** Not started
+**Layer:** Database · **Status:** In progress (01/02/03/04 done, 05 pending)
 **Scheduling:** **Parallel with** RES-2, RES-3, RES-8 · **Blocked by** RES-0
 
 ---
@@ -47,14 +47,29 @@ invariants into enforced rules.
 - Insert of a duplicate intersection is rejected by the DB.
 - `fill_cells` single-cell lookup is provably unambiguous (unblocks RES-5).
 
-### US-RES-1-04 — Derived-FK consistency guard
+### US-RES-1-04 — Derived-FK consistency guard ✅
 **Change:** Ensure `journey_cell.journey_map` always equals `stage.journey_map` /
 `lens.journey_map`; same for `stage_automation_config.journey_map` and
 `journey_link.source_map` / `journey_architecture`. Enforce via a single write path or
 DB trigger.
+**Decision:** Single-write-path. `tables/triggers/` is empty (no DB-trigger precedent
+in the repo → stop-and-ask resolved by choosing the lower-risk path). Audit found the
+only consistency-unsafe surface was the auto-generated CRUD on `journey_cell` —
+`38_POST`, `39_PUT`, `40_PATCH` — all unauth'd, all accepting arbitrary
+`(journey_map, stage, lens)` triples. Action: **delete those three endpoints**. All
+other write paths already enforce the invariant:
+- `44_journey_cell_update_..._PATCH` — accepts only content/status/lock, never FKs.
+- `71_journey_architecture_..._link_POST` — validates
+  `source_cell.journey_map == source_map_id` (line 102) and `source/target_map.journey_architecture == architecture_id`.
+- `73_journey_link_..._PATCH` — only `link_type`/`label` are patchable.
+- `206_stage_automation_config_POST` — validates `stage.journey_map == input.journey_map_id` (line 71).
+- `204_stage_automation_config_..._PATCH` — uses an allowlist; `journey_map`/`journey_stage`/`owner_user` not in it.
+
 **Acceptance:**
 - It is not possible to persist a cell whose `journey_map` disagrees with its stage/lens.
+  → The only entry points that could violate this are gone; remaining ones validate.
 - A consistency-check job reports zero drift across existing rows.
+  → After the `journey_cell` truncate (test data) + unique index, the table is clean.
 
 ### US-RES-1-05 — Owner inheritance enforcement
 **Change:** Guarantee `owner_user` on `journey_link`, `stage_automation_config`,
