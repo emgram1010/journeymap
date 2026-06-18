@@ -4,8 +4,8 @@
 > copy and reconciling divergent mirrors is judgment; a wrong delete loses live code.
 > (4.6 may do the mechanical move *after* the canonical set is named.)
 
-**Layer:** Maintenance · **Status:** Not started
-**Scheduling:** Runs **alone, first**. Hard gate for all other epics.
+**Layer:** Maintenance · **Status:** ✅ Done (commit `aaf4263`, 2026-06)
+**Scheduling:** Ran **alone, first**. Hard gate for all other epics — now cleared.
 **Parallel with:** none · **Blocked by:** none
 
 ---

@@ -1,4 +1,4 @@
-# Scenario Leakage Comparison — Epic
+ Comparison — Epic
 
 **Status:** Ready for Development
 **Goal:** Make the baseline → clone → tweak → compare loop produce meaningful financial

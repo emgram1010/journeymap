@@ -884,7 +884,6 @@ query "journey_architecture/{journey_architecture_id}/compare/message" verb=POST
     conditional {
       if ($conv == null) {
         db.add agent_conversation {
-          enforce_hidden_fields = false
           data = {
             created_at             : "now"
             journey_map            : $input.map_a_id
@@ -910,7 +909,6 @@ query "journey_architecture/{journey_architecture_id}/compare/message" verb=POST
     } as $history
   
     db.add agent_message {
-      enforce_hidden_fields = false
       data = {
         created_at  : "now"
         conversation: $conv.id
@@ -1064,7 +1062,6 @@ query "journey_architecture/{journey_architecture_id}/compare/message" verb=POST
     conditional {
       if ($reply != "") {
         db.add agent_message {
-          enforce_hidden_fields = false
           data = {
             created_at  : "now"
             conversation: $conv.id

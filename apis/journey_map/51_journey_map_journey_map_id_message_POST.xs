@@ -104,7 +104,6 @@ query "journey_map/{journey_map_id}/message" verb=POST {
     conditional {
       if ($conversation == null) {
         db.add agent_conversation {
-          enforce_hidden_fields = false
           data = {
             created_at     : "now"
             journey_map    : $input.journey_map_id
@@ -121,7 +120,6 @@ query "journey_map/{journey_map_id}/message" verb=POST {
     }
   
     db.add agent_message {
-      enforce_hidden_fields = false
       data = {
         created_at  : "now"
         conversation: $conversation.id
@@ -134,7 +132,6 @@ query "journey_map/{journey_map_id}/message" verb=POST {
     conditional {
       if ($input.assistant_reply != null && $input.assistant_reply != "") {
         db.add agent_message {
-          enforce_hidden_fields = false
           data = {
             created_at  : "now"
             conversation: $conversation.id

@@ -63,7 +63,7 @@ push failures without corrupting the snapshot version.
 
 **Touchpoints (only):** `tools/51_fill_cells.xs`, `tools/5_batch_update.xs`,
 `tools/10_batch_set_status.xs`, `tools/56_scaffold_map.xs`, `tools/55_publish_map.xs`
-(+ its mirror in `ai/tool/` per the canonical-guid rule).
+(+ its mirror in `ai/tool/` per the Mirror-sync rule — see EXECUTOR-PLAYBOOK.md).
 
 **⚠ Top stop-and-ask (do FIRST):** Confirm whether Xano exposes a **transaction /
 atomic-batch** primitive. There is no transaction example in this repo. Do **not** invent

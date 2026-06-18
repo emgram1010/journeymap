@@ -18,6 +18,10 @@ export const hasPendingCellChanges = (cell: MatrixCell | null | undefined, snaps
     cell.content !== snapshot.content ||
     cell.status !== snapshot.status ||
     Boolean(cell.isLocked) !== Boolean(snapshot.isLocked) ||
-    actorFieldsChanged
+    actorFieldsChanged ||
+    (cell.timeDurationValue ?? null) !== (snapshot.timeDurationValue ?? null) ||
+    (cell.timeDurationUnit ?? null) !== (snapshot.timeDurationUnit ?? null) ||
+    (cell.plannedDuration ?? null) !== (snapshot.plannedDuration ?? null) ||
+    (cell.actualDuration ?? null) !== (snapshot.actualDuration ?? null)
   );
 };

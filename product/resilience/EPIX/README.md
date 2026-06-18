@@ -17,7 +17,7 @@ parity). Each epic's title carries an **EXECUTOR MODEL** banner — obey it befo
 
 | Epic | Title | Category | Model | Blocked by |
 |---|---|---|---|---|
-| [RES-0](EPIC-RES-0-consolidation.md) | Source-of-Truth Consolidation | Maintenance | 🔴 | — (gate, first) |
+| [RES-0](EPIC-RES-0-consolidation.md) | Source-of-Truth Consolidation | Maintenance | 🔴 | ✅ Done (`aaf4263`) |
 | [RES-1](EPIC-RES-1-data-integrity.md) | Data Integrity & Constraints | DB | 🟡 | RES-0 |
 | [RES-2](EPIC-RES-2-indexing-scoping.md) | Indexing & Tenant-Scoped Access | DB | ✅ | RES-0 |
 | [RES-3](EPIC-RES-3-table-lifecycle.md) | High-Volume Table Lifecycle | DB | 🔴 | RES-0 |
@@ -40,10 +40,10 @@ parity). Each epic's title carries an **EXECUTOR MODEL** banner — obey it befo
 
 ## Suggested order of execution
 
-1. **RES-0** (🔴 higher model) — name the canonical set; unblocks everything.
-2. **RES-2** (✅ 4.6) — lowest risk; indexes the critical path.
-3. **RES-1** (🟡) — dedupe→constraint; higher model reviews the dedupe PR.
-4. **RES-5** (✅ 4.6, with parity fixture) — de-nest hot paths.
+1. ~~**RES-0** (🔴 higher model)~~ — ✅ **Done** (`aaf4263`).
+2. **RES-1** (🟡) — dedupe→constraint; higher model reviews the dedupe PR. **← next**
+3. **RES-2** (✅ 4.6) — lowest risk; indexes the critical path.
+4. **RES-5** (✅ 4.6) — produce the parity fixture first, then de-nest hot paths.
 5. **RES-4** (🟡) — resolve the `intent` + pagination decisions, then 4.6 implements.
 6. **RES-6 / RES-3** (🔴) — transaction + lifecycle design on a higher model.
 7. **RES-7** (🟡) — frontend, after RES-4 ships its contract.

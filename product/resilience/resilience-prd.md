@@ -1,6 +1,3 @@
-# PRD — System Resilience & Scale Refactor
-
-> Make Emgram hold its shape at **100k–1M+ records** across database, logic, and
 > frontend — without breaking existing maps.
 
 ---
@@ -130,9 +127,11 @@ These apply to every story in every epic. Violating any of them is a failed PR.
 2. **Never invent Xano DSL.** Copy `.xs` syntax (db.query, where, index types,
    filters) from an existing file in this repo. If the exact syntax for an operation
    is not present anywhere in the repo, **stop and ask** — do not guess.
-3. **Confirm the canonical copy.** The live source is the file that carries a
-   `guid =` line. Edit only that copy. If two copies still exist, RES-0 is not done —
-   stop.
+3. **Confirm the canonical copy.** The live source is the file inside a directory
+   listed in `.xano/config.json`'s `paths` block — currently `tables/`, `apis/`,
+   `functions/`, `tools/`, `workflow_tests/`, `agents/`, `mcp_servers/`. Edit only
+   that copy. If you find yourself in `table/`, `api/`, `function/`, or
+   `workflow_test/`, RES-0 is not done — stop.
 4. **One story = one PR = one focused diff.** Do not bundle stories. Do not "while I'm
    here" fix unrelated code.
 5. **No response-shape change without its paired frontend story** (RES-4 ↔ RES-7).

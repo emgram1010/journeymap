@@ -1336,6 +1336,10 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
           status: cell.status,
           isLocked: Boolean(cell.isLocked),
           actorFields: cell.actorFields,
+          timeDurationValue: cell.timeDurationValue,
+          timeDurationUnit: cell.timeDurationUnit,
+          plannedDuration: cell.plannedDuration,
+          actualDuration: cell.actualDuration,
         });
 
         const nextCell: MatrixCell = {
@@ -1420,6 +1424,10 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
 
   const updateCellContent = (id: string, content: string) => {
     setCells((currentCells) => currentCells.map((cell) => (cell.id === id ? {...cell, content} : cell)));
+  };
+
+  const updateCellDuration = (id: string, patch: Partial<Pick<MatrixCell, 'timeDurationValue' | 'timeDurationUnit' | 'plannedDuration' | 'actualDuration'>>) => {
+    setCells((currentCells) => currentCells.map((cell) => (cell.id === id ? {...cell, ...patch} : cell)));
   };
 
   const updateCellActorField = (id: string, fieldKey: string, value: string) => {
@@ -3274,6 +3282,66 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                       )}
                     </div>
                   </div>
+
+                  {/* Time on Task — L3 atomic maps only */}
+                  {journeySettings.map_level === 'atomic' && (
+                    <div>
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-2">Time on Task</label>
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={selectedCell.timeDurationValue ?? ''}
+                            onChange={(e) => updateCellDuration(selectedCell.id, {timeDurationValue: e.target.value === '' ? null : parseFloat(e.target.value)})}
+                            disabled={selectedCell.isLocked}
+                            placeholder="Duration"
+                            className="w-24 text-xs border border-zinc-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-zinc-50 disabled:opacity-50"
+                          />
+                          <select
+                            value={selectedCell.timeDurationUnit ?? 'minutes'}
+                            onChange={(e) => updateCellDuration(selectedCell.id, {timeDurationUnit: e.target.value})}
+                            disabled={selectedCell.isLocked}
+                            className="flex-1 text-xs border border-zinc-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-zinc-50 disabled:opacity-50"
+                          >
+                            <option value="minutes">minutes</option>
+                            <option value="hours">hours</option>
+                            <option value="days">days</option>
+                            <option value="weeks">weeks</option>
+                          </select>
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <label className="text-[9px] text-zinc-400 block mb-0.5">Planned</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              value={selectedCell.plannedDuration ?? ''}
+                              onChange={(e) => updateCellDuration(selectedCell.id, {plannedDuration: e.target.value === '' ? null : parseFloat(e.target.value)})}
+                              disabled={selectedCell.isLocked}
+                              placeholder="—"
+                              className="w-full text-xs border border-zinc-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-zinc-50 disabled:opacity-50"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="text-[9px] text-zinc-400 block mb-0.5">Actual</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              value={selectedCell.actualDuration ?? ''}
+                              onChange={(e) => updateCellDuration(selectedCell.id, {actualDuration: e.target.value === '' ? null : parseFloat(e.target.value)})}
+                              disabled={selectedCell.isLocked}
+                              placeholder="—"
+                              className="w-full text-xs border border-zinc-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-zinc-50 disabled:opacity-50"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div>
                     <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-2">Cell Controls</label>

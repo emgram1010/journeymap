@@ -1,7 +1,10 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {useNavigate, useParams, useSearchParams} from 'react-router-dom';
 import ArchitectureGraph from './ArchitectureGraph';
-import {Plus, RotateCcw, MoreHorizontal, Pencil, Archive, Trash2, Check, X, ArrowLeft, LayoutGrid, ArrowRight, Network, Layers, Copy} from 'lucide-react';
+import {Plus, RotateCcw, MoreHorizontal, Pencil, Archive, Trash2, Check, X, ArrowLeft, LayoutGrid, ArrowRight, Network, Layers, Copy, Package, BookOpen} from 'lucide-react';
+import {exportJourneyMapBundle} from './exportMarkdownBundle';
+import {exportJourneyMapNotebookLM} from './exportMarkdownNotebookLM';
+import {exportArchitectureNotebookLM, type ArchExportProgress} from './exportArchitectureNotebookLM';
 import {
   loadJourneyArchitectureBundle,
   updateJourneyArchitecture,
@@ -77,10 +80,12 @@ interface MapTileProps {
   onDelete: () => void;
   onArchive: () => void;
   onDuplicate: () => void;
+  onExportMarkdownBundle: () => void;
+  onExportNotebookLM: () => void;
   onRemoveLink: (linkId: number) => Promise<void>;
 }
 
-function MapTile({map, links, allMaps, onOpen, onRename, onDelete, onArchive, onDuplicate, onRemoveLink}: MapTileProps) {
+function MapTile({map, links, allMaps, onOpen, onRename, onDelete, onArchive, onDuplicate, onExportMarkdownBundle, onExportNotebookLM, onRemoveLink}: MapTileProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(map.title);
@@ -185,6 +190,9 @@ function MapTile({map, links, allMaps, onOpen, onRename, onDelete, onArchive, on
           <div className="absolute right-0 top-7 w-40 bg-white border border-zinc-200 rounded-lg shadow-lg z-10 py-1 text-xs">
             <button onClick={() => {setRenaming(true); setMenuOpen(false);}} className="flex items-center gap-2 w-full px-3 py-2 hover:bg-zinc-50 text-zinc-700"><Pencil className="w-3.5 h-3.5" />Rename</button>
             <button onClick={() => {onDuplicate(); setMenuOpen(false);}} className="flex items-center gap-2 w-full px-3 py-2 hover:bg-zinc-50 text-zinc-700"><Copy className="w-3.5 h-3.5" />Duplicate</button>
+            <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Export</div>
+            <button onClick={() => {onExportMarkdownBundle(); setMenuOpen(false);}} className="flex items-center gap-2 w-full pl-6 pr-3 py-2 hover:bg-zinc-50 text-zinc-700"><Package className="w-3.5 h-3.5" />Intelligence Layer</button>
+            <button onClick={() => {onExportNotebookLM(); setMenuOpen(false);}} className="flex items-center gap-2 w-full pl-6 pr-3 py-2 hover:bg-zinc-50 text-zinc-700"><BookOpen className="w-3.5 h-3.5" />NotebookLM</button>
             <button onClick={() => {onArchive(); setMenuOpen(false);}} className="flex items-center gap-2 w-full px-3 py-2 hover:bg-zinc-50 text-zinc-700"><Archive className="w-3.5 h-3.5" />{isArchived ? 'Unarchive' : 'Archive'}</button>
             <div className="border-t border-zinc-100 my-1" />
             <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-2 w-full px-3 py-2 hover:bg-rose-50 text-rose-600"><Trash2 className="w-3.5 h-3.5" />Delete</button>
@@ -253,6 +261,11 @@ export default function ArchitectureDetail() {
   const [archMenuOpen, setArchMenuOpen] = useState(false);
   const [confirmDeleteArch, setConfirmDeleteArch] = useState(false);
   const archMenuRef = useRef<HTMLDivElement>(null);
+
+  // Architecture-level NotebookLM export
+  const [archExportProgress, setArchExportProgress] = useState<ArchExportProgress | null>(null);
+  const [confirmLargeExport, setConfirmLargeExport] = useState(false);
+  const archExportCancelRef = useRef(false);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -359,6 +372,22 @@ export default function ArchitectureDetail() {
     }
   };
 
+  const handleExportMapBundle = async (map: XanoJourneyMap) => {
+    try {
+      await exportJourneyMapBundle(map.id, map.title);
+    } catch {
+      setError('Unable to export map bundle. Please try again.');
+    }
+  };
+
+  const handleExportMapNotebookLM = async (map: XanoJourneyMap) => {
+    try {
+      await exportJourneyMapNotebookLM(map.id, map.title);
+    } catch {
+      setError('Unable to export map for NotebookLM. Please try again.');
+    }
+  };
+
   const handleDeleteMap = async (mapId: number) => {
     const prev = maps.find((m) => m.id === mapId);
     setMaps((ms) => ms.filter((m) => m.id !== mapId));
@@ -373,6 +402,33 @@ export default function ArchitectureDetail() {
     setLinks((ls) => ls.filter((l) => l.id !== linkId));
     try { await deleteJourneyLink(linkId); }
     catch { if (prev) setLinks((ls) => [prev, ...ls]); }
+  };
+
+  const runArchitectureNotebookLMExport = async () => {
+    if (!arch || maps.length === 0) return;
+    archExportCancelRef.current = false;
+    setArchExportProgress({total: maps.length, done: 0, current: null, ok: 0, failed: 0});
+    try {
+      const result = await exportArchitectureNotebookLM(arch, maps, {
+        onProgress: (p) => setArchExportProgress({...p}),
+        shouldCancel: () => archExportCancelRef.current,
+        concurrency: 3,
+      });
+      if (result.failed > 0 && !result.cancelled) {
+        setError(`Exported ${result.ok} of ${maps.length} maps. ${result.failed} failed — see _errors.md in the bundle.`);
+      }
+    } catch {
+      setError('Architecture export failed. Please try again.');
+    } finally {
+      setArchExportProgress(null);
+      archExportCancelRef.current = false;
+    }
+  };
+
+  const handleExportArchitectureNotebookLM = () => {
+    if (!arch || maps.length === 0) return;
+    if (maps.length > 40) { setConfirmLargeExport(true); return; }
+    void runArchitectureNotebookLMExport();
   };
 
   if (isLoading) {
@@ -444,6 +500,8 @@ export default function ArchitectureDetail() {
               <div className="absolute right-0 top-10 w-44 bg-white border border-zinc-200 rounded-xl shadow-lg z-20 py-1 text-sm">
                 <button onClick={() => {setEditingTitle(true); setArchMenuOpen(false);}} className="flex items-center gap-2 w-full px-4 py-2.5 hover:bg-zinc-50 text-zinc-700"><Pencil className="w-3.5 h-3.5" />Rename</button>
                 <button onClick={() => {handleArchiveArch(); setArchMenuOpen(false);}} className="flex items-center gap-2 w-full px-4 py-2.5 hover:bg-zinc-50 text-zinc-700"><Archive className="w-3.5 h-3.5" />{isArchived ? 'Unarchive' : 'Archive'}</button>
+                <div className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Export</div>
+                <button onClick={() => {setArchMenuOpen(false); handleExportArchitectureNotebookLM();}} disabled={maps.length === 0} className="flex items-center gap-2 w-full pl-7 pr-4 py-2.5 hover:bg-zinc-50 text-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed"><BookOpen className="w-3.5 h-3.5" />NotebookLM (all maps)</button>
                 <div className="border-t border-zinc-100 my-1" />
                 <button onClick={() => setConfirmDeleteArch(true)} className="flex items-center gap-2 w-full px-4 py-2.5 hover:bg-rose-50 text-rose-600"><Trash2 className="w-3.5 h-3.5" />Delete</button>
               </div>
@@ -568,6 +626,8 @@ export default function ArchitectureDetail() {
                 onDuplicate={() => void handleDuplicateMap(map)}
                 onArchive={() => void handleArchiveMap(map)}
                 onDelete={() => void handleDeleteMap(map.id)}
+                onExportMarkdownBundle={() => void handleExportMapBundle(map)}
+                onExportNotebookLM={() => void handleExportMapNotebookLM(map)}
                 onRemoveLink={handleRemoveLink}
               />
             ))}
@@ -618,6 +678,44 @@ export default function ArchitectureDetail() {
                 Cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pre-flight warning for large architectures */}
+      {confirmLargeExport && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+            <h3 className="text-base font-bold text-zinc-900 mb-2">Export {maps.length} maps?</h3>
+            <p className="text-sm text-zinc-600 mb-4">
+              NotebookLM's free tier supports 50 sources per notebook. This architecture has {maps.length} maps, each becoming a separate source. Paid tiers (Plus 100, Pro 300, Ultra 600) support more.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => {setConfirmLargeExport(false); void runArchitectureNotebookLMExport();}} className="flex-1 py-2 bg-zinc-900 text-white text-sm font-semibold rounded-xl hover:bg-zinc-800">Continue</button>
+              <button onClick={() => setConfirmLargeExport(false)} className="flex-1 py-2 bg-zinc-100 text-zinc-700 text-sm font-semibold rounded-xl hover:bg-zinc-200">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Architecture export progress modal */}
+      {archExportProgress && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+            <h3 className="text-base font-bold text-zinc-900 mb-1">Exporting for NotebookLM</h3>
+            <p className="text-xs text-zinc-500 mb-3">{archExportProgress.done} of {archExportProgress.total} maps processed</p>
+            <div className="w-full h-2 bg-zinc-100 rounded-full overflow-hidden mb-2">
+              <div className="h-full bg-zinc-900 transition-all" style={{width: `${archExportProgress.total === 0 ? 0 : (archExportProgress.done / archExportProgress.total) * 100}%`}} />
+            </div>
+            <p className="text-xs text-zinc-500 mb-1 truncate">{archExportProgress.current ? `Last: ${archExportProgress.current}` : 'Starting…'}</p>
+            <p className="text-xs text-zinc-400 mb-4">{archExportProgress.ok} succeeded · {archExportProgress.failed} failed</p>
+            <button
+              onClick={() => { archExportCancelRef.current = true; }}
+              disabled={archExportCancelRef.current}
+              className="w-full py-2 bg-zinc-100 text-zinc-700 text-sm font-semibold rounded-xl hover:bg-zinc-200 disabled:opacity-60"
+            >
+              {archExportCancelRef.current ? 'Cancelling…' : 'Cancel'}
+            </button>
           </div>
         </div>
       )}

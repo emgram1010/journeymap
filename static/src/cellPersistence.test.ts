@@ -43,3 +43,11 @@ test('hasPendingCellChanges detects content, status, and lock differences', () =
   assert.equal(hasPendingCellChanges({...persistedCell, isLocked: true}, persistedCell), true);
   assert.equal(hasPendingCellChanges({...persistedCell}, persistedCell), false);
 });
+
+test('hasPendingCellChanges detects duration field differences', () => {
+  assert.equal(hasPendingCellChanges({...persistedCell, timeDurationValue: 15}, persistedCell), true);
+  assert.equal(hasPendingCellChanges({...persistedCell, timeDurationUnit: 'hours'}, persistedCell), true);
+  assert.equal(hasPendingCellChanges({...persistedCell, plannedDuration: 10}, persistedCell), true);
+  assert.equal(hasPendingCellChanges({...persistedCell, actualDuration: 12}, persistedCell), true);
+  assert.equal(hasPendingCellChanges({...persistedCell, timeDurationValue: null}, persistedCell), false);
+});

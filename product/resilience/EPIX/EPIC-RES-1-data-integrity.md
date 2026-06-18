@@ -68,9 +68,9 @@ DB trigger.
 ## Executor Contract (read before coding)
 
 **Touchpoints (only):**
-- `table/journey_cell.xs` — the `index = [...]` block (US-RES-1-03).
-- `table/journey_link.xs`, `table/stage_automation_config.xs`,
-  `table/automation_snapshot.xs` — `owner_user` inheritance (US-RES-1-05).
+- `tables/9_journey_cell.xs` — the `index = [...]` block (US-RES-1-03).
+- `tables/14_journey_link.xs`, `tables/31_stage_automation_config.xs`,
+  `tables/30_automation_snapshot.xs` — `owner_user` inheritance (US-RES-1-05).
 - Migration/backfill scripts for US-RES-1-01/02/04 (no example in repo → see Stop-and-ask).
 
 **Real anchor:** `journey_cell` currently has

@@ -3050,7 +3050,6 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
     conditional {
       if ($conversation == null) {
         db.add agent_conversation {
-          enforce_hidden_fields = false
           data = {
             created_at     : "now"
             journey_map    : $input.journey_map_id
@@ -3076,7 +3075,6 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
     // ── Build messages array for the agent ──
     // ── Persist user message first (needed to generate turn_id) ──
     db.add agent_message {
-      enforce_hidden_fields = false
       data = {
         created_at  : "now"
         conversation: $conversation.id
@@ -3330,7 +3328,7 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
                   }
                 
                   else {
-                    ai.agent.run "" {
+                    ai.agent.run "Journey Map Assistant" {
                       args = {}|set:"messages":$agent_messages
                       allow_tool_execution = true
                     } as $agent_run_inner
@@ -3421,7 +3419,6 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
     conditional {
       if ($reply_text != "") {
         db.add agent_message {
-          enforce_hidden_fields = false
           data = {
             created_at  : "now"
             conversation: $conversation.id
@@ -3754,7 +3751,6 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
     }
   
     db.add agent_turn_log {
-      enforce_hidden_fields = false
       data = {
         created_at          : "now"
         conversation        : $conversation.id
