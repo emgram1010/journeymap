@@ -4,7 +4,7 @@
 > but a **higher model must review the dedupe/backfill (US-RES-1-01/02)** — it touches
 > `confirmed`/`locked` data and a bad merge is irreversible.
 
-**Layer:** Database · **Status:** In progress (01/02/03/04 done, 05 pending)
+**Layer:** Database · **Status:** ✅ Complete (01/02/03/04/05 done)
 **Scheduling:** **Parallel with** RES-2, RES-3, RES-8 · **Blocked by** RES-0
 
 ---
@@ -71,12 +71,26 @@ other write paths already enforce the invariant:
 - A consistency-check job reports zero drift across existing rows.
   → After the `journey_cell` truncate (test data) + unique index, the table is clean.
 
-### US-RES-1-05 — Owner inheritance enforcement
+### US-RES-1-05 — Owner inheritance enforcement ✅
 **Change:** Guarantee `owner_user` on `journey_link`, `stage_automation_config`,
 `automation_snapshot` is always copied from `journey_map.owner_user`, never client-set.
+
+**Audit findings:**
+| Writer | Before | After |
+|---|---|---|
+| `journey_link` ← `71_..._link_POST` | `$architecture.owner_user` | unchanged ✅ |
+| `stage_automation_config` ← `206_..._POST` | `$auth.id` (drift-prone) | `$journey_map.owner_user` ✅ |
+| `automation_snapshot` ← `201_..._publish_POST` | `$auth.id` (drift-prone) | `$journey_map.owner_user` ✅ |
+| `automation_snapshot` ← `tools/55_publish_map.xs` | **not set (NULL)** 🐛 | `$journey_map.owner_user` ✅ |
+
+PATCH paths (`73_journey_link_PATCH`, `204_stage_automation_config_PATCH`, and the
+publish patch blocks) all use explicit allowlists that exclude `owner_user`, so
+clients cannot overwrite it post-creation.
+
 **Acceptance:**
-- Client-supplied `owner_user` on these writes is ignored/overwritten.
-- Existing mismatches are backfilled.
+- Client-supplied `owner_user` on these writes is ignored/overwritten. ✅ allowlists.
+- Existing mismatches are backfilled. ✅ N/A — `automation_snapshot` confirmed 0 rows
+  prior to this fix; the buggy `tools/55` path had not yet polluted production.
 
 ---
 
