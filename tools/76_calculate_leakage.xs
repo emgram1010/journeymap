@@ -243,4 +243,5 @@ tool calculate_leakage {
     by_stage             : $by_stage
     incomplete_cells     : $incomplete
   }
+  guid = "KP_yMHFSJncJaj8yyUbIo9ly1oY"
 }
