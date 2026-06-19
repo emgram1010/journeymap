@@ -268,5 +268,4 @@ tool batch_update {
     applied_count: $applied_count
     skipped_count: $skipped_count
   }
-  guid = "EwIzGbGIWbk7yo35UfQApf_T1nU"
 }

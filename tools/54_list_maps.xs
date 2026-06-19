@@ -189,5 +189,4 @@ tool list_maps {
     count    : $paged_results|count
     results  : $paged_results
   }
-  guid = "hpGhhpQUd3ZerZVJXd0a_QCIbuA"
 }
