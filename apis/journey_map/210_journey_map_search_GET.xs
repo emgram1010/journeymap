@@ -8,17 +8,29 @@ query "journey_map/search" verb=GET {
   input {
     // Natural language search query — matched against ai_summary and tags.
     text query? filters=trim
-  
+
     // Optional filter: sop | automation | hybrid
     enum intent? {
       values = ["sop", "automation", "hybrid"]
     }
-  
+
     // Optional filter: JSON array of tag strings e.g. ["onboarding", "crm"]
     json tags?
+
+    // US-RES-4-03: pagination — page_size default 50, offset default 0.
+    int page_size? filters=min:1
+    int offset? filters=min:0
   }
 
   stack {
+    var $effective_page_size {
+      value = ($input.page_size ?? 50)
+    }
+
+    var $effective_offset {
+      value = ($input.offset ?? 0)
+    }
+
     // Load the authenticated user to resolve account_id
     db.get user {
       field_name = "id"
@@ -110,11 +122,43 @@ query "journey_map/search" verb=GET {
         }
       }
     }
+
+    // US-RES-4-03: apply pagination slice over filtered results
+    var $paged_results {
+      value = []
+    }
+
+    var $cursor {
+      value = 0
+    }
+
+    foreach ($results) {
+      each as $item {
+        var $paged_count {
+          value = $paged_results|count
+        }
+
+        conditional {
+          if ($cursor >= $effective_offset && $paged_count < $effective_page_size) {
+            array.push $paged_results {
+              value = $item
+            }
+          }
+        }
+
+        var.update $cursor {
+          value = $cursor + 1
+        }
+      }
+    }
   }
 
   response = {
-    query  : $input.query
-    count  : $results|count
-    results: $results
+    query    : $input.query
+    total    : $results|count
+    page_size: $effective_page_size
+    offset   : $effective_offset
+    count    : $paged_results|count
+    results  : $paged_results
   }
 }

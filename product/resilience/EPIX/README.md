@@ -19,12 +19,12 @@ parity). Each epic's title carries an **EXECUTOR MODEL** banner — obey it befo
 |---|---|---|---|---|
 | [RES-0](EPIC-RES-0-consolidation.md) | Source-of-Truth Consolidation | Maintenance | 🔴 | ✅ Done (`aaf4263`) |
 | [RES-1](EPIC-RES-1-data-integrity.md) | Data Integrity & Constraints | DB | 🟡 | RES-0 |
-| [RES-2](EPIC-RES-2-indexing-scoping.md) | Indexing & Tenant-Scoped Access | DB | ✅ | RES-0 |
+| [RES-2](EPIC-RES-2-indexing-scoping.md) | Indexing & Tenant-Scoped Access | DB | ✅ | ✅ Done |
 | [RES-3](EPIC-RES-3-table-lifecycle.md) | High-Volume Table Lifecycle | DB | 🔴 | RES-0 |
-| [RES-4](EPIC-RES-4-filtering-pagination.md) | DB-Side Filtering & Pagination | Logic | 🟡 | RES-0, RES-2 |
+| [RES-4](EPIC-RES-4-filtering-pagination.md) | DB-Side Filtering & Pagination | Logic | 🟡 | ✅ Done |
 | [RES-5](EPIC-RES-5-hotpath-denesting.md) | Hot-Path De-Nesting & Batch Writes | Logic | ✅ | RES-0, RES-1 |
 | [RES-6](EPIC-RES-6-resilience-patterns.md) | Resilience Patterns: Idempotency & Errors | Logic | 🔴 | RES-0 |
-| [RES-7](EPIC-RES-7-frontend-scale.md) | Frontend Scale: Virtualization & Pagination | Frontend | 🟡 | RES-0, RES-4 |
+| [RES-7](EPIC-RES-7-frontend-scale.md) | Frontend Scale: Virtualization & Pagination | Frontend | 🟡 | ✅ Done |
 | [RES-8](EPIC-RES-8-observability.md) | Observability & Slow-Query Telemetry | Ops | 🟡 | RES-0 |
 
 ## Sequencing

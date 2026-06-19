@@ -52,6 +52,13 @@ table agent_tool_log {
     }
     {type: "btree", field: [{name: "turn_id", op: "asc"}]}
     {type: "btree", field: [{name: "journey_map", op: "asc"}]}
+    {
+      type : "btree"
+      field: [
+        {name: "conversation", op: "asc"}
+        {name: "created_at", op: "desc"}
+      ]
+    }
   ]
 
   tags = ["xano:quick-start"]

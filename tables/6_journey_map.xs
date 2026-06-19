@@ -137,5 +137,15 @@ table journey_map {
       type : "btree"
       field: [{name: "journey_architecture", op: "asc"}]
     }
+    {
+      type : "btree"
+      field: [
+        {name: "account_id", op: "asc"}
+        {name: "status", op: "asc"}
+        {name: "map_level", op: "asc"}
+        {name: "journey_architecture", op: "asc"}
+        {name: "last_interaction_at", op: "desc"}
+      ]
+    }
   ]
 }

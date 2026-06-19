@@ -118,6 +118,13 @@ table workflow_execution {
       type : "btree"
       field: [{name: "parent_execution_id", op: "asc"}]
     }
+    {
+      type : "btree"
+      field: [
+        {name: "owner_user", op: "asc"}
+        {name: "created_at", op: "desc"}
+      ]
+    }
   ]
 
   tags = ["xano:quick-start"]

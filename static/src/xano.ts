@@ -665,11 +665,16 @@ async function authXanoRequest<T>(path: string, options: RequestOptions = {}): P
   return responseText ? (JSON.parse(responseText) as T) : (undefined as T);
 }
 
-const listJourneyStages = () => xanoRequest<XanoJourneyStage[]>('/journey_stage');
+// US-RES-7-01: pass journeyMapId as query param to consume the scoped endpoint
+// (journey_cell requires it; stage/lens still accept it as an optional filter).
+const listJourneyStages = (journeyMapId?: number) =>
+  xanoRequest<XanoJourneyStage[]>(journeyMapId ? `/journey_stage?journey_map=${journeyMapId}` : '/journey_stage');
 
-const listJourneyLenses = () => xanoRequest<XanoJourneyLens[]>('/journey_lens');
+const listJourneyLenses = (journeyMapId?: number) =>
+  xanoRequest<XanoJourneyLens[]>(journeyMapId ? `/journey_lens?journey_map=${journeyMapId}` : '/journey_lens');
 
-const listJourneyCells = () => xanoRequest<XanoJourneyCell[]>('/journey_cell');
+const listJourneyCells = (journeyMapId?: number) =>
+  xanoRequest<XanoJourneyCell[]>(journeyMapId ? `/journey_cell?journey_map=${journeyMapId}` : '/journey_cell');
 
 const createJourneyMap = (input: CreateDraftJourneyMapInput) =>
   xanoRequest<XanoJourneyMap>('/journey_map', {method: 'POST', body: input});
@@ -925,17 +930,19 @@ export async function loadJourneyMapBundle(
   }
 
   const journeyMap = existingJourneyMap ?? (await xanoRequest<XanoJourneyMap>(`/journey_map/${journeyMapId}`));
+  // US-RES-7-01: pass journeyMapId so each CRUD call fetches only that map's rows.
+  // Eliminates the full-table fetch + client-side filter that previously ran on every bundle load.
   const [stageRecords, lensRecords, cellRecords] = await Promise.all([
-    listJourneyStages(),
-    listJourneyLenses(),
-    listJourneyCells(),
+    listJourneyStages(journeyMapId),
+    listJourneyLenses(journeyMapId),
+    listJourneyCells(journeyMapId),
   ]);
 
   return buildHydratedJourneyMapBundle(
     journeyMap,
-    stageRecords.filter((stage) => stage.journey_map === journeyMapId),
-    lensRecords.filter((lens) => lens.journey_map === journeyMapId),
-    cellRecords.filter((cell) => cell.journey_map === journeyMapId),
+    stageRecords,
+    lensRecords,
+    cellRecords,
     'crud',
   );
 }
@@ -1391,15 +1398,15 @@ export const deleteJourneyLink = (id: number): Promise<{deleted: boolean; id: nu
 export const listJourneyLinksForMap = (mapId: number): Promise<XanoJourneyLink[]> =>
   xanoRequest<XanoJourneyLink[]>(`/journey_link?source_map=${mapId}`);
 
+// US-RES-7-01: use scoped endpoint instead of fetch-all + client filter.
 export const listJourneyStagesForMap = async (mapId: number): Promise<XanoJourneyStage[]> => {
-  const all = await xanoRequest<XanoJourneyStage[]>('/journey_stage');
-  return all.filter((s) => s.journey_map === mapId).sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+  const stages = await listJourneyStages(mapId);
+  return stages.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
 };
 
-export const listJourneyCellsForMap = async (mapId: number): Promise<XanoJourneyCell[]> => {
-  const all = await xanoRequest<XanoJourneyCell[]>('/journey_cell');
-  return all.filter((c) => c.journey_map === mapId);
-};
+// US-RES-7-01: use scoped endpoint instead of fetch-all + client filter.
+export const listJourneyCellsForMap = async (mapId: number): Promise<XanoJourneyCell[]> =>
+  listJourneyCells(mapId);
 
 export const getJourneyCell = (journeyCellId: number): Promise<XanoJourneyCell> =>
   xanoRequest<XanoJourneyCell>(`/journey_cell/${journeyCellId}`);

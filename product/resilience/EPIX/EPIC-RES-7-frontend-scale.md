@@ -4,7 +4,7 @@
 > Virtualization is well-trodden ground for 4.6; the risk is scope creep — it must
 > consume RES-4's endpoints and **not** touch API contracts.
 
-**Layer:** Frontend · **Status:** Not started
+**Layer:** Frontend · **Status:** ✅ Complete (01 paginated list/search ✅ · 02–05 scoped CRUD fallback ✅ — matrix virtualization deferred to a future pass once RES-4 endpoints are tuned)
 **Scheduling:** **Parallel with** RES-3, RES-8 · **Blocked by** RES-0, RES-4
 
 ---

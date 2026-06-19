@@ -4,7 +4,7 @@
 > implements.** Open calls: where `intent` actually lives (it's not a column) and the
 > pagination contract. The `where`/`$auth` scoping pattern itself is copyable → 4.6.
 
-**Layer:** Logic · **Status:** Not started
+**Layer:** Logic · **Status:** ✅ Complete (01 tenant scope ✅ · 02 DB filters ✅ · 03 pagination ✅ · 04 search paginated ✅ · 05 journey_cell_GET scoped ✅)
 **Scheduling:** **Parallel with** RES-5, RES-6, RES-3, RES-8
 **Blocked by** RES-0, RES-2 · **Unblocks:** RES-7
 
