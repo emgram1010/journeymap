@@ -46,151 +46,169 @@ tool calculate_leakage {
       return = {type: "list"}
     } as $cells
   
-    // 3 — Accumulate totals
+    // 3 — Build lookup dicts (O(L) + O(S)) to eliminate triple-nested foreach
+    var $lens_map {
+      value = {}
+    }
+
+    foreach ($lenses) {
+      each as $l {
+        var.update $lens_map {
+          value = $lens_map|set:($l.id|to_text):$l
+        }
+      }
+    }
+
+    var $stage_map {
+      value = {}
+    }
+
+    var $stage_cost_map {
+      value = {}
+    }
+
+    foreach ($stages) {
+      each as $s {
+        var.update $stage_map {
+          value = $stage_map|set:($s.id|to_text):$s
+        }
+
+        var.update $stage_cost_map {
+          value = $stage_cost_map|set:($s.id|to_text):0
+        }
+      }
+    }
+
+    // 4 — Accumulate totals in a single pass over cells (O(C))
     var $total_per_event {
       value = 0
     }
-  
-    var $by_stage {
-      value = []
-    }
-  
+
     var $incomplete {
       value = []
     }
-  
-    foreach ($stages) {
-      each as $stage {
-        var $stage_cost {
-          value = 0
+
+    foreach ($cells) {
+      each as $cell {
+        var $lens_rec {
+          value = $lens_map|get:($cell.lens|to_text)
         }
-      
-        foreach ($cells) {
-          each as $cell {
+
+        var $stage_rec {
+          value = $stage_map|get:($cell.stage|to_text)
+        }
+
+        conditional {
+          if ($cell.time_duration_value != null && $lens_rec.cost_rate_value != null) {
+            var $time_hours {
+              value = $cell.time_duration_value
+            }
+
             conditional {
-              if ($cell.stage == $stage.id) {
-                var $lens_cost_rate {
-                  value = null
+              if ($cell.time_duration_unit == "minutes") {
+                var.update $time_hours {
+                  value = $cell.time_duration_value / 60
                 }
-              
-                var $lens_cost_unit {
-                  value = null
+              }
+
+              elseif ($cell.time_duration_unit == "days") {
+                var.update $time_hours {
+                  value = $cell.time_duration_value * 8
                 }
-              
-                foreach ($lenses) {
-                  each as $lens {
-                    conditional {
-                      if ($lens.id == $cell.lens) {
-                        var.update $lens_cost_rate {
-                          value = $lens.cost_rate_value
-                        }
-                      
-                        var.update $lens_cost_unit {
-                          value = $lens.cost_rate_unit
-                        }
-                      }
-                    }
-                  }
+              }
+
+              elseif ($cell.time_duration_unit == "weeks") {
+                var.update $time_hours {
+                  value = $cell.time_duration_value * 40
                 }
-              
-                conditional {
-                  if ($cell.time_duration_value != null && $lens_cost_rate != null) {
-                    var $time_hours {
-                      value = $cell.time_duration_value
-                    }
-                  
-                    conditional {
-                      if ($cell.time_duration_unit == "minutes") {
-                        var.update $time_hours {
-                          value = $cell.time_duration_value / 60
-                        }
-                      }
-                    
-                      elseif ($cell.time_duration_unit == "days") {
-                        var.update $time_hours {
-                          value = $cell.time_duration_value * 8
-                        }
-                      }
-                    
-                      elseif ($cell.time_duration_unit == "weeks") {
-                        var.update $time_hours {
-                          value = $cell.time_duration_value * 40
-                        }
-                      }
-                    }
-                  
-                    var $cell_cost {
-                      value = 0
-                    }
-                  
-                    conditional {
-                      if ($lens_cost_unit == "per_event") {
-                        var.update $cell_cost {
-                          value = $lens_cost_rate
-                        }
-                      }
-                    
-                      elseif ($lens_cost_unit == "per_minute") {
-                        var.update $cell_cost {
-                          value = $time_hours * ($lens_cost_rate * 60)
-                        }
-                      }
-                    
-                      elseif ($lens_cost_unit == "per_day") {
-                        var.update $cell_cost {
-                          value = $time_hours * ($lens_cost_rate / 8)
-                        }
-                      }
-                    
-                      elseif ($lens_cost_unit == "per_week") {
-                        var.update $cell_cost {
-                          value = $time_hours * ($lens_cost_rate / 40)
-                        }
-                      }
-                    
-                      else {
-                        var.update $cell_cost {
-                          value = $time_hours * $lens_cost_rate
-                        }
-                      }
-                    }
-                  
-                    var.update $stage_cost {
-                      value = $stage_cost + $cell_cost
-                    }
-                  
-                    var.update $total_per_event {
-                      value = $total_per_event + $cell_cost
-                    }
-                  }
-                
-                  else {
-                    var $missing_field {
-                      value = "cost_rate"
-                    }
-                  
-                    conditional {
-                      if ($cell.time_duration_value == null) {
-                        var.update $missing_field {
-                          value = "time_duration"
-                        }
-                      }
-                    }
-                  
-                    array.push $incomplete {
-                      value = {
-                        stage_key: $stage.key
-                        lens_id  : $cell.lens
-                        missing  : $missing_field
-                      }
-                    }
-                  }
+              }
+            }
+
+            var $cell_cost {
+              value = 0
+            }
+
+            conditional {
+              if ($lens_rec.cost_rate_unit == "per_event") {
+                var.update $cell_cost {
+                  value = $lens_rec.cost_rate_value
                 }
+              }
+
+              elseif ($lens_rec.cost_rate_unit == "per_minute") {
+                var.update $cell_cost {
+                  value = $time_hours * ($lens_rec.cost_rate_value * 60)
+                }
+              }
+
+              elseif ($lens_rec.cost_rate_unit == "per_day") {
+                var.update $cell_cost {
+                  value = $time_hours * ($lens_rec.cost_rate_value / 8)
+                }
+              }
+
+              elseif ($lens_rec.cost_rate_unit == "per_week") {
+                var.update $cell_cost {
+                  value = $time_hours * ($lens_rec.cost_rate_value / 40)
+                }
+              }
+
+              else {
+                var.update $cell_cost {
+                  value = $time_hours * $lens_rec.cost_rate_value
+                }
+              }
+            }
+
+            var $cur_stage_cost {
+              value = $stage_cost_map|get:($cell.stage|to_text)
+            }
+
+            var.update $stage_cost_map {
+              value = $stage_cost_map|set:($cell.stage|to_text):($cur_stage_cost + $cell_cost)
+            }
+
+            var.update $total_per_event {
+              value = $total_per_event + $cell_cost
+            }
+          }
+
+          else {
+            var $missing_field {
+              value = "cost_rate"
+            }
+
+            conditional {
+              if ($cell.time_duration_value == null) {
+                var.update $missing_field {
+                  value = "time_duration"
+                }
+              }
+            }
+
+            array.push $incomplete {
+              value = {
+                stage_key: $stage_rec.key
+                lens_id  : $cell.lens
+                missing  : $missing_field
               }
             }
           }
         }
-      
+      }
+    }
+
+    // 5 — Build by_stage in display_order (stages already sorted asc)
+    var $by_stage {
+      value = []
+    }
+
+    foreach ($stages) {
+      each as $stage {
+        var $stage_cost {
+          value = $stage_cost_map|get:($stage.id|to_text)
+        }
+
         array.push $by_stage {
           value = {
             stage_key     : $stage.key
