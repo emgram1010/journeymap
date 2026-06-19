@@ -104,23 +104,6 @@ tool list_maps {
       }
     }
 
-    // US-RES-8-05: cross-tenant canary.
-    var $cross_tenant_count {
-      value = 0
-    }
-
-    foreach ($all_maps) {
-      each as $tm {
-        conditional {
-          if ($tm.owner_user != $auth.id) {
-            var.update $cross_tenant_count {
-              value = $cross_tenant_count + 1
-            }
-          }
-        }
-      }
-    }
-
     // US-RES-4-03: pagination — walk results to produce the paged slice.
     var $total {
       value = $results|count
@@ -153,30 +136,6 @@ tool list_maps {
         }
       }
     }
-
-    // US-RES-8-01/04/05: telemetry emit.
-    var $rows_scanned {
-      value = $all_maps|count
-    }
-
-    var $is_slow {
-      value = $rows_scanned > 500
-    }
-
-    db.add event_log {
-      enforce_hidden_fields = false
-      data = {
-        created_at: "now"
-        user_id   : $auth.id
-        action    : "telemetry:list_maps"
-        metadata  : {
-          rows_scanned      : $rows_scanned
-          rows_returned     : $paged_results|count
-          is_slow           : $is_slow
-          cross_tenant_leak : $cross_tenant_count
-        }
-      }
-    } as $_telem
   }
 
   response = {
