@@ -175,5 +175,4 @@ tool fill_cells {
     written       : $written
     skipped       : $skipped
   }
-  guid = "3c9EsxD_itSVkC00C18i_Gai9Mk"
 }
