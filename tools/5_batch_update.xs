@@ -35,36 +35,89 @@ tool batch_update {
   }
 
   stack {
+    // Load all stages, lenses, and cells once — build dicts for O(1) in-loop lookup
+    db.query journey_stage {
+      where = $db.journey_stage.journey_map == $input.journey_map_id
+      return = {type: "list"}
+    } as $stages
+
+    db.query journey_lens {
+      where = $db.journey_lens.journey_map == $input.journey_map_id
+      return = {type: "list"}
+    } as $lenses
+
+    db.query journey_cell {
+      where = $db.journey_cell.journey_map == $input.journey_map_id
+      return = {type: "list"}
+    } as $all_cells
+
+    var $stage_by_key {
+      value = {}
+    }
+
+    foreach ($stages) {
+      each as $s {
+        var.update $stage_by_key {
+          value = $stage_by_key|set:$s.key:$s
+        }
+      }
+    }
+
+    var $lens_by_key {
+      value = {}
+    }
+
+    foreach ($lenses) {
+      each as $l {
+        var.update $lens_by_key {
+          value = $lens_by_key|set:$l.key:$l
+        }
+      }
+    }
+
+    var $cell_map {
+      value = {}
+    }
+
+    foreach ($all_cells) {
+      each as $c {
+        var $ck {
+          value = ($c.stage|to_text) ~ "_" ~ ($c.lens|to_text)
+        }
+
+        var.update $cell_map {
+          value = $cell_map|set:$ck:$c
+        }
+      }
+    }
+
     var $applied {
       value = []
     }
-  
+
     var $skipped {
       value = []
     }
-  
+
     var $applied_count {
       value = 0
     }
-  
+
     var $skipped_count {
       value = 0
     }
-  
+
     foreach ($input.updates) {
       each as $upd {
-        // Resolve stage by key
-        db.query journey_stage {
-          where = $db.journey_stage.journey_map == $input.journey_map_id && $db.journey_stage.key == $upd.stage_key
-          return = {type: "single"}
-        } as $stage
-      
-        // Resolve lens by key
-        db.query journey_lens {
-          where = $db.journey_lens.journey_map == $input.journey_map_id && $db.journey_lens.key == $upd.lens_key
-          return = {type: "single"}
-        } as $lens
-      
+        // Resolve stage and lens from pre-loaded dicts — no per-item DB queries
+        var $stage {
+          value = $stage_by_key|get:$upd.stage_key
+        }
+
+        var $lens {
+          value = $lens_by_key|get:$upd.lens_key
+        }
+
         conditional {
           if ($stage == null || $lens == null) {
             array.push $skipped {
@@ -81,12 +134,15 @@ tool batch_update {
           }
         
           else {
-            // Find the cell at the intersection
-            db.query journey_cell {
-              where = $db.journey_cell.journey_map == $input.journey_map_id && $db.journey_cell.stage == $stage.id && $db.journey_cell.lens == $lens.id
-              return = {type: "single"}
-            } as $cell
-          
+            // Resolve cell from pre-loaded dict — no per-item DB query
+            var $cell_key {
+              value = ($stage.id|to_text) ~ "_" ~ ($lens.id|to_text)
+            }
+
+            var $cell {
+              value = $cell_map|get:$cell_key
+            }
+
             conditional {
               if ($cell == null) {
                 array.push $skipped {
@@ -173,6 +229,20 @@ tool batch_update {
       }
     }
   
+    // US-RES-8-02: batch write metrics.
+    db.add event_log {
+      enforce_hidden_fields = false
+      data = {
+        created_at: "now"
+        action    : "telemetry:batch_update"
+        metadata  : {
+          journey_map_id: $input.journey_map_id
+          cells_applied : $applied_count
+          cells_skipped : $skipped_count
+        }
+      }
+    } as $_btelem
+
     // ── Tool trace logging ──
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {
@@ -198,4 +268,5 @@ tool batch_update {
     applied_count: $applied_count
     skipped_count: $skipped_count
   }
+  guid = "EwIzGbGIWbk7yo35UfQApf_T1nU"
 }

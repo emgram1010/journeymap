@@ -173,6 +173,20 @@ tool batch_update {
       }
     }
   
+    // US-RES-8-02: batch write metrics.
+    db.add event_log {
+      enforce_hidden_fields = false
+      data = {
+        created_at: "now"
+        action    : "telemetry:batch_update"
+        metadata  : {
+          journey_map_id: $input.journey_map_id
+          cells_applied : $applied_count
+          cells_skipped : $skipped_count
+        }
+      }
+    } as $_btelem
+
     // ── Tool trace logging ──
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {

@@ -31,7 +31,29 @@ tool fill_cells {
       where = $db.journey_lens.journey_map == $input.journey_map_id
       return = {type: "list"}
     } as $lenses
-  
+
+    // Load all cells for the map once and build a (stage_id)_(lens_id) → cell lookup
+    db.query journey_cell {
+      where = $db.journey_cell.journey_map == $input.journey_map_id
+      return = {type: "list"}
+    } as $all_cells
+
+    var $cell_map {
+      value = {}
+    }
+
+    foreach ($all_cells) {
+      each as $c {
+        var $ck {
+          value = ($c.stage|to_text) ~ "_" ~ ($c.lens|to_text)
+        }
+
+        var.update $cell_map {
+          value = $cell_map|set:$ck:$c
+        }
+      }
+    }
+
     var $written {
       value = 0
     }
@@ -78,12 +100,15 @@ tool fill_cells {
       
         conditional {
           if ($matched_stage != null && $matched_lens != null) {
-            // Find the cell at stage × lens intersection
-            db.query journey_cell {
-              where = $db.journey_cell.journey_map == $input.journey_map_id && $db.journey_cell.stage == $matched_stage.id && $db.journey_cell.lens == $matched_lens.id
-              return = {type: "single"}
-            } as $cell
-          
+            // Resolve cell from pre-loaded dict — no per-item DB query
+            var $cell_key {
+              value = ($matched_stage.id|to_text) ~ "_" ~ ($matched_lens.id|to_text)
+            }
+
+            var $cell {
+              value = $cell_map|get:$cell_key
+            }
+
             conditional {
               if ($cell != null) {
                 db.patch journey_cell {
@@ -129,6 +154,20 @@ tool fill_cells {
       field_value = $input.journey_map_id
       data = {updated_at: "now", last_interaction_at: "now"}
     } as $map_touch
+
+    // US-RES-8-02: batch write metrics.
+    db.add event_log {
+      enforce_hidden_fields = false
+      data = {
+        created_at: "now"
+        action    : "telemetry:fill_cells"
+        metadata  : {
+          journey_map_id: $input.journey_map_id
+          cells_written : $written
+          cells_skipped : $skipped
+        }
+      }
+    } as $_ftelem
   }
 
   response = {
@@ -136,4 +175,5 @@ tool fill_cells {
     written       : $written
     skipped       : $skipped
   }
+  guid = "3c9EsxD_itSVkC00C18i_Gai9Mk"
 }

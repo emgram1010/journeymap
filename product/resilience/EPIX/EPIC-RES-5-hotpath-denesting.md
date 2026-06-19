@@ -4,7 +4,7 @@
 > golden-output fixture as the gate and `tools/2_get_map_state.xs` as the pattern, this is
 > pure bounded execution. Without the fixture, do not start.
 
-**Layer:** Logic · **Status:** Not started
+**Layer:** Logic · **Status:** ✅ Complete
 **Scheduling:** **Parallel with** RES-4, RES-6, RES-3, RES-8
 **Blocked by** RES-0, RES-1
 

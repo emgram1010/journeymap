@@ -3,7 +3,7 @@
 > 🟡 **EXECUTOR MODEL — 4.6 OK once a higher model picks the telemetry sink
 > (stop-and-ask).** After the sink is chosen, adding emit calls is mechanical → 4.6.
 
-**Layer:** Ops · **Status:** Not started
+**Layer:** Ops · **Status:** ✅ Complete (01 read telemetry ✅ · 02 write metrics ✅ · 03 deferred→RES-3 · 04 is_slow flag ✅ · 05 cross-tenant canary ✅)
 **Scheduling:** **Parallel with** everything (RES-1…RES-7) · **Blocked by** RES-0
 
 ---

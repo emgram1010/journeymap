@@ -104,6 +104,24 @@ tool list_maps {
       }
     }
 
+    // US-RES-8-05: cross-tenant canary — count any map that slipped past the owner_user filter.
+    // Expected value: always 0. Non-zero means the scoping where clause regressed.
+    var $cross_tenant_count {
+      value = 0
+    }
+
+    foreach ($all_maps) {
+      each as $tm {
+        conditional {
+          if ($tm.owner_user != $auth.id) {
+            var.update $cross_tenant_count {
+              value = $cross_tenant_count + 1
+            }
+          }
+        }
+      }
+    }
+
     // US-RES-4-03: pagination — walk results to produce the paged slice.
     var $total {
       value = $results|count
@@ -136,6 +154,32 @@ tool list_maps {
         }
       }
     }
+
+    // US-RES-8-01: emit read telemetry to event_log.
+    // US-RES-8-04: is_slow flags full-table-scale reads (rows_scanned > 500).
+    // US-RES-8-05: cross_tenant_leak should always be 0 — non-zero = canary failure.
+    var $rows_scanned {
+      value = $all_maps|count
+    }
+
+    var $is_slow {
+      value = $rows_scanned > 500
+    }
+
+    db.add event_log {
+      enforce_hidden_fields = false
+      data = {
+        created_at: "now"
+        user_id   : $auth.id
+        action    : "telemetry:list_maps"
+        metadata  : {
+          rows_scanned      : $rows_scanned
+          rows_returned     : $paged_results|count
+          is_slow           : $is_slow
+          cross_tenant_leak : $cross_tenant_count
+        }
+      }
+    } as $_telem
   }
 
   response = {
@@ -145,4 +189,5 @@ tool list_maps {
     count    : $paged_results|count
     results  : $paged_results
   }
+  guid = "hpGhhpQUd3ZerZVJXd0a_QCIbuA"
 }

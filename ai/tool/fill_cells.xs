@@ -129,6 +129,20 @@ tool fill_cells {
       field_value = $input.journey_map_id
       data = {updated_at: "now", last_interaction_at: "now"}
     } as $map_touch
+
+    // US-RES-8-02: batch write metrics.
+    db.add event_log {
+      enforce_hidden_fields = false
+      data = {
+        created_at: "now"
+        action    : "telemetry:fill_cells"
+        metadata  : {
+          journey_map_id: $input.journey_map_id
+          cells_written : $written
+          cells_skipped : $skipped
+        }
+      }
+    } as $_ftelem
   }
 
   response = {

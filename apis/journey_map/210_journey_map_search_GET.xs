@@ -151,6 +151,29 @@ query "journey_map/search" verb=GET {
         }
       }
     }
+
+    // US-RES-8-01/04: search telemetry emit.
+    var $search_rows_scanned {
+      value = $results|count
+    }
+
+    var $search_is_slow {
+      value = $search_rows_scanned > 500
+    }
+
+    db.add event_log {
+      enforce_hidden_fields = false
+      data = {
+        created_at: "now"
+        user_id   : $auth.id
+        action    : "telemetry:search"
+        metadata  : {
+          rows_scanned  : $search_rows_scanned
+          rows_returned : $paged_results|count
+          is_slow       : $search_is_slow
+        }
+      }
+    } as $_stelem
   }
 
   response = {
@@ -161,4 +184,5 @@ query "journey_map/search" verb=GET {
     count    : $paged_results|count
     results  : $paged_results
   }
+  guid = "VHbKtCxfcdZ05ZIn33G5DgwHwaE"
 }
