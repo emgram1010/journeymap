@@ -1,4 +1,11 @@
 // v2 — Stores individual messages within conversation threads.
+// ── RES-3 Lifecycle classification ───────────────────────────────────────
+// Growth class    : HIGH (every chat turn writes 2+ rows; content is JSON).
+// Dominant window : active conversation (hours–days).
+// Old rows read?  : Sometimes — historical conversation review.
+// Retention       : 180 days (configurable via retention_policy table).
+// Prune cadence   : daily 03:00 UTC (task: prune_agent_message).
+// Payload budget  : content JSON should stay < 100KB per row (see RES-3-04).
 table agent_message {
   auth = false
 
@@ -34,6 +41,13 @@ table agent_message {
     {type: "primary", field: [{name: "id"}]}
     {type: "btree", field: [{name: "created_at", op: "desc"}]}
     {type: "btree", field: [{name: "conversation", op: "asc"}]}
+    {
+      type : "btree"
+      field: [
+        {name: "conversation", op: "asc"}
+        {name: "created_at", op: "desc"}
+      ]
+    }
   ]
 
   tags = ["xano:quick-start"]

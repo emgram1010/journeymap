@@ -36,6 +36,10 @@ table automation_snapshot {
     // }
     // target_map_stages is recursively nested (max 3 levels deep).
     // Stages without links have links: [].
+    // RES-3-04 size budget: graph JSON SHOULD stay under 500KB.
+    // A map exceeding that almost certainly has runaway link recursion or
+    // a stage that should be split. publish_map should flag oversize before
+    // upsert (enforcement is a future story).
     json graph?
   
     // Inherited from journey_map.owner_user — never set by client.

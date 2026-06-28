@@ -1,5 +1,11 @@
 // v2.1 — Stores individual tool call traces within a single agent turn.
 // Used by the transparency layer to show users what tools the AI called and why.
+// ── RES-3 Lifecycle classification ───────────────────────────────────────
+// Growth class    : HIGHEST (N rows per agent turn — fastest-growing table).
+// Dominant window : current conversation (transparency UI).
+// Old rows read?  : Almost never — debugging only.
+// Retention       : 30 days (configurable via retention_policy table).
+// Prune cadence   : daily 03:00 UTC (task: prune_agent_tool_log).
 table agent_tool_log {
   auth = false
 
@@ -52,6 +58,13 @@ table agent_tool_log {
     }
     {type: "btree", field: [{name: "turn_id", op: "asc"}]}
     {type: "btree", field: [{name: "journey_map", op: "asc"}]}
+    {
+      type : "btree"
+      field: [
+        {name: "conversation", op: "asc"}
+        {name: "created_at", op: "desc"}
+      ]
+    }
   ]
 
   tags = ["xano:quick-start"]

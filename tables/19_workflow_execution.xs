@@ -3,6 +3,14 @@
 // ── Automation Bridge fields (v2) ────────────────────────────────────────
 // Null for standard AI orchestrator runs. Populated when a run is spawned
 // by an external automation tool (n8n/Make) following a journey_link branch.
+// ── RES-3 Lifecycle classification ───────────────────────────────────────
+// Growth class    : MEDIUM (1 row per run; long-lived; carries JSON stage_outputs).
+// Dominant window : last 30d for active operations; longer for SOP analytics.
+// Old rows read?  : Often — execution history is a product feature.
+// Retention       : 365 days for TERMINAL statuses (completed/failed/cancelled).
+//                   Non-terminal rows are NEVER pruned (active work).
+// Prune cadence   : daily 03:00 UTC (task: prune_workflow_execution).
+// Payload budget  : stage_outputs JSON should stay < 250KB per row (see RES-3-04).
 table workflow_execution {
   auth = false
 
@@ -117,6 +125,13 @@ table workflow_execution {
     {
       type : "btree"
       field: [{name: "parent_execution_id", op: "asc"}]
+    }
+    {
+      type : "btree"
+      field: [
+        {name: "owner_user", op: "asc"}
+        {name: "created_at", op: "desc"}
+      ]
     }
   ]
 

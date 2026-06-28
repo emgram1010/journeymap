@@ -1,10 +1,12 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {useNavigate, useParams, useSearchParams} from 'react-router-dom';
 import ArchitectureGraph from './ArchitectureGraph';
-import {Plus, RotateCcw, MoreHorizontal, Pencil, Archive, Trash2, Check, X, ArrowLeft, LayoutGrid, ArrowRight, Network, Layers, Copy, Package, BookOpen} from 'lucide-react';
+import {Plus, RotateCcw, MoreHorizontal, Pencil, Archive, Trash2, Check, X, ArrowLeft, LayoutGrid, ArrowRight, Network, Layers, Copy, Package, BookOpen, ChevronRight, Link2, GitBranch} from 'lucide-react';
 import {exportJourneyMapBundle} from './exportMarkdownBundle';
 import {exportJourneyMapNotebookLM} from './exportMarkdownNotebookLM';
 import {exportArchitectureNotebookLM, type ArchExportProgress} from './exportArchitectureNotebookLM';
+import {LinkedSkillExportDialog, type LinkedSkillExportSummary, type LinkedExportVariant} from './LinkedSkillExportDialog';
+import {ArchitectureDiagramDialog} from './ArchitectureDiagramDialog';
 import {
   loadJourneyArchitectureBundle,
   updateJourneyArchitecture,
@@ -82,17 +84,22 @@ interface MapTileProps {
   onDuplicate: () => void;
   onExportMarkdownBundle: () => void;
   onExportNotebookLM: () => void;
+  onExportLinkedBundle: () => void;
+  onExportLinkedNotebookLM: () => void;
+  onExportDiagram: () => void;
   onRemoveLink: (linkId: number) => Promise<void>;
 }
 
-function MapTile({map, links, allMaps, onOpen, onRename, onDelete, onArchive, onDuplicate, onExportMarkdownBundle, onExportNotebookLM, onRemoveLink}: MapTileProps) {
+function MapTile({map, links, allMaps, onOpen, onRename, onDelete, onArchive, onDuplicate, onExportMarkdownBundle, onExportNotebookLM, onExportLinkedBundle, onExportLinkedNotebookLM, onExportDiagram, onRemoveLink}: MapTileProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(map.title);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [linkBadgeOpen, setLinkBadgeOpen] = useState(false);
+  const [exportSubmenuOpen, setExportSubmenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const linkBadgeRef = useRef<HTMLDivElement>(null);
+  const exportTriggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -107,12 +114,28 @@ function MapTile({map, links, allMaps, onOpen, onRename, onDelete, onArchive, on
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false); setConfirmDelete(false);
+        setMenuOpen(false); setConfirmDelete(false); setExportSubmenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  const handleMenuKeyDown = (e: {key: string; preventDefault: () => void; stopPropagation: () => void}) => {
+    if (e.key === 'Escape') {
+      if (exportSubmenuOpen) {setExportSubmenuOpen(false); exportTriggerRef.current?.focus();}
+      else {setMenuOpen(false); setConfirmDelete(false);}
+      e.stopPropagation();
+      return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const items = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('button[data-menu-item]') ?? []);
+      const idx = items.indexOf(document.activeElement as HTMLButtonElement);
+      const next = e.key === 'ArrowDown' ? (idx + 1) % items.length : (idx - 1 + items.length) % items.length;
+      items[next]?.focus();
+      e.preventDefault();
+    }
+  };
 
   const commitRename = async () => {
     const trimmed = renameValue.trim();
@@ -182,20 +205,68 @@ function MapTile({map, links, allMaps, onOpen, onRename, onDelete, onArchive, on
           <span className="text-[11px] text-zinc-400 ml-auto">{relativeTime(ts)}</span>
         </div>
       </div>
-      <div ref={menuRef} className="absolute top-3 right-3" onClick={(e) => e.stopPropagation()}>
+      <div ref={menuRef} className="absolute top-3 right-3" onClick={(e) => e.stopPropagation()} onKeyDown={handleMenuKeyDown}>
         <button onClick={() => setMenuOpen((v) => !v)} className="p-1 rounded hover:bg-zinc-100 opacity-0 group-hover:opacity-100 transition-opacity">
           <MoreHorizontal className="w-4 h-4 text-zinc-500" />
         </button>
         {menuOpen && !confirmDelete && (
-          <div className="absolute right-0 top-7 w-40 bg-white border border-zinc-200 rounded-lg shadow-lg z-10 py-1 text-xs">
-            <button onClick={() => {setRenaming(true); setMenuOpen(false);}} className="flex items-center gap-2 w-full px-3 py-2 hover:bg-zinc-50 text-zinc-700"><Pencil className="w-3.5 h-3.5" />Rename</button>
-            <button onClick={() => {onDuplicate(); setMenuOpen(false);}} className="flex items-center gap-2 w-full px-3 py-2 hover:bg-zinc-50 text-zinc-700"><Copy className="w-3.5 h-3.5" />Duplicate</button>
-            <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Export</div>
-            <button onClick={() => {onExportMarkdownBundle(); setMenuOpen(false);}} className="flex items-center gap-2 w-full pl-6 pr-3 py-2 hover:bg-zinc-50 text-zinc-700"><Package className="w-3.5 h-3.5" />Intelligence Layer</button>
-            <button onClick={() => {onExportNotebookLM(); setMenuOpen(false);}} className="flex items-center gap-2 w-full pl-6 pr-3 py-2 hover:bg-zinc-50 text-zinc-700"><BookOpen className="w-3.5 h-3.5" />NotebookLM</button>
-            <button onClick={() => {onArchive(); setMenuOpen(false);}} className="flex items-center gap-2 w-full px-3 py-2 hover:bg-zinc-50 text-zinc-700"><Archive className="w-3.5 h-3.5" />{isArchived ? 'Unarchive' : 'Archive'}</button>
+          <div className="absolute right-0 top-7 w-44 bg-white border border-zinc-200 rounded-lg shadow-lg z-10 py-1 text-xs" role="menu">
+            <button data-menu-item onClick={() => {setRenaming(true); setMenuOpen(false);}} className="flex items-center gap-2 w-full px-3 py-2 hover:bg-zinc-50 text-zinc-700"><Pencil className="w-3.5 h-3.5" />Rename</button>
+            <button data-menu-item onClick={() => {onDuplicate(); setMenuOpen(false);}} className="flex items-center gap-2 w-full px-3 py-2 hover:bg-zinc-50 text-zinc-700"><Copy className="w-3.5 h-3.5" />Duplicate</button>
+            {/* Export ▸ submenu trigger */}
+            <div
+              className="relative"
+              onMouseEnter={() => setExportSubmenuOpen(true)}
+              onMouseLeave={() => setExportSubmenuOpen(false)}
+            >
+              <button
+                ref={exportTriggerRef}
+                data-menu-item
+                onClick={() => setExportSubmenuOpen((v) => !v)}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
+                    setExportSubmenuOpen(true);
+                    e.preventDefault();
+                    requestAnimationFrame(() => {
+                      menuRef.current?.querySelector<HTMLButtonElement>('button[data-submenu-item]')?.focus();
+                    });
+                  }
+                }}
+                aria-haspopup="menu"
+                aria-expanded={exportSubmenuOpen}
+                className="flex items-center gap-2 w-full px-3 py-2 hover:bg-zinc-50 text-zinc-700"
+              >
+                <Package className="w-3.5 h-3.5" />
+                <span className="flex-1 text-left">Export</span>
+                <ChevronRight className="w-3 h-3 text-zinc-400" />
+              </button>
+              {exportSubmenuOpen && (
+                <div
+                  className="absolute left-full top-0 ml-1 w-56 bg-white border border-zinc-200 rounded-lg shadow-lg z-20 py-1 text-xs"
+                  role="menu"
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowRight') {
+                      setExportSubmenuOpen(false);
+                      exportTriggerRef.current?.focus();
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }
+                  }}
+                >
+                  <div className="px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">This map</div>
+                  <button data-submenu-item onClick={() => {onExportMarkdownBundle(); setMenuOpen(false); setExportSubmenuOpen(false);}} className="flex items-center gap-2 w-full pl-6 pr-3 py-2 hover:bg-zinc-50 text-zinc-700"><Package className="w-3.5 h-3.5" />Skill (.zip)</button>
+                  <button data-submenu-item onClick={() => {onExportNotebookLM(); setMenuOpen(false); setExportSubmenuOpen(false);}} className="flex items-center gap-2 w-full pl-6 pr-3 py-2 hover:bg-zinc-50 text-zinc-700"><BookOpen className="w-3.5 h-3.5" />NotebookLM (.md)</button>
+                  <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">This map + linked</div>
+                  <button data-submenu-item onClick={() => {onExportLinkedBundle(); setMenuOpen(false); setExportSubmenuOpen(false);}} className="flex items-center gap-2 w-full pl-6 pr-3 py-2 hover:bg-zinc-50 text-zinc-700"><Package className="w-3.5 h-3.5" />Skill bundle (.zip)…</button>
+                  <button data-submenu-item onClick={() => {onExportLinkedNotebookLM(); setMenuOpen(false); setExportSubmenuOpen(false);}} className="flex items-center gap-2 w-full pl-6 pr-3 py-2 hover:bg-zinc-50 text-zinc-700"><BookOpen className="w-3.5 h-3.5" />NotebookLM bundle (.zip)…</button>
+                  <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Diagram</div>
+                  <button data-submenu-item onClick={() => {onExportDiagram(); setMenuOpen(false); setExportSubmenuOpen(false);}} className="flex items-center gap-2 w-full pl-6 pr-3 py-2 hover:bg-zinc-50 text-zinc-700"><GitBranch className="w-3.5 h-3.5" />Architecture diagram (.mmd)</button>
+                </div>
+              )}
+            </div>
+            <button data-menu-item onClick={() => {onArchive(); setMenuOpen(false);}} className="flex items-center gap-2 w-full px-3 py-2 hover:bg-zinc-50 text-zinc-700"><Archive className="w-3.5 h-3.5" />{isArchived ? 'Unarchive' : 'Archive'}</button>
             <div className="border-t border-zinc-100 my-1" />
-            <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-2 w-full px-3 py-2 hover:bg-rose-50 text-rose-600"><Trash2 className="w-3.5 h-3.5" />Delete</button>
+            <button data-menu-item onClick={() => setConfirmDelete(true)} className="flex items-center gap-2 w-full px-3 py-2 hover:bg-rose-50 text-rose-600"><Trash2 className="w-3.5 h-3.5" />Delete</button>
           </div>
         )}
         {menuOpen && confirmDelete && (
@@ -387,6 +458,26 @@ export default function ArchitectureDetail() {
       setError('Unable to export map for NotebookLM. Please try again.');
     }
   };
+
+  // US-EXP-1-14 stubs — 1-09 + 1-15 wired below, 1-13 still pending.
+  const [linkedSkillTarget, setLinkedSkillTarget] = useState<{map: XanoJourneyMap; variant: LinkedExportVariant} | null>(null);
+  const [linkedSkillToast, setLinkedSkillToast] = useState<LinkedSkillExportSummary | null>(null);
+  const handleExportLinkedBundle = (map: XanoJourneyMap) => {
+    setLinkedSkillTarget({map, variant: 'skill'});
+  };
+  const handleExportLinkedNotebookLM = (map: XanoJourneyMap) => {
+    setLinkedSkillTarget({map, variant: 'notebooklm'});
+  };
+  const [diagramTarget, setDiagramTarget] = useState<XanoJourneyMap | null>(null);
+  const handleExportDiagram = (map: XanoJourneyMap) => {
+    setDiagramTarget(map);
+  };
+  useEffect(() => {
+    if (!linkedSkillToast) return;
+    const t = setTimeout(() => setLinkedSkillToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [linkedSkillToast]);
+
 
   const handleDeleteMap = async (mapId: number) => {
     const prev = maps.find((m) => m.id === mapId);
@@ -628,6 +719,9 @@ export default function ArchitectureDetail() {
                 onDelete={() => void handleDeleteMap(map.id)}
                 onExportMarkdownBundle={() => void handleExportMapBundle(map)}
                 onExportNotebookLM={() => void handleExportMapNotebookLM(map)}
+                onExportLinkedBundle={() => handleExportLinkedBundle(map)}
+                onExportLinkedNotebookLM={() => handleExportLinkedNotebookLM(map)}
+                onExportDiagram={() => handleExportDiagram(map)}
                 onRemoveLink={handleRemoveLink}
               />
             ))}
@@ -717,6 +811,56 @@ export default function ArchitectureDetail() {
               {archExportCancelRef.current ? 'Cancelling…' : 'Cancel'}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* US-EXP-1-09 + US-EXP-1-15 — Linked export dialog */}
+      {linkedSkillTarget && (
+        <LinkedSkillExportDialog
+          mapId={linkedSkillTarget.map.id}
+          mapTitle={linkedSkillTarget.map.title}
+          variant={linkedSkillTarget.variant}
+          onClose={() => setLinkedSkillTarget(null)}
+          onError={(msg) => setError(msg)}
+          onSuccess={(summary) => setLinkedSkillToast(summary)}
+        />
+      )}
+
+      {/* US-EXP-1-13 — Architecture diagram dialog */}
+      {diagramTarget && (
+        <ArchitectureDiagramDialog
+          mapId={diagramTarget.id}
+          mapTitle={diagramTarget.title}
+          onClose={() => setDiagramTarget(null)}
+          onError={(msg) => setError(msg)}
+        />
+      )}
+
+      {/* US-EXP-1-10 — Post-export toast */}
+      {linkedSkillToast && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm bg-white border border-zinc-200 rounded-xl shadow-lg p-4 flex items-start gap-3">
+          <div className={`mt-0.5 w-2 h-2 rounded-full ${linkedSkillToast.cancelled ? 'bg-zinc-400' : linkedSkillToast.warningCount > 0 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold text-zinc-900">
+              {linkedSkillToast.cancelled
+                ? 'Export cancelled'
+                : linkedSkillToast.warningCount > 0
+                  ? 'Export complete with warnings'
+                  : 'Export complete'}
+            </div>
+            {!linkedSkillToast.cancelled && (
+              <div className="text-[11px] text-zinc-600 mt-0.5 truncate">
+                <span className="font-mono">{linkedSkillToast.filename}</span> · {linkedSkillToast.mapCount} maps · {linkedSkillToast.wordCount.toLocaleString()} words
+                {linkedSkillToast.warningCount > 0 && <> · {linkedSkillToast.warningCount} warning{linkedSkillToast.warningCount === 1 ? '' : 's'}</>}
+              </div>
+            )}
+            {linkedSkillToast.warningCount > 0 && !linkedSkillToast.cancelled && (
+              <div className="text-[10px] text-zinc-500 mt-1">See <code className="font-mono">_manifest.json</code> for details.</div>
+            )}
+          </div>
+          <button onClick={() => setLinkedSkillToast(null)} className="p-1 text-zinc-400 hover:bg-zinc-100 rounded">
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
     </div>

@@ -21,6 +21,17 @@ tool scaffold_map {
       error = "Journey map not found"
     }
   
+    // RES-6-04: hard cap on each operation array to bound execution time.
+    precondition ($input.stage_operations == null || ($input.stage_operations|count) <= 500) {
+      error_type = "inputerror"
+      error = "Batch too large — max 500 stage_operations per call. Split into multiple calls."
+    }
+  
+    precondition ($input.lens_operations == null || ($input.lens_operations|count) <= 500) {
+      error_type = "inputerror"
+      error = "Batch too large — max 500 lens_operations per call. Split into multiple calls."
+    }
+  
     var $stages_added {
       value = 0
     }
@@ -57,6 +68,17 @@ tool scaffold_map {
       value = []
     }
   
+    // RES-6-03: additive failure surface alongside existing $errors. Populated
+    // by future try_catch wrapping in RES-6-01 — empty today, but present in
+    // the contract so all batch tools expose a uniform failed[] shape.
+    var $failed {
+      value = []
+    }
+  
+    var $failed_count {
+      value = 0
+    }
+  
     // Process stage operations — remove pass first, then rename, then add
     conditional {
       if ($input.stage_operations != null) {
@@ -72,31 +94,37 @@ tool scaffold_map {
               
                 conditional {
                   if ($target_stage != null) {
-                    db.query journey_cell {
-                      where = $db.journey_cell.stage == $target_stage.id
-                      return = {type: "list"}
-                    } as $cells_to_delete
-                  
-                    foreach ($cells_to_delete) {
-                      each as $c {
-                        db.del journey_cell {
-                          field_name = "id"
-                          field_value = $c.id
+                    // RES-6-01: atomic stage removal (cells + stage row commit together or not at all).
+                    // scaffold_map: atomic stage removal (cells + stage)
+                    db.transaction {
+                      stack {
+                        db.query journey_cell {
+                          where = $db.journey_cell.stage == $target_stage.id
+                          return = {type: "list"}
+                        } as $cells_to_delete
+                      
+                        foreach ($cells_to_delete) {
+                          each as $c {
+                            db.del journey_cell {
+                              field_name = "id"
+                              field_value = $c.id
+                            }
+                          
+                            var.update $cells_deleted {
+                              value = $cells_deleted + 1
+                            }
+                          }
                         }
                       
-                        var.update $cells_deleted {
-                          value = $cells_deleted + 1
+                        db.del journey_stage {
+                          field_name = "id"
+                          field_value = $target_stage.id
+                        }
+                      
+                        var.update $stages_removed {
+                          value = $stages_removed + 1
                         }
                       }
-                    }
-                  
-                    db.del journey_stage {
-                      field_name = "id"
-                      field_value = $target_stage.id
-                    }
-                  
-                    var.update $stages_removed {
-                      value = $stages_removed + 1
                     }
                   }
                 }
@@ -153,59 +181,65 @@ tool scaffold_map {
           each as $op {
             conditional {
               if ($op.action == "add") {
-                db.query journey_stage {
-                  where = $db.journey_stage.journey_map == $input.journey_map_id
-                  sort = {display_order: "desc"}
-                  return = {type: "list"}
-                } as $existing_stages
-              
-                var $new_order {
-                  value = ($existing_stages|count) + 1
-                }
-              
-                db.add journey_stage {
-                  enforce_hidden_fields = false
-                  data = {
-                    created_at        : "now"
-                    updated_at        : "now"
-                    journey_map       : $input.journey_map_id
-                    key               : "s" ~ ($new_order|to_text)
-                    label             : $op.label
-                    display_order     : $new_order
-                    stage_goal        : $op.stage_goal
-                    primary_actor_lens: $op.primary_actor_lens
-                  }
-                } as $new_stage
-              
-                // Create cells for every existing lens at this new stage
-                db.query journey_lens {
-                  where = $db.journey_lens.journey_map == $input.journey_map_id
-                  return = {type: "list"}
-                } as $existing_lenses_for_stage
-              
-                foreach ($existing_lenses_for_stage) {
-                  each as $lens_for_stage {
-                    db.add journey_cell {
+                // RES-6-01: atomic stage add (stage row + all initial cells commit together).
+                // scaffold_map: atomic stage add (stage + cells across lenses)
+                db.transaction {
+                  stack {
+                    db.query journey_stage {
+                      where = $db.journey_stage.journey_map == $input.journey_map_id
+                      sort = {display_order: "desc"}
+                      return = {type: "list"}
+                    } as $existing_stages
+                  
+                    var $new_order {
+                      value = ($existing_stages|count) + 1
+                    }
+                  
+                    db.add journey_stage {
                       enforce_hidden_fields = false
                       data = {
-                        created_at : "now"
-                        updated_at : "now"
-                        journey_map: $input.journey_map_id
-                        stage      : $new_stage.id
-                        lens       : $lens_for_stage.id
-                        status     : "open"
-                        is_locked  : false
+                        created_at        : "now"
+                        updated_at        : "now"
+                        journey_map       : $input.journey_map_id
+                        key               : "s" ~ ($new_order|to_text)
+                        label             : $op.label
+                        display_order     : $new_order
+                        stage_goal        : $op.stage_goal
+                        primary_actor_lens: $op.primary_actor_lens
                       }
-                    } as $new_cell_for_stage
+                    } as $new_stage
                   
-                    var.update $cells_created {
-                      value = $cells_created + 1
+                    // Create cells for every existing lens at this new stage
+                    db.query journey_lens {
+                      where = $db.journey_lens.journey_map == $input.journey_map_id
+                      return = {type: "list"}
+                    } as $existing_lenses_for_stage
+                  
+                    foreach ($existing_lenses_for_stage) {
+                      each as $lens_for_stage {
+                        db.add journey_cell {
+                          enforce_hidden_fields = false
+                          data = {
+                            created_at : "now"
+                            updated_at : "now"
+                            journey_map: $input.journey_map_id
+                            stage      : $new_stage.id
+                            lens       : $lens_for_stage.id
+                            status     : "open"
+                            is_locked  : false
+                          }
+                        } as $new_cell_for_stage
+                      
+                        var.update $cells_created {
+                          value = $cells_created + 1
+                        }
+                      }
+                    }
+                  
+                    var.update $stages_added {
+                      value = $stages_added + 1
                     }
                   }
-                }
-              
-                var.update $stages_added {
-                  value = $stages_added + 1
                 }
               }
             }
@@ -229,31 +263,37 @@ tool scaffold_map {
               
                 conditional {
                   if ($target_lens != null) {
-                    db.query journey_cell {
-                      where = $db.journey_cell.lens == $target_lens.id
-                      return = {type: "list"}
-                    } as $lens_cells
-                  
-                    foreach ($lens_cells) {
-                      each as $lc {
-                        db.del journey_cell {
-                          field_name = "id"
-                          field_value = $lc.id
+                    // RES-6-01: atomic lens removal (cells + lens row commit together or not at all).
+                    // scaffold_map: atomic lens removal (cells + lens)
+                    db.transaction {
+                      stack {
+                        db.query journey_cell {
+                          where = $db.journey_cell.lens == $target_lens.id
+                          return = {type: "list"}
+                        } as $lens_cells
+                      
+                        foreach ($lens_cells) {
+                          each as $lc {
+                            db.del journey_cell {
+                              field_name = "id"
+                              field_value = $lc.id
+                            }
+                          
+                            var.update $cells_deleted {
+                              value = $cells_deleted + 1
+                            }
+                          }
                         }
                       
-                        var.update $cells_deleted {
-                          value = $cells_deleted + 1
+                        db.del journey_lens {
+                          field_name = "id"
+                          field_value = $target_lens.id
+                        }
+                      
+                        var.update $lenses_removed {
+                          value = $lenses_removed + 1
                         }
                       }
-                    }
-                  
-                    db.del journey_lens {
-                      field_name = "id"
-                      field_value = $target_lens.id
-                    }
-                  
-                    var.update $lenses_removed {
-                      value = $lenses_removed + 1
                     }
                   }
                 }
@@ -305,59 +345,65 @@ tool scaffold_map {
           each as $op {
             conditional {
               if ($op.action == "add") {
-                db.query journey_lens {
-                  where = $db.journey_lens.journey_map == $input.journey_map_id
-                  sort = {display_order: "desc"}
-                  return = {type: "list"}
-                } as $existing_lenses
-              
-                var $new_lens_order {
-                  value = ($existing_lenses|count) + 1
-                }
-              
-                db.add journey_lens {
-                  enforce_hidden_fields = false
-                  data = {
-                    created_at   : "now"
-                    updated_at   : "now"
-                    journey_map  : $input.journey_map_id
-                    key          : "lens-" ~ ($new_lens_order|to_text)
-                    label        : $op.label
-                    display_order: $new_lens_order
-                    actor_type   : $op.actor_type
-                  }
-                } as $new_lens
-              
-                // Create cells for new lens across all existing stages
-                db.query journey_stage {
-                  where = $db.journey_stage.journey_map == $input.journey_map_id
-                  return = {type: "list"}
-                } as $all_stages_for_lens
-              
-                foreach ($all_stages_for_lens) {
-                  each as $stg {
-                    db.add journey_cell {
+                // RES-6-01: atomic lens add (lens row + all initial cells commit together).
+                // scaffold_map: atomic lens add (lens + cells across stages)
+                db.transaction {
+                  stack {
+                    db.query journey_lens {
+                      where = $db.journey_lens.journey_map == $input.journey_map_id
+                      sort = {display_order: "desc"}
+                      return = {type: "list"}
+                    } as $existing_lenses
+                  
+                    var $new_lens_order {
+                      value = ($existing_lenses|count) + 1
+                    }
+                  
+                    db.add journey_lens {
                       enforce_hidden_fields = false
                       data = {
-                        created_at : "now"
-                        updated_at : "now"
-                        journey_map: $input.journey_map_id
-                        stage      : $stg.id
-                        lens       : $new_lens.id
-                        content    : ""
-                        status     : "open"
-                        is_locked  : false
+                        created_at   : "now"
+                        updated_at   : "now"
+                        journey_map  : $input.journey_map_id
+                        key          : "lens-" ~ ($new_lens_order|to_text)
+                        label        : $op.label
+                        display_order: $new_lens_order
+                        actor_type   : $op.actor_type
                       }
-                    } as $new_cell
+                    } as $new_lens
                   
-                    var.update $cells_created {
-                      value = $cells_created + 1
+                    // Create cells for new lens across all existing stages
+                    db.query journey_stage {
+                      where = $db.journey_stage.journey_map == $input.journey_map_id
+                      return = {type: "list"}
+                    } as $all_stages_for_lens
+                  
+                    foreach ($all_stages_for_lens) {
+                      each as $stg {
+                        db.add journey_cell {
+                          enforce_hidden_fields = false
+                          data = {
+                            created_at : "now"
+                            updated_at : "now"
+                            journey_map: $input.journey_map_id
+                            stage      : $stg.id
+                            lens       : $new_lens.id
+                            content    : ""
+                            status     : "open"
+                            is_locked  : false
+                          }
+                        } as $new_cell
+                      
+                        var.update $cells_created {
+                          value = $cells_created + 1
+                        }
+                      }
+                    }
+                  
+                    var.update $lenses_added {
+                      value = $lenses_added + 1
                     }
                   }
-                }
-              
-                var.update $lenses_added {
-                  value = $lenses_added + 1
                 }
               }
             }
@@ -378,5 +424,7 @@ tool scaffold_map {
     cells_created : $cells_created
     cells_deleted : $cells_deleted
     errors        : $errors
+    failed        : $failed
+    failed_count  : $failed_count
   }
 }

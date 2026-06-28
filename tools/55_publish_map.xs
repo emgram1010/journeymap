@@ -67,33 +67,40 @@ tool publish_map {
       }
     }
   
-    // Upsert snapshot
-    conditional {
-      if ($latest_snapshot != null) {
-        db.patch automation_snapshot {
-          field_name = "id"
-          field_value = $latest_snapshot.id
-          data = {
-            graph      : $graph
-            version    : $new_version
-            compiled_at: "now"
+    // RES-6-05: atomic snapshot upsert — version + graph + compiled_at commit together
+    // so a mid-write failure cannot leave a snapshot with a version bump but stale graph,
+    // and version increments remain monotonic (no partial state on retry).
+    // publish_map: atomic automation_snapshot upsert (monotonic version)
+    db.transaction {
+      stack {
+        conditional {
+          if ($latest_snapshot != null) {
+            db.patch automation_snapshot {
+              field_name = "id"
+              field_value = $latest_snapshot.id
+              data = {
+                graph      : $graph
+                version    : $new_version
+                compiled_at: "now"
+              }
+            } as $snapshot
           }
-        } as $snapshot
-      }
-    
-      else {
-        db.add automation_snapshot {
-          enforce_hidden_fields = false
-          data = {
-            created_at          : "now"
-            compiled_at         : "now"
-            journey_map         : $input.journey_map_id
-            journey_architecture: $journey_map.journey_architecture
-            version             : $new_version
-            graph               : $graph
-            owner_user          : $journey_map.owner_user
+        
+          else {
+            db.add automation_snapshot {
+              enforce_hidden_fields = false
+              data = {
+                created_at          : "now"
+                compiled_at         : "now"
+                journey_map         : $input.journey_map_id
+                journey_architecture: $journey_map.journey_architecture
+                version             : $new_version
+                graph               : $graph
+                owner_user          : $journey_map.owner_user
+              }
+            } as $snapshot
           }
-        } as $snapshot
+        }
       }
     }
   
