@@ -8,6 +8,7 @@ const dash = (v: unknown) => {
   return s === '' ? 'not set' : s;
 };
 const snake = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/(^_|_$)/g, '') || 'journey_map';
+const kebab = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'journey-map';
 
 const cellState = (c?: MatrixCell): string => {
   if (!c) return 'empty';
@@ -138,10 +139,10 @@ export function buildJourneyMapNotebookLM(bundle: HydratedJourneyMapBundle): str
   return lines.join('\n');
 }
 
-const NOTEBOOKLM_WORD_LIMIT = 500_000;
-const NOTEBOOKLM_WORD_WARN = 450_000;
+export const NOTEBOOKLM_WORD_LIMIT = 500_000;
+export const NOTEBOOKLM_WORD_WARN = 450_000;
 
-function countWords(text: string): number {
+export function countWords(text: string): number {
   const matches = text.match(/[A-Za-z0-9_]+/g);
   return matches ? matches.length : 0;
 }
@@ -156,7 +157,7 @@ export async function exportJourneyMapNotebookLM(journeyMapId: number, fallbackT
   if (words >= NOTEBOOKLM_WORD_WARN) {
     console.warn(`[NotebookLM export] Journey map is ${words.toLocaleString()} words, approaching the 500,000-word NotebookLM limit.`);
   }
-  const filename = `journey_map_${snake(bundle.journeyMap.title || fallbackTitle || `journey_map_${journeyMapId}`)}.md`;
+  const filename = `${kebab(bundle.journeyMap.title || fallbackTitle || `journey-map-${journeyMapId}`)}-notebooklm.md`;
   const blob = new Blob([md], {type: 'text/markdown;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

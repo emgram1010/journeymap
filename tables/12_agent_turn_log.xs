@@ -1,6 +1,12 @@
 // v2.1 — Records one row per agent turn — the orchestrator-level log.
 // Complements agent_tool_log (per-tool) with a per-turn summary:
 // how long the turn took, how many tools fired, cells written, final status.
+// ── RES-3 Lifecycle classification ───────────────────────────────────────
+// Growth class    : HIGH (1 row per turn; coarser than agent_tool_log).
+// Dominant window : last 14d for ops; last 90d for analytics.
+// Old rows read?  : Sometimes — cross-turn analytics.
+// Retention       : 90 days (configurable via retention_policy table).
+// Prune cadence   : daily 03:00 UTC (task: prune_agent_turn_log).
 table agent_turn_log {
   auth = false
 
@@ -56,5 +62,12 @@ table agent_turn_log {
     {type: "btree", field: [{name: "journey_map", op: "asc"}]}
     {type: "btree", field: [{name: "turn_id", op: "asc"}]}
     {type: "btree", field: [{name: "status", op: "asc"}]}
+    {
+      type : "btree"
+      field: [
+        {name: "conversation", op: "asc"}
+        {name: "created_at", op: "desc"}
+      ]
+    }
   ]
 }

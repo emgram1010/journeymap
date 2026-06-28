@@ -65,6 +65,13 @@ tool batch_set_status {
       error = "Provide either targets (array) or filter (object) to select cells."
     }
   
+    // RES-6-04: hard cap on explicit-target batch size. Filter-mode is bounded
+    // by the journey_map's own cell count and does not need this guard.
+    precondition ($input.targets == null || ($input.targets|count) <= 500) {
+      error_type = "inputerror"
+      error = "Batch too large — max 500 targets per call. Split into multiple calls."
+    }
+  
     // Load all stages and lenses for lookup
     db.query journey_stage {
       where = $db.journey_stage.journey_map == $input.journey_map_id
@@ -135,6 +142,16 @@ tool batch_set_status {
     }
   
     var $skipped_count {
+      value = 0
+    }
+  
+    // RES-6-03: additive failure surface. Populated by future try_catch
+    // wrapping in RES-6-01 — empty today, but present in the contract.
+    var $failed {
+      value = []
+    }
+  
+    var $failed_count {
       value = 0
     }
   
@@ -236,24 +253,58 @@ tool batch_set_status {
               }
             }
           
-            db.patch journey_cell {
-              field_name = "id"
-              field_value = $c.id
-              data = $patch_data
-            } as $updated_cell
-          
-            array.push $applied {
-              value = {
-                stage_key    : $s_key
-                lens_key     : $l_key
-                cell_id      : $updated_cell.id
-                new_status   : $updated_cell.status
-                new_is_locked: $updated_cell.is_locked
-              }
+            // Precompute new values so they remain readable outside the transaction.
+            var $new_status {
+              value = $input.set.status ?? $c.status
             }
           
-            var.update $applied_count {
-              value = $applied_count + 1
+            var $new_is_locked {
+              value = $input.set.is_locked ?? $c.is_locked
+            }
+          
+            // RES-6-01: atomic per-cell write with failure capture into failed[].
+            try_catch {
+              try {
+                // batch_set_status: atomic per-cell patch
+                db.transaction {
+                  stack {
+                    db.patch journey_cell {
+                      field_name = "id"
+                      field_value = $c.id
+                      data = $patch_data
+                    } as $updated_cell
+                  }
+                }
+              
+                array.push $applied {
+                  value = {
+                    stage_key    : $s_key
+                    lens_key     : $l_key
+                    cell_id      : $c.id
+                    new_status   : $new_status
+                    new_is_locked: $new_is_locked
+                  }
+                }
+              
+                var.update $applied_count {
+                  value = $applied_count + 1
+                }
+              }
+            
+              catch {
+                array.push $failed {
+                  value = {
+                    stage_key: $s_key
+                    lens_key : $l_key
+                    reason   : "write_error"
+                    error    : $error.message
+                  }
+                }
+              
+                var.update $failed_count {
+                  value = $failed_count + 1
+                }
+              }
             }
           }
         }
@@ -295,5 +346,7 @@ tool batch_set_status {
     applied      : $applied
     skipped_count: $skipped_count
     skipped      : $skipped
+    failed       : $failed
+    failed_count : $failed_count
   }
 }

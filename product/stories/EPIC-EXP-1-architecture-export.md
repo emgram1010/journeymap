@@ -148,29 +148,83 @@ Depth cap config (default 5). Word-budget guard: if total > 500K words, return a
 ```json
 {
   "root_map_id": 126,
-  "maps":  [ { /* HydratedJourneyMapBundle per map */ } ],
-  "links": [ { /* journey_link rows */ } ],
-  "warnings": [ { "type": "cycle|cross_arch|depth_cap", "detail": "…" } ]
+  "architecture_id": 7,
+  "visited_map_ids": [126, 127, 130, …],
+  "links": [ { "source_map":126, "target_map":127, "link_type":"sub_journey|exception|anti_journey|parent_child|agent_manual", "label":"…", "source_lens": 42, "source_lens_label": "Handoff" } ],
+  "warnings": [ { "type": "depth_cap", "detail": "…" } ],
+  "walk_status": "complete|depth_capped"
 }
 ```
 
 **Acceptance:**
 - Walks `journey_link`, `journey_lens.agent_map_id`, and `journey_map.parent_map_id` per the traversal rules.
-- Cycle detection: each map visited at most once; offending edge recorded in `warnings`.
-- Cross-architecture targets skipped and recorded.
-- Tenant-scoped via existing `owner_user` filter (same pattern as `get_map`).
-- Single graph traversal — no N+1 round-trips per node.
+- Cycle detection: each map visited at most once.
+- Depth-capped traversals recorded in `warnings` with unexplored count.
+- Synthesises edge records for `parent_child` and `agent_manual` traversals (not real `journey_link` rows) so the consumer sees a uniform graph.
+- `agent_manual` edges include `source_lens` (lens id) and `source_lens_label` so US-EXP-1-04 can render the parent-lens reference in the origin block without an extra round-trip.
+- Tenant-scoped via existing `owner_user` filter on the root map (same pattern as `get_map`); architecture-scoped on bulk-fetch of maps + links.
+- Bulk-fetches all `journey_map` + `journey_link` rows for the architecture once; only `journey_lens` is queried per frontier node (bounded by visited count, not depth × N).
+- **Hydration is deferred** to the consumer (see US-EXP-1-01b): the walker returns IDs + edges only; the frontend hydrates per-map bundles in parallel.
 
 ---
 
-### US-EXP-1-02 — Word-budget pre-flight
+### US-EXP-1-01b — Frontend graph client + parallel hydration
 
-**Story:** As the exporter, I want word-count estimates per map and a total so I can warn or refuse export before zipping.
+**Story:** As the exporter, I need a single FE module that calls the walker, hydrates every visited map via `load_bundle`, and exposes one in-memory graph object that downstream builders (1-04 / 1-09 / 1-13 / 1-15) consume.
+
+**Module:** `static/src/linkedGraphClient.ts`
+
+**Public API:**
+```ts
+export interface LinkedGraph {
+  rootMapId: number;
+  architectureId: number;
+  maps: Map<number, JourneyMapBundle>;  // hydrated via load_bundle
+  links: LinkedGraphEdge[];              // includes synthesized parent_child + agent_manual
+  warnings: WalkerWarning[];
+  walkStatus: 'complete' | 'depth_capped';
+  bfsOrder: number[];                    // visited_map_ids in BFS order (for folder numbering)
+}
+
+export async function fetchLinkedGraph(
+  rootMapId: number,
+  opts?: { maxDepth?: number; includeAgentManuals?: boolean; includeChildren?: boolean;
+           signal?: AbortSignal; onProgress?: (p: { phase: 'walking'|'hydrating'; done: number; total: number }) => void }
+): Promise<LinkedGraph>
+```
 
 **Acceptance:**
-- Endpoint response includes `word_count` per map and `total_word_count`.
-- When `total_word_count > 500_000`, response also includes `split_plan: [{ root_map_id, included_maps[], word_count }]` proposing sub-trees that each fit.
-- Word counting reuses the helper in `exportMarkdownNotebookLM.ts` (`countWords`).
+- Calls `GET /journey_map/{rootMapId}/export/linked_graph` first.
+- Fan-out: `Promise.all` over `visited_map_ids[]`, each calling `load_bundle/{id}`. Concurrency cap (default 8) to avoid Xano rate limit.
+- Single retry per map on transient (network) failure; final failure pushes a `hydrate_failed` warning, does **not** abort the whole graph.
+- `signal` honoured (AbortController) — aborts in-flight `load_bundle` calls.
+- `onProgress` fires once after the walk and after each successful hydrate.
+- No DOM dependencies — pure module so US-EXP-1-12 can unit-test it.
+- Imports the existing fetch wrapper (same pattern as `exportMarkdownBundle.ts`).
+
+---
+
+### US-EXP-1-02 — Frontend word-budget pre-flight
+
+**Story:** As the exporter, given a hydrated `LinkedGraph`, I want per-map and total word counts plus a `split_plan` when the bundle overflows, so the dialog can warn or refuse before zipping.
+
+**Module:** `static/src/linkedGraphBudget.ts` *(frontend — no backend changes)*
+
+**Public API:**
+```ts
+export function computeWordBudget(graph: LinkedGraph): {
+  perMap: Map<number, number>;
+  total: number;
+  fitBadge: 'green' | 'yellow' | 'red';  // <400K / 400–500K / >500K
+  splitPlan?: { rootMapId: number; includedMaps: number[]; wordCount: number }[];
+}
+```
+
+**Acceptance:**
+- Pure function over the hydrated graph — no I/O.
+- Reuses `countWords` from `exportMarkdownNotebookLM.ts`.
+- `splitPlan` only present when `total > 500_000`; partitions the graph into the fewest BFS sub-trees that each fit.
+- US-EXP-1-09 dialog renders the badge + plan; US-EXP-1-15 reuses for per-file fit.
 
 ---
 
@@ -243,23 +297,104 @@ Depth cap config (default 5). Word-budget guard: if total > 500K words, return a
 
 ---
 
-### US-EXP-1-09 — "Linked bundle…" dialog with scope picker
+### US-EXP-1-09b — Core linked-skill builder
 
-**Story:** As a user opening the **Export ▸ Linked bundle…** action on a map tile, I want a dialog that lets me choose what to include (all linked, sub-journeys only, exceptions only, or parent only) before downloading.
+**Story:** As the dialog (1-09) and the MCP tool (1-11), I need a pure builder function that turns a `LinkedGraph` + traversal options into a `.zip` blob, so UI and headless callers share one code path.
+
+**Module:** `static/src/exportLinkedSkillBundle.ts`
+
+**Public API:**
+```ts
+export interface LinkedSkillOptions {
+  traversal: 'all_linked' | 'sub_only' | 'exception_only';
+  includeOriginBlocks: boolean;     // default true (forced on in dialog)
+  includeGlossary: boolean;          // default true
+  includeInlineDiagram: boolean;     // default false
+}
+
+export async function buildLinkedSkillBundle(
+  graph: LinkedGraph,
+  opts: LinkedSkillOptions,
+  onProgress?: (phase: 'building'|'zipping', done: number, total: number) => void
+): Promise<{ blob: Blob; filename: string; manifest: ManifestV1 }>
+```
+
+**Acceptance:**
+- Orchestrates US-EXP-1-03 (anchors) → 1-04 (origin blocks) → 1-05 (outbound links) → 1-06 (callouts) → 1-07 (ARCHITECTURE.md) → 1-08 (GLOSSARY.md) → 1-10b (manifest) → JSZip.
+- Filters the graph by `opts.traversal` before building (drops edges + unreached maps).
+- BFS-orders maps for stable `maps/NN-{slug}/` folder numbering.
+- Reuses `buildJourneyMapFiles` from `exportMarkdownBundle.ts` for per-map per-stage content — no duplication.
+- Returns the manifest alongside the blob so the dialog can show post-export warnings without re-reading the zip.
+- Pure: no DOM, no fetch — testable in US-EXP-1-12.
+
+---
+
+### US-EXP-1-09 — "Skill bundle (linked)" dialog with traversal picker
+
+**Story:** As a user opening the **Export ▸ This map + linked ▸ Skill bundle (.zip)…** action on a map tile, I want a dialog that lets me choose which edge types to traverse (all linked, sub-journeys only, or exceptions only) before downloading.
 
 **Acceptance:**
 - Dialog header shows the root map title, `map_level`, and `m{id}`.
-- Scope radio group with four mutually-exclusive options, each showing live counts `{map count} · {word count} · {fit badge}`:
-  - `Parent + all linked` (default) — sub_journey + exception + anti_journey + agent_manual edges.
-  - `Parent + sub-journeys only` — `link_type = sub_journey` and `agent_map_id` edges.
-  - `Parent + exceptions only` — `link_type = exception`.
-  - `Parent only` — single-map; selecting this delegates to the existing `exportJourneyMapNotebookLM` and closes the dialog.
-- NotebookLM-fit badge per scope: 🟢 < 400K, 🟡 400–500K, 🔴 > 500K.
+- On open, calls `fetchLinkedGraph` (US-EXP-1-01b) once with the broadest scope (`all_linked`); subsequent radio changes re-filter in memory using `computeWordBudget` over the filtered subgraph — no extra network round-trips.
+- Traversal radio group with three mutually-exclusive options, each showing live counts `{map count} · {word count} · {fit badge}`:
+  - `All linked` (default) — sub_journey + exception + anti_journey + agent_manual edges.
+  - `Sub-journeys only` — `link_type = sub_journey` and `agent_map_id` edges.
+  - `Exceptions only` — `link_type = exception`.
+- "Parent only" is **not** in this dialog — it is reachable from the top-level **This map ▸ Skill (.zip)** menu item, which calls the existing single-map `exportJourneyMapBundle` directly. Picking that path never opens this dialog.
+- NotebookLM-fit badge per option: 🟢 < 400K, 🟡 400–500K, 🔴 > 500K.
 - Output toggles: `Origin blocks + cross-reference anchors` (default on, disabled), `GLOSSARY.md primer` (default on), `Include Mermaid diagram inline in ARCHITECTURE.md` (default off — sources the same generator as US-EXP-1-13).
 - Inline warnings panel above the buttons, visible **before** download: cycles, cross-arch skips, depth-cap hits.
 - "Download .zip" disabled in 🔴 state; dialog shows the `split_plan` from US-EXP-1-02 instead.
-- Existing two export options on the tile remain unchanged.
+- On confirm: calls `buildLinkedSkillBundle` (US-EXP-1-09b) — dialog owns UI only, never builder logic.
+- Output filename: `{root-slug}-skill-linked.zip`.
+- Existing two single-map export options on the tile remain unchanged.
 - No new menu in `JourneyMatrixTabulator.tsx`.
+
+---
+
+### US-EXP-1-10b — `_manifest.json` builder
+
+**Story:** As an LLM (or downstream automation) consuming the bundle, I need a single machine-readable manifest at the root so I can index maps, links, anchors, and warnings without parsing every Markdown file.
+
+**Module:** `static/src/exportLinkedManifest.ts`
+
+**Schema (`ManifestV1`):**
+```ts
+{
+  schema_version: 1,
+  generated_at: string,            // ISO 8601
+  root_map_id: number,
+  architecture_id: number,
+  traversal: 'all_linked' | 'sub_only' | 'exception_only',
+  walk_status: 'complete' | 'depth_capped',
+  maps: Array<{
+    map_id: number;
+    slug: string;                  // m{id}-{title-slug}
+    folder: string;                // maps/NN-{slug}
+    title: string;
+    map_level: 'architecture'|'actor-journey'|'atomic'|null;
+    depth_from_root: number;
+    word_count: number;
+    parent: { link_type: string; source_map: number; source_cell?: string; source_lens?: number } | null;
+  }>,
+  links: Array<{
+    source_map: number; target_map: number;
+    link_type: 'sub_journey'|'exception'|'anti_journey'|'agent_manual'|'parent_child';
+    label: string | null;
+    source_cell?: string;          // CELL anchor
+    source_lens?: number;
+  }>,
+  word_counts: { total: number; per_map: Record<number, number> },
+  warnings: Array<{ type: string; detail: string }>
+}
+```
+
+**Acceptance:**
+- Pure builder: `buildLinkedManifest(graph, opts): ManifestV1` — no I/O.
+- Emitted at the bundle root as `_manifest.json` (pretty-printed, 2-space indent).
+- `parent.source_cell` is the canonical `[CELL:m…/sN×lN]` anchor (from US-EXP-1-03) so manifest entries cross-reference the Markdown anchors.
+- Warnings include walker warnings + hydrate failures + any builder-time issues (e.g. cross-arch skips).
+- Consumed by US-EXP-1-09 dialog (post-export toast), US-EXP-1-11 (MCP wrapper return value), and US-EXP-1-12 (round-trip test).
 
 ---
 
@@ -323,33 +458,68 @@ Depth cap config (default 5). Word-budget guard: if total > 500K words, return a
 
 ---
 
-### US-EXP-1-14 — Per-tile Export submenu reorg
+### US-EXP-1-14 — Per-tile Export submenu (scope-first IA)
 
-**Story:** As a user, I want the per-tile `…` menu to group export options under an **Export ▸** submenu so the flat list doesn't grow unwieldy as we add the linked-bundle and diagram actions.
+**Story:** As a user, I want the per-tile `…` menu to group export options under an **Export ▸** submenu organised by *scope first, format second*, so the choice of "this map vs this map + linked" is the primary decision and format ("skill bundle" vs "NotebookLM") is the secondary one.
 
 **Acceptance:**
 - Per-tile `…` menu in `ArchitectureDetail.tsx` gains a single **Export ▸** entry that opens a submenu.
-- Submenu groups (with headers):
-  - **This map** — `📦 Markdown bundle (.zip)` (existing `onExportMarkdownBundle`), `📓 NotebookLM (.md)` (existing `onExportNotebookLM`).
-  - **This map + linked** — `🔗 Linked bundle…` → opens US-EXP-1-09 dialog.
-  - **Diagram** — `🗺️ Architecture diagram (.mmd)` → opens US-EXP-1-13 dialog.
-- Existing handlers (`onExportMarkdownBundle`, `onExportNotebookLM`) keep their current signatures — only the menu wiring changes.
+- Submenu groups (with headers), in this order:
+  - **This map**
+    - `📄 Skill (.zip)` → existing `onExportMarkdownBundle` → `{slug}-skill.zip`
+    - `📓 NotebookLM (.md)` → existing `onExportNotebookLM` → `{slug}-notebooklm.md`
+  - **This map + linked**
+    - `📄 Skill bundle (.zip)…` → opens US-EXP-1-09 dialog → `{slug}-skill-linked.zip`
+    - `📓 NotebookLM bundle (.zip)…` → opens US-EXP-1-15 dialog → `{slug}-notebooklm-linked.zip`
+  - **Diagram**
+    - `🗺️ Architecture diagram (.mmd)` → opens US-EXP-1-13 dialog → `{slug}-diagram.mmd`
+- Existing handlers (`onExportMarkdownBundle`, `onExportNotebookLM`) keep their current signatures — only the menu wiring changes; filename naming is updated to match the `{slug}-skill.zip` / `{slug}-notebooklm.md` convention.
 - Keyboard navigable (arrow keys to traverse, Enter to activate); outside-click closes both menu and submenu.
-- No change to the `MapTile` component props beyond two new callbacks (`onExportLinkedBundle`, `onExportDiagram`).
+- `MapTile` component gains four new callback props: `onExportLinkedBundle`, `onExportLinkedNotebookLM`, `onExportDiagram` (plus the two existing ones, unchanged).
+
+---
+
+### US-EXP-1-15 — Linked NotebookLM bundle (.zip of MD files)
+
+**Story:** As a user wanting to feed *this map + everything linked* into NotebookLM as a multi-source pack, I need a `.zip` of independent `.md` files (one per map) so each map is a separate NotebookLM source — preserving cross-map citations while staying under the 500K-word-per-source limit.
+
+**Acceptance:**
+- Triggered from per-tile menu **Export ▸ This map + linked ▸ NotebookLM bundle (.zip)…**.
+- Reuses the US-EXP-1-01 graph walker to enumerate reachable maps (sub / exception / anti / agent-manual).
+- Reuses the US-EXP-1-02 word-budget calculator; per-map word count and aggregate are surfaced in the dialog.
+- Output layout:
+  ```
+  {root-slug}-notebooklm-linked/
+  ├── 00-INDEX.md                  catalogue: which file is which, with anchor table
+  ├── 01-{root-slug}.md            single-file NotebookLM build of root map
+  ├── 02-{sub-slug}.md             …with Origin block referencing root via [CELL:m{root}/sN×lN]
+  └── …
+  ```
+- Each per-map `.md` is the same shape as today's `exportJourneyMapNotebookLM` output, plus the Origin block from US-EXP-1-04 inlined at the top for non-root maps.
+- Same anchor scheme as the skill bundle (US-EXP-1-03) so cross-file citations resolve.
+- Dialog mirrors US-EXP-1-09 traversal picker (all linked / sub-only / exception-only).
+- Per-file fit badge: 🟢 < 400K words, 🟡 400–500K, 🔴 > 500K (file split required — error, not warn).
+- Output filename: `{root-slug}-notebooklm-linked.zip`.
+- New builder: `buildLinkedNotebookLMZip(graph)` in a new module `static/src/exportLinkedNotebookLM.ts` (reuses `buildJourneyMapNotebookLM` per map).
 
 ---
 
 ## Sequencing
 
-1. **US-EXP-1-01 + 1-02** — backend graph walker + word budget (unblocks everything).
-2. **US-EXP-1-03 + 1-08** — anchor scheme + glossary (locks the contract).
-3. **US-EXP-1-04 + 1-05 + 1-06** — origin / outbound / callouts (the LLM-comprehension core).
-4. **US-EXP-1-07** — architecture entrypoint (map index).
-5. **US-EXP-1-14** — menu reorg first (lands empty submenu items wired to TODO handlers).
-6. **US-EXP-1-09 + 1-10** — linked-bundle dialog + progress.
-7. **US-EXP-1-13** — diagram export (independent track; can ship in parallel with 1-09).
-8. **US-EXP-1-12** — test alongside, not after.
-9. **US-EXP-1-11** — MCP tool, follow-up.
+1. ✅ **US-EXP-1-14** — menu reorg (shipped; stubs alert "coming soon").
+2. ✅ **US-EXP-1-01** — backend graph walker endpoint (shipped to Xano).
+3. **US-EXP-1-01b** — FE `linkedGraphClient.ts` (walker + parallel hydrate). *Bridge: unblocks 1-02 / 1-04 / 1-09 / 1-13 / 1-15.*
+4. **US-EXP-1-02** — FE `linkedGraphBudget.ts` (pure function over hydrated graph).
+5. **US-EXP-1-03 + 1-08** — anchor helpers + glossary (locks the contract).
+6. **US-EXP-1-04 + 1-05 + 1-06** — origin block / outbound-links file / inline callouts (LLM-comprehension core).
+7. **US-EXP-1-07** — `ARCHITECTURE.md` map-index entrypoint.
+8. **US-EXP-1-10b** — `_manifest.json` builder.
+9. **US-EXP-1-09b** — core `buildLinkedSkillBundle` orchestrator (pure, headless-friendly).
+10. **US-EXP-1-09 + 1-10** — dialog UI + progress / cancellation wiring.
+11. **US-EXP-1-15** — linked NotebookLM `.zip` builder + dialog (parallel with 1-09 once 1-04 lands).
+12. **US-EXP-1-13** — diagram `.mmd` export (independent; reuses walker only).
+13. **US-EXP-1-12** — round-trip sanity test (lands alongside 1-09b, not after).
+14. **US-EXP-1-11** — MCP tool wrapper (follow-up; consumes 1-09b).
 
 ---
 

@@ -1354,6 +1354,52 @@ export const deleteJourneyArchitecture = (id: number): Promise<void> =>
 export const loadJourneyArchitectureBundle = (id: number): Promise<JourneyArchitectureBundle> =>
   xanoRequest<JourneyArchitectureBundle>(`/journey_architecture/bundle/${id}`);
 
+// EXP-1-01 / 01b — Architecture graph walker (lean: returns IDs + edges only).
+export type LinkedGraphLinkType =
+  | 'sub_journey'
+  | 'exception'
+  | 'anti_journey'
+  | 'parent_child'
+  | 'agent_manual';
+
+export interface LinkedGraphEdge {
+  source_map: number;
+  target_map: number;
+  link_type: LinkedGraphLinkType;
+  label: string | null;
+  source_cell?: number | null;
+  source_lens?: number | null;
+  source_lens_label?: string | null;
+  journey_architecture: number;
+}
+
+export interface LinkedGraphWarning {
+  type: string;
+  detail: string;
+}
+
+export interface LinkedGraphResponse {
+  root_map_id: number;
+  architecture_id: number;
+  visited_map_ids: number[];
+  links: LinkedGraphEdge[];
+  warnings: LinkedGraphWarning[];
+  walk_status: 'complete' | 'depth_capped';
+}
+
+export const fetchLinkedGraphRaw = (
+  rootMapId: number,
+  opts: {maxDepth?: number; includeAgentManuals?: boolean; includeChildren?: boolean; signal?: AbortSignal} = {},
+): Promise<LinkedGraphResponse> => {
+  const params = new URLSearchParams();
+  if (opts.maxDepth != null) params.set('max_depth', String(opts.maxDepth));
+  if (opts.includeAgentManuals != null) params.set('include_agent_manuals', String(opts.includeAgentManuals));
+  if (opts.includeChildren != null) params.set('include_children', String(opts.includeChildren));
+  const qs = params.toString();
+  const path = `/journey_map/${rootMapId}/export/linked_graph${qs ? `?${qs}` : ''}`;
+  return xanoRequest<LinkedGraphResponse>(path, {signal: opts.signal});
+};
+
 export const listScenarios = (archId: number): Promise<XanoScenario[]> =>
   xanoRequest<XanoScenario[]>(`/journey_architecture/${archId}/scenarios`);
 

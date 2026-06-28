@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "test": "node --import tsx --test src/cellIdentifiers.test.ts src/cellPersistence.test.ts src/persistedCellUpdates.test.ts src/frameScheduler.test.ts src/journeyMatrixTabulatorHelpers.test.ts src/xano.test.ts"
+    "test": "node --import tsx --test src/cellIdentifiers.test.ts src/cellPersistence.test.ts src/persistedCellUpdates.test.ts src/frameScheduler.test.ts src/journeyMatrixTabulatorHelpers.test.ts src/xano.test.ts src/exportLinkedSkillBundle.test.ts"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

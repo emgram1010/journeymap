@@ -16,9 +16,22 @@ query "journey_map/search" verb=GET {
   
     // Optional filter: JSON array of tag strings e.g. ["onboarding", "crm"]
     json tags?
+  
+    // US-RES-4-03: pagination — page_size default 50, offset default 0.
+    int page_size? filters=min:1
+  
+    int offset? filters=min:0
   }
 
   stack {
+    var $effective_page_size {
+      value = ($input.page_size ?? 50)
+    }
+  
+    var $effective_offset {
+      value = ($input.offset ?? 0)
+    }
+  
     // Load the authenticated user to resolve account_id
     db.get user {
       field_name = "id"
@@ -110,11 +123,66 @@ query "journey_map/search" verb=GET {
         }
       }
     }
+  
+    // US-RES-4-03: apply pagination slice over filtered results
+    var $paged_results {
+      value = []
+    }
+  
+    var $cursor {
+      value = 0
+    }
+  
+    foreach ($results) {
+      each as $item {
+        var $paged_count {
+          value = $paged_results|count
+        }
+      
+        conditional {
+          if ($cursor >= $effective_offset && $paged_count < $effective_page_size) {
+            array.push $paged_results {
+              value = $item
+            }
+          }
+        }
+      
+        var.update $cursor {
+          value = $cursor + 1
+        }
+      }
+    }
+  
+    // US-RES-8-01/04: search telemetry emit.
+    var $search_rows_scanned {
+      value = $results|count
+    }
+  
+    var $search_is_slow {
+      value = $search_rows_scanned > 500
+    }
+  
+    db.add event_log {
+      enforce_hidden_fields = false
+      data = {
+        created_at: "now"
+        user_id   : $auth.id
+        action    : "telemetry:search"
+        metadata  : {
+        rows_scanned : $search_rows_scanned
+        rows_returned: $paged_results|count
+        is_slow      : $search_is_slow
+      }
+      }
+    } as $_stelem
   }
 
   response = {
-    query  : $input.query
-    count  : $results|count
-    results: $results
+    query    : $input.query
+    total    : $results|count
+    page_size: $effective_page_size
+    offset   : $effective_offset
+    count    : $paged_results|count
+    results  : $paged_results
   }
 }

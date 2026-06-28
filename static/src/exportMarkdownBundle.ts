@@ -166,7 +166,20 @@ function buildGrid(stages: Stage[], lenses: Lens[], cells: MatrixCell[]): string
   ].join('\n');
 }
 
-function buildStageFile(stage: Stage, idx: number, lenses: Lens[], cells: MatrixCell[]): string {
+export interface StageCallouts {
+  /** Callout block (markdown) to inject after a specific cell's content + actor fields. */
+  forCell?: (cell: MatrixCell | undefined, lens: Lens) => string | null;
+  /** Callout block to inject after `forCell` — typically used for lens-level edges (agent_manual). */
+  forLens?: (lens: Lens) => string | null;
+}
+
+function buildStageFile(
+  stage: Stage,
+  idx: number,
+  lenses: Lens[],
+  cells: MatrixCell[],
+  callouts?: StageCallouts,
+): string {
   const lines = [
     `# Stage ${idx + 1}: ${dash(stage.label)} (\`${stage.key ?? stage.id}\`)`,
     '',
@@ -180,6 +193,10 @@ function buildStageFile(stage: Stage, idx: number, lenses: Lens[], cells: Matrix
     lines.push('');
     lines.push(c?.content && c.content.trim() !== '' ? c.content.trim() : '_empty_');
     lines.push(...renderActorFields(c?.actorFields));
+    const cellCallout = callouts?.forCell?.(c, l);
+    if (cellCallout) lines.push('', cellCallout);
+    const lensCallout = callouts?.forLens?.(l);
+    if (lensCallout) lines.push('', lensCallout);
     lines.push('');
   }
   return lines.join('\n');
@@ -214,7 +231,10 @@ function buildIndex(m: XanoJourneyMap, stages: Stage[], lenses: Lens[], stageFil
   ].join('\n');
 }
 
-export function buildJourneyMapFiles(bundle: HydratedJourneyMapBundle): Record<string, string> {
+export function buildJourneyMapFiles(
+  bundle: HydratedJourneyMapBundle,
+  stageCallouts?: (stage: Stage, idx: number) => StageCallouts | undefined,
+): Record<string, string> {
   const {journeyMap: m, stages, lenses, cells} = bundle;
   const stageFiles = stages.map((s, i) => `stages/s${i + 1}-${slug(s.key ?? s.label ?? `stage-${i + 1}`)}.md`);
   const files: Record<string, string> = {
@@ -226,7 +246,7 @@ export function buildJourneyMapFiles(bundle: HydratedJourneyMapBundle): Record<s
     'INDEX.md': buildIndex(m, stages, lenses, stageFiles),
   };
   stages.forEach((s, i) => {
-    files[stageFiles[i]] = buildStageFile(s, i, lenses, cells);
+    files[stageFiles[i]] = buildStageFile(s, i, lenses, cells, stageCallouts?.(s, i));
   });
   return files;
 }
@@ -242,7 +262,7 @@ export async function exportJourneyMapBundle(journeyMapId: number, fallbackTitle
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${folder}.zip`;
+  a.download = `${folder}-skill.zip`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
