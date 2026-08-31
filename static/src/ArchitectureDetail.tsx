@@ -1,12 +1,13 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {useNavigate, useParams, useSearchParams} from 'react-router-dom';
 import ArchitectureGraph from './ArchitectureGraph';
-import {Plus, RotateCcw, MoreHorizontal, Pencil, Archive, Trash2, Check, X, ArrowLeft, LayoutGrid, ArrowRight, Network, Layers, Copy, Package, BookOpen, ChevronRight, Link2, GitBranch} from 'lucide-react';
+import {Plus, RotateCcw, MoreHorizontal, Pencil, Archive, Trash2, Check, X, ArrowLeft, LayoutGrid, ArrowRight, Network, Layers, Copy, Package, BookOpen, ChevronRight, Link2, GitBranch, FileSpreadsheet} from 'lucide-react';
 import {exportJourneyMapBundle} from './exportMarkdownBundle';
 import {exportJourneyMapNotebookLM} from './exportMarkdownNotebookLM';
 import {exportArchitectureNotebookLM, type ArchExportProgress} from './exportArchitectureNotebookLM';
 import {LinkedSkillExportDialog, type LinkedSkillExportSummary, type LinkedExportVariant} from './LinkedSkillExportDialog';
 import {ArchitectureDiagramDialog} from './ArchitectureDiagramDialog';
+import {GoogleSheetsExportDialog} from './GoogleSheetsExportDialog';
 import {
   loadJourneyArchitectureBundle,
   updateJourneyArchitecture,
@@ -84,13 +85,14 @@ interface MapTileProps {
   onDuplicate: () => void;
   onExportMarkdownBundle: () => void;
   onExportNotebookLM: () => void;
+  onExportGoogleSheets: () => void;
   onExportLinkedBundle: () => void;
   onExportLinkedNotebookLM: () => void;
   onExportDiagram: () => void;
   onRemoveLink: (linkId: number) => Promise<void>;
 }
 
-function MapTile({map, links, allMaps, onOpen, onRename, onDelete, onArchive, onDuplicate, onExportMarkdownBundle, onExportNotebookLM, onExportLinkedBundle, onExportLinkedNotebookLM, onExportDiagram, onRemoveLink}: MapTileProps) {
+function MapTile({map, links, allMaps, onOpen, onRename, onDelete, onArchive, onDuplicate, onExportMarkdownBundle, onExportNotebookLM, onExportGoogleSheets, onExportLinkedBundle, onExportLinkedNotebookLM, onExportDiagram, onRemoveLink}: MapTileProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(map.title);
@@ -256,6 +258,7 @@ function MapTile({map, links, allMaps, onOpen, onRename, onDelete, onArchive, on
                   <div className="px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">This map</div>
                   <button data-submenu-item onClick={() => {onExportMarkdownBundle(); setMenuOpen(false); setExportSubmenuOpen(false);}} className="flex items-center gap-2 w-full pl-6 pr-3 py-2 hover:bg-zinc-50 text-zinc-700"><Package className="w-3.5 h-3.5" />Skill (.zip)</button>
                   <button data-submenu-item onClick={() => {onExportNotebookLM(); setMenuOpen(false); setExportSubmenuOpen(false);}} className="flex items-center gap-2 w-full pl-6 pr-3 py-2 hover:bg-zinc-50 text-zinc-700"><BookOpen className="w-3.5 h-3.5" />NotebookLM (.md)</button>
+                  <button data-submenu-item onClick={() => {onExportGoogleSheets(); setMenuOpen(false); setExportSubmenuOpen(false);}} className="flex items-center gap-2 w-full pl-6 pr-3 py-2 hover:bg-zinc-50 text-zinc-700"><FileSpreadsheet className="w-3.5 h-3.5" />Google Sheets (JSON)</button>
                   <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">This map + linked</div>
                   <button data-submenu-item onClick={() => {onExportLinkedBundle(); setMenuOpen(false); setExportSubmenuOpen(false);}} className="flex items-center gap-2 w-full pl-6 pr-3 py-2 hover:bg-zinc-50 text-zinc-700"><Package className="w-3.5 h-3.5" />Skill bundle (.zip)…</button>
                   <button data-submenu-item onClick={() => {onExportLinkedNotebookLM(); setMenuOpen(false); setExportSubmenuOpen(false);}} className="flex items-center gap-2 w-full pl-6 pr-3 py-2 hover:bg-zinc-50 text-zinc-700"><BookOpen className="w-3.5 h-3.5" />NotebookLM bundle (.zip)…</button>
@@ -471,6 +474,11 @@ export default function ArchitectureDetail() {
   const [diagramTarget, setDiagramTarget] = useState<XanoJourneyMap | null>(null);
   const handleExportDiagram = (map: XanoJourneyMap) => {
     setDiagramTarget(map);
+  };
+  // US-GSE-1-07 — Google Sheets JSON export
+  const [sheetsTarget, setSheetsTarget] = useState<XanoJourneyMap | null>(null);
+  const handleExportGoogleSheets = (map: XanoJourneyMap) => {
+    setSheetsTarget(map);
   };
   useEffect(() => {
     if (!linkedSkillToast) return;
@@ -719,6 +727,7 @@ export default function ArchitectureDetail() {
                 onDelete={() => void handleDeleteMap(map.id)}
                 onExportMarkdownBundle={() => void handleExportMapBundle(map)}
                 onExportNotebookLM={() => void handleExportMapNotebookLM(map)}
+                onExportGoogleSheets={() => handleExportGoogleSheets(map)}
                 onExportLinkedBundle={() => handleExportLinkedBundle(map)}
                 onExportLinkedNotebookLM={() => handleExportLinkedNotebookLM(map)}
                 onExportDiagram={() => handleExportDiagram(map)}
@@ -832,6 +841,16 @@ export default function ArchitectureDetail() {
           mapId={diagramTarget.id}
           mapTitle={diagramTarget.title}
           onClose={() => setDiagramTarget(null)}
+          onError={(msg) => setError(msg)}
+        />
+      )}
+
+      {/* US-GSE-1-07 — Google Sheets JSON export dialog */}
+      {sheetsTarget && (
+        <GoogleSheetsExportDialog
+          mapId={sheetsTarget.id}
+          mapTitle={sheetsTarget.title}
+          onClose={() => setSheetsTarget(null)}
           onError={(msg) => setError(msg)}
         />
       )}

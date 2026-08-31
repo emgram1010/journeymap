@@ -33,3 +33,7 @@ tmp/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Ad-hoc backup zips
+/static.zip
+/static_*.zip

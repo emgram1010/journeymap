@@ -1,0 +1,1185 @@
+[
+  {
+    "id": 0,
+    "path": "functions/getting_started_template/1_generate_magic_link.xs",
+    "status": "new",
+    "type": "function",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "functions/getting_started_template/2_create_event_log.xs",
+    "status": "new",
+    "type": "function",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "functions/getting_started_template/3_role_based_access_control.xs",
+    "status": "new",
+    "type": "function",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tasks/11_prune_event_log.xs",
+    "status": "new",
+    "type": "task",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tasks/12_prune_agent_message.xs",
+    "status": "new",
+    "type": "task",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tasks/13_prune_agent_tool_log.xs",
+    "status": "new",
+    "type": "task",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tasks/14_prune_agent_turn_log.xs",
+    "status": "new",
+    "type": "task",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tasks/15_prune_workflow_execution.xs",
+    "status": "new",
+    "type": "task",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/10_batch_set_status.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/11_search_cells.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/12_update_actor_cell_fields.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/13_update_actor_identity.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/14_update_journey_settings.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/15_infer_stage_metrics.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/16_get_stage_detail.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/19_build_journey_map.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/1_search_xano_docs.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/2_get_map_state.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/32_validate_workflow.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/33_save_workflow_state.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/34_get_workflow_state.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/36_export_workflow_output.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/39_web_search.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/3_update_cell.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/49_create_journey_map.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/4_mutate_structure.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/50_create_workspace.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/51_fill_cells.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/52_get_map.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/53_invoke_map.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/54_list_maps.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/55_publish_map.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/56_scaffold_map.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/57_search_maps.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/5_batch_update.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/66_list_scenarios.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/67_clone_scenario.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/68_compare_scenarios.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/69_link_map.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/6_set_cell_status.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/70_update_stage_contract.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/76_calculate_leakage.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/7_scaffold_structure.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/8_get_slice.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "tools/9_get_gaps.xs",
+    "status": "new",
+    "type": "tool",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/authentication/api_group.xs",
+    "status": "new",
+    "type": "api_group",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/event_logs/api_group.xs",
+    "status": "new",
+    "type": "api_group",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/api_group.xs",
+    "status": "new",
+    "type": "api_group",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/members_accounts/api_group.xs",
+    "status": "new",
+    "type": "api_group",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/authentication/1_auth_login_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/authentication/2_auth_signup_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/authentication/3_auth_me_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/authentication/4_reset_request_reset_link_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/authentication/5_reset_magic_link_login_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/authentication/6_reset_update_password_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/authentication/7_message_send_welcome_email_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/authentication/8_1_start_here_demo_page_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/authentication/9_demo_agent_conversation_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/event_logs/16_logs_user_my_events_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/event_logs/17_logs_admin_account_events_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/124_journey_map_journey_map_id_scorecard_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/125_journey_architecture_journey_architecture_id_scenarios_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/126_journey_architecture_journey_architecture_id_scenarios_clone_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/127_journey_architecture_journey_architecture_id_compare_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/128_journey_map_journey_map_id_tool_logs_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/129_journey_architecture_journey_architecture_id_compare_message_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/130_journey_map_journey_map_id_build_full_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/133_account_me_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/134_account_me_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/139_journey_map_journey_map_id_workflow_executions_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/140_journey_map_journey_map_id_ai_audit_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/141_journey_map_journey_map_id_ai_audit_turn_id_flag_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/18_journey_map_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/197_automation_api_token_generate_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/198_automation_connection_automation_connection_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/199_automation_connection_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/19_journey_map_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/200_automation_snapshot_journey_map_id_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/201_journey_map_journey_map_id_publish_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/202_stage_automation_config_ai_extract_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/203_stage_automation_config_stage_automation_config_id_DELETE.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/204_stage_automation_config_stage_automation_config_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/205_stage_automation_config_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/206_stage_automation_config_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/207_workflow_execution_exception_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/208_journey_map_journey_map_id_execution_health_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/209_journey_map_journey_map_id_invoke_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/20_journey_map_journey_map_id_PUT.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/210_journey_map_search_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/211_journey_stage_update_journey_stage_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/212_journey_cell_dedupe_scan_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/213_journey_cell_dedupe_apply_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/21_journey_map_journey_map_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/22_journey_map_journey_map_id_DELETE.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/23_journey_map_journey_map_id_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/24_journey_stage_journey_stage_id_PUT.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/25_journey_stage_journey_stage_id_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/26_journey_stage_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/27_journey_stage_journey_stage_id_DELETE.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/28_journey_stage_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/29_journey_stage_journey_stage_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/30_journey_lens_journey_lens_id_PUT.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/31_journey_lens_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/32_journey_lens_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/33_journey_lens_journey_lens_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/34_journey_lens_journey_lens_id_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/35_journey_lens_journey_lens_id_DELETE.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/36_journey_cell_journey_cell_id_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/37_journey_cell_journey_cell_id_DELETE.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/41_journey_cell_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/42_journey_map_create_draft_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/43_journey_map_load_bundle_journey_map_id_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/44_journey_cell_update_journey_cell_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/45_journey_stage_rename_journey_stage_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/46_journey_lens_rename_journey_lens_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/47_journey_stage_add_journey_map_id_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/48_journey_stage_remove_journey_stage_id_DELETE.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/49_journey_lens_add_journey_map_id_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/50_journey_lens_remove_journey_lens_id_DELETE.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/51_journey_map_journey_map_id_message_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/52_journey_map_journey_map_id_ai_message_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/53_journey_map_journey_map_id_conversations_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/54_journey_map_journey_map_id_conversation_conversation_id_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/55_journey_map_journey_map_id_conversation_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/56_journey_map_journey_map_id_conversation_conversation_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/57_journey_map_journey_map_id_conversation_conversation_id_DELETE.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/58_journey_map_journey_map_id_conversation_conversation_id_message_message_id_DELETE.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/59_journey_map_journey_map_id_turn_logs_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/60_test_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/61_journey_lens_backfill_descriptions_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/62_journey_map_settings_journey_map_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/63_journey_lens_actor_fields_journey_lens_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/64_journey_map_smart_ai_settings_journey_map_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/65_journey_architecture_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/66_journey_architecture_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/67_journey_architecture_journey_architecture_id_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/68_journey_architecture_journey_architecture_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/69_journey_architecture_journey_architecture_id_DELETE.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/70_journey_architecture_bundle_journey_architecture_id_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/71_journey_architecture_journey_architecture_id_link_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/72_journey_link_journey_link_id_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/73_journey_link_journey_link_id_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/74_journey_link_journey_link_id_DELETE.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/75_journey_link_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/journey_map/76_journey_map_root_map_id_export_linked_graph_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/members_accounts/10_account_my_team_members_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/members_accounts/11_admin_user_role_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/members_accounts/12_user_edit_profile_PATCH.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/members_accounts/13_account_details_GET.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/members_accounts/14_user_join_account_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "apis/members_accounts/15_account_POST.xs",
+    "status": "new",
+    "type": "api_endpoint",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "workflow_tests/1_journey_map_add_and_remove_structure.xs",
+    "status": "new",
+    "type": "workflow_test",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "workflow_tests/2_journey_map_ai_modes.xs",
+    "status": "new",
+    "type": "workflow_test",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "workflow_tests/3_journey_map_create_load_and_edit.xs",
+    "status": "new",
+    "type": "workflow_test",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "workflow_tests/4_journey_map_cell_identifiers.xs",
+    "status": "new",
+    "type": "workflow_test",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "workflow_tests/5_journey_map_ai_agent_tools.xs",
+    "status": "new",
+    "type": "workflow_test",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "workflow_tests/6_journey_map_ai_tool_optimization.xs",
+    "status": "new",
+    "type": "workflow_test",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "workflow_tests/7_ai_transparency.xs",
+    "status": "new",
+    "type": "workflow_test",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "workflow_tests/8_conversation_persistence.xs",
+    "status": "new",
+    "type": "workflow_test",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "workflow_tests/9_epic_2_lens_descriptions.xs",
+    "status": "new",
+    "type": "workflow_test",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "agents/10_journey_map_chat_agent.xs",
+    "status": "new",
+    "type": "agent",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "agents/15_journey_map_orchestrator.xs",
+    "status": "new",
+    "type": "agent",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "agents/18_journey_map_assistant.xs",
+    "status": "new",
+    "type": "agent",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "agents/1_xano_example_agent.xs",
+    "status": "new",
+    "type": "agent",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "agents/3_journey_compare_analyst.xs",
+    "status": "new",
+    "type": "agent",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "agents/9_journey_map_builder.xs",
+    "status": "new",
+    "type": "agent",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "mcp_servers/8_journey_map.xs",
+    "status": "new",
+    "type": "mcp_server",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "mcp_servers/triggers/2_auth_gate.xs",
+    "status": "new",
+    "type": "mcp_server_trigger",
+    "staged": false
+  },
+  {
+    "id": 0,
+    "path": "addons/1_user.xs",
+    "status": "new",
+    "type": "addon",
+    "staged": false
+  }
+]
