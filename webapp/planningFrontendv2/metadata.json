@@ -1,0 +1,6 @@
+{
+  "name": "Emgram Planner",
+  "description": "High-fidelity business-process planning tool for structuring workspaces, sequential timelines, and tasks before publishing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
