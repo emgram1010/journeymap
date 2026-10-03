@@ -1752,7 +1752,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     : 'U';
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-zinc-50 font-sans">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden bg-zinc-50 font-sans">
       {/* Editor top bar */}
       <div className="h-10 border-b border-zinc-200 bg-white flex items-center justify-between px-4 shrink-0 z-20">
         <button
@@ -1795,6 +1795,10 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
           </button>
         </div>
       </div>
+
+      {/* Workspace body: left nav rail + existing content */}
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
 
       {/* Parent Journey Context Strip — shown when this map is a child (anti-journey / exception / sub-journey) */}
       {inboundContext && (() => {
@@ -3442,6 +3446,8 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         ) : null;
       })()}
 
+        </div>
+      </div>
       {/* Footer / Legend */}
       <footer className="h-8 border-t border-zinc-200 bg-white flex items-center justify-between px-6 shrink-0 text-[10px] text-zinc-400 font-medium">
         <div className="flex items-center gap-4">

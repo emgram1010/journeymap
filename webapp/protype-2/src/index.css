@@ -455,3 +455,15 @@
 ::-webkit-scrollbar-corner {
   background: rgb(249 250 251);
 }
+
+/* ── Planner module ──────────────────────────────────────────────────────
+   The planner app was authored as a standalone Vite app whose index.css put
+   these on <body>. Embedded here it shares the page with the journey editor,
+   so they're scoped to the planner root instead of leaking app-wide. */
+
+#emgram-planner-app {
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+}
