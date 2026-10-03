@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Calendar as CalendarIcon,
   Lock,
@@ -7,19 +7,15 @@ import {
   Plus,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   Ban,
   GripVertical,
   HelpCircle,
-  Users,
-  Search,
-  Eye,
-  EyeOff,
-  Pencil
+  Eye
 } from 'lucide-react';
 import { Agent, Timeline, Task, Workspace } from '../types';
 import { formatShortDate, generateDaysList, isDateOutOfWindow } from '../utils/dateUtils';
 import { calculateAgentDayLoad } from '../utils/agentUtils';
+import { AgentsPopover } from './AgentsPopover';
 
 interface ScheduleGridProps {
   workspace: Workspace | null;
@@ -109,29 +105,6 @@ export function ScheduleGrid({
   };
 
   const visibleAgents = agents.filter(a => a.isVisible);
-
-  // Agents popover: replaces the roster rail in this view — visibility
-  // toggle, search, and Add agent, all reachable on demand instead of
-  // permanently pinned, since the Grid's own rows already show identity.
-  const [isAgentsPopoverOpen, setIsAgentsPopoverOpen] = useState(false);
-  const [agentSearchQuery, setAgentSearchQuery] = useState('');
-  const agentsPopoverRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!isAgentsPopoverOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (agentsPopoverRef.current && !agentsPopoverRef.current.contains(e.target as Node)) {
-        setIsAgentsPopoverOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isAgentsPopoverOpen]);
-
-  const filteredAgentsForPopover = agents.filter(a =>
-    a.name.toLowerCase().includes(agentSearchQuery.toLowerCase()) ||
-    a.kind.toLowerCase().includes(agentSearchQuery.toLowerCase())
-  );
 
   // Today marker for realistic context (2026-10-13 in this planning cycle)
   const simulatedToday = '2026-10-13';
@@ -294,118 +267,14 @@ export function ScheduleGrid({
         <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
           {buildPlanButton}
 
-          {/* Agents popover: visibility toggle, search, Add agent — the
-              roster rail's controls, on demand instead of pinned, since
-              this view no longer shows the rail. */}
-          <div className="relative" ref={agentsPopoverRef}>
-            <button
-              id="grid-agents-popover-btn"
-              type="button"
-              onClick={() => setIsAgentsPopoverOpen(prev => !prev)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded border border-neutral-200 bg-neutral-100 hover:bg-neutral-200/70 text-xs font-medium text-neutral-700 hover:text-neutral-900 transition-colors"
-              aria-expanded={isAgentsPopoverOpen}
-              title="Show/hide agents, search the roster, or add an agent"
-            >
-              <Users className="w-3.5 h-3.5" />
-              Agents ({agents.length})
-              <ChevronDown className="w-3 h-3 text-neutral-400" />
-            </button>
-
-            {isAgentsPopoverOpen && (
-              <div
-                id="grid-agents-popover"
-                className="absolute right-0 top-full mt-1.5 w-72 bg-white rounded-lg shadow-xl border border-neutral-200 z-50 text-xs flex flex-col animate-in fade-in zoom-in-95 duration-75"
-              >
-                <div className="p-2 border-b border-neutral-100 flex items-center gap-1.5">
-                  <div className="relative flex-1">
-                    <Search className="w-3 h-3 absolute left-2 top-2 text-neutral-400" />
-                    <input
-                      type="text"
-                      placeholder="Search roster..."
-                      value={agentSearchQuery}
-                      onChange={(e) => setAgentSearchQuery(e.target.value)}
-                      className="w-full pl-6 pr-2 py-1 text-xs bg-neutral-50 border border-neutral-200 rounded focus:bg-white focus:border-neutral-400 focus:outline-none placeholder:text-neutral-400"
-                    />
-                  </div>
-                  <div className="flex items-center gap-0.5 border border-neutral-200 rounded p-0.5 bg-neutral-50 shrink-0">
-                    <button
-                      type="button"
-                      onClick={onShowAllAgents}
-                      className="px-1.5 py-0.5 text-[10px] font-medium text-neutral-600 hover:text-neutral-900 hover:bg-white rounded transition-colors"
-                      title="Show all agents"
-                    >
-                      All
-                    </button>
-                    <span className="text-neutral-300 text-[10px]">|</span>
-                    <button
-                      type="button"
-                      onClick={onHideAllAgents}
-                      className="px-1.5 py-0.5 text-[10px] font-medium text-neutral-600 hover:text-neutral-900 hover:bg-white rounded transition-colors"
-                      title="Hide all agents"
-                    >
-                      None
-                    </button>
-                  </div>
-                </div>
-
-                <div className="max-h-72 overflow-y-auto py-1">
-                  {filteredAgentsForPopover.length === 0 ? (
-                    <div className="py-6 text-center text-neutral-400">No agents match filter</div>
-                  ) : (
-                    filteredAgentsForPopover.map(agent => (
-                      <div
-                        key={agent.id}
-                        className={`px-2.5 py-1.5 flex items-center justify-between gap-2 hover:bg-neutral-50 ${
-                          agent.isVisible ? '' : 'opacity-50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-2.5 h-2.5 rounded-xs shrink-0" style={{ backgroundColor: agent.color }} />
-                          <span className="truncate text-neutral-800 font-medium">{agent.name}</span>
-                          {agent.kind === 'ai' ? (
-                            <span className="text-[9px] text-purple-700 font-bold shrink-0">◆</span>
-                          ) : (
-                            <span className="text-[9px] text-neutral-400 font-bold shrink-0">●</span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-0.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => { setIsAgentsPopoverOpen(false); onEditAgent(agent.id); }}
-                            className="p-1 rounded text-neutral-400 hover:text-neutral-800 hover:bg-neutral-200/60 transition-colors"
-                            title="Edit agent (capacity, model, colour)"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onToggleAgentVisibility(agent.id)}
-                            className={`p-1 rounded hover:bg-neutral-200/60 transition-colors ${
-                              agent.isVisible ? 'text-neutral-600' : 'text-neutral-400'
-                            }`}
-                            title={agent.isVisible ? 'Hide from grid' : 'Show on grid'}
-                          >
-                            {agent.isVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div className="border-t border-neutral-100 p-1.5">
-                  <button
-                    type="button"
-                    onClick={() => { setIsAgentsPopoverOpen(false); onOpenAddAgentModal(); }}
-                    className="w-full text-left px-2 py-1.5 text-xs text-neutral-700 hover:bg-neutral-50 rounded flex items-center gap-1.5 font-medium"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Add agent
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          <AgentsPopover
+            agents={agents}
+            onToggleAgentVisibility={onToggleAgentVisibility}
+            onShowAllAgents={onShowAllAgents}
+            onHideAllAgents={onHideAllAgents}
+            onOpenAddAgentModal={onOpenAddAgentModal}
+            onEditAgent={onEditAgent}
+          />
 
           {/* Story F1: 1-week paging — 2-week mode is unaffected */}
           {spanWeeks === 1 && (
