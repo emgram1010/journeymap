@@ -24,6 +24,7 @@ import { formatShortDate, formatMonthDayYear, generateDaysList } from '../utils/
 import { calculateAgentDayLoad } from '../utils/agentUtils';
 import { getTimelineReadiness } from '../utils/planningLogic';
 import { PlanCanvas } from './PlanCanvas';
+import { AgentsPopover } from './AgentsPopover';
 
 interface DayBoardProps {
   workspace: Workspace | null;
@@ -61,6 +62,11 @@ interface DayBoardProps {
   onRequestPublishConfirm: (timelineId: string) => void;
   viewSwitcher?: React.ReactNode;
   buildPlanButton?: React.ReactNode;
+  onToggleAgentVisibility: (agentId: string) => void;
+  onShowAllAgents: () => void;
+  onHideAllAgents: () => void;
+  onOpenAddAgentModal: () => void;
+  onEditAgent: (agentId: string) => void;
   onTimelineTaskDragStart?: (taskId: string) => void;
   onTimelineTaskDragEnd?: () => void;
 }
@@ -91,6 +97,11 @@ export function DayBoard({
   onRequestPublishConfirm,
   viewSwitcher,
   buildPlanButton,
+  onToggleAgentVisibility,
+  onShowAllAgents,
+  onHideAllAgents,
+  onOpenAddAgentModal,
+  onEditAgent,
   onTimelineTaskDragStart,
   onTimelineTaskDragEnd,
 }: DayBoardProps) {
@@ -459,6 +470,16 @@ export function DayBoard({
 
         {/* Right zone: Build Plan + Bulk "Publish day" Action (§7) */}
         <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
+          <AgentsPopover
+            agents={agents}
+            onToggleAgentVisibility={onToggleAgentVisibility}
+            onShowAllAgents={onShowAllAgents}
+            onHideAllAgents={onHideAllAgents}
+            onOpenAddAgentModal={onOpenAddAgentModal}
+            onEditAgent={onEditAgent}
+            hideLabel="Hide from board"
+            showLabel="Show on board"
+          />
           {buildPlanButton}
           <button
             id="publish-day-bulk-btn"

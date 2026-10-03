@@ -6,7 +6,6 @@ import { ProductNav } from './components/ProductNav';
 import { SettingsModal } from './components/SettingsModal';
 import { WorkspaceSettingsModal } from './components/WorkspaceSettingsModal';
 import { Header } from './components/Header';
-import { AgentRosterRail } from './components/AgentRosterRail';
 import { ScheduleGrid } from './components/ScheduleGrid';
 import { DayBoard } from './components/DayBoard';
 import { BacklogDrawer } from './components/BacklogDrawer';
@@ -1085,39 +1084,8 @@ export default function App() {
           onOpenWorkspaceSettings={() => setIsWorkspaceSettingsOpen(true)}
         />
 
-        {/* Workspace Body: Agent Roster Rail + Board/Grid + Backlog */}
+        {/* Workspace Body: Board/Grid + Backlog */}
         <div className="flex-1 flex min-h-0 overflow-hidden">
-          {/* AGENT ROSTER RAIL (~260px) — Plan view only. Schedule view's
-              own Grid already shows agent identity per row, plus an
-              Agents popover for visibility/search/add, so the rail would
-              be pure duplication there. */}
-          {viewMode === 'plan' && (
-            <AgentRosterRail
-              agents={agentsInActiveWs}
-              timelines={timelinesInActiveWs}
-              tasks={tasks}
-              activeDate={activeDay}
-              activeAgentId={activeAgentId}
-              focusedAgentId={focusedAgentId}
-              onSelectAgent={(agentId) => {
-                setActiveAgentId(agentId);
-                // Find timeline for this agent on activeDay
-                const tl = timelines.find(t => t.workspaceId === activeWorkspaceId && t.agentId === agentId && t.plannedDate === activeDay);
-                if (tl) setActiveTimelineId(tl.id);
-              }}
-              onFocusAgent={(agentId) => {
-                setFocusedAgentId(prev => prev === agentId ? null : agentId);
-                if (viewMode !== 'plan') setViewMode('plan');
-              }}
-              onToggleAgentVisibility={handleToggleAgentVisibility}
-              onEditAgent={handleOpenEditAgentModal}
-              onShowAllAgents={handleShowAllAgents}
-              onHideAllAgents={handleHideAllAgents}
-              onOpenAddAgentModal={handleOpenAddAgentModal}
-              onDropTaskOnAgent={handleDropTaskOnAgent}
-            />
-          )}
-
           {/* Center Column: Day Board (Plan View) or Schedule Grid (Schedule View) + Backlog Drawer */}
           <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-white">
             {viewMode === 'plan' ? (
@@ -1152,6 +1120,11 @@ export default function App() {
                 onRequestPublishConfirm={handleRequestPublishConfirm}
                 viewSwitcher={viewSwitcher}
                 buildPlanButton={renderBuildPlanButton('w-[229px]')}
+                onToggleAgentVisibility={handleToggleAgentVisibility}
+                onShowAllAgents={handleShowAllAgents}
+                onHideAllAgents={handleHideAllAgents}
+                onOpenAddAgentModal={handleOpenAddAgentModal}
+                onEditAgent={handleOpenEditAgentModal}
                 onTimelineTaskDragStart={() => setIsDraggingTaskFromTimeline(true)}
                 onTimelineTaskDragEnd={() => setIsDraggingTaskFromTimeline(false)}
               />
