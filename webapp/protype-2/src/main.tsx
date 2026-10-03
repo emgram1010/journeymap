@@ -46,6 +46,8 @@ function MapEditorRoute() {
 }
 
 import React from 'react';
+import AppLayout from './AppLayout';
+import PlannerApp from './planner/PlannerApp';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -54,11 +56,12 @@ createRoot(document.getElementById('root')!).render(
         <Routes>
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/architectures" element={<ProtectedRoute><ArchitectureDashboard /></ProtectedRoute>} />
-          <Route path="/architectures/:id" element={<ProtectedRoute><ArchitectureDetail /></ProtectedRoute>} />
-          <Route path="/maps/:id" element={<ProtectedRoute><MapEditorRoute /></ProtectedRoute>} />
-          <Route path="/account" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
+          <Route path="/dashboard" element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
+          <Route path="/architectures" element={<ProtectedRoute><AppLayout><ArchitectureDashboard /></AppLayout></ProtectedRoute>} />
+          <Route path="/architectures/:id" element={<ProtectedRoute><AppLayout><ArchitectureDetail /></AppLayout></ProtectedRoute>} />
+          <Route path="/maps/:id" element={<ProtectedRoute><AppLayout><MapEditorRoute /></AppLayout></ProtectedRoute>} />
+          <Route path="/planner" element={<ProtectedRoute><AppLayout><PlannerApp /></AppLayout></ProtectedRoute>} />
+          <Route path="/account" element={<ProtectedRoute><AppLayout><AccountSettings /></AppLayout></ProtectedRoute>} />
           {/* Default redirect */}
           <Route path="*" element={<Navigate to="/architectures" replace />} />
         </Routes>
