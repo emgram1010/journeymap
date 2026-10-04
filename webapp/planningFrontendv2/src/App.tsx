@@ -282,6 +282,33 @@ export default function App() {
     setActiveModalEntity(null);
   };
 
+  // Remove an agent: its timelines are deleted and their tasks return to the
+  // backlog (nothing is destroyed except the empty timelines themselves).
+  const handleDeleteAgent = (agentId: string) => {
+    const agent = agents.find(a => a.id === agentId);
+    if (!agent) return;
+    const removedTimelineIds = new Set(
+      timelines.filter(t => t.agentId === agentId).map(t => t.id)
+    );
+    setTasks(prev => prev.map(t =>
+      t.timelineId && removedTimelineIds.has(t.timelineId)
+        ? {
+            ...t,
+            timelineId: null,
+            seq: 0,
+            planned_start: '',
+            assignee: t.assignee === agent.name ? undefined : t.assignee,
+          }
+        : t
+    ));
+    setTimelines(prev => prev.filter(t => t.agentId !== agentId));
+    setAgents(prev => prev.filter(a => a.id !== agentId));
+    if (activeAgentId === agentId) setActiveAgentId(null);
+    if (focusedAgentId === agentId) setFocusedAgentId(null);
+    if (activeTimelineId && removedTimelineIds.has(activeTimelineId)) setActiveTimelineId(null);
+    setActiveModalEntity(null);
+  };
+
   // Open Task Edit Modal
   const handleOpenTaskEditModal = (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
@@ -1192,6 +1219,7 @@ export default function App() {
         onSaveTimeline={handleSaveTimelineFromModal}
         settings={settings}
         onSaveAgent={handleSaveAgent}
+        onDeleteAgent={handleDeleteAgent}
         onConfirmBulkPublish={handleConfirmBulkPublish}
         onConfirmPublish={handlePublishTimeline}
         onReopenTimeline={handleReopenTimeline}

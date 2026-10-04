@@ -28,6 +28,7 @@ interface EditModalProps {
   onSaveTask: (taskId: string, updates: Partial<Task>) => void;
   onSaveTimeline: (timelineId: string, updates: Partial<Timeline>) => void;
   settings: AppSettings;
+  onDeleteAgent?: (agentId: string) => void;
   onSaveAgent?: (agentId: string | null, updates: { name: string; kind: AgentKind; color: string; dailyCapacityHours: number; modelId?: string }) => void;
   onConfirmBulkPublish?: (timelineIdsToPublish: string[]) => void;
   onConfirmPublish?: (timelineId: string) => void;
@@ -42,6 +43,7 @@ export function EditModal({
   onSaveTask,
   onSaveTimeline,
   onSaveAgent,
+  onDeleteAgent,
   onConfirmBulkPublish,
   onConfirmPublish,
   onReopenTimeline,
@@ -70,6 +72,7 @@ export function EditModal({
   const [agentColor, setAgentColor] = useState(AGENT_PALETTE[0].hex);
   const [agentCapacity, setAgentCapacity] = useState<number>(8);
   const [agentModelId, setAgentModelId] = useState<string>('');
+  const [confirmRemoveAgent, setConfirmRemoveAgent] = useState(false);
 
   // Trap focus ref
   const modalRef = useRef<HTMLDivElement>(null);
@@ -103,6 +106,7 @@ export function EditModal({
         setAgentColor(entity.agent.color);
         setAgentCapacity(entity.agent.dailyCapacityHours || 8);
         setAgentModelId(entity.agent.modelId || '');
+        setConfirmRemoveAgent(false);
       } else {
         setAgentName('');
         setAgentKind('person');
@@ -660,6 +664,39 @@ export function EditModal({
 
           {/* Footer */}
           <div className="h-14 px-6 border-t border-neutral-200 flex items-center justify-end gap-3 bg-neutral-50 shrink-0">
+            {!entity.isNew && entity.agent && onDeleteAgent && (
+              <div className="mr-auto flex items-center gap-2">
+                {confirmRemoveAgent ? (
+                  <>
+                    <span className="text-xs text-red-700">Tasks return to backlog.</span>
+                    <button
+                      id="confirm-remove-agent-btn"
+                      type="button"
+                      onClick={() => onDeleteAgent(entity.agent!.id)}
+                      className="px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded"
+                    >
+                      Confirm remove
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmRemoveAgent(false)}
+                      className="px-2 py-1.5 text-xs text-neutral-600 hover:text-neutral-900"
+                    >
+                      Keep
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    id="remove-agent-btn"
+                    type="button"
+                    onClick={() => setConfirmRemoveAgent(true)}
+                    className="px-3 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded"
+                  >
+                    Remove agent
+                  </button>
+                )}
+              </div>
+            )}
             <button
               type="button"
               onClick={handleRequestClose}
