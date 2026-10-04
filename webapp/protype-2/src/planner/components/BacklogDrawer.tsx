@@ -11,7 +11,9 @@ import {
   CornerDownRight,
   AlertTriangle,
   AlertCircle,
-  Ban
+  Ban,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { Task, Timeline, Agent, Workspace, AppSettings, Throughput } from '../types';
 import { generateDaysList, formatShortDate, isDateOutOfWindow } from '../utils/dateUtils';
@@ -64,6 +66,9 @@ export function BacklogDrawer({
   onDeleteTask,
   onDropTaskIntoBucket,
 }: BacklogDrawerProps) {
+  // Collapsed by default: the bar stays visible (and remains a drop target
+  // for returning tasks); expand to browse, plan or add backlog tasks.
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDuration, setNewDuration] = useState(30);
@@ -236,12 +241,20 @@ export function BacklogDrawer({
         </div>
       )}
 
-      {/* Section Header — no collapse toggle; the panel stays permanently expanded */}
+      {/* Section Header — click to expand/collapse the panel */}
       <div
         id="backlog-drawer-bar"
         className="h-10 px-4 flex items-center justify-between border-b border-neutral-200 bg-neutral-50 select-none"
       >
-        <div className="flex items-center gap-2.5">
+        <button
+          id="backlog-toggle-btn"
+          type="button"
+          onClick={() => setIsCollapsed(prev => !prev)}
+          aria-expanded={!isCollapsed}
+          className="flex items-center gap-2.5 h-full"
+          title={isCollapsed ? 'Expand backlog' : 'Collapse backlog'}
+        >
+          {isCollapsed ? <ChevronRight className="w-3.5 h-3.5 text-neutral-400" /> : <ChevronDown className="w-3.5 h-3.5 text-neutral-400" />}
           <Inbox className="w-4 h-4 text-neutral-500" />
           <span className="text-xs font-semibold text-neutral-800">
             Backlog
@@ -249,6 +262,11 @@ export function BacklogDrawer({
           <span className="text-[11px] font-mono text-neutral-600 bg-neutral-200/80 px-2 py-0.2 rounded-full font-medium">
             {countText}
           </span>
+          {isCollapsed && unplannedHours > 0 && (
+            <span className="text-[11px] text-neutral-500">{unplannedHours}h unplanned</span>
+          )}
+        </button>
+        <div className="flex-1 flex items-center px-2.5">
           {confirmationMessage && (
             <span
               id="backlog-placement-confirmation"
@@ -262,7 +280,7 @@ export function BacklogDrawer({
         <div className="flex items-center gap-2">
           <button
             id="quick-add-backlog-btn"
-            onClick={() => setIsAdding(!isAdding)}
+            onClick={() => { setIsAdding(isCollapsed ? true : !isAdding); setIsCollapsed(false); }}
             className="px-2 py-0.5 text-xs font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/60 rounded flex items-center gap-1 transition-colors"
             title="Add task directly to backlog"
           >
@@ -272,6 +290,7 @@ export function BacklogDrawer({
         </div>
       </div>
 
+      {!isCollapsed && (<>
       {/* Resize handle: drag to adjust the backlog panel's height */}
       <div
         id="backlog-resize-handle"
@@ -567,6 +586,7 @@ export function BacklogDrawer({
           </div>
         )}
         </div>
+      </>)}
 
       {/* Keyboard Path Modal: "Add to timeline..." (Section 5) */}
       {keyboardModalTask && (

@@ -5,7 +5,6 @@ import { loadStoredData, saveStoredData, DEFAULT_SETTINGS, DEFAULT_INPUT_TOKENS_
 import { SettingsModal } from './components/SettingsModal';
 import { WorkspaceSettingsModal } from './components/WorkspaceSettingsModal';
 import { Header } from './components/Header';
-import { AgentRosterRail } from './components/AgentRosterRail';
 import { ScheduleGrid } from './components/ScheduleGrid';
 import { DayBoard } from './components/DayBoard';
 import { BacklogDrawer } from './components/BacklogDrawer';
@@ -279,6 +278,33 @@ export default function PlannerApp() {
       setAgents(prev => [...prev, newAgent]);
       setActiveAgentId(newAgent.id);
     }
+    setActiveModalEntity(null);
+  };
+
+  // Remove an agent: its timelines are deleted and their tasks return to the
+  // backlog (nothing is destroyed except the empty timelines themselves).
+  const handleDeleteAgent = (agentId: string) => {
+    const agent = agents.find(a => a.id === agentId);
+    if (!agent) return;
+    const removedTimelineIds = new Set(
+      timelines.filter(t => t.agentId === agentId).map(t => t.id)
+    );
+    setTasks(prev => prev.map(t =>
+      t.timelineId && removedTimelineIds.has(t.timelineId)
+        ? {
+            ...t,
+            timelineId: null,
+            seq: 0,
+            planned_start: '',
+            assignee: t.assignee === agent.name ? undefined : t.assignee,
+          }
+        : t
+    ));
+    setTimelines(prev => prev.filter(t => t.agentId !== agentId));
+    setAgents(prev => prev.filter(a => a.id !== agentId));
+    if (activeAgentId === agentId) setActiveAgentId(null);
+    if (focusedAgentId === agentId) setFocusedAgentId(null);
+    if (activeTimelineId && removedTimelineIds.has(activeTimelineId)) setActiveTimelineId(null);
     setActiveModalEntity(null);
   };
 
@@ -1082,39 +1108,8 @@ export default function PlannerApp() {
           onOpenSettings={() => setIsSettingsOpen(true)}
         />
 
-        {/* Workspace Body: Agent Roster Rail + Board/Grid + Backlog */}
+        {/* Workspace Body: Board/Grid + Backlog */}
         <div className="flex-1 flex min-h-0 overflow-hidden">
-          {/* AGENT ROSTER RAIL (~260px) — Plan view only. Schedule view's
-              own Grid already shows agent identity per row, plus an
-              Agents popover for visibility/search/add, so the rail would
-              be pure duplication there. */}
-          {viewMode === 'plan' && (
-            <AgentRosterRail
-              agents={agentsInActiveWs}
-              timelines={timelinesInActiveWs}
-              tasks={tasks}
-              activeDate={activeDay}
-              activeAgentId={activeAgentId}
-              focusedAgentId={focusedAgentId}
-              onSelectAgent={(agentId) => {
-                setActiveAgentId(agentId);
-                // Find timeline for this agent on activeDay
-                const tl = timelines.find(t => t.workspaceId === activeWorkspaceId && t.agentId === agentId && t.plannedDate === activeDay);
-                if (tl) setActiveTimelineId(tl.id);
-              }}
-              onFocusAgent={(agentId) => {
-                setFocusedAgentId(prev => prev === agentId ? null : agentId);
-                if (viewMode !== 'plan') setViewMode('plan');
-              }}
-              onToggleAgentVisibility={handleToggleAgentVisibility}
-              onEditAgent={handleOpenEditAgentModal}
-              onShowAllAgents={handleShowAllAgents}
-              onHideAllAgents={handleHideAllAgents}
-              onOpenAddAgentModal={handleOpenAddAgentModal}
-              onDropTaskOnAgent={handleDropTaskOnAgent}
-            />
-          )}
-
           {/* Center Column: Day Board (Plan View) or Schedule Grid (Schedule View) + Backlog Drawer */}
           <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-white">
             {viewMode === 'plan' ? (
@@ -1149,6 +1144,11 @@ export default function PlannerApp() {
                 onRequestPublishConfirm={handleRequestPublishConfirm}
                 viewSwitcher={viewSwitcher}
                 buildPlanButton={renderBuildPlanButton('w-[229px]')}
+                onToggleAgentVisibility={handleToggleAgentVisibility}
+                onShowAllAgents={handleShowAllAgents}
+                onHideAllAgents={handleHideAllAgents}
+                onOpenAddAgentModal={handleOpenAddAgentModal}
+                onEditAgent={handleOpenEditAgentModal}
                 onTimelineTaskDragStart={() => setIsDraggingTaskFromTimeline(true)}
                 onTimelineTaskDragEnd={() => setIsDraggingTaskFromTimeline(false)}
               />
@@ -1216,6 +1216,7 @@ export default function PlannerApp() {
         onSaveTimeline={handleSaveTimelineFromModal}
         settings={settings}
         onSaveAgent={handleSaveAgent}
+        onDeleteAgent={handleDeleteAgent}
         onConfirmBulkPublish={handleConfirmBulkPublish}
         onConfirmPublish={handlePublishTimeline}
         onReopenTimeline={handleReopenTimeline}
