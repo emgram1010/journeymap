@@ -191,4 +191,13 @@ Each entry: `code`, `feature`, `user_message` (friendly, how to fix), `what_happ
 
 ## Test Results
 
-_Not yet run._
+**2026-10-12 — Sonnet 5 build pass.**
+
+- **Unit tests (webapp/protype-2, `npm test`): 115/115 passing**, including 25 new tests across `errorCatalog`, `fingerprint`, `redact`, `healthStatus`, `groupIssues`, `clientEventBuffer` (dedup/rate gate + offline buffer). Full existing suite stays green.
+- **Typecheck (`npm run lint`): clean** except one pre-existing error in `e2e/chat-session-crud.spec.ts` unrelated to this epic (confirmed present with these changes stashed).
+- **Functional (`workflow_tests/25_observability.xs`) and UI (`e2e/health-page.spec.ts`): written, NOT run.** Both require the backend to actually be pushed to the live Xano workspace — ask before doing that.
+- **Backend XanoScript files are hand-verified against the XanoScript docs and existing repo patterns** (table/function/query/task syntax, `db.transaction`, `function.run`, `try_catch`, `redis.*`, `security.create_uuid`), but **not executed against live Xano**. Two specific risk areas flagged in code comments: `array.group_by` with a composite key in `group_issues.xs` (untested combination), and the correlation-id approach (US-OBS-1-12 — no "middleware" construct found in the docs, so an explicit client-generated id + header is used instead; not yet verified as the best available option on a live workspace).
+- **Scope changes made during the build** (all noted in-file): the daily integrity-audit task is deferred to GOV-1 (doesn't exist yet) — only the 5-minute heartbeat task was built. `planner_agent.user_id` dependency correctly comes from P3A-1, not duplicated here.
+- **Not done:** issue acknowledgement (US-OBS-1-06, table 92), the AI diagnostic tool (part of US-OBS-1-08), retention-tier changes (US-OBS-1-09) — all explicitly deferred per the epic's MVP scope.
+
+**Still needed before this epic can be marked complete:** push to a real Xano workspace (with explicit go-ahead), then run `workflow_tests/25_observability.xs` and `e2e/health-page.spec.ts` for real, and resolve the two flagged risk areas above.
