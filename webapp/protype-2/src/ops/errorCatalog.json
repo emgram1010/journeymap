@@ -59,6 +59,76 @@
     "severity": "info",
     "fix_hint": "Reload to confirm it is archived. Archived items are kept for history on purpose and are never edited again."
   },
+  "E-VAL-001": {
+    "code": "E-VAL-001",
+    "feature": "VAL-1",
+    "user_message": "This is required.",
+    "what_happened": "A required field was left empty or contained only whitespace.",
+    "likely_cause": "The field was skipped, or only spaces were typed into it.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Fill in the field and try again. Your other entries were kept."
+  },
+  "E-VAL-002": {
+    "code": "E-VAL-002",
+    "feature": "VAL-1",
+    "user_message": "This is too long.",
+    "what_happened": "A value was longer than the field allows.",
+    "likely_cause": "Pasted text, or a very long sentence where a short label was expected.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Shorten the value to the field's limit."
+  },
+  "E-VAL-003": {
+    "code": "E-VAL-003",
+    "feature": "VAL-1",
+    "user_message": "That value isn't valid.",
+    "what_happened": "A number, date or time was not in a valid format, or a number was outside its allowed range.",
+    "likely_cause": "A typo, or a value copied from somewhere with a different format.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Check the expected format or range and try again."
+  },
+  "E-VAL-004": {
+    "code": "E-VAL-004",
+    "feature": "VAL-1",
+    "user_message": "That isn't one of the allowed options.",
+    "what_happened": "A value was outside the fixed list this field accepts.",
+    "likely_cause": "A direct API call, or stale choices in an old browser tab.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Pick one of the listed options and try again."
+  },
+  "E-VAL-005": {
+    "code": "E-VAL-005",
+    "feature": "VAL-1",
+    "user_message": "That can't contain formatting like that.",
+    "what_happened": "A value looked like it contained an HTML tag, which this field does not allow.",
+    "likely_cause": "Text copied from a web page or rich-text editor brought formatting codes with it.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Paste as plain text, or remove the angle-bracket formatting."
+  },
+  "E-VAL-006": {
+    "code": "E-VAL-006",
+    "feature": "VAL-1",
+    "user_message": "That name is already used.",
+    "what_happened": "A name that must be unique already exists.",
+    "likely_cause": "Someone already created something with this name (matching is case- and space-insensitive).",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Pick a different name, or find and use the existing one."
+  },
+  "E-VAL-007": {
+    "code": "E-VAL-007",
+    "feature": "VAL-1",
+    "user_message": "That couldn't be found.",
+    "what_happened": "A reference pointed at something that doesn't exist, is archived, or belongs to a different account.",
+    "likely_cause": "A stale link, or something that was archived or deleted after this screen loaded.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload and try again. If it keeps happening, the Health page timeline for this Reference will show which entity was involved."
+  },
   "E-GOV-006": {
     "code": "E-GOV-006",
     "feature": "GOV-1",

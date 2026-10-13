@@ -1,0 +1,133 @@
+{
+  "ops_event.feature": {
+    "entity": "ops_event",
+    "field": "feature",
+    "label": "Feature",
+    "type": "text",
+    "required": true,
+    "maxLength": 40,
+    "noHtml": true,
+    "normalize": ["trim"],
+    "errorCodes": {"required": "E-VAL-001", "tooLong": "E-VAL-002", "html": "E-VAL-005"}
+  },
+  "ops_event.step": {
+    "entity": "ops_event",
+    "field": "step",
+    "label": "Step",
+    "type": "text",
+    "required": true,
+    "maxLength": 60,
+    "noHtml": true,
+    "normalize": ["trim"],
+    "errorCodes": {"required": "E-VAL-001", "tooLong": "E-VAL-002", "html": "E-VAL-005"}
+  },
+  "ops_event.outcome": {
+    "entity": "ops_event",
+    "field": "outcome",
+    "label": "Outcome",
+    "type": "enum",
+    "required": true,
+    "allowedValues": ["success", "rejected", "failure"],
+    "normalize": ["trim"],
+    "errorCodes": {"required": "E-VAL-001", "notAllowed": "E-VAL-004"}
+  },
+  "ops_event.severity": {
+    "entity": "ops_event",
+    "field": "severity",
+    "label": "Severity",
+    "type": "enum",
+    "required": false,
+    "allowedValues": ["info", "warn", "error"],
+    "normalize": ["trim"],
+    "errorCodes": {"notAllowed": "E-VAL-004"}
+  },
+  "ops_event.error_code": {
+    "entity": "ops_event",
+    "field": "error_code",
+    "label": "Error code",
+    "type": "text",
+    "required": false,
+    "maxLength": 40,
+    "normalize": ["trim"],
+    "errorCodes": {"tooLong": "E-VAL-002"}
+  },
+  "ops_event.message": {
+    "entity": "ops_event",
+    "field": "message",
+    "label": "Message",
+    "type": "text",
+    "required": false,
+    "maxLength": 500,
+    "noHtml": true,
+    "normalize": ["trim", "collapseSpaces"],
+    "errorCodes": {"tooLong": "E-VAL-002", "html": "E-VAL-005"}
+  },
+  "ops_event.entity_type": {
+    "entity": "ops_event",
+    "field": "entity_type",
+    "label": "Entity type",
+    "type": "text",
+    "required": false,
+    "maxLength": 40,
+    "normalize": ["trim"],
+    "errorCodes": {"tooLong": "E-VAL-002"}
+  },
+  "ops_event.entity_id": {
+    "entity": "ops_event",
+    "field": "entity_id",
+    "label": "Entity id",
+    "type": "int",
+    "required": false,
+    "min": 0,
+    "errorCodes": {"invalid": "E-VAL-003", "outOfRange": "E-VAL-003"}
+  },
+  "ops_event.correlation_id": {
+    "entity": "ops_event",
+    "field": "correlation_id",
+    "label": "Correlation id",
+    "type": "text",
+    "required": false,
+    "maxLength": 100,
+    "normalize": ["trim"],
+    "errorCodes": {"tooLong": "E-VAL-002"}
+  },
+  "ops_event.duration_ms": {
+    "entity": "ops_event",
+    "field": "duration_ms",
+    "label": "Duration",
+    "type": "int",
+    "required": false,
+    "min": 0,
+    "errorCodes": {"invalid": "E-VAL-003", "outOfRange": "E-VAL-003"}
+  },
+  "feature_flag.account_id": {
+    "entity": "feature_flag",
+    "field": "account_id",
+    "label": "Account",
+    "type": "int",
+    "required": true,
+    "min": 1,
+    "errorCodes": {"required": "E-VAL-001", "invalid": "E-VAL-003", "outOfRange": "E-VAL-003"}
+  },
+  "feature_flag.flag_key": {
+    "entity": "feature_flag",
+    "field": "flag_key",
+    "label": "Flag",
+    "type": "enum",
+    "required": true,
+    "allowedValues": ["required_fields_ui", "publish_gate"],
+    "normalize": ["trim"],
+    "errorCodes": {"required": "E-VAL-001", "notAllowed": "E-VAL-004"}
+  },
+  "feature_flag.note": {
+    "entity": "feature_flag",
+    "field": "note",
+    "label": "Note",
+    "type": "text",
+    "required": false,
+    "maxLength": 500,
+    "noHtml": true,
+    "normalize": ["trim", "collapseSpaces"],
+    "errorCodes": {"tooLong": "E-VAL-002", "html": "E-VAL-005"}
+  }
+}
