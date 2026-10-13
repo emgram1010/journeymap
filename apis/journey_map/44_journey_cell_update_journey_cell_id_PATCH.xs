@@ -64,7 +64,50 @@ query "journey_cell/update/{journey_cell_id}" verb=PATCH {
     precondition (($raw_input|keys|count) > 0) {
       error = "Provide at least one of content, status, is_locked, or actor_fields"
     }
-  
+
+    // TIME-1 (US-TIME-1-04): duration fields are additive, optional, and only
+    // checked when actually present in this PATCH — an omitted decimal input
+    // arrives as 0, not null, so presence is read from $raw_input (the keys
+    // the caller actually sent), never from the input value itself.
+    var $has_duration_value {
+      value = $raw_input|has:"time_duration_value"
+    }
+
+    var $has_duration_unit {
+      value = $raw_input|has:"time_duration_unit"
+    }
+
+    var $has_planned {
+      value = $raw_input|has:"planned_duration"
+    }
+
+    var $has_actual {
+      value = $raw_input|has:"actual_duration"
+    }
+
+    precondition ($has_duration_value == false || $input.time_duration_value >= 0) {
+      error_type = "inputerror"
+      error = "Enter how long this takes as a number, like 15. (E-TIME-001)"
+    }
+
+    precondition ($has_planned == false || $input.planned_duration >= 0) {
+      error_type = "inputerror"
+      error = "Enter how long this takes as a number, like 15. (E-TIME-001)"
+    }
+
+    precondition ($has_actual == false || $input.actual_duration >= 0) {
+      error_type = "inputerror"
+      error = "Enter how long this takes as a number, like 15. (E-TIME-001)"
+    }
+
+    // time_duration_unit is an enum input, so an invalid unit is already
+    // rejected by the framework before this stack runs (E-TIME-002). This
+    // only catches the pairing: a value with no unit, or a unit with no value.
+    precondition ($has_duration_value == $has_duration_unit) {
+      error_type = "inputerror"
+      error = "Add both a number and a unit, or leave both empty. (E-TIME-003)"
+    }
+
     db.patch journey_cell {
       field_name = "id"
       field_value = $input.journey_cell_id

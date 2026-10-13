@@ -194,7 +194,11 @@ export function StageEditPanel({stage, lenses, cells, onSave, onClose, isSaving}
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">Actual</label>
+                    {/* TIME-1 (US-TIME-1-03): "Observed today" — this is what the operator
+                        says happens today (an observed baseline), NOT an execution actual.
+                        Execution actuals (once LOG-1/APP-1 exist) live only in the activity
+                        log and never write to this column. */}
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">Observed today</label>
                     <input
                       type="number"
                       min="0"

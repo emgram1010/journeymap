@@ -129,6 +129,36 @@
     "severity": "info",
     "fix_hint": "Reload and try again. If it keeps happening, the Health page timeline for this Reference will show which entity was involved."
   },
+  "E-TIME-001": {
+    "code": "E-TIME-001",
+    "feature": "TIME-1",
+    "user_message": "Enter how long this takes as a number, like 15.",
+    "what_happened": "A duration value was missing, negative, or not a number.",
+    "likely_cause": "The field was left as text, or a negative number was typed.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Enter a number of 0 or more."
+  },
+  "E-TIME-002": {
+    "code": "E-TIME-002",
+    "feature": "TIME-1",
+    "user_message": "Pick a unit: minutes, hours, days or weeks.",
+    "what_happened": "A duration unit was missing or not one of the four allowed units.",
+    "likely_cause": "The unit picker was left unset, or a direct API call sent an unexpected value.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Choose one of the listed units."
+  },
+  "E-TIME-003": {
+    "code": "E-TIME-003",
+    "feature": "TIME-1",
+    "user_message": "Add both a number and a unit, or leave both empty.",
+    "what_happened": "Only one of the duration value and unit was filled in.",
+    "likely_cause": "A number was typed without picking a unit, or a unit was picked without a number.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Fill in both fields, or clear both to leave the duration unset."
+  },
   "E-GOV-006": {
     "code": "E-GOV-006",
     "feature": "GOV-1",
