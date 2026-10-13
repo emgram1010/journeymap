@@ -119,4 +119,35 @@ All stories are in the MVP. Story 06 covers only the forms of MVP epics; rules f
 
 ## Test Results
 
-_Not yet run._
+**2026-10-13 — Sonnet 5 build pass. Built, pushed to Xano workspace 1, smoke-tested.**
+
+### Done and verified
+
+| Story | State | Evidence |
+|---|---|---|
+| 01 field rules registry | ✅ | `fieldRules.json`/`.ts`. Entries for `ops_event.*` and `feature_flag.*` only — see `docs/val-1-coverage.md` for the rest, deferred to their owning epics. |
+| 02 shared validators | ✅ live | `validate.ts` (frontend) + `validate_field.xs` (82, backend). 8/8 golden-fixture cases confirmed to match exactly via `runWorkspaceFunction`. |
+| 03 standard error response | ✅ (frontend shape + lint) | `errorResponse.ts`: `{code, field, message, reference}` + leak lint. Backend side is the existing pattern (code embedded in the `inputerror` message, correlation id as `.reference` on `XanoHttpError`) — see the deviation note below. |
+| 04 UI components | ✅ (untested by render) | `FieldError.tsx`, `ErrorBanner.tsx`, `useFormValidation.ts` + pure `formValidation.ts` (fully unit tested). No DOM/render-testing setup in this repo, so the components themselves are inspected, not rendered in a test. |
+| 05 message style guide | ✅ | `docs/error-message-style.md` |
+| 06 applied to each epic's forms | ✅ for what exists | `docs/val-1-coverage.md`. Role/stage/template/job/tweak/publish-to-live/performer/variance forms don't exist yet — same sequencing finding as GOV-1. |
+
+**Live proof:** `ops/feature_flag` (516) replaces GOV-1's manual `addTableContent` workaround with a real, validated, admin-gated write — built entirely from already-proven pieces (`validate_field`, `require_platform_admin`, GOV-1's db patterns).
+
+### Real bugs found and fixed before/during the push
+
+1. **`max_length`/`min_value`/`max_value` are optional ints**, which arrive as `0` (not `null`) when omitted — the exact same class of bug as OBS-1's heartbeat. Caught **before** the live push this time (by reasoning from the prior incident), fixed with explicit `has_max_length`/`has_min_value`/`has_max_value` flags rather than a null check.
+2. **`regex_matches` takes the pattern as the base and the subject as the argument** (`"/pattern/"|regex_matches:$value`), backwards from my first draft. Caught before pushing by reading the doc example closely after the first guess felt uncertain.
+3. Both added to `CLAUDE.md`'s verified-constraints list.
+
+### Deviation from the epic, deliberate
+
+US-VAL-1-03 asked for a server-returned JSON body of exactly `{code, field, message, reference}`. **Not built that way.** Xano's `precondition`/`throw` only support a single `error` string + `error_type` (confirmed across OBS-1 and GOV-1); there's no way discovered yet to return arbitrary structured JSON on a thrown error. Used the pattern already proven and already live: the message carries `"... (E-VAL-004)"`, and `xano.ts`'s `XanoHttpError.reference` already carries the correlation id client-side. `errorResponse.ts` exists so the **shape itself** is tested and ready, and so a frontend catch-block can assemble the standard object by parsing the embedded code out of the thrown message — a small adapter, not yet written, since nothing calls `ops/feature_flag` from the UI yet.
+
+### Not verified: `ops/feature_flag`'s own assembly
+
+Pushed with no parse error; every piece it calls is independently proven. But there is no tool available in this session that can make a real authenticated HTTP call, and making any account platform-admin to work around that is explicitly the founder's decision, not mine to make unilaterally. Tracked in `product/learning-fixes.md`.
+
+### Deferred — and why
+
+All of US-VAL-1-06's remaining checklist rows (role, stage, template, job, tweak, publish-to-live, performer, variance forms) target screens/endpoints that **don't exist yet**. Same finding as GOV-1: validation rules land **with** the epic that builds the form, not retrofitted later. `docs/val-1-coverage.md` tracks each row against its owning epic so none is lost.
