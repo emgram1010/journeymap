@@ -1651,7 +1651,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     setEditingStageId(stageId);
   };
 
-  const handleStageDetailsSave = async (data: {label: string; primaryActorLens: string | null; stageGoal: string | null; timeDurationValue: number | null; timeDurationUnit: string | null; plannedDuration: number | null; actualDuration: number | null}) => {
+  const handleStageDetailsSave = async (data: {label: string; primaryActorLens: string | null; ownerLensId?: number | null; stageGoal: string | null; timeDurationValue: number | null; timeDurationUnit: string | null; plannedDuration: number | null; actualDuration: number | null}) => {
     if (!editingStageId) return;
     const currentStage = stages.find((s) => s.id === editingStageId);
     if (!currentStage?.xanoId) return;
@@ -1672,6 +1672,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         label: data.label,
         stageGoal: data.stageGoal,
         primaryActorLens: data.primaryActorLens,
+        ownerLensId: data.ownerLensId,
       });
       // Sync back with server values
       setStages((prev) =>

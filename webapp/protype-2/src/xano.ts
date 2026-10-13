@@ -92,6 +92,8 @@ export interface XanoJourneyStage {
   display_order?: number | null;
   stage_goal?: string | null;
   primary_actor_lens?: string | null;
+  /** STAGE-1 (US-STAGE-1-01/03) — the validated reference; always the CURRENT owner, even on a PATCH that didn't touch it. */
+  owner_lens_id?: number | null;
 }
 
 export interface XanoJourneyLens {
@@ -986,17 +988,25 @@ export async function renameJourneyStage(input: RenameJourneyStageInput): Promis
 
 export async function updateStageDetails(
   stageId: number,
-  data: {label: string; stageGoal?: string | null; primaryActorLens?: string | null},
+  data: {label: string; stageGoal?: string | null; primaryActorLens?: string | null; ownerLensId?: number | null},
 ): Promise<XanoJourneyStage> {
+  const body: Record<string, unknown> = {
+    label: data.label,
+    stage_goal: data.stageGoal ?? null,
+    primary_actor_lens: data.primaryActorLens ?? null,
+  };
+  // STAGE-1 (US-STAGE-1-03): owner_lens_id is only sent when the caller
+  // actually means to touch ownership — the backend reads this via
+  // $raw_input, so omitting the key here leaves an existing owner alone,
+  // while `null` or a number here sets/clears it.
+  if (data.ownerLensId !== undefined) {
+    body.owner_lens_id = data.ownerLensId;
+  }
   return xanoRequest<XanoJourneyStage>(
     buildParameterizedPath(getXanoUpdateStagePath(), {journeyStageId: stageId}),
     {
       method: 'PATCH',
-      body: {
-        label: data.label,
-        stage_goal: data.stageGoal ?? null,
-        primary_actor_lens: data.primaryActorLens ?? null,
-      },
+      body,
     },
   );
 }

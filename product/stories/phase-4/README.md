@@ -101,7 +101,9 @@ task + stages + who + how long   goes through the stages   start / end / status 
 | 91 | `activity_log` | LOG-1 | Yes |
 | 92 | `ops_issue_ack` | OBS-1 | Deferred (number reserved) |
 
-**Additive columns (MVP):** `event_log` observability columns (OBS-1); `user.is_platform_admin` (OBS-1); `account.feature_flags` (GOV-1); `journey_stage.owner_lens_id` and `journey_lens.does_planned_work` (STAGE-1); `planner_workspace.is_archived`, `plan_template_id`, `planner_agent.user_id`, `is_active`, `planner_task.tweak_reason`, nullable `planner_task.title` (P3A-1); `workflow_execution.work_item_id` (JOB-1).
+**Additive columns (MVP):** `event_log` observability columns (OBS-1); `user.is_platform_admin` (OBS-1); `planner_workspace.is_archived`, `plan_template_id`, `planner_agent.user_id`, `is_active`, `planner_task.tweak_reason`, nullable `planner_task.title` (P3A-1); `workflow_execution.work_item_id` (JOB-1).
+
+**Additive via new table instead of a column, deliberate (confirmed `updateTableSchema` drops `trim`/`lower` validators on every other column of the table — see CLAUDE.md):** `account_feature_flag` instead of `account.feature_flags` (GOV-1, table 108); `journey_stage_owner` instead of `journey_stage.owner_lens_id` and `journey_lens_planned_work` instead of `journey_lens.does_planned_work` (STAGE-1, tables 110–111).
 
 ## Existing, overlapping initiative
 

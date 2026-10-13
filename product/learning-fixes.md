@@ -166,6 +166,43 @@ test map is unaffected).
 
 ---
 
+## 🟡 Needs a real HTTP/tool-call test: STAGE-1's owner endpoints are unverified end to end
+
+Same gap as above, now on three call paths:
+
+- `apis/journey_map/211_journey_stage_update_journey_stage_id_PATCH.xs` — owner_lens_id validation (same-map check, sync to `primary_actor_lens`, clear behaviour).
+- `apis/journey_map/517_journey_lens_planned_work_journey_lens_id_PATCH.xs` — set/clear the planned-work switch.
+- `ai/tool/update_stage_contract.xs` (70) — owner sync when the AI sets/clears `primary_actor_lens`.
+
+All three are built entirely from pieces that WERE independently live-tested
+against real/scratch data (`resolve_stage_owner`, `set_stage_owner`,
+`does_planned_work`, `set_lens_planned_work`, and the `$raw_input` 3-way
+omitted/null/value detection each relies on). Only each endpoint's own
+request-to-response assembly is unverified. **Needs a real test** once an
+authenticated-HTTP tool exists: PATCH a stage's owner from a different map
+(expect rejection), a valid owner (expect `journey_stage_owner` row +
+`primary_actor_lens` to agree), clear it (expect the row deleted); same
+shape for the lens planned-work endpoint; and one `update_stage_contract`
+tool call setting `primary_actor_lens` with a real session.
+
+---
+
+## 🟡 Deferred: the "does this row do planned work?" switch has no UI yet
+
+The backend (US-STAGE-1-06) is complete and live-verified: table
+`journey_lens_planned_work`, read function `does_planned_work.xs`, write
+endpoint `517_journey_lens_planned_work_journey_lens_id_PATCH.xs`. What's
+missing is the actual toggle control in the lens row header in `App.tsx`.
+Not built because this session has no dev server running and no browser
+tool invoked — adding new JSX to a large, canvas-heavy file and trusting it
+without seeing it render would violate this project's own rule (CLAUDE.md:
+start the dev server and check UI changes in a browser). **Needs:** start
+`npm run dev`, add a small switch to the row header (reading its current
+value via a `get_map`-style read or a dedicated GET, writing via 517),
+confirm required-field tags appear/disappear per AUTH-1 (E2E-STAGE-1-03).
+
+---
+
 ## 🟡 Tracked: GOV-1 stories deferred because their tables don't exist yet
 
 Not bugs — a sequencing finding. These stories target tables that later

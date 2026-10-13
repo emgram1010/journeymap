@@ -4,6 +4,8 @@ import type {Stage, Lens, MatrixCell} from './types';
 export type StageEditData = {
   label: string;
   primaryActorLens: string | null;
+  /** STAGE-1 (US-STAGE-1-05) — the selected lens's real Xano id, resolved from the dropdown. Omitted (not sent) only when the dropdown's value can't be matched back to a lens. */
+  ownerLensId?: number | null;
   stageGoal: string | null;
   timeDurationValue: number | null;
   timeDurationUnit: string | null;
@@ -64,9 +66,20 @@ export function StageEditPanel({stage, lenses, cells, onSave, onClose, isSaving}
     const parsedDuration = timeDurationValue.trim() !== '' ? parseFloat(timeDurationValue) : null;
     const parsedPlanned = plannedDuration.trim() !== '' ? parseFloat(plannedDuration) : null;
     const parsedActual = actualDuration.trim() !== '' ? parseFloat(actualDuration) : null;
+
+    // STAGE-1 (US-STAGE-1-05): the dropdown's option value is `l.key ?? l.id`
+    // (a frontend-local string id as the fallback), never the real Xano row
+    // id — that's only on `xanoId`. Resolve back to the selected lens object
+    // to get the real id the backend's owner_lens_id expects.
+    const selectedLens = primaryActorLens
+      ? lenses.find((l) => (l.key ?? l.id) === primaryActorLens)
+      : undefined;
+    const ownerLensId = primaryActorLens ? selectedLens?.xanoId ?? undefined : null;
+
     onSave({
       label: label.trim(),
       primaryActorLens: primaryActorLens || null,
+      ownerLensId,
       stageGoal: stageGoal.trim() || null,
       timeDurationValue: parsedDuration,
       timeDurationUnit: timeDurationUnit || null,
