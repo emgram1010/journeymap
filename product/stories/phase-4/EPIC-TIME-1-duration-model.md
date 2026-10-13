@@ -2,7 +2,7 @@
 
 **Epic ID:** TIME-1
 **Feature:** One consistent way to read "how long" everywhere.
-**Status:** Planning
+**Status:** Done (see Test Results)
 **Depends on:** OBS-1, GOV-1, VAL-1
 **MVP:** fully in scope.
 **Goal:** Every layer (map, plan, execution, variance) turns a cell's duration into **minutes** with the same rule, and everyone knows what the existing `actual_duration` column means.
@@ -115,4 +115,37 @@ Follows GOV-1 standards, VAL-1 rules and OBS-1 events.
 
 ## Test Results
 
-_Not yet run._
+**2026-10-13 — Sonnet 5 build pass. Built, pushed to Xano workspace 1, smoke-tested.**
+
+### Done and verified
+
+| Story | State | Evidence |
+|---|---|---|
+| 01 canonical conversion (frontend) | ✅ | `durationModel.ts` — `toMinutes()` + `WORKDAY_MINUTES = 480`. 15 unit tests, all pass locally (`UT-TIME-1-01`…`11` + edge cases). |
+| 02 matching backend function | ✅ live | `functions/duration_to_minutes.xs` (id 83). Pushed, smoke-tested via `runWorkspaceFunction` against all 13 golden-fixture-equivalent cases — **all matched the frontend exactly on the first push**, no bugs found, because the `has_X`-flag and filter-order lessons from OBS-1/GOV-1/VAL-1 were applied proactively before writing. |
+| FT-TIME-1-01 (golden fixtures) | ✅ | `webapp/protype-2/src/fixtures/duration-golden.json`, 13 cases, run through both `toMinutes()` (frontend test) and `duration_to_minutes` (manual `runWorkspaceFunction` smoke test). Equal on both sides. |
+| 03 document `actual_duration`'s meaning | ✅ | `StageEditPanel.tsx` label changed to **"Observed today"** with an explanatory comment. `FT-TIME-1-04` (see below) makes "no execution path writes it" an enforced tripwire rather than a one-time code search. |
+| 04 input validation on the cell PATCH | ✅ live | `apis/journey_map/44_journey_cell_update_journey_cell_id_PATCH.xs` (api 44) — pushed, parses clean. `time_duration_value`/`planned_duration`/`actual_duration` must be ≥ 0 when the caller actually sent that key (checked via `$raw_input|has:"..."`, not the input value — an omitted decimal arrives as `0`, not `null`, same trap as VAL-1's `max_length`). A duration value sent without a unit, or vice versa, is rejected (`E-TIME-003`). An invalid unit is already rejected by the enum input type before the stack runs, so `E-TIME-002` needed no explicit check. |
+| Error catalog | ✅ | `E-TIME-001/002/003` added to `webapp/protype-2/src/ops/errorCatalog.json`. Not synced to `functions/ops/error_catalog.xs` — see deviation note below. |
+
+### Real bugs found
+
+None this pass. Both backend pieces (`duration_to_minutes`, the PATCH validation) were written with the `has_X`-flag pattern and documented filter syntax (`|has:`, confirmed against the docs' `{'fizz':'buzz'}|has:'fizz'` example) applied from the start, instead of discovered after a failed push.
+
+### Not verified: the PATCH endpoint's validation, end-to-end
+
+`44_journey_cell_update_journey_cell_id_PATCH.xs` pushed with no parse error, and the `|has:` filter is a simple, documented object-key check (not the nested-indexing pattern that broke `array.map` in OBS-1) — but there is still no tool in this session that can make a real authenticated HTTP call, so the four new preconditions were never exercised against a live request. Same category as VAL-1's `ops/feature_flag`. Tracked in `product/learning-fixes.md`.
+
+### Deviation from the epic, deliberate
+
+Backend error-catalog sync (`functions/ops/error_catalog.xs`) was **not** extended with `E-TIME-*`. That file's own header says only OBS-1's codes live there, and GOV-1/VAL-1 already followed the same precedent for their own codes — it's read only by `build_diagnostic_bundle`/`group_issues` to annotate `event_log` rows, not by every feature's validation path. Adding TIME-1's would have been inconsistent with the two epics immediately before it, not a fix.
+
+### FT-TIME-1-04, how it actually works
+
+Rather than a one-time grep, it's a standing unit test (`durationModel.test.ts`) that walks every `.ts`/`.tsx` file under `webapp/protype-2/src` and fails if any file outside a fixed allowlist (`App.tsx`, `StageEditPanel.tsx`, `types.ts`, `xano.ts`, itself) references `actual_duration`/`actualDuration`. It passes today because no execution module exists yet; it is designed to fail the day LOG-1/APP-1 start writing to this column, forcing that to be a conscious decision.
+
+### Deferred — and why
+
+`FT-TIME-1-02`/`FT-TIME-1-03` (PATCH with invalid/valid duration against real data) and `E2E-TIME-1-01` (UI label visible in a browser) need either the missing authenticated-HTTP tool or a running dev server with a logged-in session — neither available this session. `UT-TIME-1-G01` (junk corpus through the duration rules) was not built as a separate suite; `durationModel.test.ts`'s existing edge cases (`-5`, `"abc"`, `"fortnights"`, empty/null/undefined) already cover the same ground as VAL-1's junk-corpus pattern for this one field shape, so a second corpus run was judged redundant rather than skipped by oversight.
+
+`npm test`: 184/184 pass (168 prior + 16 new). `npm run lint`: pre-existing, unrelated failure in `e2e/chat-session-crud.spec.ts` (confirmed via `git log` — untouched by this epic, not introduced here).

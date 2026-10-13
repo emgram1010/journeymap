@@ -150,6 +150,22 @@ confirm each rejection path (bad flag_key, bad note, unknown account).
 
 ---
 
+## 🟡 Needs a real HTTP test: TIME-1's cell PATCH validation is unverified end to end
+
+Same gap as `ops/feature_flag` above. The four new preconditions on
+`apis/journey_map/44_journey_cell_update_journey_cell_id_PATCH.xs`
+(US-TIME-1-04 — duration/planned/actual ≥ 0, value-without-unit
+rejected) pushed with no parse error, and the `$raw_input|has:"..."`
+filter they rely on is a simple, documented object-key check, but
+none of it has been exercised against a real request. **Needs a real
+test** once an authenticated-HTTP tool exists: PATCH a real
+`journey_cell` with a negative duration (expect rejection, nothing
+written), a value with no unit (expect rejection), and a valid
+value+unit (expect it persists and the existing leakage calc for a
+test map is unaffected).
+
+---
+
 ## 🟡 Tracked: GOV-1 stories deferred because their tables don't exist yet
 
 Not bugs — a sequencing finding. These stories target tables that later
