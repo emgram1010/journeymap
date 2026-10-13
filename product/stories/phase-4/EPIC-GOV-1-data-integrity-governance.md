@@ -187,4 +187,58 @@ FT-GOV-1-06 and FT-GOV-1-08 run when their deferred stories are built.
 
 ## Test Results
 
-_Not yet run._
+**2026-10-13 — Opus 5 build pass. Built, pushed to Xano workspace 1, and smoke-tested live.**
+
+### Done and verified
+
+| Story | State | Evidence |
+|---|---|---|
+| 01 standards doc | ✅ | `docs/data-standards.md` |
+| 02 constraint matrix | ✅ | `docs/data-model-phase-4.md` |
+| 03 guard library | ✅ live | `guards/assert_owns` (74), `assert_same_account` (75), `assert_not_archived` (76), `assert_state` (77), `assert_fresh` (78). All five smoke-tested on **both** paths. `assert_fresh` built but intentionally unwired (S12 deferred). |
+| 04 schema audit | ✅ | `src/ops/schemaAudit.ts` + 13 unit tests in `npm test` (128/128). `scripts/audit-schema.mjs` for the readable report. New table 108 passes clean. |
+| 05 integrity audit | ✅ live (existing-table checks) | `ops/audit_integrity` (80) + `tasks/19_ops_integrity_audit.xs` (daily 04:00 UTC). Later epics add their own checks. |
+| 11 normalized name keys | ✅ as a standard | Documented in S6/data-standards; applied by the manifest (`actor_role`, `plan_template` require `name_key`). No table needs one yet. |
+| 12 feature flags | ✅ live | Table `account_feature_flag` (108) + `ops/feature_enabled` (79). Verified: off by default, off for unknown keys, on per-account only, other accounts unaffected (**FT-GOV-1-13**). |
+
+**End-to-end proof:** a guard refusal now shows up on the Health page as a grouped issue with a plain-English message, the correct owner (engineer vs. user) and a fix hint — the full OBS-1 + GOV-1 loop working together.
+
+### Deviation from the epic, deliberate
+
+US-GOV-1-12 specified `account.feature_flags` as a JSON column. **Built as a separate `account_feature_flag` table instead.** Adding a column to `account` requires `updateTableSchema`, which silently destroys that table's four `trim` validators (the bug that cost four validators during OBS-1). Creating a new table uses a different, safe path — confirmed, since this table's own validator survived. The table is also better relationally: a real enum for `flag_key` and a unique index, instead of an unvalidatable blob.
+
+### Found while building: 729 real orphans in production
+
+The integrity audit's first run, over 1,231 cells / 139 stages / 163 lenses:
+
+| Check | Count |
+|---|---|
+| `journey_cell.journey_map` | 577 |
+| `journey_lens.journey_map` | 76 |
+| `journey_stage.journey_map` | 52 |
+| `journey_stage.primary_actor_lens` | 24 |
+| `journey_cell.stage`, `journey_cell.lens` | 0 |
+
+The first three are one root cause: **deleting a journey map leaves its children behind.** Nothing reads them, so this is not urgent, but the delete path needs a guard (US-GOV-1-10) before it grows. The fourth is the fragile text key STAGE-1 replaces — already broken in 24 places, which is itself the argument for replacing it.
+
+### Also fixed: a silent production failure in OBS-1
+
+The heartbeat task had been running every 5 minutes for ~8 hours and writing **nothing**. Cause: `transform_timestamp` called inside a `db.query` `where` clause, which compiles to SQL and cannot call filter functions. `ops/health` had the identical bug and would have failed the first time it was opened. Both fixed and verified. Caught by comparing `event_log`'s row count against the rows this session had created — the task history showed it running happily.
+
+Two more verified XanoScript constraints added to `CLAUDE.md`: no filter functions inside a `where` clause; no pipe nested inside a filter argument.
+
+### Deferred — and why
+
+| Story | Reason |
+|---|---|
+| 06 duplicate audit + unique indexes on existing tables | Only needed when ROLE-1/STAGE-1 extras land. |
+| 08 concurrency standard | S12; single planner in the MVP. The guard exists, unwired. |
+| 07 append-only enforcement tests | Tests `activity_log`, `plan_change_log`, `plan_publication`, `journey_map_version` — **none of these tables exist yet**. |
+| 09 atomic writes | The operations it covers (publish version, add job, publish to live) **do not exist yet**. |
+| 10 existing delete paths use guards | Needs `journey_stage.owner_lens_id` (STAGE-1) and `journey_map_version` (PUB-1). |
+
+**This is a real sequencing finding, not an omission:** GOV-1's enforcement stories target tables that later epics create. They should be completed **by the epic that creates each table**, which is also when the integrity-audit check for it gets written. The constraint matrix lists each one with its owning epic so none is lost.
+
+### Still outstanding from OBS-1
+
+The four validators dropped by `updateTableSchema` still need restoring **by hand in the Xano dashboard**: `trim` on `user.name`, `trim`+`lower` on `user.email`, password strength on `user.password`, `trim` on `event_log.action`.
