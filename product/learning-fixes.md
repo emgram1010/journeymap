@@ -203,6 +203,23 @@ confirm required-field tags appear/disappear per AUTH-1 (E2E-STAGE-1-03).
 
 ---
 
+## 🟡 Deferred: AUTH-1's required-field UI (stories 02–06) not built yet
+
+The readiness logic (US-AUTH-1-01: `computeStageReadiness`,
+`computeMapReadiness` in `webapp/protype-2/src/readiness.ts`) is done and
+tested, including a golden case read live from map 178. The UI that
+*uses* it — required tags in the cell panel, the per-stage ready mark,
+the map progress line, the checklist panel, and the Publish-version
+button's disabled state — was not built this pass, for the same reason
+as STAGE-1's row-switch toggle: no dev server was running and no browser
+tool was used this session, and these are all visual changes to the
+large, canvas-heavy `App.tsx`. Same standing rule: verify UI in a
+browser before calling it done, don't just type-check blind JSX.
+**Needs:** `npm run dev`, then wire stories 02–06 against the now-stable
+`readiness.ts` API, checking each one renders and updates live.
+
+---
+
 ## 🟡 Tracked: GOV-1 stories deferred because their tables don't exist yet
 
 Not bugs — a sequencing finding. These stories target tables that later

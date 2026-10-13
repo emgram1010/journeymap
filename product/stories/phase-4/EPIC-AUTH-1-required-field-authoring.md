@@ -2,7 +2,7 @@
 
 **Epic ID:** AUTH-1
 **Feature:** While building a journey map, the user can see exactly what is required, what is freeform, and what is still missing.
-**Status:** Planning
+**Status:** Partial — readiness logic (01) done and tested; UI (02–06) deferred, see Test Results
 **Depends on:** TIME-1, STAGE-1 (ROLE-1 and LEAN-1 are deferred)
 **Goal:** Required structured fields live **in place** (map settings, stage header, cell panel), look different from freeform notes, and roll up into a per-stage ready mark, a map progress line and a checklist. The user never needs to know the tables.
 
@@ -159,4 +159,22 @@ Follows GOV-1 standards, VAL-1 rules and OBS-1 events.
 
 ## Test Results
 
-_Not yet run._
+**2026-10-13 — Sonnet 5 build pass. Logic built and tested locally; no Xano push needed (no new tables/endpoints — `required_fields_ui` flag already exists from GOV-1).**
+
+### Done and verified
+
+| Story | State | Evidence |
+|---|---|---|
+| 01 Readiness functions (pure) | ✅ | `webapp/protype-2/src/readiness.ts` — `computeStageReadiness`, `computeMapReadiness`, all 8 reason codes. Reuses TIME-1's `toMinutes` for duration validity and STAGE-1's `doesPlannedWork` for the owner/work-role check, rather than re-implementing either. 14 tests (`readiness.test.ts`) covering UT-AUTH-1-01 through 13, including the map 178 golden case: stages owned by the Customer lens (`lens-2`, `actor_type: customer`) correctly report `OWNER_NOT_WORK_ROLE`, stages owned by the Sales Coordinator (`lens-3`, `actor_type: internal`) correctly do not — read live from the real map via `getTableContentItem` to build the fixture, not guessed. |
+
+### Deferred — and why
+
+**US-AUTH-1-02 through 06 (all UI)** — required tags in the cell panel, the stage-header owner dropdown becoming the *required* control (US-STAGE-1-05 already wired the dropdown itself in STAGE-1), the per-stage ready mark, the map progress line, the checklist panel with jump links, and the Publish-version button's disabled state. None of this was built this pass.
+
+**Why:** every one of these is a visual change to `App.tsx` / `StageEditPanel.tsx`, and this session has not started a dev server or used a browser tool at any point. This project's own standing rule (CLAUDE.md, and the general operating instructions) is to verify UI changes by running them in a browser before calling them done — not to type-check blind JSX edits and call that proof. Since the **logic** these UI pieces need to call (`computeStageReadiness`/`computeMapReadiness`) is now built, tested, and stable, wiring the UI is a lower-risk follow-up than building both at once — but it should be done with a running dev server, not blind.
+
+**What's needed to pick this up:** `npm run dev`, then for each story: 02 (required tags + Notes-optional split in the cell panel, reading `actorFields.task_objective`/duration into `readiness.ts`'s cell shape), 03 (owner dropdown already exists from STAGE-1 — add the "needs a work-doing owner" inline note when a non-work row is picked), 04 (ready circle + "N of M stages ready" line calling `computeMapReadiness`), 05 (checklist panel iterating `perStage[].reasons`, with jump-to-field), 06 (disable the Publish-version button — itself still PUB-1's to build — when `computeMapReadiness(...).ready` is false). Tracked in `product/learning-fixes.md`.
+
+Governance stories (UT-AUTH-1-G01/G02, E2E-AUTH-1-G01-G03) depend on the same deferred UI and are deferred with it.
+
+`npm test`: 202/202 pass (188 prior + 14 new). `npm run lint`: same pre-existing, unrelated `e2e/chat-session-crud.spec.ts` failure, confirmed untouched by this epic.
