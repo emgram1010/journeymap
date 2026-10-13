@@ -44,9 +44,20 @@
 - Anything that differs from the epic, and why.
 - What is next, and any decision needed from the founder.
 
-## Model guidance
-- Default model is fine for implementing well-specified epics.
-- Suggest switching to a stronger model for: reconciling the overlap in PRD §8.6, reviewing the publish gate and immutable versions, the status engine and activity log, tenant isolation, or a bug that has failed twice.
+## Model guidance (tell the founder when to switch)
+
+The AI cannot switch models itself; the founder runs `/model`. So:
+- **At the start of every epic**, look up its model in the "Model" column of `product/stories/phase-4/README.md` and tell the founder in one line which model to use and why.
+- **If the current model doesn't match**, say so **before writing any code** and wait for the founder to switch or say "continue".
+- **Before a story marked risky** (below), and **when a bug has failed twice**, recommend switching to Opus.
+- **After finishing an Opus-marked epic**, recommend an Opus review pass before moving on.
+- **For mechanical sub-tasks**, mention that Haiku can do them more cheaply.
+
+| Use | Model | When |
+|---|---|---|
+| Default builder | Sonnet 5.5 | Most epics: tables, endpoints, UI, tests. The specs are detailed, so it doesn't need to invent much. |
+| Risky parts and reviews | Opus 5.5 | Publish gate and versions (PUB-1), status engine and activity log (LOG-1), guards and tenancy (GOV-1), a review pass after each of those, and any bug that fails twice. |
+| Mechanical work | Haiku 5.5 | Test fixtures, the junk-input list, renames, small doc updates. |
 
 ## Key places
 | What | Where |

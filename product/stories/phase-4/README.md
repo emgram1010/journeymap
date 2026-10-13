@@ -30,25 +30,27 @@ task + stages + who + how long   goes through the stages   start / end / status 
 
 ## MVP build order
 
-| # | Epic (feature) | Depends on | MVP delivers |
-|---|---|---|---|
-| 0 | [P3A-1 Planner amendments](EPIC-P3A-1-planner-amendments.md) | applied while building phase-3 | History-safe planner: archive/deactivate instead of delete; phase-4 columns in the first push |
-| 1 | [OBS-1 Observability and heartbeat](EPIC-OBS-1-observability-and-heartbeat.md) | — | Success/failure events, error catalog, admin-only Health page, Copy diagnostic bundle |
-| 2 | [GOV-1 Data integrity governance](EPIC-GOV-1-data-integrity-governance.md) | 1 | Standards, guards (including existing delete paths), transactions, schema and integrity audits, feature flags |
-| 3 | [VAL-1 Input validation and friendly errors](EPIC-VAL-1-input-validation-and-friendly-errors.md) | 1 | Junk never stored; clear messages; typing preserved |
-| 4 | [TIME-1 Duration model](EPIC-TIME-1-duration-model.md) | 1–3 | One minutes conversion |
-| 5 | [STAGE-1 Stage contract](EPIC-STAGE-1-stage-contract.md) | 1–3 | Real stage owner; "does planned work?" switch per row |
-| 6 | [AUTH-1 Required-field authoring](EPIC-AUTH-1-required-field-authoring.md) | 4, 5 | Required vs. freeform on existing fields; ready marks, progress, checklist |
-| 7 | [PUB-1 Publish version](EPIC-PUB-1-publish-version.md) | 6 | One gate; one immutable version table |
-| 8 | Phase-3 PLN-1 … PLN-8 (with P3A-1) | — | Planner backend |
-| 9 | [PLAN-1 Plan template and instance](EPIC-PLAN-1-plan-template-and-instance.md) | 7, 8 | Tiny template copied into instances |
-| 10 | [JOB-1 Jobs and tasks](EPIC-JOB-1-jobs-and-tasks.md) | 9 | Jobs pinned to a version; tasks generated and hydrated |
-| 11 | [SCHED-1 Scheduling and tweaks](EPIC-SCHED-1-scheduling-and-tweaks.md) | 10 | One scheduled item per task; per-job duration tweak |
-| 12 | [LIVE-1 Publish to live](EPIC-LIVE-1-publish-to-live.md) | 11 | Per-timeline frozen snapshot; planner changes logged after |
-| 13 | [LOG-1 Activity log and status engine](EPIC-LOG-1-activity-log-and-status-engine.md) | 10, 12 | Append-only log; fixed statuses; Done allowed without Start |
-| 14 | [APP-1 Performer app](EPIC-APP-1-performer-app.md) | 12, 13 | Today's items; one-tap actions |
-| 15 | [VAR-1 Variance and outliers](EPIC-VAR-1-variance-and-outliers.md) | 13 | Per-task expected/scheduled/actual; outlier flag |
-| 16 | [E2E-1 End-to-end validation](EPIC-E2E-1-end-to-end-validation.md) | all | Whole loop; integrity audit; supportability demo |
+| # | Epic (feature) | Depends on | MVP delivers | Model |
+|---|---|---|---|---|
+| 0 | [P3A-1 Planner amendments](EPIC-P3A-1-planner-amendments.md) | applied while building phase-3 | History-safe planner: archive/deactivate instead of delete; phase-4 columns in the first push | Sonnet, then Opus review |
+| 1 | [OBS-1 Observability and heartbeat](EPIC-OBS-1-observability-and-heartbeat.md) | — | Success/failure events, error catalog, admin-only Health page, Copy diagnostic bundle | Sonnet |
+| 2 | [GOV-1 Data integrity governance](EPIC-GOV-1-data-integrity-governance.md) | 1 | Standards, guards (including existing delete paths), transactions, schema and integrity audits, feature flags | **Opus** |
+| 3 | [VAL-1 Input validation and friendly errors](EPIC-VAL-1-input-validation-and-friendly-errors.md) | 1 | Junk never stored; clear messages; typing preserved | Sonnet (Haiku for the junk-input list) |
+| 4 | [TIME-1 Duration model](EPIC-TIME-1-duration-model.md) | 1–3 | One minutes conversion | Sonnet (Haiku for fixtures) |
+| 5 | [STAGE-1 Stage contract](EPIC-STAGE-1-stage-contract.md) | 1–3 | Real stage owner; "does planned work?" switch per row | Sonnet |
+| 6 | [AUTH-1 Required-field authoring](EPIC-AUTH-1-required-field-authoring.md) | 4, 5 | Required vs. freeform on existing fields; ready marks, progress, checklist | Sonnet |
+| 7 | [PUB-1 Publish version](EPIC-PUB-1-publish-version.md) | 6 | One gate; one immutable version table | **Opus** |
+| 8 | Phase-3 PLN-1 … PLN-8 (with P3A-1) | — | Planner backend | Sonnet (Opus review of PLN-2 tenancy and PLN-8 integrity) |
+| 9 | [PLAN-1 Plan template and instance](EPIC-PLAN-1-plan-template-and-instance.md) | 7, 8 | Tiny template copied into instances | Sonnet |
+| 10 | [JOB-1 Jobs and tasks](EPIC-JOB-1-jobs-and-tasks.md) | 9 | Jobs pinned to a version; tasks generated and hydrated | Sonnet |
+| 11 | [SCHED-1 Scheduling and tweaks](EPIC-SCHED-1-scheduling-and-tweaks.md) | 10 | One scheduled item per task; per-job duration tweak | Sonnet |
+| 12 | [LIVE-1 Publish to live](EPIC-LIVE-1-publish-to-live.md) | 11 | Per-timeline frozen snapshot; planner changes logged after | Sonnet, then Opus review |
+| 13 | [LOG-1 Activity log and status engine](EPIC-LOG-1-activity-log-and-status-engine.md) | 10, 12 | Append-only log; fixed statuses; Done allowed without Start | **Opus** |
+| 14 | [APP-1 Performer app](EPIC-APP-1-performer-app.md) | 12, 13 | Today's items; one-tap actions | Sonnet |
+| 15 | [VAR-1 Variance and outliers](EPIC-VAR-1-variance-and-outliers.md) | 13 | Per-task expected/scheduled/actual; outlier flag | Sonnet |
+| 16 | [E2E-1 End-to-end validation](EPIC-E2E-1-end-to-end-validation.md) | all | Whole loop; integrity audit; supportability demo | Sonnet, then Opus final review |
+
+**Model column:** the AI announces the model at the start of each epic and asks you to switch if needed (`/model sonnet`, `/model opus`, `/model haiku`). Any bug that fails twice → switch to Opus.
 
 ## Deferred (post-MVP)
 
