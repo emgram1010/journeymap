@@ -7,6 +7,14 @@
 // Mirrors the style of "Getting Started Template/role-based access
 // control" but checks is_platform_admin instead of the account role
 // hierarchy.
+//
+// NOTE: inline `mock`/`test` blocks were attempted here (matching the
+// documented function-test pattern) and were REJECTED by this Xano
+// workspace's XanoScript parser twice, with two different db action
+// types (db.get and db.query) — "Syntax error: unexpected 'mock'".
+// Dropped rather than guessed at further against a live system. Real
+// correctness is checked by workflow_tests/25_observability.xs and by
+// calling ops/health as both an admin and a non-admin user for real.
 function "ops/require_platform_admin" {
   description = "Throws accessdenied unless the given user is a platform admin."
 
@@ -17,22 +25,9 @@ function "ops/require_platform_admin" {
   }
 
   stack {
-    db.get user {
-      field_name = "id"
-      field_value = $input.user_id
-      output = ["id", "is_platform_admin"]
-
-      mock "allows a platform admin through" {
-        value = {id: 1, is_platform_admin: true}
-      }
-
-      mock "denies a non-admin user" {
-        value = {id: 2, is_platform_admin: false}
-      }
-
-      mock "denies an unknown user id" {
-        value = null
-      }
+    db.query user {
+      where = $db.user.id == $input.user_id
+      return = {type: "single"}
     } as $user
 
     precondition ($user != null) {
@@ -47,25 +42,4 @@ function "ops/require_platform_admin" {
   }
 
   response = {ok: true}
-
-  test "allows a platform admin through" {
-    input = {user_id: 1}
-    expect.to_equal ($response.ok) {
-      value = true
-    }
-  }
-
-  test "denies a non-admin user" {
-    input = {user_id: 2}
-    expect.to_throw {
-      value = "You don't have access to this page. (E-OBS-001)"
-    }
-  }
-
-  test "denies an unknown user id" {
-    input = {user_id: 999}
-    expect.to_throw {
-      value = "You don't have access to this page. (E-OBS-001)"
-    }
-  }
 }

@@ -3,9 +3,8 @@
 // a platform admin (ops/require_platform_admin) — see
 // product/stories/phase-4/EPIC-OBS-1-observability-and-heartbeat.md.
 //
-// NOTE: `canonical` is assigned by Xano the first time this group is
-// created there. This file has not been pushed yet — do not invent a
-// value here.
+// Created in workspace 1 ("emgram1010") on 2026-10-13, apigroup_id 23.
 api_group "Ops" {
+  canonical = "-2MhtESP"
   tags = ["phase-4", "obs-1"]
 }

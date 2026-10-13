@@ -30,6 +30,21 @@
 - Verify what already exists (tables, fields, logging) **before** adding anything. Reuse and extend; do not duplicate (example: extend `event_log`, do not create a second log).
 - Never fail silently. Every important step records a success or a failure event (OBS-1).
 
+## XanoScript constraints — verified live, workspace 1 (2026-10-13, during OBS-1)
+
+These were learned the hard way by pushing OBS-1 and hitting real runtime errors. Follow them; don't re-discover them.
+
+- **An omitted optional input is `""` / `0`, never `null`.** `$input.x ?? fallback` will NOT trigger for an omitted optional `text`/`int` field — it already holds `""`/`0` by the time the stack runs. Always check `$input.x != null && $input.x != ""` (text) or `!= 0` (int) explicitly; never rely on `??` for "was this provided".
+- **`db.query`'s `return: {type: "list", paging: {...}}` does NOT produce a plain array.** `foreach` and `[index]` access on it both fail with `"Please use a numerically indexed array."`. Use `return: {type: "list"}` with **no `paging`** — confirmed working. If you need "just the latest row" or a capped count, loop with `foreach`/`each` and a found-flag or counter instead of paging + indexing.
+- **`[index]` indexing into any script-built array (e.g. one built with `array.push`) is unreliable** — failed with the same `"numerically indexed array"` error even on a plain `var $arr { value = [] }` built via `array.push` in a loop. Don't index by position at all; track "the first/last value seen" with a `var`/`var.update` inside the same loop instead.
+- **`array.map` + `array.group_by` + `object.entries` chained together, with nested `$this[1][0].field` indexing, broke live** (`"Missing var entry: this"` / `"Unable to locate var: $this.created_at"`) as soon as real (non-empty) data flowed through — passed with an empty array, failed with one row. Don't trust these docs-only examples without a live, non-empty-data test. The safe, confirmed alternative for grouping/aggregating: a plain `foreach`/`each` loop, a `var` map built with `|get:key:null` / `|set:key:value`, and a separate order-tracking array built with `array.push` — see `functions/ops/group_issues.xs` for the working pattern.
+- **`mock` blocks inside a `db.get` or `db.query` action, submitted via `createFunction`, were rejected** (`"Syntax error: unexpected 'mock'"`) in this workspace, on two different db action types. Don't add inline `mock`/`test` blocks to a function pushed through this tool; verify real behaviour with `runWorkspaceFunction` instead (see below).
+- **`redis.set` has no `as` clause** — `redis.set { ... } as $x` fails (`"Invalid arg: as"`); omit `as` entirely.
+- **A multi-line boolean `where`/`precondition` expression (leading `&&`/`||` on its own line) failed to parse** (`"unexpected '&&'"`). Keep boolean conditions on **one line**, even when long.
+- **Before pushing, use `getTableSchema`/`getFunction`/`getAPI` to fetch the live, current source** and diff against the local `.xs` file — the live workspace can drift from local files (phase-3 reserved table ids 74–79; ids 74–78 were already in use live by an unrelated initiative when checked in workspace 1).
+- **`updateTableSchema` silently drops `validators`** (trim/lower/min-length) even when supplied in the documented shape — confirmed by two attempts with identical results. A `/feedback` bug report is already queued for this. Until fixed, re-adding lost validators needs the Xano dashboard UI directly, not this MCP tool.
+- **After any push, run a real smoke test** with `runWorkspaceFunction` (functions) before trusting a success response from `createFunction`/`updateFunction`/`createAPI` — a clean push with no parse error does NOT mean the logic is correct; several of the above only surfaced once real (non-empty) data flowed through.
+
 ## Architecture rules (short form)
 - Three layers: Definition (journey map and versions) → Commitment (plan) → Record (append-only log).
 - Reference, do not copy. Tasks read their definition from the pinned map version.

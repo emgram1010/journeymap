@@ -69,7 +69,15 @@ function "ops/log_event" {
 
   stack {
     var $severity {
-      value = $input.severity ?? "info"
+      value = "info"
+    }
+
+    conditional {
+      if ($input.severity != null && $input.severity != "") {
+        var.update $severity {
+          value = $input.severity
+        }
+      }
     }
 
     var $logged {

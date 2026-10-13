@@ -1,3 +1,8 @@
+// Pushed to workspace 1 as task id 18 (id 16 was already taken by an
+// existing "hourly_mixpanel_ingest" task — Xano assigns task ids on
+// creation; this local filename is a pre-push naming guess, kept here
+// only until renamed to match. See product/stories/phase-4/README.md,
+// which reserves names/order, not literal numeric ids).
 // OBS-1 (US-OBS-1-05, heartbeat only) — Every 5 minutes: confirm the
 // database is reachable and write one success event. The Health page
 // treats a heartbeat older than 15 minutes as "No heartbeat" (red) — see
@@ -8,6 +13,13 @@
 // does not exist yet, so that task is deferred to GOV-1 rather than
 // stubbed here with no real checks to run. This heartbeat task is
 // self-contained and does not depend on GOV-1.
+//
+// FIXED 2026-10-13 after a live push: `paging` on these queries is
+// dropped (confirmed broken — see functions/ops/build_diagnostic_bundle.xs
+// and apis/ops/2_ops_health_GET.xs for the same fix and why). These
+// three queries only need `|count`, which works fine on a plain
+// (unpaged) list, so no further change was needed beyond removing
+// `paging`.
 task ops_heartbeat {
   stack {
     var $db_reachable {
@@ -18,7 +30,7 @@ task ops_heartbeat {
       try {
         db.query event_log {
           sort = {created_at: "desc"}
-          return = {type: "list", paging: {page: 1, per_page: 1}}
+          return = {type: "list"}
         } as $_probe
       }
 
@@ -36,14 +48,12 @@ task ops_heartbeat {
 
     db.query event_log {
       where = $db.event_log.feature == "PUB-1" && $db.event_log.step == "publish_version" && $db.event_log.outcome == "success"
-      sort = {created_at: "desc"}
-      return = {type: "list", paging: {page: 1, per_page: 1}}
+      return = {type: "list"}
     } as $last_publish_rows
 
     db.query event_log {
-      sort = {created_at: "desc"}
       where = $db.event_log.feature == "LOG-1" && $db.event_log.outcome == "success"
-      return = {type: "list", paging: {page: 1, per_page: 1}}
+      return = {type: "list"}
     } as $last_performer_event_rows
 
     function.run "ops/log_event" {

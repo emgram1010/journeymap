@@ -1,3 +1,4 @@
+// Pushed to workspace 1, api_group "Ops" (id 23), api id 511.
 // OBS-1 (US-OBS-1-04) — The app reports a failed request, an unhandled
 // front-end error, or a notable success through this endpoint. Rate
 // limited and de-duplicated per user so a broken screen cannot flood the
@@ -66,7 +67,7 @@ query "ops/event" verb=POST {
           key = $dedup_key
           data = "1"
           ttl = 5
-        } as $_dedup_marker
+        }
 
         function.run "ops/log_event" {
           input = {
