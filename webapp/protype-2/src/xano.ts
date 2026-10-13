@@ -1,5 +1,6 @@
 import type {ActorFields, ActorType, CellStatus, Lens, MatrixCell, Message, Stage, ToolTraceEntry} from './types';
 import type {SelectedCellContext} from './cellIdentifiers';
+import {CORRELATION_HEADER, newCorrelationId} from './ops/correlationId';
 
 export type JourneyMapStatus = 'draft' | 'active' | 'archived';
 export type ConversationMode = 'interview' | 'chat';
@@ -606,12 +607,21 @@ type RequestOptions = {
   signal?: AbortSignal;
 };
 
-class XanoHttpError extends Error {
+export class XanoHttpError extends Error {
   status: number;
+  /**
+   * OBS-1 (US-OBS-1-12): the correlation id generated for this request.
+   * Shown to the user as "Reference" so they can quote it. Until VAL-1's
+   * standard error envelope exists, this is the id WE sent, not one the
+   * server echoed back — still useful for finding the request on the
+   * Health page's timeline by its own generated id.
+   */
+  reference: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, reference: string) {
     super(message);
     this.status = status;
+    this.reference = reference;
     this.name = 'XanoHttpError';
   }
 }
@@ -619,7 +629,8 @@ class XanoHttpError extends Error {
 async function xanoRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const {method = 'GET', body, signal} = options;
   const token = getAuthToken();
-  const headers: Record<string, string> = {Accept: 'application/json'};
+  const correlationId = newCorrelationId();
+  const headers: Record<string, string> = {Accept: 'application/json', [CORRELATION_HEADER]: correlationId};
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (body) headers['Content-Type'] = 'application/json';
   const response = await fetch(`${getXanoBaseUrl()}${path}`, {
@@ -635,6 +646,7 @@ async function xanoRequest<T>(path: string, options: RequestOptions = {}): Promi
     throw new XanoHttpError(
       response.status,
       `Xano ${method} ${path} failed (${response.status}): ${responseText || response.statusText}`,
+      correlationId,
     );
   }
 
@@ -1257,6 +1269,8 @@ export interface XanoUser {
   email: string;
   account_id?: number | null;
   role?: string | null;
+  /** OBS-1: platform-wide admin flag (separate from the per-account `role`). Gates the Health page. */
+  is_platform_admin?: boolean | null;
 }
 
 interface AuthApiResponse {
@@ -1279,6 +1293,80 @@ export async function signupUser(name: string, email: string, password: string):
 export async function getAuthMe(): Promise<XanoUser> {
   return authXanoRequest<XanoUser>('/auth/me');
 }
+
+// ── OBS-1: Health page (admin-only) ─────────────────────────────────────────
+
+export interface OpsHealthResponse {
+  last_heartbeat_at: string | null;
+  failures_24h: number;
+  open_issues_count: number;
+  checked_at: string;
+}
+
+export interface OpsIssue {
+  fingerprint: string;
+  feature: string | null;
+  step: string | null;
+  error_code: string | null;
+  severity: string;
+  count: number;
+  first_seen: string;
+  last_seen: string;
+  latest_message: string | null;
+  sample_correlation_id: string | null;
+  owner: 'user' | 'product_manager' | 'engineer';
+  user_message: string | null;
+  fix_hint: string | null;
+}
+
+export interface OpsIssuesResponse {
+  issues: OpsIssue[];
+  since: string;
+}
+
+export interface OpsBundleEvent {
+  created_at: string;
+  feature: string | null;
+  step: string | null;
+  outcome: string;
+  severity: string | null;
+  error_code: string | null;
+  message: string | null;
+  entity_type: string | null;
+  entity_id: number | null;
+  duration_ms: number | null;
+  metadata: unknown;
+}
+
+export interface OpsBundleResponse {
+  correlation_id: string | null;
+  entity_type: string | null;
+  entity_id: number | null;
+  event_count: number;
+  events: OpsBundleEvent[];
+  catalog_entry: Record<string, unknown> | null;
+  owner: 'user' | 'product_manager' | 'engineer';
+}
+
+export const getOpsHealth = () => xanoRequest<OpsHealthResponse>('/ops/health');
+
+export const getOpsIssues = (params: {accountId?: number; since?: string} = {}) => {
+  const query = new URLSearchParams();
+  if (params.accountId !== undefined) query.set('account_id', String(params.accountId));
+  if (params.since) query.set('since', params.since);
+  const qs = query.toString();
+  return xanoRequest<OpsIssuesResponse>(`/ops/issues${qs ? `?${qs}` : ''}`);
+};
+
+export const getOpsBundle = (params: {correlationId?: string; entityType?: string; entityId?: number; accountId?: number}) => {
+  const query = new URLSearchParams();
+  if (params.correlationId) query.set('correlation_id', params.correlationId);
+  if (params.entityType) query.set('entity_type', params.entityType);
+  if (params.entityId !== undefined) query.set('entity_id', String(params.entityId));
+  if (params.accountId !== undefined) query.set('account_id', String(params.accountId));
+  const qs = query.toString();
+  return xanoRequest<OpsBundleResponse>(`/ops/bundle${qs ? `?${qs}` : ''}`);
+};
 
 // ── Dashboard journey map management ────────────────────────────────────────
 

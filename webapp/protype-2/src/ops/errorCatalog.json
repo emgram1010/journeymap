@@ -1,0 +1,22 @@
+{
+  "E-OBS-001": {
+    "code": "E-OBS-001",
+    "feature": "OBS-1",
+    "user_message": "You don't have access to this page.",
+    "what_happened": "A non-admin user (or an unauthenticated request) tried to reach an ops/* endpoint or the Health page.",
+    "likely_cause": "The caller's user record does not have is_platform_admin set to true.",
+    "owner": "engineer",
+    "severity": "warn",
+    "fix_hint": "If this user should be a platform admin, set user.is_platform_admin = true directly in the database. There is no UI for this on purpose."
+  },
+  "E-OBS-002": {
+    "code": "E-OBS-002",
+    "feature": "OBS-1",
+    "user_message": "Too many reports were sent in a short time, so we slowed down.",
+    "what_happened": "The client event endpoint's rate limit (20 per minute per user) was hit, usually from a screen stuck in an error loop.",
+    "likely_cause": "A front-end bug is repeatedly failing and reporting the same error.",
+    "owner": "engineer",
+    "severity": "info",
+    "fix_hint": "Check the Health page's issue list for the feature/step that is flooding, and fix the underlying front-end error."
+  }
+}

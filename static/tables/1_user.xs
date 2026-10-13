@@ -22,7 +22,16 @@ table user {
       values = ["admin", "member"]
       visibility = "private"
     }
-  
+
+    // OBS-1 (phase-4): platform-wide admin flag, separate from the
+    // per-account `role`. Only platform admins (the founder) can see the
+    // Health page and ops/* endpoints across every account. Defaults to
+    // false; set manually for the founder's user record. Never set by any
+    // API — there is intentionally no endpoint that writes this field.
+    bool is_platform_admin?=false {
+      visibility = "private"
+    }
+
     object password_reset? {
       schema {
         password token?
