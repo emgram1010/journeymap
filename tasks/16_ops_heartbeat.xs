@@ -1,27 +1,35 @@
 // Pushed to workspace 1 as task id 18 (id 16 was already taken by an
 // existing "hourly_mixpanel_ingest" task — Xano assigns task ids on
-// creation; this local filename is a pre-push naming guess, kept here
-// only until renamed to match. See product/stories/phase-4/README.md,
-// which reserves names/order, not literal numeric ids).
+// creation; this local filename is a pre-push naming guess).
 // OBS-1 (US-OBS-1-05, heartbeat only) — Every 5 minutes: confirm the
 // database is reachable and write one success event. The Health page
 // treats a heartbeat older than 15 minutes as "No heartbeat" (red) — see
 // webapp/protype-2/src/ops/healthStatus.ts.
 //
-// SCOPING NOTE: the epic also calls for a daily integrity-audit task
-// running the GOV-1 checks. GOV-1 is a later epic in the build order and
-// does not exist yet, so that task is deferred to GOV-1 rather than
-// stubbed here with no real checks to run. This heartbeat task is
-// self-contained and does not depend on GOV-1.
+// The daily integrity-audit half of US-OBS-1-05 now exists as
+// tasks/19_ops_integrity_audit.xs, built with GOV-1 (which supplies the
+// checks it runs).
 //
-// FIXED 2026-10-13 after a live push: `paging` on these queries is
-// dropped (confirmed broken — see functions/ops/build_diagnostic_bundle.xs
-// and apis/ops/2_ops_health_GET.xs for the same fix and why). These
-// three queries only need `|count`, which works fine on a plain
-// (unpaged) list, so no further change was needed beyond removing
-// `paging`.
+// FIXED TWICE after live pushes:
+// 1. `paging` dropped from the queries (it does not produce a plain
+//    array — see CLAUDE.md verified constraints).
+// 2. 2026-10-13: this task ran every 5 minutes for ~8 hours and wrote
+//    NOTHING, silently. Cause: `transform_timestamp` was called inside
+//    a db.query `where` clause. A where clause compiles to SQL and
+//    cannot call filter functions — it only takes fields, inputs and
+//    plain variables. The timestamp is now computed into $since_24h
+//    first and the where clause references the variable. Every
+//    computed value passed to log_event is likewise hoisted into its
+//    own var rather than written inline in the object literal.
+//    Caught by comparing event_log's row count against the number of
+//    rows this session created — the task history showed it running,
+//    but no events existed.
 task ops_heartbeat {
   stack {
+    var $since_24h {
+      value = now|transform_timestamp:"24 hours ago":"UTC"
+    }
+
     var $db_reachable {
       value = true
     }
@@ -42,7 +50,7 @@ task ops_heartbeat {
     }
 
     db.query event_log {
-      where = $db.event_log.outcome == "failure" && $db.event_log.created_at >= (now|transform_timestamp:"24 hours ago":"UTC")
+      where = $db.event_log.outcome == "failure" && $db.event_log.created_at >= $since_24h
       return = {type: "list"}
     } as $failures_24h
 
@@ -56,6 +64,26 @@ task ops_heartbeat {
       return = {type: "list"}
     } as $last_performer_event_rows
 
+    var $failures_count {
+      value = $failures_24h|count
+    }
+
+    var $publish_count {
+      value = $last_publish_rows|count
+    }
+
+    var $performer_count {
+      value = $last_performer_event_rows|count
+    }
+
+    var $has_last_publish {
+      value = $publish_count > 0
+    }
+
+    var $has_last_performer_event {
+      value = $performer_count > 0
+    }
+
     function.run "ops/log_event" {
       input = {
         feature : "OPS"
@@ -64,9 +92,9 @@ task ops_heartbeat {
         severity: "info"
         metadata: {
           db_reachable            : $db_reachable
-          failures_24h            : ($failures_24h|count)
-          has_last_publish        : (($last_publish_rows|count) > 0)
-          has_last_performer_event: (($last_performer_event_rows|count) > 0)
+          failures_24h            : $failures_count
+          has_last_publish        : $has_last_publish
+          has_last_performer_event: $has_last_performer_event
         }
       }
     } as $_logged

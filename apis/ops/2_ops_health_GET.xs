@@ -5,13 +5,14 @@
 // healthStatus(heartbeatAgeMs, openIssuesCount) on the frontend turns this
 // into green/amber/red — see webapp/protype-2/src/ops/healthStatus.ts.
 //
-// FIXED 2026-10-13 after a live push: the original version used
-// `paging` + `[0]` indexing to get "just the latest row", which this
-// workspace rejects ("Please use a numerically indexed array."). Fixed
-// with plain `return: {type: "list"}` (no paging) + a foreach loop that
-// keeps only the first row it sees (the list is sorted desc, so the
-// first row is the latest) — no indexing, no paging. See
-// functions/ops/build_diagnostic_bundle.xs for the same fix.
+// FIXED TWICE after live pushes (see CLAUDE.md verified constraints):
+// 1. `paging` + `[0]` indexing replaced with a plain list and a
+//    found-flag loop.
+// 2. 2026-10-13: `transform_timestamp` cannot be called inside a
+//    db.query `where` clause (the clause compiles to SQL). It is now
+//    computed into $since_24h first. This endpoint would have failed
+//    the very first time it was opened; it was caught while debugging
+//    the heartbeat task, which had the identical bug.
 query "ops/health" verb=GET {
   api_group = "Ops"
   auth = "user"
@@ -23,6 +24,10 @@ query "ops/health" verb=GET {
     function.run "ops/require_platform_admin" {
       input = {user_id: $auth.id}
     } as $_admin_check
+
+    var $since_24h {
+      value = now|transform_timestamp:"24 hours ago":"UTC"
+    }
 
     db.query event_log {
       where = $db.event_log.feature == "OPS" && $db.event_log.step == "heartbeat" && $db.event_log.outcome == "success"
@@ -55,19 +60,27 @@ query "ops/health" verb=GET {
     }
 
     db.query event_log {
-      where = $db.event_log.outcome == "failure" && $db.event_log.created_at >= (now|transform_timestamp:"24 hours ago":"UTC")
+      where = $db.event_log.outcome == "failure" && $db.event_log.created_at >= $since_24h
       return = {type: "list"}
     } as $failures_24h
 
     function.run "ops/group_issues" {
       input = {}
     } as $grouped
+
+    var $failures_count {
+      value = $failures_24h|count
+    }
+
+    var $open_issues_count {
+      value = $grouped.issues|count
+    }
   }
 
   response = {
-    last_heartbeat_at : $last_heartbeat_at
-    failures_24h      : ($failures_24h|count)
-    open_issues_count : ($grouped.issues|count)
-    checked_at        : now
+    last_heartbeat_at: $last_heartbeat_at
+    failures_24h     : $failures_count
+    open_issues_count: $open_issues_count
+    checked_at       : now
   }
 }

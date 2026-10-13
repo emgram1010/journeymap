@@ -24,6 +24,7 @@ test('UT-OBS-1-03: no jargon or raw codes leak into user_message', () => {
 test('UT-OBS-1-02: every E-XXX-NNN code referenced in the OBS-1 source files exists in the catalog', () => {
   const filesToScan = [
     ...listXsFiles(join(repoRoot, 'functions', 'ops')),
+    ...listXsFiles(join(repoRoot, 'functions', 'guards')),
     ...listXsFiles(join(repoRoot, 'apis', 'ops')),
     join(repoRoot, 'tasks', '16_ops_heartbeat.xs'),
   ];

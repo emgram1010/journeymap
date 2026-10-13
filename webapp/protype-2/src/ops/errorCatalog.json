@@ -18,5 +18,65 @@
     "owner": "engineer",
     "severity": "info",
     "fix_hint": "Check the Health page's issue list for the feature/step that is flooding, and fix the underlying front-end error."
+  },
+  "E-GOV-001": {
+    "code": "E-GOV-001",
+    "feature": "GOV-1",
+    "user_message": "You don't have access to this.",
+    "what_happened": "Someone tried to read or change something that belongs to a different account.",
+    "likely_cause": "A stale link or bookmark pointing at another account's data, or a bug passing the wrong id.",
+    "owner": "engineer",
+    "severity": "warn",
+    "fix_hint": "Check the Health page timeline for this Reference to see which entity and account were involved. If it keeps happening for a real user, a screen is probably loading an id it shouldn't have."
+  },
+  "E-GOV-002": {
+    "code": "E-GOV-002",
+    "feature": "GOV-1",
+    "user_message": "Those two things belong to different accounts, so they can't be linked.",
+    "what_happened": "An action tried to connect two records that live in different accounts.",
+    "likely_cause": "A picker or form offered an option from outside the current account.",
+    "owner": "engineer",
+    "severity": "warn",
+    "fix_hint": "Find the two entity ids on the Health page timeline for this Reference, then check which screen offered the cross-account option."
+  },
+  "E-GOV-003": {
+    "code": "E-GOV-003",
+    "feature": "GOV-1",
+    "user_message": "This can't be done while it's in its current state.",
+    "what_happened": "An action was attempted on something whose status doesn't allow it, for example editing a plan that is already live.",
+    "likely_cause": "The screen was showing an out-of-date status, usually because it hadn't been reloaded.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload the page to see the current status. If the status looks right and the action still fails, check the Health page for the expected states."
+  },
+  "E-GOV-004": {
+    "code": "E-GOV-004",
+    "feature": "GOV-1",
+    "user_message": "This has been archived, so it can't be changed.",
+    "what_happened": "A write was attempted against an archived record.",
+    "likely_cause": "The item was archived in another tab or by someone else since this screen was opened.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload to confirm it is archived. Archived items are kept for history on purpose and are never edited again."
+  },
+  "E-GOV-006": {
+    "code": "E-GOV-006",
+    "feature": "GOV-1",
+    "user_message": "The daily data check found records pointing at things that no longer exist.",
+    "what_happened": "The integrity audit found rows whose parent record has been deleted — for example journey cells still pointing at a map that is gone — or a stage whose owner key matches no row in its map.",
+    "likely_cause": "Something was deleted without cleaning up what pointed at it. The database does not enforce this on its own, which is why the audit exists.",
+    "owner": "engineer",
+    "severity": "warn",
+    "fix_hint": "Open the Health page and copy the diagnostic bundle. The counts show which check failed and how often. Orphans are safe to leave in place short-term (nothing reads them), but the delete path that created them needs a guard so it stops happening."
+  },
+  "E-GOV-005": {
+    "code": "E-GOV-005",
+    "feature": "GOV-1",
+    "user_message": "Someone else changed this. Reload to see the latest.",
+    "what_happened": "Two people edited the same record, and the second save was refused so it couldn't overwrite the first.",
+    "likely_cause": "Two tabs or two people working on the same plan at the same time.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload and redo the change. Nothing was lost: the refused save was never written."
   }
 }
