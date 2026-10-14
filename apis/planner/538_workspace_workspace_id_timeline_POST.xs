@@ -7,6 +7,18 @@
 // `created: false`. The unique index on (agent_id, planned_date) is
 // still what makes a duplicate impossible.
 //
+// ⚠️ AND IT HOLDS UNDER A RACE. The "does one already exist?" query
+// followed by an insert is check-then-act: two simultaneous clicks
+// both see nothing and both insert, and the unique index rejects the
+// loser. Confirmed live — two parallel creates returned one `200` and
+// one **`500 "Duplicate record detected"`**, a raw database string in
+// front of a user who did nothing wrong.
+// So the insert is wrapped: on a conflict the row is re-read and
+// returned as `created: false`, which is the same answer the slower
+// click would have got a moment later. Re-tested after the fix: both
+// callers got `200` with the same timeline id, one `created: true`
+// and one `created: false`, and exactly one row existed.
+//
 // OUT-OF-WINDOW DATES ARE ALLOWED. A date outside the plan's window is
 // created and flagged `out_of_window: true` for the UI to mark. People
 // plan outside their own window all the time, and refusing it would be
@@ -153,24 +165,56 @@ query "workspace/{workspace_id}/timeline" verb=POST {
       }
 
       else {
-        db.add planner_timeline {
-          data = {
-            workspace_id: $input.workspace_id
-            agent_id    : $input.agent_id
-            planned_date: $input.planned_date
-            start_time  : $start_time
-            status      : "draft"
+        try_catch {
+          try {
+            db.add planner_timeline {
+              data = {
+                workspace_id: $input.workspace_id
+                agent_id    : $input.agent_id
+                planned_date: $input.planned_date
+                start_time  : $start_time
+                status      : "draft"
+              }
+            } as $added
+
+            var.update $timeline {
+              value = $added
+            }
+
+            var.update $created {
+              value = true
+            }
           }
-        } as $added
+
+          catch {
+            // Lost the race. Whoever won created the identical day, so
+            // return theirs — the same answer this call would have got
+            // a moment later.
+            debug.log {
+              value = "timeline for this agent and date was created concurrently; returning the existing one"
+            }
+          }
+        }
+      }
+    }
+
+    // Re-read when the insert did not happen, which covers both the
+    // race above and any other reason the row already existed.
+    conditional {
+      if ($created == false && $timeline == null) {
+        db.query planner_timeline {
+          where = $db.planner_timeline.agent_id == $input.agent_id && $db.planner_timeline.planned_date == $input.planned_date
+          return = {type: "list"}
+        } as $after_race
 
         var.update $timeline {
-          value = $added
+          value = $after_race|first
         }
+      }
+    }
 
-        var.update $created {
-          value = true
-        }
-
+    conditional {
+      if ($created == true) {
         function.run "ops/log_event" {
           input = {
             feature       : "PLN-6"
@@ -180,7 +224,7 @@ query "workspace/{workspace_id}/timeline" verb=POST {
             user_id       : $actor.user_id
             account_id    : $actor.account_id
             entity_type   : "planner_timeline"
-            entity_id     : $added.id
+            entity_id     : $timeline.id
             correlation_id: $input.correlation_id
             message       : "Timeline created."
           }

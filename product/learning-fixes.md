@@ -504,18 +504,50 @@ All eight cases plus the two positive-path checks were green both times.
 
 ---
 
-## 🔴 Needs your approval: the planner's delete paths are written but not pushed
+## 🔴 Needs your approval: five delete paths + one nightly job, all written, none pushed
 
-Two of them now, and the same question blocks both. CLAUDE.md says to
-ask before any delete, and the session's permission layer independently
-refused the pushes.
+The planner backend is otherwise complete. Everything below is written,
+reviewed and commented; none of it has been pushed, because CLAUDE.md
+says to ask before any delete, and the session's permission layer
+independently refused those pushes too.
 
-- **Ready for review:** `functions/planner/delete_workspace_cascade.xs`
-  (children first, one `db.transaction`, counts taken before deleting)
-  and `functions/planner/delete_model_guard.xs` (refuses while any
-  agent still references the model, and names them).
-- **Blocks:** FT-PLN-3-07/08/09 and US-PLN-3-04/05; FT-PLN-4-08/09 and
-  US-PLN-4-05.
+| File | What it does | Blocks |
+|---|---|---|
+| `functions/planner/delete_workspace_cascade.xs` | Delete a plan and its children | FT-PLN-3-07/08/09 |
+| `functions/planner/delete_model_guard.xs` | Refuse to delete a model agents still use, naming them | FT-PLN-4-08/09 |
+| `functions/planner/delete_agent_cascade.xs` | Remove an agent, returning their work to the backlog | FT-PLN-5-07/08/09 |
+| `functions/planner/delete_timeline_cascade.xs` | Delete a day, returning its tasks to the backlog | FT-PLN-6-11 |
+| `functions/planner/delete_task.xs` | Delete one task and close the gap | FT-PLN-7-16 |
+| `tasks/20_planner_integrity_audit.xs` | Nightly audit across accounts | FT-PLN-8-07 |
+
+**Three things worth knowing before you decide:**
+
+1. **Only `delete_task` actually destroys work.** Deleting a plan, an
+   agent or a timeline all keep every task — they move to the backlog.
+   That one deserves a confirmation step in the UI; the others do not.
+
+2. **The risky half of each cascade is already proven.**
+   `planner/return_tasks_to_backlog` and `planner/resequence` contain
+   no deletes, so they were pushed and tested. What remains unverified
+   is only the `db.del` calls themselves.
+
+3. **`PLN-8`'s audit is the thing that will check them.** It is live
+   and already catches orphans, cross-workspace links and seq gaps — so
+   when the deletes are approved, the way to verify them is: run a
+   cascade on the throwaway fixture (account 6, plans 4 and 5), then
+   run `GET planner/workspace/integrity` and expect `clean: true`.
+
+**One genuine unknown remains:** whether `db.del` removes every
+matching row or only the first. `db.patch` provably removes only the
+first (see below), and all five files are written on the assumption
+that `db.del` behaves the same — looping and deleting by id. That
+assumption should be confirmed on the fixture before the cascades are
+trusted.
+
+**The nightly job** is separate from the deletes: it is standing
+configuration rather than a destructive action, and the only reason it
+is held is that a recurring job runs unattended forever once created.
+It should not share an hour with `19_ops_integrity_audit`.
 - **Already prepared:** a throwaway plan (account 6, ws 4 — 2 agents,
   3 timelines, 6 tasks, 2 backlog) and a sibling plan (ws 5) that must
   survive, so verification is one push and one test run.
