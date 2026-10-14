@@ -11,7 +11,7 @@
 // backend behaviour fails loudly, right here.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {validate, type FieldRule} from './validate';
+import {validate, isValidationFailure, type FieldRule} from './validate';
 
 interface GoldenCase {
   label: string;
@@ -76,6 +76,6 @@ for (const c of GOLDEN_CASES) {
     const result = validate(c.raw, c.rule);
     assert.equal(result.ok, c.expected.ok);
     if (result.ok && c.expected.value !== undefined) assert.equal(result.value, c.expected.value);
-    if (!result.ok && c.expected.code !== undefined) assert.equal(result.code, c.expected.code);
+    if (isValidationFailure(result) && c.expected.code !== undefined) assert.equal(result.code, c.expected.code);
   });
 }

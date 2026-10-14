@@ -40,6 +40,24 @@ export type ValidateResult =
   | {ok: true; value: string | number}
   | {ok: false; code: string; message: string};
 
+export type ValidationFailure = {ok: false; code: string; message: string};
+export type ValidationSuccess = {ok: true; value: string | number};
+
+/**
+ * Narrowing helpers. `if (result.ok)` does NOT discriminate this union in
+ * this project, because tsconfig.json does not enable strictNullChecks and
+ * without it TypeScript cannot tell the `ok: true` branch from `ok: false`.
+ * A user-defined type guard works either way, so callers use these instead
+ * of testing `.ok` directly.
+ */
+export function isValidationFailure(result: ValidateResult): result is ValidationFailure {
+  return result.ok === false;
+}
+
+export function isValidationSuccess(result: ValidateResult): result is ValidationSuccess {
+  return result.ok === true;
+}
+
 const HTML_TAG_PATTERN = /<[a-zA-Z][^>]*>/;
 
 function parseNumber(raw: string): number | null {

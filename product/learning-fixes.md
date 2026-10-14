@@ -318,7 +318,7 @@ shows it.
 
 ---
 
-## 🔴 Needs a decision: `npm run lint` was blind, and there are 46 pre-existing type errors behind it
+## ✅ Fixed 2026-10-14: `npm run lint` was blind, and `@types/react` had never been installed
 
 `webapp/protype-2/e2e/chat-session-crud.spec.ts` was **truncated** — 148
 lines ending mid-block, missing the closing `});` for its `test.describe`.
@@ -338,22 +338,53 @@ Fixed the brace (2026-10-14). The type-check then ran for real and found
 | `xano.ts` | `XanoJourneyMap` widened `map_level` to `string` while extending `JourneySettings`, which narrows it — an invalid override |
 | `xano.ts` | **A real defect:** `authXanoRequest` constructed `XanoHttpError` without the required correlation id, so auth failures carried no Reference for the user to quote. Now generates and sends one like every other request |
 
-**The remaining 46 are pre-existing and untouched**, in code this session
-never opened:
+The other 46 were pre-existing, in code this session had never opened. All
+46 are now fixed too — **`npm run lint` exits 0 for the first time**.
 
-| Area | Count |
-|---|---|
-| `src/planner/components/*` (phase-3 planner UI) | 31 |
-| `e2e/chat-validation.spec.ts` | 4 |
-| `ArchitectureDetail`, `ScenariosTab`, `Dashboard`, `ArchitectureDashboard` | 7 |
-| `validation/formValidation.ts`, `validate.goldenFixtures.test.ts` | 3 |
-| `ops/logEvent.ts` | 1 |
+**The root cause of most of them: `@types/react` was never installed.**
+React 19 ships no type definitions of its own, and nothing in
+`package.json` supplied them, so for the whole life of this codebase the
+entire React API has been implicitly `any`. That is what produced:
 
-**Needs a decision, because the gate is still red either way:** clear all
-46 as a dedicated pass (most are in phase-3 planner code, which step 8 of
-the build order will touch anyway), or scope the lint script to the
-phase-4 surface and track the rest separately. Leaving it as-is means
-every future "lint is green except the known failure" is meaningless.
+| Symptom | Count | Real cause |
+|---|---|---|
+| `Cannot find namespace 'React'` in 7 planner components | 31 | no React types |
+| `Property 'key' does not exist on type 'XProps'` | 3 | no JSX typings, so React's reserved `key` prop wasn't known |
+| `Array.from(selected)` degrading to `unknown[]` in `ScenariosTab` | 2 | `useState<Set<number>>`'s generic was lost through an untyped hook |
+
+Installing `@types/react` / `@types/react-dom` (v19, dev-only) fixed those
+and — the genuinely surprising part — **surfaced nothing new**. The fear
+was that real types would expose hundreds of latent errors; the count went
+straight from 3 to 0. The code was written correctly; it had simply never
+been checked.
+
+The rest were real and are fixed:
+
+- **`ops/logEvent.ts` — a live bug, not a type nit.** It does
+  `const {xanoRequest} = await import('../xano')`, but `xanoRequest` was
+  never exported, so the import resolved to `undefined` and **every
+  client-side event send threw**. OBS-1's browser event pipeline has never
+  delivered a single event; `failure` events were accumulating in the
+  localStorage offline buffer (`ops_offline_event_buffer`) with no way to
+  drain, since flushing used the same broken call. Fixed by exporting it.
+- **`e2e/chat-validation.spec.ts` ×4:** called `openChat(page)`, but this
+  file's helper is named `openFreshChat`. A second broken spec, hidden
+  behind the first.
+- **`validation/*` ×3:** `if (result.ok)` does not discriminate
+  `ValidateResult` here, because **tsconfig.json enables neither `strict`
+  nor `strictNullChecks`**. Added explicit `isValidationFailure` /
+  `isValidationSuccess` type guards, which narrow regardless of strictness.
+- **`ArchitectureDetail` ×2:** optimistic rows cast a clone *summary* to a
+  full `XanoJourneyMap`. Now cast through `unknown` with a comment, which
+  is what is actually happening.
+
+### Still worth deciding later (not urgent)
+
+`tsconfig.json` has no `strict`, `strictNullChecks` or `noImplicitAny`.
+The gate is green, but it is a weak gate — the `ValidateResult` narrowing
+failure above is exactly the kind of thing it lets through. Turning
+`strict` on now would be a large, separate piece of work; worth doing
+deliberately rather than as a side effect.
 
 ---
 

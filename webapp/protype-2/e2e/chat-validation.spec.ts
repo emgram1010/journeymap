@@ -111,7 +111,7 @@ test.describe('AI Chat — tool & context validation', () => {
   });
 
   test('T2 · gap analysis — AI identifies empty cells', async ({ page }) => {
-    const textarea = await openChat(page);
+    const textarea = await openFreshChat(page);
     const result = await sendAndWait(page, textarea,
       "Where are the biggest gaps in my journey map? What's missing?");
 
@@ -128,7 +128,7 @@ test.describe('AI Chat — tool & context validation', () => {
   });
 
   test('T3 · interview mode — AI asks a focused question and writes to cells', async ({ page }) => {
-    const textarea = await openChat(page);
+    const textarea = await openFreshChat(page);
 
     // Switch to interview mode first
     const interviewBtn = page.locator('button', { hasText: 'Interview' });
@@ -150,7 +150,7 @@ test.describe('AI Chat — tool & context validation', () => {
   });
 
   test('T4 · cell-level context — AI reasons about a specific stage/lens', async ({ page }) => {
-    const textarea = await openChat(page);
+    const textarea = await openFreshChat(page);
     const result = await sendAndWait(page, textarea,
       "Tell me about Stage 1. What's filled in there and what's still empty?");
 
@@ -165,7 +165,7 @@ test.describe('AI Chat — tool & context validation', () => {
   });
 
   test('T5 · no errors on any turn — error banners never appear', async ({ page }) => {
-    const textarea = await openChat(page);
+    const textarea = await openFreshChat(page);
 
     const questions = [
       "What's the overall completion percentage of my map?",

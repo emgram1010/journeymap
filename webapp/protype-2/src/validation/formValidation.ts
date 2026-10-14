@@ -3,7 +3,7 @@
 // unit-testable (this repo has no DOM-rendering test setup — see
 // CLAUDE.md — so UI components stay thin wrappers around pure logic
 // like this, checked by inspection rather than a render test).
-import {validate, type FieldRule, type ValidateResult} from './validate';
+import {validate, isValidationFailure, type FieldRule, type ValidateResult} from './validate';
 
 export interface FormFieldState {
   value: string;
@@ -19,9 +19,11 @@ export function runFormValidation(values: Record<string, string>, rules: Record<
   for (const [key, rule] of Object.entries(rules)) {
     const raw = values[key] ?? '';
     const result: ValidateResult = validate(raw, rule);
-    state[key] = result.ok
-      ? {value: String(result.value), error: null, code: null}
-      : {value: raw, error: result.message, code: result.code};
+    if (isValidationFailure(result)) {
+      state[key] = {value: raw, error: result.message, code: result.code};
+    } else {
+      state[key] = {value: String(result.value), error: null, code: null};
+    }
   }
   return state;
 }

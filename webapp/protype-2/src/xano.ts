@@ -633,7 +633,13 @@ export class XanoHttpError extends Error {
   }
 }
 
-async function xanoRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+// Exported for ops/logEvent.ts, which lazily imports it to avoid a circular
+// dependency. It was NOT exported before, so that import resolved to
+// undefined and every client-side event send threw — OBS-1's browser event
+// pipeline had never delivered anything, and `failure` events were piling up
+// in the localStorage offline buffer with no way to drain. Invisible until
+// the truncated e2e spec stopped blocking the type-check.
+export async function xanoRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const {method = 'GET', body, signal} = options;
   const token = getAuthToken();
   const correlationId = newCorrelationId();
