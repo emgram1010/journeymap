@@ -178,5 +178,55 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Reload and redo the change. Nothing was lost: the refused save was never written."
+  },
+  "E-STAGE-001": {
+    "code": "E-STAGE-001",
+    "feature": "STAGE-1",
+    "user_message": "Pick an owner from this map's rows.",
+    "what_happened": "A stage was saved with an owner that is not one of the rows on that map.",
+    "likely_cause": "The owner picker was showing a row from a different map, usually because the page was left open while the map changed.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload the map and pick the owner again. If the right row genuinely isn't in the list, add it to the map first."
+  },
+  "E-PUB-001": {
+    "code": "E-PUB-001",
+    "feature": "PUB-1",
+    "user_message": "This map isn't ready yet. Open the checklist to see what needs attention.",
+    "what_happened": "Publish was refused because the map did not pass the readiness gate.",
+    "likely_cause": "Something on the checklist is still missing: a title, a stage owner, a task, or an expected duration.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Open the checklist on the map. Every unticked item is a thing to fill in. Nothing was published and nothing was lost."
+  },
+  "E-PUB-003": {
+    "code": "E-PUB-003",
+    "feature": "PUB-1",
+    "user_message": "This saved version doesn't match its own record. Someone should look into it.",
+    "what_happened": "A published version's stored content no longer matches the fingerprint taken when it was published.",
+    "likely_cause": "The row was changed outside the publish path: a direct database edit, a restore gone wrong, or tampering.",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "Do not edit the row. Copy the diagnostic bundle from the Health page. Published versions are meant to be permanent and unchangeable, so a mismatch means something wrote to the table directly and that write needs finding."
+  },
+  "E-PUB-004": {
+    "code": "E-PUB-004",
+    "feature": "PUB-1",
+    "user_message": "You don't have access to this map.",
+    "what_happened": "Someone asked for a map's readiness or published versions while not being its owner.",
+    "likely_cause": "A stale link or bookmark pointing at someone else's map, or a bug passing the wrong map id.",
+    "owner": "engineer",
+    "severity": "warn",
+    "fix_hint": "Check the Health page timeline for this Reference to see which map and user were involved. If it keeps happening for a real user, a screen is loading an id it shouldn't have."
+  },
+  "E-PUB-005": {
+    "code": "E-PUB-005",
+    "feature": "PUB-1",
+    "user_message": "This map is archived and can't be published.",
+    "what_happened": "Publish was refused because the map's status is archived.",
+    "likely_cause": "The map was archived earlier, and a page left open still shows its Publish button.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Un-archive the map first if it should still be in use. Nothing was published."
   }
 }

@@ -21,11 +21,27 @@ test('UT-OBS-1-03: no jargon or raw codes leak into user_message', () => {
   }
 });
 
-test('UT-OBS-1-02: every E-XXX-NNN code referenced in the OBS-1 source files exists in the catalog', () => {
+// Every backend directory that may raise a user-visible error code.
+//
+// This list started as OBS-1's own three directories, which left PUB-1's
+// and STAGE-1's codes unscanned — E-PUB-001/003/004/005 and E-STAGE-001
+// were live in endpoints with no catalog entry, so the Health page could
+// not explain them and a user quoting that Reference would have got
+// nothing. Found while starting PLN-3. Add new directories here as they
+// appear; the point of the test is defeated if the list goes stale.
+const BACKEND_CODE_DIRS = [
+  ['functions', 'ops'],
+  ['functions', 'guards'],
+  ['functions', 'pub'],
+  ['functions', 'planner'],
+  ['apis', 'ops'],
+  ['apis', 'planner'],
+  ['apis', 'journey_map'],
+];
+
+test('UT-OBS-1-02: every E-XXX-NNN code referenced in the backend source files exists in the catalog', () => {
   const filesToScan = [
-    ...listXsFiles(join(repoRoot, 'functions', 'ops')),
-    ...listXsFiles(join(repoRoot, 'functions', 'guards')),
-    ...listXsFiles(join(repoRoot, 'apis', 'ops')),
+    ...BACKEND_CODE_DIRS.flatMap((parts) => listXsFiles(join(repoRoot, ...parts))),
     join(repoRoot, 'tasks', '16_ops_heartbeat.xs'),
   ];
 
