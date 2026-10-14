@@ -1079,6 +1079,61 @@ export async function updateLensActorFields(input: UpdateLensActorFieldsInput): 
   );
 }
 
+// ── PUB-1: publish gate and immutable versions ──────────────────────────
+
+/** One blocker from the publish gate (or the readiness check behind it). */
+export interface GateFailure {
+  code: string;
+  stage_key: string | null;
+  lens_key: string | null;
+  message: string;
+}
+
+export interface MapReadinessResponse {
+  ready: boolean;
+  blockers: GateFailure[];
+  warnings: GateFailure[];
+  ready_count: number;
+  total: number;
+  gate_failures: GateFailure[];
+}
+
+export interface PublishedVersion {
+  id: number;
+  version_no: number;
+  content_hash: string;
+  published_at: number | string | null;
+  published_by: number | null;
+  automation_snapshot_id: number | null;
+  stage_count?: number;
+}
+
+export interface PublishResult {
+  journey_map?: XanoJourneyMap;
+  version?: number;
+  /** Null when the publish_gate flag is off — then this endpoint behaves exactly as it did before PUB-1. */
+  map_version?: PublishedVersion | null;
+  gate?: {ready: boolean; gate_failures: GateFailure[]; warnings: GateFailure[]} | null;
+}
+
+/** The server's own readiness check. Mirrors readiness.ts, plus the publish-only "real title" rule. */
+export const getMapReadiness = (journeyMapId: number) =>
+  xanoRequest<MapReadinessResponse>(`/journey_map/${journeyMapId}/readiness`);
+
+/** Frozen version history for a map, newest first. */
+export const listMapVersions = (journeyMapId: number) =>
+  xanoRequest<{journey_map_id: number; count: number; latest_hash: string | null; versions: PublishedVersion[]}>(
+    `/journey_map/${journeyMapId}/versions`,
+  );
+
+/**
+ * Publish version. Rejects with a 400 carrying E-PUB-001 when the gate is on
+ * and the map isn't ready — the thrown XanoHttpError's message holds the
+ * friendly text, and the caller should re-read readiness to list the reasons.
+ */
+export const publishMapVersion = (journeyMapId: number) =>
+  xanoRequest<PublishResult>(`/journey_map/${journeyMapId}/publish`, {method: 'POST', body: {}});
+
 /** AUTH-1 — a single stage-ownership row. journey_stage itself has no owner_lens_id column (STAGE-1's side-table workaround), so the plain stage list/bundle endpoints never return it — this is the only source. */
 export interface XanoJourneyStageOwner {
   id: number;

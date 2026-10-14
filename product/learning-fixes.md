@@ -180,6 +180,41 @@ touched-cell check fooled by decimal columns defaulting to 0, and the
 planned-work toggle wrongly showing on non-actor rows) — all documented in
 CLAUDE.md and the epic files so they aren't rediscovered.
 
+## 🟡 Rollout gap: a brand-new account's maps have `account_id = 0`, so no feature flag can ever reach them
+
+Found while testing PUB-1's gate (2026-10-14). `ops/feature_enabled` keys
+on `account_id` and treats `0` as "no account, flag off". The founder's
+real map 178 has `account_id = 2`, so flags work there — but a map created
+through the UI by a freshly registered account came out with
+`account_id = 0`, meaning **no feature flag can ever be switched on for
+it**, including `publish_gate` and `required_fields_ui`.
+
+This is a registration/map-creation gap, not a PUB-1 one: something in the
+signup → create-architecture → create-map path never sets `account_id`.
+**Needs:** decide where account_id should be stamped (most likely at map
+creation, from the owner's account) and backfill any maps sitting at 0.
+Until then, flag-gated features silently stay off for those maps.
+
+---
+
+## 🟡 No way to run a `workflow_test` from a session
+
+`runUnitTest` only accepts unit tests attached to a function/query/
+middleware — passing a workflow-test id returns "Unit test not found" —
+and the MCP surface exposes no `runWorkflowTest`. So `workflow_tests/*.xs`
+files can be written and pushed but never executed from here. This now
+affects `16_publish_version.xs` (PUB-1) as well as the older
+`25_observability.xs`, and it is why FT-PUB-1-13 (the `workflow_tests/1–9`
+regression sweep) could not be run.
+
+**Compensated by:** driving every assertion in `16_publish_version.xs`
+individually through `runWorkspaceFunction` — all passed. **Needs:** a way
+to run workflow tests (a Xano dashboard run, a CI step, or a different
+tool) before the completion gates that depend on them can be honestly
+called green.
+
+---
+
 **Still open:** `ai/tool/update_stage_contract.xs` (tool 70)'s own
 MCP-call assembly remains unverified end-to-end — this pass covered the
 HTTP/browser path (endpoints 211, 517), not the AI-tool-call path. Same

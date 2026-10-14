@@ -99,6 +99,9 @@ import {
   listJourneyLensPlannedWork,
   setLensPlannedWork,
   listJourneyStageOwners,
+  publishMapVersion,
+  getMapReadiness,
+  type GateFailure,
 } from './xano';
 import {doesPlannedWork} from './stageOwnerModel';
 import {computeMapReadiness, type ReadinessLensInput, type ReadinessStageInput, type ReadinessCellInput} from './readiness';
@@ -573,6 +576,8 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const [isLeakagePanelOpen, setIsLeakagePanelOpen] = useState(false);
   const [isChecklistOpen, setIsChecklistOpen] = useState(false);
   const [publishStubMessage, setPublishStubMessage] = useState<string | null>(null);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [serverBlockers, setServerBlockers] = useState<GateFailure[] | null>(null);
   // ── Scorecard / Health Widget (US-MET-12/14) ──
   const [scorecard, setScorecard] = useState<ScorecardResult | null>(null);
   const [scorecardBaseline, setScorecardBaseline] = useState<ScorecardResult | null>(null);
@@ -740,6 +745,43 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     return () => {
       cancelled = true;
     };
+  }, [journeyMapRecord?.id]);
+
+  // PUB-1 (US-PUB-1-02/06) — Publish version. The button is already disabled
+  // while the browser's own readiness says no, but the server checks again
+  // and is the one that decides: if it refuses, its reasons replace the
+  // local ones in the checklist, because the server saw the saved data and
+  // the browser only sees what's on screen.
+  const handlePublishVersion = useCallback(async () => {
+    if (!journeyMapRecord?.id) return;
+    setIsPublishing(true);
+    setXanoError(null);
+    setServerBlockers(null);
+    try {
+      const result = await publishMapVersion(journeyMapRecord.id);
+      const versionNo = result.map_version?.version_no;
+      setPublishStubMessage(
+        versionNo != null
+          ? `Published version ${versionNo}. This version is frozen — live work pins to it.`
+          : 'Published. (The publish gate is off for this account, so no version was frozen.)',
+      );
+      setJourneyMapRecord((current) => (current ? {...current, status: 'active'} : current));
+    } catch (error) {
+      // A gate refusal is a 400 with E-PUB-001; re-read the server's own
+      // reasons so the checklist shows exactly what IT objected to.
+      try {
+        const readiness = await getMapReadiness(journeyMapRecord.id);
+        if (!readiness.ready) {
+          setServerBlockers(readiness.blockers);
+          setIsChecklistOpen(true);
+        }
+      } catch {
+        // Readiness is only here to explain a failure; never let it mask one.
+      }
+      setXanoError(getErrorMessage(error, 'Unable to publish this version.'));
+    } finally {
+      setIsPublishing(false);
+    }
   }, [journeyMapRecord?.id]);
 
   const handleTogglePlannedWork = useCallback(
@@ -2258,20 +2300,20 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                       Checklist
                     </button>
                   )}
-                  {/* AUTH-1 (US-AUTH-1-06) — the gate itself is PUB-1; this is the state only */}
+                  {/* AUTH-1 (US-AUTH-1-06) shows the state; PUB-1 (US-PUB-1-02) does the publish. */}
                   {mapReadiness.total > 0 && (
                     <button
-                      disabled={!mapReadiness.ready}
-                      onClick={() => setPublishStubMessage('Publish version is coming in a future update (PUB-1). This map is ready to publish once that\'s built.')}
+                      disabled={!mapReadiness.ready || isPublishing || !journeyMapRecord?.id}
+                      onClick={() => void handlePublishVersion()}
                       title={
                         mapReadiness.ready
-                          ? 'Ready to publish'
+                          ? 'Freeze this map as a version'
                           : `${mapReadiness.total - mapReadiness.readyCount} stage${mapReadiness.total - mapReadiness.readyCount === 1 ? '' : 's'} not ready`
                       }
                       className="inline-flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-[11px] font-semibold transition-colors border-zinc-900 bg-zinc-900 text-white hover:bg-zinc-700 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400"
                     >
                       <Rocket className="h-3.5 w-3.5" />
-                      Publish Version
+                      {isPublishing ? 'Publishing…' : 'Publish Version'}
                     </button>
                   )}
                   {/* TL-5: Leakage panel toggle — L3 atomic only */}
@@ -2524,6 +2566,19 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                       </button>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                      {/* PUB-1 — when the server refused a publish, its reasons
+                          win: it checked the saved data, not the screen. */}
+                      {serverBlockers && serverBlockers.length > 0 && (
+                        <div className="p-3 rounded border border-rose-200 bg-rose-50 space-y-1.5">
+                          <div className="text-[11px] font-semibold text-rose-900">The server refused this publish</div>
+                          {serverBlockers.map((blocker, index) => (
+                            <div key={`${blocker.code}-${blocker.stage_key ?? 'map'}-${index}`} className="text-[11px] text-rose-700">
+                              {blocker.stage_key ? `${blocker.stage_key}: ` : ''}
+                              {blocker.message}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {mapReadiness.mapReasons.length > 0 && (
                         <div className="p-3 rounded border border-amber-200 bg-amber-50 text-[11px] text-amber-800 space-y-1">
                           {mapReadiness.mapReasons.map((reason) => (

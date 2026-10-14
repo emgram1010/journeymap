@@ -2,6 +2,18 @@
 // (confirmed stage_automation_config + journey_link graph), and pushes to all
 // registered automation_connection webhook URLs.
 // Compile is atomic — snapshot only updates if compile succeeds without error.
+//
+// PUB-1: behind the account flag `publish_gate`, this endpoint also
+// (a) refuses to publish a map that isn't ready, before writing anything,
+// and (b) freezes an immutable journey_map_version row in the same
+// transaction as the status change and the automation snapshot.
+// With the flag OFF the behaviour is exactly what it was before PUB-1:
+// no gate, no version row.
+//
+// The status change moved: it used to run before the compile, which left a
+// map marked active with a stale snapshot whenever the compile failed. It
+// is now inside the transaction with the snapshot and the version, so the
+// three either all land or none do (US-PUB-1-03, GOV-1 atomicity).
 query "journey_map/{journey_map_id}/publish" verb=POST {
   api_group = "journey-map"
   auth = "user"
@@ -11,28 +23,117 @@ query "journey_map/{journey_map_id}/publish" verb=POST {
   }
 
   stack {
+    // `|to_int` up front: bare `now` is a numeric ms timestamp, but inside
+    // an object literal it is parsed as the magic "now" token instead, so
+    // the subtraction has to happen in a var (confirmed live — the first
+    // push of this endpoint failed with "Not numeric." doing it inline).
+    var $started_at {
+      value = now|to_int
+    }
+
     db.get journey_map {
       field_name = "id"
       field_value = $input.journey_map_id
     } as $journey_map
-  
+
     precondition ($journey_map != null) {
       error_type = "notfound"
       error = "Journey map not found"
     }
-  
+
     precondition ($journey_map.owner_user == $auth.id) {
       error_type = "accessdenied"
       error = "Access denied"
     }
-  
-    // Mark map as active
-    db.patch journey_map {
-      field_name = "id"
-      field_value = $input.journey_map_id
-      data = {status: "active", updated_at: "now"}
-    } as $updated_map
-  
+
+    // ── PUB-1 gate (flagged) ─────────────────────────────────────────────────
+    // Everything in this block runs BEFORE the first write, so a rejection
+    // leaves the map exactly as it was: still draft, no version, no compile,
+    // no webhook (US-PUB-1-02).
+    function.run "ops/feature_enabled" {
+      input = {
+        account_id: $journey_map.account_id
+        flag_key  : "publish_gate"
+      }
+    } as $gate_flag
+
+    var $gate {
+      value = null
+    }
+
+    var $frozen_snapshot {
+      value = null
+    }
+
+    conditional {
+      if ($gate_flag.enabled == true) {
+        conditional {
+          if ($journey_map.status == "archived") {
+            function.run "ops/log_event" {
+              input = {
+                feature    : "PUB-1"
+                step       : "publish_version"
+                outcome    : "rejected"
+                severity   : "info"
+                error_code : "E-PUB-005"
+                message    : "Publish refused: the map is archived."
+                user_id    : $auth.id
+                account_id : $journey_map.account_id
+                entity_type: "journey_map"
+                entity_id  : $input.journey_map_id
+              }
+            } as $_archived_logged
+          }
+        }
+
+        precondition ($journey_map.status != "archived") {
+          error_type = "inputerror"
+          error = "This map is archived and can't be published. (E-PUB-005)"
+        }
+
+        function.run "pub/build_map_snapshot" {
+          input = {journey_map_id: $input.journey_map_id}
+        } as $snapshot_result
+
+        var.update $frozen_snapshot {
+          value = $snapshot_result.snapshot
+        }
+
+        function.run "pub/evaluate_gate" {
+          input = {snapshot: $snapshot_result.snapshot}
+        } as $gate_result
+
+        var.update $gate {
+          value = $gate_result
+        }
+
+        conditional {
+          if ($gate_result.ready != true) {
+            function.run "ops/log_event" {
+              input = {
+                feature    : "PUB-1"
+                step       : "publish_version"
+                outcome    : "rejected"
+                severity   : "info"
+                error_code : "E-PUB-001"
+                message    : "Publish refused: the map isn't ready yet."
+                user_id    : $auth.id
+                account_id : $journey_map.account_id
+                entity_type: "journey_map"
+                entity_id  : $input.journey_map_id
+                metadata   : {blocker_count: ($gate_result.gate_failures|count), ready_count: $gate_result.ready_count, total: $gate_result.total}
+              }
+            } as $_gate_logged
+          }
+        }
+
+        precondition ($gate_result.ready == true) {
+          error_type = "inputerror"
+          error = "This map isn't ready yet. Open the checklist to see what needs attention. (E-PUB-001)"
+        }
+      }
+    }
+
     // ── Compile step ─────────────────────────────────────────────────────────
     // Load all confirmed stage configs for this map
     db.query stage_automation_config {
@@ -229,36 +330,125 @@ query "journey_map/{journey_map_id}/publish" verb=POST {
       }
     }
   
-    // Upsert snapshot
+    // ── PUB-1: work out the next version number and hash BEFORE the write ───
+    // Both are read-only/pure, so they stay outside the transaction and
+    // keep it to plain database writes.
+    var $map_version_no {
+      value = 0
+    }
+
+    var $map_version_hash {
+      value = null
+    }
+
     conditional {
-      if ($existing_snapshot != null) {
-        db.patch automation_snapshot {
-          field_name = "id"
-          field_value = $existing_snapshot.id
-          data = {
-            graph      : $graph
-            version    : $new_version
-            compiled_at: "now"
+      if ($gate_flag.enabled == true) {
+        db.query journey_map_version {
+          where = $db.journey_map_version.journey_map_id == $input.journey_map_id
+          return = {type: "list"}
+        } as $existing_versions
+
+        var $max_version_no {
+          value = 0
+        }
+
+        foreach ($existing_versions) {
+          each as $prev_version {
+            conditional {
+              if ($prev_version.version_no > $max_version_no) {
+                var.update $max_version_no {
+                  value = $prev_version.version_no
+                }
+              }
+            }
           }
-        } as $snapshot
-      }
-    
-      else {
-        db.add automation_snapshot {
-          enforce_hidden_fields = false
-          data = {
-            created_at          : "now"
-            compiled_at         : "now"
-            journey_map         : $input.journey_map_id
-            journey_architecture: $journey_map.journey_architecture
-            version             : $new_version
-            graph               : $graph
-            owner_user          : $journey_map.owner_user
-          }
-        } as $snapshot
+        }
+
+        // Two publishes racing would compute the same number; the unique
+        // index on (journey_map_id, version_no) makes the loser fail, which
+        // fails its publish. That is the correct outcome — better a retry
+        // than two rows claiming to be the same version.
+        var.update $map_version_no {
+          value = $max_version_no + 1
+        }
+
+        function.run "pub/canonical_hash" {
+          input = {snapshot: $frozen_snapshot}
+        } as $hash_result
+
+        var.update $map_version_hash {
+          value = $hash_result.hash
+        }
       }
     }
-  
+
+    var $map_version {
+      value = null
+    }
+
+    db.transaction {
+      description = "PUB-1: the status change, the automation snapshot and the frozen version all land, or none do"
+      stack {
+        db.patch journey_map {
+          field_name = "id"
+          field_value = $input.journey_map_id
+          data = {status: "active", updated_at: "now"}
+        } as $updated_map
+
+        conditional {
+          if ($existing_snapshot != null) {
+            db.patch automation_snapshot {
+              field_name = "id"
+              field_value = $existing_snapshot.id
+              data = {
+                graph      : $graph
+                version    : $new_version
+                compiled_at: "now"
+              }
+            } as $snapshot
+          }
+
+          else {
+            db.add automation_snapshot {
+              enforce_hidden_fields = false
+              data = {
+                created_at          : "now"
+                compiled_at         : "now"
+                journey_map         : $input.journey_map_id
+                journey_architecture: $journey_map.journey_architecture
+                version             : $new_version
+                graph               : $graph
+                owner_user          : $journey_map.owner_user
+              }
+            } as $snapshot
+          }
+        }
+
+        conditional {
+          if ($gate_flag.enabled == true) {
+            db.add journey_map_version {
+              enforce_hidden_fields = false
+              data = {
+                created_at            : "now"
+                journey_map_id        : $input.journey_map_id
+                version_no            : $map_version_no
+                snapshot              : $frozen_snapshot
+                content_hash          : $map_version_hash
+                readiness_report      : $gate
+                automation_snapshot_id: $snapshot.id
+                published_by          : $auth.id
+                published_at          : "now"
+              }
+            } as $written_version
+
+            var.update $map_version {
+              value = $written_version
+            }
+          }
+        }
+      }
+    }
+
     // ── IL-01-03: Auto-generate ai_summary via LLM ───────────────────────────
     // Build stage label list for the prompt
     var $summary_stage_labels {
@@ -417,6 +607,32 @@ query "journey_map/{journey_map_id}/publish" verb=POST {
         }
       }
     }
+
+    // PUB-1 / OBS-1 — one success event per completed publish, carrying the
+    // version number and how long it took. The Health page reads the most
+    // recent of these for "time of the last successful publish".
+    var $finished_at {
+      value = now|to_int
+    }
+
+    var $publish_duration_ms {
+      value = $finished_at - $started_at
+    }
+
+    function.run "ops/log_event" {
+      input = {
+        feature    : "PUB-1"
+        step       : "publish_version"
+        outcome    : "success"
+        severity   : "info"
+        user_id    : $auth.id
+        account_id : $journey_map.account_id
+        entity_type: "journey_map"
+        entity_id  : $input.journey_map_id
+        duration_ms: $publish_duration_ms
+        metadata   : {map_version_no: $map_version_no, automation_version: $new_version, gate_enabled: $gate_flag.enabled}
+      }
+    } as $_publish_logged
   }
 
   response = {
@@ -424,5 +640,9 @@ query "journey_map/{journey_map_id}/publish" verb=POST {
     snapshot    : $snapshot
     version     : $new_version
     push_results: $push_results
+    // PUB-1 additions. Both are null when the publish_gate flag is off, so
+    // existing callers see the same four fields they always did.
+    map_version : $map_version
+    gate        : $gate
   }
 }

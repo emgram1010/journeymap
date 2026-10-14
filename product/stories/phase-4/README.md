@@ -89,7 +89,7 @@ task + stages + who + how long   goes through the stages   start / end / status 
 |---|---|---|---|
 | 80 | `actor_role` | ROLE-1 | Deferred (number reserved) |
 | 81 | `agent_role` | ROLE-1 | Deferred (number reserved) |
-| 82 | `journey_map_version` | PUB-1 | Yes |
+| ~~82~~ **112** | `journey_map_version` | PUB-1 | Built 2026-10-14 — Xano auto-assigns table ids, so the reserved 82 was not used (see `static/tables/112_journey_map_version.xs`) |
 | 83 | `plan_template` | PLAN-1 | Yes |
 | 84 | `plan_template_map` | PLAN-1 | Yes |
 | 85 | `planner_workspace_map` | PLAN-1 | Yes |
