@@ -439,6 +439,56 @@
     "severity": "info",
     "fix_hint": "Archive the plan. It leaves the plan list and stops accepting changes, but everything recorded against it stays intact."
   },
+  "E-JOB-001": {
+    "code": "E-JOB-001",
+    "feature": "JOB-1",
+    "user_message": "Give the job a short title (up to 120 characters).",
+    "what_happened": "A job was added with no title, a title over 120 characters, or one containing HTML tags.",
+    "likely_cause": "The title box was left empty, or text was pasted in from a web page and brought formatting with it.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "A job title is how people recognise this piece of work in a list — a customer name or a reference is usually enough. Paste as plain text if you copied it from elsewhere. Your typing was kept."
+  },
+  "E-JOB-002": {
+    "code": "E-JOB-002",
+    "feature": "JOB-1",
+    "user_message": "This plan doesn't use that map. Add it to the plan's maps first.",
+    "what_happened": "A job was added for a journey map the plan does not accept.",
+    "likely_cause": "The plan was created from a template that did not include this map, or the map was added to the template after this plan was made.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "The full message names the map. A plan's accepted maps are copied from its template when the plan is created, so adding a map to the template later does not reach plans that already exist — add it to this plan directly."
+  },
+  "E-JOB-003": {
+    "code": "E-JOB-003",
+    "feature": "JOB-1",
+    "user_message": "That map hasn't been published yet.",
+    "what_happened": "A job was added for a map that has never had a version published.",
+    "likely_cause": "The map is still a draft.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Open the map and publish a version. A job pins itself to the published version it was created from, so there has to be one before any work can be based on it."
+  },
+  "E-JOB-004": {
+    "code": "E-JOB-004",
+    "feature": "JOB-1",
+    "user_message": "That detail isn't valid. Use short text or a number.",
+    "what_happened": "A job detail was rejected: the name used characters other than letters, numbers and underscores, the value was over 200 characters, or the job already has 50 details.",
+    "likely_cause": "A space or punctuation in the detail's name, or a long note pasted into a value.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Detail names look like customer_name or order_ref. Long explanations belong in the job's own notes rather than in a detail. Replacing a detail the job already has always works, even at the 50 limit."
+  },
+  "E-JOB-005": {
+    "code": "E-JOB-005",
+    "feature": "JOB-1",
+    "user_message": "This job is already cancelled.",
+    "what_happened": "Cancel was called on a job that had already been cancelled.",
+    "likely_cause": "The button was clicked twice, or a request was retried.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Nothing went wrong and nothing changed — cancelling twice is harmless. The job's tasks are left exactly as they were, because a cancelled job is still history."
+  },
   "E-P3A-001": {
     "code": "E-P3A-001",
     "feature": "P3A-1",
