@@ -215,7 +215,7 @@ touched-cell check fooled by decimal columns defaulting to 0, and the
 planned-work toggle wrongly showing on non-actor rows) — all documented in
 CLAUDE.md and the epic files so they aren't rediscovered.
 
-## 🔴 Needs your decision: signup never creates an account, so nothing account-scoped works for new users
+## ✅ Decided and fixed 2026-10-14 (option A): signup never created an account
 
 Found while testing PUB-1's gate (2026-10-14), **root cause traced
 2026-10-14**. `ops/feature_enabled` keys on `account_id` and treats `0` as
@@ -246,11 +246,31 @@ boundary. The options are genuinely different products:
   code; a signup with no invite has no account by design.
 - **C — manual:** an admin assigns an account after signup.
 
-**Not implemented unilaterally** because the signup endpoint is the single
-most critical path in the product and the account boundary is a security
-decision. Once the model is chosen this is a small change to
-`2_auth_signup_POST.xs`, plus a decision on whether to backfill the
-existing zero-account user/architecture/map.
+**Founder chose A (self-serve tenancy).** Implemented and verified live
+2026-10-14:
+
+- `auth/signup` creates the account and the user in one transaction, and
+  makes the user **admin** of their own account. Admin rather than member
+  because `role == "admin"` is what gates editing your own account settings
+  (api 134) and reading its event log (api 17) — a member would own a
+  workspace they could not administer.
+- `journey_architecture` POST and `journey_map/create_draft` now derive
+  `account_id` from the authenticated user instead of accepting it as
+  input. That was also a **tenancy hole**: a caller could place records
+  inside someone else's account. `owner_user` was already derived from the
+  token for exactly this reason.
+- Signup's event log no longer passes the whole user record as metadata,
+  which had been writing the hashed password into the log.
+
+Verified over real HTTP: a fresh signup lands in its own account, and both
+the with-architecture and no-architecture map paths inherit it.
+
+**Backfill still open (low urgency):** the pre-existing zero-account rows
+(`user` 6, `journey_architecture` 38) are leftovers from this session's own
+QA signups, not customer data. `journey_map` 195 was pointed at the QA
+account manually. Nothing needs backfilling unless real users signed up
+before today — worth one check of `user` rows with `account_id = 0` before
+launch.
 
 ---
 
@@ -282,6 +302,47 @@ absence.
 **Note:** map **196** is that test clone, sitting in the founder's real
 architecture 31. Harmless (draft, nothing pins to it) but visible in the
 UI — delete it whenever.
+
+---
+
+## ✅ PUB-1 review pass, 2026-10-14 (Opus): two findings, both fixed
+
+Done as the review the model-guidance table asks for after an Opus-marked
+epic. Two things the build pass had got away with:
+
+**1. The content hash depended on database ids, not content.** Cells came
+straight out of a `sort = {stage: "asc", lens: "asc"}` query — ordered by
+id. Since `pub/canonical_hash` takes array order as given, that meant
+deleting a row and re-adding it with the same key (new, higher id) would
+re-sort the cells and change the map's hash even though nothing a user can
+see had changed. Harmless today (the hash is only compared against a
+stored snapshot of the same map) but it would have made **stale detection
+report false positives** the moment US-PUB-1-05's deferred half lands.
+
+Fixed: cells are now emitted by walking the already-ordered stages × rows,
+so the order follows the definition rather than the id sequence.
+**Verified backward-compatible** — map 195 still hashes to
+`1602242c8061…`, the exact value stored in its existing version rows, so
+nothing already frozen was invalidated.
+
+**2. The dual hash had only ever been tested on ASCII.** Both pinned
+goldens were plain English, so a UTF-8 encoding difference between
+`TextEncoder` in the browser and `sha256` on Xano would have sailed
+through — and a map title with an accent in it is not an edge case. Tested
+with accents, an em dash, CJK and an emoji (a surrogate pair):
+byte-identical on both sides, `dc1dc9e5…`. Now pinned as a third golden in
+`versionHash.test.ts`.
+
+### Noted, not fixed: snapshot building does full table scans
+
+`pub/build_map_snapshot` reads **all** of `journey_stage_owner` with no
+filter, because that table has no `journey_map` column (STAGE-1's
+side-table workaround). Same shape as the frontend's
+`listJourneyStageOwners`. Fine now — one row per owned stage across the
+whole system — but it grows with every map in every account, and it runs
+on every publish *and* every readiness check. Worth a `journey_map` column
+(or a join) before there are thousands of maps. Not urgent, and not worth
+an `updateTableSchema` against a table with validators today.
 
 ---
 

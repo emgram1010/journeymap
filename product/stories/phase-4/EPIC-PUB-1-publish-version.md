@@ -231,3 +231,14 @@ JSON encoding is deliberately not used for hashing — key order, whitespace and
 - **`publish_gate` is OFF for every account** (`account_feature_flag` had no rows; the only row added is for a throwaway QA account). Nothing about live publishing changed for the founder's account.
 
 `npm test`: 212/212 pass (202 prior + 10 new in `versionHash.test.ts`). `npm run lint`: same pre-existing, unrelated `e2e/chat-session-crud.spec.ts` failure.
+
+### Opus review pass, 2026-10-14
+
+Two findings, both fixed (detail in `product/learning-fixes.md`):
+
+1. **The hash depended on row ids, not content.** Cells were emitted in database-id order, so deleting a row and re-adding it with the same key would change the map's hash with no visible change to the map. Harmless against a stored snapshot, but it would have made the deferred stale detection report false positives. Cells are now emitted by walking the ordered stages × rows. Verified backward-compatible: map 195 still hashes to `1602242c8061…`, the value already stored in its version rows.
+2. **The dual hash had only been tested on ASCII.** Added a non-ASCII golden (accents, em dash, CJK, emoji) — byte-identical on both sides, `dc1dc9e5…`, now pinned in `versionHash.test.ts`.
+
+Also noted, not fixed: `pub/build_map_snapshot` scans all of `journey_stage_owner` on every publish and readiness check, because that table has no `journey_map` column. Fine at current scale, logged for later.
+
+After the review: `npm test` 213/213, `npm run lint` exits 0.

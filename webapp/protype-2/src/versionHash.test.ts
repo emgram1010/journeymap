@@ -170,3 +170,23 @@ test('golden: the escaping edge case is pinned (Xano must match byte for byte)',
     '5c2e823ffb28c9f34090532733b3ec4c4846948d5334a238e9c53d8746d3160e',
   );
 });
+
+// Added in the PUB-1 review pass. The first two goldens are pure ASCII, so
+// they would not have caught a UTF-8 encoding difference between
+// TextEncoder here and sha256 on Xano — and a map title with an accent in
+// it is not an edge case, it is Tuesday. Confirmed identical on both sides.
+test('golden: non-ASCII text hashes identically on both sides', async () => {
+  const unicode: MapSnapshot = {
+    schema_version: 1,
+    title: 'Café → Niño 日本語 🚀 naïve',
+    stages: [{key: 's1', label: 'Étape un', owner_lens_key: 'lens-é'}],
+    lenses: [{key: 'lens-é', label: 'Rôle', actor_type: 'internal', does_planned_work: true}],
+    cells: [{stage_key: 's1', lens_key: 'lens-é', task: 'Prüfen — 検査', done_when: '✅ done', duration_minutes: 15}],
+    links: [],
+  };
+
+  assert.equal(
+    await hashSnapshot(unicode),
+    'dc1dc9e52f44dae0230d378944a3e6b8aaccd285d130a4b9d026f38a2748e7c0',
+  );
+});

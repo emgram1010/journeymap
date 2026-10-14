@@ -5,10 +5,19 @@
 // This is also what pub/evaluate_readiness runs over, so the gate and the
 // frozen version can never disagree about what they looked at.
 //
-// Array order is fixed here (stages and rows by display_order then id,
-// cells by stage then row, links by id) because the canonical hash takes
-// array order as given — unstable ordering would make the same map hash
-// differently on every publish and break stale detection.
+// Array order is fixed here because the canonical hash takes array order
+// as given — unstable ordering would make the same map hash differently
+// and break stale detection. Stages and rows go by display_order then id;
+// links by id.
+//
+// CELLS ARE ORDERED BY KEY, NOT BY ID (changed in the PUB-1 review pass).
+// They used to come straight out of a `sort = {stage: "asc", lens: "asc"}`
+// query, i.e. ordered by database id. That made the hash depend on ids
+// rather than on content: delete a row and re-add it with the same key and
+// it gets a new, higher id, so the cells re-sort and the map hashes
+// differently even though nothing a user can see has changed. Emitting them
+// by walking the already-ordered stages × rows means the order follows the
+// definition itself, which is what "same content, same hash" requires.
 //
 // Shape mirrors webapp/protype-2/src/versionHash.ts's MapSnapshot.
 function "pub/build_map_snapshot" {
@@ -171,15 +180,18 @@ function "pub/build_map_snapshot" {
     // ── Cells ────────────────────────────────────────────────────────────
     db.query journey_cell {
       where = $db.journey_cell.journey_map == $input.journey_map_id
-      sort = {stage: "asc", lens: "asc"}
       return = {type: "list"}
     } as $cell_rows
 
-    var $cells {
-      value = []
+    var $cell_location_by_id {
+      value = {}
     }
 
-    var $cell_location_by_id {
+    // Prepared cells are parked in a map keyed "stage_key\0lens_key" and
+    // emitted in definition order further down, so the output order never
+    // depends on row ids. NUL is the separator because it cannot appear in
+    // a key.
+    var $prepared_cell_by_slot {
       value = {}
     }
 
@@ -288,14 +300,42 @@ function "pub/build_map_snapshot" {
                   }
                 } as $duration_result
 
+                var $slot_key {
+                  value = $cell_stage_key ~ "\u0000" ~ $cell_lens_key
+                }
+
+                var.update $prepared_cell_by_slot {
+                  value = $prepared_cell_by_slot|set:$slot_key:({}|set:"stage_key":$cell_stage_key|set:"lens_key":$cell_lens_key|set:"task":$task|set:"done_when":$done_when|set:"duration_minutes":$duration_result.minutes)
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Emit in definition order: every stage, and within it every row, in the
+    // order the map itself presents them.
+    var $cells {
+      value = []
+    }
+
+    foreach ($stages) {
+      each as $ordered_stage {
+        foreach ($lenses) {
+          each as $ordered_lens {
+            var $lookup_slot {
+              value = $ordered_stage.key ~ "\u0000" ~ $ordered_lens.key
+            }
+
+            var $prepared_cell {
+              value = $prepared_cell_by_slot|get:$lookup_slot:null
+            }
+
+            conditional {
+              if ($prepared_cell != null) {
                 array.push $cells {
-                  value = {
-                    stage_key       : $cell_stage_key
-                    lens_key        : $cell_lens_key
-                    task            : $task
-                    done_when       : $done_when
-                    duration_minutes: $duration_result.minutes
-                  }
+                  value = $prepared_cell
                 }
               }
             }
