@@ -319,6 +319,36 @@
     "severity": "info",
     "fix_hint": "Enter the hours this person or agent is available on a normal day. Zero would mean they can never be scheduled, so use hide instead if that is what you want."
   },
+  "E-PLN-010": {
+    "code": "E-PLN-010",
+    "feature": "PLN-6",
+    "user_message": "Enter a start time as HH:MM, between 00:00 and 23:59.",
+    "what_happened": "A timeline's start time was saved in a format the planner could not read.",
+    "likely_cause": "A single-digit hour or minute (\"8:5\"), a 24-hour value above 23, or the field left blank.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Use two digits for both parts, like 08:00 or 14:30. Your typing was kept."
+  },
+  "E-PLN-011": {
+    "code": "E-PLN-011",
+    "feature": "PLN-6",
+    "user_message": "A timeline's status is set by publishing, not here.",
+    "what_happened": "A create or edit tried to set a timeline's status directly.",
+    "likely_cause": "A client sent the whole timeline object back, including its status, instead of just the fields being changed.",
+    "owner": "engineer",
+    "severity": "info",
+    "fix_hint": "Status only ever changes when a plan is published to live. Leave it out of the request. Nothing was saved."
+  },
+  "E-PLN-012": {
+    "code": "E-PLN-012",
+    "feature": "PLN-6",
+    "user_message": "That agent already has a timeline on that date.",
+    "what_happened": "A timeline was dragged onto a day where that agent already has one.",
+    "likely_cause": "The target cell looked empty, or two people were editing the schedule at once.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "One person gets one timeline per day. Move it to a free day, or open the existing timeline and move the tasks across. Nothing was changed, and the two days were not merged."
+  },
   "E-P3A-001": {
     "code": "E-P3A-001",
     "feature": "P3A-1",

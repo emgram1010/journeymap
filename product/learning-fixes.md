@@ -586,6 +586,52 @@ work — it compiles to SQL).
 
 ---
 
+## 🧠 Worth knowing (PLN-6): a `conditional` can silently void its own writes
+
+**A `conditional` inside a `foreach`, whose CONDITION reads a variable
+that was `var.update`d earlier in the same iteration, discards
+everything the branch writes.** No error, no warning — the endpoint
+returns 200 with plausible, wrong numbers.
+
+Isolated with three tallies over identical data:
+
+| the condition reads | result |
+|---|---|
+| the loop item (`if ($r.flag == true)`) | ✅ correct |
+| a constant (`if (true)`) | ✅ correct |
+| a var updated earlier in that iteration (`if ($cur != null)`) | ❌ **all writes lost** |
+
+Found because PLN-6's timeline list reported `task_count: 0` for every
+timeline while the database plainly had tasks.
+
+This also explains why the existing working code is fine:
+`functions/ops/group_issues.xs` and PLN-3's plan list both branch on
+the **loop item**, never on a var they just set.
+
+**The rule:** only branch on the loop item, on an input, or on a
+variable set before the loop began. If the branch exists to skip
+unknown keys, change the query so the skip is unnecessary instead —
+`apis/planner/539_workspace_workspace_id_timeline_GET.xs` scopes its
+task query with `timeline_id in $tl_ids` for exactly that reason.
+
+---
+
+## 🧠 Worth knowing (PLN-6): an omitted optional `date` input does not exist
+
+`text` and `int` arrive as `""` and `0` when omitted. An omitted
+optional **`date`** is not there at all — referencing it fails at
+runtime with `"Unable to locate input: date_from"`.
+
+Worse on a **GET**: there is no JSON body, so the usual
+`util.get_raw_input|has:"x"` presence trick does not work either.
+
+**The fix:** declare optional date filters as `text` (they default to
+`""`, which is testable) and widen the bound to a sentinel —
+`"0001-01-01"` / `"9999-12-31"` — when absent. Comparing a text date
+against a `date` column in a `where` clause works fine.
+
+---
+
 ## 🧠 Worth knowing (PLN-5): `db.patch`/`db.del` only touch the FIRST match
 
 `db.patch` with `field_name`/`field_value` updates **one** row, not
