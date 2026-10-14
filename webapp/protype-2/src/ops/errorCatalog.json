@@ -228,5 +228,45 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Un-archive the map first if it should still be in use. Nothing was published."
+  },
+  "E-PLN-001": {
+    "code": "E-PLN-001",
+    "feature": "PLN-3",
+    "user_message": "You already have a plan with this name.",
+    "what_happened": "A plan was created or renamed to a name another plan in the same account already uses.",
+    "likely_cause": "Two plans were given the same name, or the same create was submitted twice.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Pick a different name. Names only have to be unique within your own account, so another company using the same name is not the problem. Your typing was kept."
+  },
+  "E-PLN-002": {
+    "code": "E-PLN-002",
+    "feature": "PLN-3",
+    "user_message": "The end date can't be before the start date.",
+    "what_happened": "A plan's planning window was saved with its end earlier than its start.",
+    "likely_cause": "One of the two dates was changed without looking at the other.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Check both dates. Changing only one of them still has to leave the window the right way round, so the saved value for the other date is what it was compared against."
+  },
+  "E-PLN-003": {
+    "code": "E-PLN-003",
+    "feature": "PLN-3",
+    "user_message": "This has to be zero or more.",
+    "what_happened": "A plan's AI throughput setting was saved as a negative number.",
+    "likely_cause": "A minus sign was typed, or a field was pre-filled with a bad value.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Enter zero or a positive number. Zero means the plan makes no AI throughput assumption at all."
+  },
+  "E-P3A-001": {
+    "code": "E-P3A-001",
+    "feature": "P3A-1",
+    "user_message": "This plan has work recorded against it. Archive it instead.",
+    "what_happened": "A delete was refused because the plan already has jobs, a publication or logged activity.",
+    "likely_cause": "Someone tried to delete a plan that has already been used, rather than archiving it.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Archive the plan. It disappears from the plan list and stops accepting changes, but everything already recorded against it stays intact. Deleting is only possible for a plan nothing has happened on yet."
   }
 }

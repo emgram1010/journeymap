@@ -504,7 +504,118 @@ All eight cases plus the two positive-path checks were green both times.
 
 ---
 
-## 🟡 Needs a real HTTP test (PLN-3): `inputerror` prefixes its message
+## 🔴 Needs your approval: PLN-3's delete path is written but not pushed
+
+`DELETE planner/workspace/{workspace_id}` and the cascade behind it are
+the planner's first destructive code. CLAUDE.md says to ask before any
+delete, and the session's permission layer independently refused the
+push, so both were held.
+
+- **Ready for review:** `functions/planner/delete_workspace_cascade.xs`
+  (children first, one `db.transaction`, counts taken before deleting).
+- **Blocks:** FT-PLN-3-07, FT-PLN-3-08, FT-PLN-3-09, and US-PLN-3-04/05.
+- **Already prepared:** a throwaway plan (account 6, ws 4 — 2 agents,
+  3 timelines, 6 tasks, 2 backlog) and a sibling plan (ws 5) that must
+  survive, so verification is one push and one test run.
+- **One genuine unknown to test first:** whether `db.del` with
+  `field_name`/`field_value` deletes *every* matching row or only the
+  first. CLAUDE.md only documents the single-record case. If it deletes
+  one, each child delete has to become a loop.
+
+Same question will come up again at PLN-5 (agents) and PLN-6
+(timelines), so it is worth settling once.
+
+---
+
+## 🟡 Scratch functions left in workspace 1, safe to delete
+
+Created while probing XanoScript behaviour for PLN-3, all named
+`scratch/*` and called by nothing:
+
+`scratch/count_probe` (105), `scratch/seed_cascade_fixture` (108),
+`scratch/date_probe` (109), `scratch/in_probe` (110),
+`scratch/mint_test_token` (111), `scratch/tally_probe` (112).
+
+Not deleted here because CLAUDE.md says to ask first. `mint_test_token`
+is the one worth removing soonest — it mints an auth token for any user
+id, which is fine as a dev probe and not something to leave lying
+around.
+
+Test data also left behind, deliberately: account 6 plans **4** and
+**5** (the cascade fixture) are needed to finish PLN-3's delete tests.
+Plans **6, 7, 8** in the same account are leftovers from testing and can
+go any time.
+
+---
+
+## 🧠 Worth knowing (PLN-3): `|get` with a VARIABLE key ignores its default
+
+The single nastiest XanoScript trap found so far, because it fails
+silently and produces plausible-looking output.
+
+| expression | result |
+|---|---|
+| `{}\|get:"nope":0` | `0` ✅ |
+| `{}\|get:$k:0` (where `$k` is `"nope"`) | **`null`** ❌ |
+| `$filled\|get:$k:0` (key exists) | the value ✅ |
+
+So a lookup with a variable key works **only when the key is already
+there**. On a miss the default is thrown away and you get `null`.
+
+Found because every count in PLN-3's plan list came back `null`. The
+tally loop did `|get:$key:0` → null → `null + 1` → null → stored null.
+No error anywhere; the endpoint returned 200 with a well-formed body
+full of nulls.
+
+**Why `functions/ops/group_issues.xs` gets away with it:** it passes
+`|get:$fp:null`. Its default *is* null, so the bug is invisible there.
+CLAUDE.md cites that file as the safe grouping pattern — it is, but
+only by luck on this point.
+
+**The rule:** never rely on `|get`'s default with a variable key. Either
+pre-seed every key you will look up (what
+`apis/planner/524_workspace_GET.xs` does — seed each plan's tally to 0
+before counting), or test for null explicitly afterwards.
+
+---
+
+## 🧠 Worth knowing (PLN-3): a token minted via `runWorkspaceFunction` is not valid
+
+`security.create_auth_token` called through `runWorkspaceFunction`
+produces a token the live API rejects with `"Invalid token."`, even
+though the call is byte-identical to the one in `auth/login`. Tokens
+appear to be signed per execution context.
+
+**To get a usable token for real-HTTP testing without touching a
+password:** run `Getting Started Template/generate_magic_link` for the
+test user's email via `runWorkspaceFunction` (this writes a hashed
+one-time token to the user row and sends no email), then POST the
+returned plaintext token to `reset/magic-link-login` over real HTTP.
+That returns a genuine, live-signed `authToken`. Used for all of PLN-3's
+testing.
+
+---
+
+## ✅ Resolved 2026-10-14 (PLN-3): `inputerror` does NOT prefix its message
+
+PLN-2 flagged that `assert_same_workspace` returned
+`"Param:  - Entities must belong to the same workspace"` and worried it
+broke VAL-1 across five existing guards.
+
+**Over real HTTP the message is clean.** PLN-3's endpoints returned
+*"You already have a plan with this name. (E-PLN-001)"* and
+*"The end date can't be before the start date. (E-PLN-002)"* with no
+prefix at all. The `Param:` prefix is an artefact of
+`runWorkspaceFunction`, exactly like the `accessdenied` case PUB-1 hit.
+
+**The standing lesson (now twice confirmed): never judge an error
+message by what `runWorkspaceFunction` prints.** It distorts both the
+message text and the error shape. Check user-facing wording over real
+HTTP or not at all.
+
+---
+
+## ~~🟡 Needs a real HTTP test (PLN-3): `inputerror` prefixes its message~~
 
 `planner/assert_same_workspace` returns
 `"Param:  - Entities must belong to the same workspace"` rather than the
@@ -524,6 +635,9 @@ one.
 **At PLN-3:** call an endpoint that trips an `inputerror` over real HTTP
 from the browser and look at the actual response body. If the prefix is
 real, fix it once, centrally, for all five call sites.
+
+**Done 2026-10-14 — the prefix was not real.** See the resolved entry
+above. No fix was needed.
 
 ---
 
