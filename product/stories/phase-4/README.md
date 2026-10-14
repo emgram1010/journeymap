@@ -30,6 +30,15 @@ task + stages + who + how long   goes through the stages   start / end / status 
 
 ## MVP build order
 
+> **Status as of 2026-10-14 (end of the long autonomous session).**
+> Steps 0–9 are built. Everything through PLAN-1 is live and verified
+> over real authenticated HTTP.
+>
+> **Six things are written but NOT pushed, waiting on the founder** —
+> five delete paths and one nightly job. They are listed in one table
+> at the top of `product/learning-fixes.md`. Nothing else blocks the
+> next epic.
+
 | # | Epic (feature) | Depends on | MVP delivers | Model |
 |---|---|---|---|---|
 | 0 | [P3A-1 Planner amendments](EPIC-P3A-1-planner-amendments.md) | applied while building phase-3 | History-safe planner: archive/deactivate instead of delete; phase-4 columns in the first push | Sonnet, then Opus review |
@@ -40,9 +49,9 @@ task + stages + who + how long   goes through the stages   start / end / status 
 | 5 | [STAGE-1 Stage contract](EPIC-STAGE-1-stage-contract.md) | 1–3 | Real stage owner; "does planned work?" switch per row | Sonnet |
 | 6 | [AUTH-1 Required-field authoring](EPIC-AUTH-1-required-field-authoring.md) | 4, 5 | Required vs. freeform on existing fields; ready marks, progress, checklist | Sonnet |
 | 7 | [PUB-1 Publish version](EPIC-PUB-1-publish-version.md) | 6 | One gate; one immutable version table | **Opus** |
-| 8 | Phase-3 PLN-1 … PLN-8 (with P3A-1) | — | Planner backend | Sonnet (Opus review of PLN-2 tenancy and PLN-8 integrity) |
-| 9 | [PLAN-1 Plan template and instance](EPIC-PLAN-1-plan-template-and-instance.md) | 7, 8 | Tiny template copied into instances | Sonnet |
-| 10 | [JOB-1 Jobs and tasks](EPIC-JOB-1-jobs-and-tasks.md) | 9 | Jobs pinned to a version; tasks generated and hydrated | Sonnet |
+| 8 | Phase-3 PLN-1 … PLN-8 (with P3A-1) ✅ | — | Planner backend — **done**, except the held deletes | Sonnet (Opus review of PLN-2 tenancy and PLN-8 integrity) |
+| 9 | [PLAN-1 Plan template and instance](EPIC-PLAN-1-plan-template-and-instance.md) ✅ | 7, 8 | Tiny template copied into instances — **backend done**, UI not built | Sonnet |
+| 10 | [JOB-1 Jobs and tasks](EPIC-JOB-1-jobs-and-tasks.md) ← **next** | 9 | Jobs pinned to a version; tasks generated and hydrated | Sonnet |
 | 11 | [SCHED-1 Scheduling and tweaks](EPIC-SCHED-1-scheduling-and-tweaks.md) | 10 | One scheduled item per task; per-job duration tweak | Sonnet |
 | 12 | [LIVE-1 Publish to live](EPIC-LIVE-1-publish-to-live.md) | 11 | Per-timeline frozen snapshot; planner changes logged after | Sonnet, then Opus review |
 | 13 | [LOG-1 Activity log and status engine](EPIC-LOG-1-activity-log-and-status-engine.md) | 10, 12 | Append-only log; fixed statuses; Done allowed without Start | **Opus** |
