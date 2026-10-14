@@ -72,9 +72,17 @@ export const TABLE_MANIFEST: Record<string, TableExpectation> = {
   actor_role: {naturalKeys: [['account_id', 'name_key']], enumFields: ['actor_type']},
   agent_role: {naturalKeys: [['planner_agent_id', 'actor_role_id']]},
   journey_map_version: {naturalKeys: [['journey_map_id', 'version_no']], appendOnly: true},
-  plan_template: {naturalKeys: [['account_id', 'name_key']]},
-  plan_template_map: {naturalKeys: [['plan_template_id', 'journey_map_id']]},
-  planner_workspace_map: {naturalKeys: [['workspace_id', 'journey_map_id']]},
+  // Built 2026-10-14 as live tables 119, 120, 121 (PLAN-1).
+  // `name`, not `name_key`: this matches its sibling `planner_workspace`,
+  // which also keys on (account_id, name). Case-insensitive template
+  // names would need a normalized column on BOTH tables to stay
+  // consistent — worth doing, but as one deliberate change, not as a
+  // quiet divergence between two tables that look alike.
+  plan_template: {naturalKeys: [['account_id', 'name']]},
+  // Link tables: rows are added or removed, never edited, so they have
+  // no `updated_at` (GOV-1 S10).
+  plan_template_map: {naturalKeys: [['plan_template_id', 'journey_map_id']], appendOnly: true},
+  planner_workspace_map: {naturalKeys: [['workspace_id', 'journey_map_id']], appendOnly: true},
   work_item: {enumFields: ['status']},
   work_task: {naturalKeys: [['work_item_id', 'stage_key', 'lens_key']], enumFields: ['status']},
   planner_task_work_task: {naturalKeys: [['work_task_id']]},
