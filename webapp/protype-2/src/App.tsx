@@ -2643,7 +2643,9 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     if (unit === 'weeks') return val * 40;
                     return val; // default: hours
                   };
-                  const lensMap = new Map(lenses.map((l) => [l.id, l]));
+                  // Annotated explicitly: left to infer, the pair widens to an
+                  // array and every lookup below comes back as `unknown`.
+                  const lensMap = new Map<string, Lens>(lenses.map((l) => [l.id, l]));
                   let totalPerEvent = 0;
                   const incomplete: string[] = [];
                   const byStage = stages.map((stage) => {

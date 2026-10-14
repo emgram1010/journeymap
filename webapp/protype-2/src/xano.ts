@@ -67,8 +67,10 @@ export interface XanoJourneyMap extends JourneySettings {
   journey_architecture?: number | null;
   // Non-null when this map was cloned from another map.
   cloned_from_map_id?: number | null;
-  // Intelligence Layer taxonomy level: architecture | actor-journey | atomic
-  map_level?: string | null;
+  // Intelligence Layer taxonomy level. Must stay identical to
+  // JourneySettings['map_level'] — this interface extends it, and widening
+  // the type here to plain `string` made the extends relationship invalid.
+  map_level?: 'architecture' | 'actor-journey' | 'atomic' | null;
   intent?: string | null;
   // FK to parent L1/L2 map (TL-3)
   parent_map_id?: number | null;
@@ -661,7 +663,12 @@ async function xanoRequest<T>(path: string, options: RequestOptions = {}): Promi
 async function authXanoRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const {method = 'GET', body} = options;
   const token = getAuthToken();
-  const headers: Record<string, string> = {Accept: 'application/json'};
+  // Auth failures are exactly what a user reports ("I can't sign in"), so they
+  // carry a correlation id like every other request. This was previously
+  // omitted, which also made the throw below a type error — invisible until
+  // the truncated e2e spec stopped blocking the type-check.
+  const correlationId = newCorrelationId();
+  const headers: Record<string, string> = {Accept: 'application/json', [CORRELATION_HEADER]: correlationId};
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (body) headers['Content-Type'] = 'application/json';
   const response = await fetch(`${getXanoAuthBaseUrl()}${path}`, {
@@ -676,6 +683,7 @@ async function authXanoRequest<T>(path: string, options: RequestOptions = {}): P
     throw new XanoHttpError(
       response.status,
       `Auth ${method} ${path} failed (${response.status}): ${responseText || response.statusText}`,
+      correlationId,
     );
   }
 

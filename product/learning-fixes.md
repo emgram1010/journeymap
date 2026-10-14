@@ -12,6 +12,41 @@ later epic · ✅ fixed already.
 
 ---
 
+## 🔧 Agreed 2026-10-14: stabilisation pass before phase-3
+
+After PUB-1, the open items were triaged into "blocks future work" vs
+"cosmetic or needs the founder". Agreed to fix the first group now, as a
+pass of its own, rather than carrying them through six more epics:
+
+| # | Item | Why it was picked | Status |
+|---|---|---|---|
+| 1 | New accounts' maps have `account_id = 0` | Breaks the entire feature-flag mechanism for any new customer — `publish_gate` and `required_fields_ui` could never be switched on for them | 🔴 **root cause found, needs your decision** — see below |
+| 2 | `e2e/chat-session-crud.spec.ts` is truncated | Has made `npm run lint` red all session; a file that doesn't parse means the e2e regression gate can't run at all | ✅ fixed — and it was hiding 52 more errors |
+| 3 | `clone_scenario` is broken | CLAUDE.md requires testing migrations/backfills on a **clone** of map 178, never the original. While broken, every epic has to hand-build scratch maps instead — PLN, JOB, SCHED and LIVE all need it | ✅ fixed, and the clone is now faithful |
+
+**Deliberately NOT in this pass:** the duplicate "Task / Objective" field
+and the unwatched Publish button (both fold into the next UI session), and
+the two items that need the founder rather than a fix — the lost
+validators (Xano dashboard only) and the orphaned-rows / delete-behaviour
+decision.
+
+### Related finding: the reserved table-number convention doesn't work
+
+`product/stories/phase-4/README.md` reserves table ids for upcoming epics
+(82 `journey_map_version`, 83–85 PLAN-1, 86–87 JOB-1, 88 SCHED-1, 89–90
+LIVE-1, 91 LOG-1). **Xano assigns its own ids and ignores the reservation**
+— PUB-1 asked for 82 and got 112, exactly as STAGE-1 asked for 109 and got
+110/111. Phase-3's 74–79 collision (below) is the same problem seen from
+the other side.
+
+The numbers are not a plan, they're a wish. Every remaining epic will hit
+this. **Recommendation:** stop reserving ids; record the id Xano actually
+assigns, and name local files after it (which is already what happens in
+practice). The phase-3 renumbering decision below then dissolves into the
+same rule.
+
+---
+
 ## 🔴 Needs your action: validators destroyed, must be restored manually
 
 **What happened:** Pushing OBS-1's new columns via `updateTableSchema`
@@ -180,20 +215,73 @@ touched-cell check fooled by decimal columns defaulting to 0, and the
 planned-work toggle wrongly showing on non-actor rows) — all documented in
 CLAUDE.md and the epic files so they aren't rediscovered.
 
-## 🟡 Rollout gap: a brand-new account's maps have `account_id = 0`, so no feature flag can ever reach them
+## 🔴 Needs your decision: signup never creates an account, so nothing account-scoped works for new users
 
-Found while testing PUB-1's gate (2026-10-14). `ops/feature_enabled` keys
-on `account_id` and treats `0` as "no account, flag off". The founder's
-real map 178 has `account_id = 2`, so flags work there — but a map created
-through the UI by a freshly registered account came out with
-`account_id = 0`, meaning **no feature flag can ever be switched on for
-it**, including `publish_gate` and `required_fields_ui`.
+Found while testing PUB-1's gate (2026-10-14), **root cause traced
+2026-10-14**. `ops/feature_enabled` keys on `account_id` and treats `0` as
+"no account, flag off" — that part is correct fail-safe behaviour, not the
+bug.
 
-This is a registration/map-creation gap, not a PUB-1 one: something in the
-signup → create-architecture → create-map path never sets `account_id`.
-**Needs:** decide where account_id should be stamped (most likely at map
-creation, from the owner's account) and backfill any maps sitting at 0.
-Until then, flag-gated features silently stay off for those maps.
+The actual chain, confirmed by reading the live rows:
+
+| Record | account_id | Why |
+|---|---|---|
+| `user` 6 (a fresh signup) | **0** | ← the real cause |
+| `journey_architecture` 38 | 0 | inherits from the user |
+| `journey_map` 195 | 0 | `create_draft` correctly inherits from the architecture |
+
+`apis/authentication/2_auth_signup_POST.xs` creates the user with name,
+email, password and role — and **no account at all**. Nothing downstream
+is broken; they are all faithfully inheriting a zero. The founder's own
+account (id 2) was created by hand, which is why their maps work.
+
+**Why this is a decision, not a fix:** it sets the data-isolation
+boundary. The options are genuinely different products:
+
+- **A — self-serve tenancy (recommended):** a signup creates its own
+  `account` row and links the user. Matches how GOV-1's per-account flags,
+  the Health page and `journey_map.account_id` are already modelled, and
+  is the standard pattern. Teams would later join by invitation.
+- **B — invite-only:** signup attaches to an existing account via an invite
+  code; a signup with no invite has no account by design.
+- **C — manual:** an admin assigns an account after signup.
+
+**Not implemented unilaterally** because the signup endpoint is the single
+most critical path in the product and the account boundary is a security
+decision. Once the model is chosen this is a small change to
+`2_auth_signup_POST.xs`, plus a decision on whether to backfill the
+existing zero-account user/architecture/map.
+
+---
+
+## ✅ Fixed 2026-10-14: `clone_scenario` crashed, and was silently dropping data
+
+Two problems, both fixed in `ai/tool/clone_scenario.xs` (tool 67):
+
+1. **The crash** (`Unable to locate var: cell.stage_key`): the cell loop
+   matched `$cell.stage_key` / `$cell.lens_key` against the new map's keys,
+   but a `journey_cell` row has no such columns — it has `stage` and `lens`
+   integer ids. The remap now goes id → key (source map) → id (new map).
+2. **Silent data loss, the worse half:** the clone dropped every field added
+   since the tool was written — cell durations (TIME-1), stage ownership and
+   the planned-work switch (STAGE-1), lens cost rates, and the stage's
+   `primary_actor_lens`. A clone missing those reads as "no owner, no
+   duration", which would have made PUB-1's gate and AUTH-1's readiness look
+   broken *on a clone* when they were fine.
+
+**Verified:** cloned map 178 → map 196, then ran PUB-1's snapshot builder
+over both. The snapshots are identical except the title — same stages, same
+owners, same actor types, same planned-work values, same cell content. The
+gate then reported `OWNER_NOT_WORK_ROLE` for stages 1–4 and 7 on the clone,
+which is FT-PUB-1-04 verified against a real clone rather than a fixture.
+
+**Caveat:** map 178 has no durations filled in, so duration cloning is in
+the copy list but not yet proven by a case that would have caught its
+absence.
+
+**Note:** map **196** is that test clone, sitting in the founder's real
+architecture 31. Harmless (draft, nothing pins to it) but visible in the
+UI — delete it whenever.
 
 ---
 
@@ -227,6 +315,45 @@ field — same underlying `actor_fields.task_objective` key, shown twice in
 the cell panel. Harmless (both read/write the same value) but worth hiding
 the template's own copy of that one field when the required block already
 shows it.
+
+---
+
+## 🔴 Needs a decision: `npm run lint` was blind, and there are 46 pre-existing type errors behind it
+
+`webapp/protype-2/e2e/chat-session-crud.spec.ts` was **truncated** — 148
+lines ending mid-block, missing the closing `});` for its `test.describe`.
+TypeScript stops at a parse error, so for however long that file has been
+broken, `npm run lint` has been reporting exactly one failure and
+type-checking **nothing past it**. The build protocol leans on lint as a
+regression gate; that gate has been switched off without anyone knowing.
+
+Fixed the brace (2026-10-14). The type-check then ran for real and found
+**53 errors**. Seven were in files this session touched and are fixed:
+
+| File | Was |
+|---|---|
+| `readiness.test.ts` ×2 | `Object.freeze` gives a `readonly` array; `computeStageReadiness` demanded a mutable one. Signatures now take `readonly` — correct for pure functions anyway |
+| `App.tsx` ×2 | `new Map(lenses.map(...))` inferred as `unknown`; annotated explicitly |
+| `StageEditPanel.tsx` | `React.MouseEvent` with no `React` import |
+| `xano.ts` | `XanoJourneyMap` widened `map_level` to `string` while extending `JourneySettings`, which narrows it — an invalid override |
+| `xano.ts` | **A real defect:** `authXanoRequest` constructed `XanoHttpError` without the required correlation id, so auth failures carried no Reference for the user to quote. Now generates and sends one like every other request |
+
+**The remaining 46 are pre-existing and untouched**, in code this session
+never opened:
+
+| Area | Count |
+|---|---|
+| `src/planner/components/*` (phase-3 planner UI) | 31 |
+| `e2e/chat-validation.spec.ts` | 4 |
+| `ArchitectureDetail`, `ScenariosTab`, `Dashboard`, `ArchitectureDashboard` | 7 |
+| `validation/formValidation.ts`, `validate.goldenFixtures.test.ts` | 3 |
+| `ops/logEvent.ts` | 1 |
+
+**Needs a decision, because the gate is still red either way:** clear all
+46 as a dedicated pass (most are in phase-3 planner code, which step 8 of
+the build order will touch anyway), or scope the lint script to the
+phase-4 surface and track the rest separately. Leaving it as-is means
+every future "lint is green except the known failure" is meaningless.
 
 ---
 

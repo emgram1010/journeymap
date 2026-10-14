@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useRef, useState, type MouseEvent} from 'react';
 import type {Stage, Lens, MatrixCell} from './types';
 import {doesPlannedWork} from './stageOwnerModel';
 
@@ -63,7 +63,7 @@ export function StageEditPanel({stage, lenses, cells, onSave, onClose, isSaving}
   }, [onClose]);
 
   // Close on click-outside
-  const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleOverlayClick = (e: MouseEvent<HTMLDivElement>) => {
     if (e.target === overlayRef.current) onClose();
   };
 

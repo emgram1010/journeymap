@@ -52,10 +52,13 @@ function cellSatisfiesRequirement(cell: ReadinessCellInput | undefined): boolean
   return hasTask && hasDuration;
 }
 
+// `readonly` on the inputs: these are pure functions that must never
+// mutate what they're given (UT-AUTH-1-12 freezes its inputs to prove it),
+// and a frozen array is `readonly` to TypeScript.
 export function computeStageReadiness(
   stage: ReadinessStageInput,
-  lenses: ReadinessLensInput[],
-  cells: ReadinessCellInput[],
+  lenses: readonly ReadinessLensInput[],
+  cells: readonly ReadinessCellInput[],
 ): StageReadinessResult {
   const reasons: ReadinessReason[] = [];
 
@@ -118,9 +121,9 @@ export interface MapReadinessResult {
 
 export function computeMapReadiness(
   map: MapReadinessInput,
-  stages: ReadinessStageInput[],
-  lenses: ReadinessLensInput[],
-  cellsByStage: Record<string, ReadinessCellInput[]>,
+  stages: readonly ReadinessStageInput[],
+  lenses: readonly ReadinessLensInput[],
+  cellsByStage: Record<string, readonly ReadinessCellInput[]>,
 ): MapReadinessResult {
   const mapReasons: ReadinessReason[] = [];
 
