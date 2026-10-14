@@ -2,7 +2,7 @@
 
 **Epic ID:** AUTH-1
 **Feature:** While building a journey map, the user can see exactly what is required, what is freeform, and what is still missing.
-**Status:** Partial — readiness logic (01) done and tested; UI (02–06) deferred, see Test Results
+**Status:** Done (see Test Results) — logic (01) and UI (02–06) built and live-verified in a real browser session
 **Depends on:** TIME-1, STAGE-1 (ROLE-1 and LEAN-1 are deferred)
 **Goal:** Required structured fields live **in place** (map settings, stage header, cell panel), look different from freeform notes, and roll up into a per-stage ready mark, a map progress line and a checklist. The user never needs to know the tables.
 
@@ -167,14 +167,30 @@ Follows GOV-1 standards, VAL-1 rules and OBS-1 events.
 |---|---|---|
 | 01 Readiness functions (pure) | ✅ | `webapp/protype-2/src/readiness.ts` — `computeStageReadiness`, `computeMapReadiness`, all 8 reason codes. Reuses TIME-1's `toMinutes` for duration validity and STAGE-1's `doesPlannedWork` for the owner/work-role check, rather than re-implementing either. 14 tests (`readiness.test.ts`) covering UT-AUTH-1-01 through 13, including the map 178 golden case: stages owned by the Customer lens (`lens-2`, `actor_type: customer`) correctly report `OWNER_NOT_WORK_ROLE`, stages owned by the Sales Coordinator (`lens-3`, `actor_type: internal`) correctly do not — read live from the real map via `getTableContentItem` to build the fixture, not guessed. |
 
-### Deferred — and why
+### 2026-10-14 — UI build pass (02–06), live-verified with a real dev server + browser
 
-**US-AUTH-1-02 through 06 (all UI)** — required tags in the cell panel, the stage-header owner dropdown becoming the *required* control (US-STAGE-1-05 already wired the dropdown itself in STAGE-1), the per-stage ready mark, the map progress line, the checklist panel with jump links, and the Publish-version button's disabled state. None of this was built this pass.
+Built with `npm run dev` running and a real Chrome session driving it end to end (registered a disposable test account, built a scratch journey map, exercised every control), per the project's own standing rule that UI changes must be seen rendering, not just type-checked.
 
-**Why:** every one of these is a visual change to `App.tsx` / `StageEditPanel.tsx`, and this session has not started a dev server or used a browser tool at any point. This project's own standing rule (CLAUDE.md, and the general operating instructions) is to verify UI changes by running them in a browser before calling them done — not to type-check blind JSX edits and call that proof. Since the **logic** these UI pieces need to call (`computeStageReadiness`/`computeMapReadiness`) is now built, tested, and stable, wiring the UI is a lower-risk follow-up than building both at once — but it should be done with a running dev server, not blind.
+| Story | State | Evidence |
+|---|---|---|
+| 02 Required tags + Notes split | ✅ | Cell detail panel: work-doing cells show Task/Duration with a red "Required" tag and a "Done when" optional field, pinned above the per-template fields; Notes label changes to "Notes (optional)". Hidden entirely for non-work rows (verified: a structural row with no actor type shows neither the tags nor the toggle). |
+| 03 Stage header owner + inline note | ✅ | Owner dropdown (from STAGE-1) now shows an amber inline warning when the selected lens doesn't do planned work — verified live both ways (switching to a non-work owner shows it, switching to a work-doing owner clears it). |
+| 04 Ready mark + progress line | ✅ | Green check / grey circle renders in each stage header (`jm-stage-ready-mark`); "N of M stages ready" chip in the matrix toolbar updates live. Verified going from 0/8 → 1/8 after filling one stage's owner cell. |
+| 05 Checklist panel | ✅ | Slide-out panel lists every unready stage with plain-language reasons (`READINESS_REASON_COPY`); clicking a stage with an owner/name problem opens Edit Stage, clicking one with only a task/duration problem selects the owner's cell — both verified live. |
+| 06 Publish-version button state | ✅ (state only — the action itself is PUB-1) | Button is disabled with a reason tooltip until `computeMapReadiness(...).ready`, styled black/enabled only when true. Clicking it shows a stub notice that the real gate is PUB-1's to build. |
 
-**What's needed to pick this up:** `npm run dev`, then for each story: 02 (required tags + Notes-optional split in the cell panel, reading `actorFields.task_objective`/duration into `readiness.ts`'s cell shape), 03 (owner dropdown already exists from STAGE-1 — add the "needs a work-doing owner" inline note when a non-work row is picked), 04 (ready circle + "N of M stages ready" line calling `computeMapReadiness`), 05 (checklist panel iterating `perStage[].reasons`, with jump-to-field), 06 (disable the Publish-version button — itself still PUB-1's to build — when `computeMapReadiness(...).ready` is false). Tracked in `product/learning-fixes.md`.
+**Real bugs found and fixed while live-testing** (all pre-existing, from TIME-1/STAGE-1 — this is the first time these paths were ever exercised against a running server):
 
-Governance stories (UT-AUTH-1-G01/G02, E2E-AUTH-1-G01-G03) depend on the same deferred UI and are deferred with it.
+1. **Stage ownership never reached readiness at all.** `journey_stage` has no `owner_lens_id` column (STAGE-1 put it in a side table, `journey_stage_owner`, to dodge the `updateTableSchema` validator bug) — but the plain `GET /journey_stage` list endpoint used to hydrate the whole map never joined it, so `Stage.ownerLensId` was always null no matter what the dropdown showed. Fixed by adding a dedicated `GET /journey_stage_owner` endpoint (api 519) and a client-side fetch (`listJourneyStageOwners`) that merges the real value in, plus fixing `handleStageDetailsSave` to read the owner back from the PATCH response (`updated.owner_lens_id`) instead of never touching it. Same fix shape as the existing `journey_lens_planned_work` pattern.
+2. **Duration unit silently saved as `""` instead of `"minutes"`.** A never-touched cell's `time_duration_unit` comes back as an empty string (not null) from the backend's enum column default. Code that computed a display fallback with `?? 'minutes'` never caught it (`??` only falls through on null/undefined, not `""`), so the `<select>` visually showed "minutes" (the browser's fallback for an unmatched value) while the real state stayed `""` and silently failed the backend's pairing precondition / readiness's duration check. Fixed in both the new cell-panel duration picker and the pre-existing `StageEditPanel` by switching to `|| 'minutes'`.
+3. **Stage-owner save threw a real error whenever duration fields were 0.** `handleStageDetailsSave` always sent `time_duration_unit` alongside `plannedDuration`/`actualDuration` whenever any of the three was non-null — but a freshly-created cell's duration fields default to `0` (not null) at the DB level, so `hasDurationUpdate` fired on *every* owner save, sending a duration unit with no paired value and tripping api 44's pairing precondition (`E-TIME-003`). Fixed by only sending the unit paired with an actual non-null value.
+4. **"Has this cell been touched" logic was wrong.** `cellHasAnyContent` treated a non-null `timeDurationValue` as evidence the cell was started — but since duration defaults to `0` (not null) for every cell, this flagged *every untouched work cell in the entire map* as `PARTIAL_WORK_CELL`. Fixed by dropping the duration check from that function; only real task/content/actor-field text is a reliable "touched" signal.
+5. **The planned-work toggle showed on structural/non-actor rows** (e.g. a map's default "Description" row). Caught by the founder reviewing the live session, not by me — "does planned work" is an actor-role concept and a row with no actor type isn't an actor at all. Fixed by only rendering the toggle (and only resolving the override) when the lens has an `actorType` set.
 
-`npm test`: 202/202 pass (188 prior + 14 new). `npm run lint`: same pre-existing, unrelated `e2e/chat-session-crud.spec.ts` failure, confirmed untouched by this epic.
+**New backend endpoints** (both read-only GET-all, additive, no schema changes): `GET /journey_lens_planned_work` (api 518) and `GET /journey_stage_owner` (api 519), workspace 1, apigroup 4.
+
+**Still open, not blocking:** the Internal Employee template's own field list repeats "Task / Objective" below the new required Task field (same underlying key, shown twice) — cosmetic, not incorrect, tracked in `product/learning-fixes.md`.
+
+`npm test`: 202/202 pass. `npm run lint`: same pre-existing, unrelated `e2e/chat-session-crud.spec.ts` failure, confirmed untouched by this epic.
+
+Governance stories (UT-AUTH-1-G01/G02, E2E-AUTH-1-G01-G03) remain deferred — they need a forced-failure/conflict harness this pass didn't build.

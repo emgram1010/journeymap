@@ -166,57 +166,32 @@ test map is unaffected).
 
 ---
 
-## 🟡 Needs a real HTTP/tool-call test: STAGE-1's owner endpoints are unverified end to end
+## ✅ Resolved 2026-10-14: STAGE-1/AUTH-1 UI built and verified with a real dev server + browser
 
-Same gap as above, now on three call paths:
+The items previously tracked here (STAGE-1's planned-work toggle, AUTH-1's
+required-field UI stories 02–06, and endpoints 211/517's end-to-end HTTP
+path) are now built and live-verified — `npm run dev` + a real Chrome
+session (disposable test account, scratch journey map), not just
+type-checked. See EPIC-STAGE-1 and EPIC-AUTH-1's Test Results sections for
+the full detail. Five real pre-existing bugs were found and fixed along the
+way (stage ownership never reaching the frontend's state, a silently-saved
+empty duration unit, a duration-pairing error on every owner save, a
+touched-cell check fooled by decimal columns defaulting to 0, and the
+planned-work toggle wrongly showing on non-actor rows) — all documented in
+CLAUDE.md and the epic files so they aren't rediscovered.
 
-- `apis/journey_map/211_journey_stage_update_journey_stage_id_PATCH.xs` — owner_lens_id validation (same-map check, sync to `primary_actor_lens`, clear behaviour).
-- `apis/journey_map/517_journey_lens_planned_work_journey_lens_id_PATCH.xs` — set/clear the planned-work switch.
-- `ai/tool/update_stage_contract.xs` (70) — owner sync when the AI sets/clears `primary_actor_lens`.
+**Still open:** `ai/tool/update_stage_contract.xs` (tool 70)'s own
+MCP-call assembly remains unverified end-to-end — this pass covered the
+HTTP/browser path (endpoints 211, 517), not the AI-tool-call path. Same
+open gap as VAL-1's `ops/feature_flag`. Needs an authenticated MCP-tool-call
+test once that's possible.
 
-All three are built entirely from pieces that WERE independently live-tested
-against real/scratch data (`resolve_stage_owner`, `set_stage_owner`,
-`does_planned_work`, `set_lens_planned_work`, and the `$raw_input` 3-way
-omitted/null/value detection each relies on). Only each endpoint's own
-request-to-response assembly is unverified. **Needs a real test** once an
-authenticated-HTTP tool exists: PATCH a stage's owner from a different map
-(expect rejection), a valid owner (expect `journey_stage_owner` row +
-`primary_actor_lens` to agree), clear it (expect the row deleted); same
-shape for the lens planned-work endpoint; and one `update_stage_contract`
-tool call setting `primary_actor_lens` with a real session.
-
----
-
-## 🟡 Deferred: the "does this row do planned work?" switch has no UI yet
-
-The backend (US-STAGE-1-06) is complete and live-verified: table
-`journey_lens_planned_work`, read function `does_planned_work.xs`, write
-endpoint `517_journey_lens_planned_work_journey_lens_id_PATCH.xs`. What's
-missing is the actual toggle control in the lens row header in `App.tsx`.
-Not built because this session has no dev server running and no browser
-tool invoked — adding new JSX to a large, canvas-heavy file and trusting it
-without seeing it render would violate this project's own rule (CLAUDE.md:
-start the dev server and check UI changes in a browser). **Needs:** start
-`npm run dev`, add a small switch to the row header (reading its current
-value via a `get_map`-style read or a dedicated GET, writing via 517),
-confirm required-field tags appear/disappear per AUTH-1 (E2E-STAGE-1-03).
-
----
-
-## 🟡 Deferred: AUTH-1's required-field UI (stories 02–06) not built yet
-
-The readiness logic (US-AUTH-1-01: `computeStageReadiness`,
-`computeMapReadiness` in `webapp/protype-2/src/readiness.ts`) is done and
-tested, including a golden case read live from map 178. The UI that
-*uses* it — required tags in the cell panel, the per-stage ready mark,
-the map progress line, the checklist panel, and the Publish-version
-button's disabled state — was not built this pass, for the same reason
-as STAGE-1's row-switch toggle: no dev server was running and no browser
-tool was used this session, and these are all visual changes to the
-large, canvas-heavy `App.tsx`. Same standing rule: verify UI in a
-browser before calling it done, don't just type-check blind JSX.
-**Needs:** `npm run dev`, then wire stories 02–06 against the now-stable
-`readiness.ts` API, checking each one renders and updates live.
+**New minor cosmetic gap, not blocking:** the Internal Employee template's
+own field list repeats "Task / Objective" below AUTH-1's new required Task
+field — same underlying `actor_fields.task_objective` key, shown twice in
+the cell panel. Harmless (both read/write the same value) but worth hiding
+the template's own copy of that one field when the required block already
+shows it.
 
 ---
 

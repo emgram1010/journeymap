@@ -131,6 +131,37 @@
   color: rgb(39 39 42);
 }
 
+/* STAGE-1 (US-STAGE-1-06) — "does this row do planned work?" toggle */
+.jm-lens-planned-toggle {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.jm-lens-planned-toggle.is-on {
+  background: rgb(224 231 255);
+  color: rgb(67 56 202);
+}
+
+.jm-lens-planned-toggle.is-off {
+  background: transparent;
+  border-color: rgb(212 212 216);
+  color: rgb(161 161 170);
+}
+
+.jm-lens-planned-toggle:hover {
+  filter: brightness(0.95);
+}
+
 /* ── Stage column header ──────────────────────────────────────────────── */
 
 .jm-stage-header {
@@ -150,6 +181,23 @@
   overflow-wrap: break-word;
   word-break: break-word;
   padding-right: 22px;
+}
+
+/* AUTH-1 (US-AUTH-1-04) — per-stage ready mark */
+.jm-stage-ready-mark {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  margin-right: 4px;
+  line-height: 1;
+}
+
+.jm-stage-ready-mark.is-ready {
+  color: #22c55e;
+}
+
+.jm-stage-ready-mark.is-not-ready {
+  color: #d4d4d8;
 }
 
 .jm-stage-meta {

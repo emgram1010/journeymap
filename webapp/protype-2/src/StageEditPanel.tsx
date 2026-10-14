@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
 import type {Stage, Lens, MatrixCell} from './types';
+import {doesPlannedWork} from './stageOwnerModel';
 
 export type StageEditData = {
   label: string;
@@ -35,8 +36,13 @@ export function StageEditPanel({stage, lenses, cells, onSave, onClose, isSaving}
   const [timeDurationValue, setTimeDurationValue] = useState<string>(
     primaryCell?.timeDurationValue != null ? String(primaryCell.timeDurationValue) : '',
   );
+  // `|| 'minutes'`, not `??`: a never-touched cell's time_duration_unit comes
+  // back as "" (empty string, not null) from the backend's enum column
+  // default — `??` doesn't fall through on "", so the <select> below would
+  // visually show "minutes" while the real state stayed "", silently saving
+  // an invalid empty unit paired with any duration value the user types.
   const [timeDurationUnit, setTimeDurationUnit] = useState<string>(
-    primaryCell?.timeDurationUnit ?? 'minutes',
+    primaryCell?.timeDurationUnit || 'minutes',
   );
   const [plannedDuration, setPlannedDuration] = useState<string>(
     primaryCell?.plannedDuration != null ? String(primaryCell.plannedDuration) : '',
@@ -141,6 +147,19 @@ export function StageEditPanel({stage, lenses, cells, onSave, onClose, isSaving}
               ))}
             </select>
             <p className="mt-1 text-[10px] text-zinc-400">The actor accountable for this stage's outcome.</p>
+            {/* AUTH-1 (US-AUTH-1-03) */}
+            {(() => {
+              if (!primaryActorLens) return null;
+              const selectedLens = lenses.find((l) => (l.key ?? l.id) === primaryActorLens);
+              if (!selectedLens) return null;
+              const isWorkRole = doesPlannedWork(selectedLens.actorType ?? null, selectedLens.plannedWorkOverride ?? null);
+              if (isWorkRole) return null;
+              return (
+                <p className="mt-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
+                  {selectedLens.label} doesn't do planned work, so this stage won't be ready until you turn on "does planned work" for this row or pick a different owner.
+                </p>
+              );
+            })()}
           </div>
 
           {/* Stage Goal */}

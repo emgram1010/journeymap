@@ -491,6 +491,7 @@ const DEFAULT_XANO_JOURNEY_SETTINGS_PATH = '/journey_map/settings/:journeyMapId'
 const DEFAULT_XANO_SMART_AI_SETTINGS_PATH = '/journey_map/smart_ai_settings/:journeyMapId';
 const DEFAULT_XANO_LENS_ACTOR_FIELDS_PATH = '/journey_lens/actor_fields/:journeyLensId';
 const DEFAULT_XANO_UPDATE_STAGE_PATH = '/journey_stage/update/:journeyStageId';
+const DEFAULT_XANO_LENS_PLANNED_WORK_PATH = '/journey_lens/planned_work/:journeyLensId';
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
 
@@ -596,6 +597,8 @@ export const getXanoJourneySettingsPath = () => normalizeOptionalPath(import.met
 export const getXanoSmartAiSettingsPath = () => normalizeOptionalPath(import.meta.env.VITE_XANO_SMART_AI_SETTINGS_PATH) ?? DEFAULT_XANO_SMART_AI_SETTINGS_PATH;
 
 export const getXanoLensActorFieldsPath = () => normalizeOptionalPath(import.meta.env.VITE_XANO_LENS_ACTOR_FIELDS_PATH) ?? DEFAULT_XANO_LENS_ACTOR_FIELDS_PATH;
+
+export const getXanoLensPlannedWorkPath = () => normalizeOptionalPath(import.meta.env.VITE_XANO_LENS_PLANNED_WORK_PATH) ?? DEFAULT_XANO_LENS_PLANNED_WORK_PATH;
 export const getXanoUpdateStagePath = () => normalizeOptionalPath(import.meta.env.VITE_XANO_UPDATE_STAGE_PATH) ?? DEFAULT_XANO_UPDATE_STAGE_PATH;
 
 // ── Auth API group ──────────────────────────────────────────────────────────
@@ -727,6 +730,11 @@ const buildHydratedJourneyMapBundle = (
       label: stage.label,
       stageGoal: stage.stage_goal ?? undefined,
       primaryActorLens: stage.primary_actor_lens ?? undefined,
+      // Defensive passthrough only — the plain stage list/bundle endpoints
+      // don't actually join journey_stage_owner, so this is always null from
+      // here today. The real source is the dedicated journey_stage_owner
+      // fetch in App.tsx (listJourneyStageOwners), which overwrites this.
+      ownerLensId: stage.owner_lens_id ?? null,
     })),
     lenses: sortedLenses.map((lens) => ({
       id: lensKeyById.get(lens.id)!,
@@ -1068,6 +1076,38 @@ export async function updateLensActorFields(input: UpdateLensActorFieldsInput): 
   return xanoRequest<XanoJourneyLens>(
     buildParameterizedPath(getXanoLensActorFieldsPath(), {journeyLensId: input.journeyLensId}),
     {method: 'PATCH', body},
+  );
+}
+
+/** AUTH-1 — a single stage-ownership row. journey_stage itself has no owner_lens_id column (STAGE-1's side-table workaround), so the plain stage list/bundle endpoints never return it — this is the only source. */
+export interface XanoJourneyStageOwner {
+  id: number;
+  journey_stage: number;
+  owner_lens_id: number;
+}
+
+/** Every stage's ownership row, across all maps — matched back to the caller's own stages by journey_stage id. */
+export const listJourneyStageOwners = () => xanoRequest<XanoJourneyStageOwner[]>('/journey_stage_owner');
+
+/** STAGE-1/AUTH-1 — a single explicit does_planned_work override row. */
+export interface XanoJourneyLensPlannedWork {
+  id: number;
+  journey_lens: number;
+  does_planned_work: boolean;
+}
+
+/** Every explicit override, across all maps — the small table has no map filter, so the caller matches rows to its own lenses by id. */
+export const listJourneyLensPlannedWork = () =>
+  xanoRequest<XanoJourneyLensPlannedWork[]>('/journey_lens_planned_work');
+
+/** Sets (or clears, with doesPlannedWork=null) the explicit override for one lens. */
+export async function setLensPlannedWork(
+  journeyLensId: number,
+  doesPlannedWork: boolean | null,
+): Promise<{journey_lens_id: number; does_planned_work: boolean}> {
+  return xanoRequest<{journey_lens_id: number; does_planned_work: boolean}>(
+    buildParameterizedPath(getXanoLensPlannedWorkPath(), {journeyLensId}),
+    {method: 'PATCH', body: doesPlannedWork === null ? {clear: true} : {does_planned_work: doesPlannedWork}},
   );
 }
 
