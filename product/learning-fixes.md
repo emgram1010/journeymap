@@ -168,7 +168,47 @@ guard.
 
 ---
 
-## 🟡 Workaround adopted, not fully resolved: `accessdenied` strips the message
+## ✅ Resolved 2026-10-14: `accessdenied` DOES keep its message over real HTTP
+
+The open question below — "does `accessdenied` behave the same way through
+a REAL authenticated HTTP call?" — got answered by accident while testing
+PUB-1, and the answer **reverses the original finding**.
+
+`apis/journey_map/520_..._readiness_GET.xs` has:
+
+```
+precondition ($journey_map.owner_user == $auth.id) {
+  error_type = "accessdenied"
+  error = "You don't have access to this map. (E-PUB-004)"
+}
+```
+
+Called over real authenticated HTTP against another user's map, it
+returned **403** with:
+
+```json
+{"code":"ERROR_CODE_ACCESS_DENIED","message":"You don't have access to this map. (E-PUB-004)","payload":""}
+```
+
+The custom message is intact. The stripping seen during GOV-1 was an
+artefact of `runWorkspaceFunction`, which has no `$auth` context and no
+real HTTP layer — not of `accessdenied` itself.
+
+**What this changes:** guards may use the semantically correct
+`accessdenied` (403) for authorisation failures instead of the
+`inputerror` (400) workaround. Nothing needs rewriting — the existing
+guards work and `inputerror` is not wrong — but new code should prefer
+`accessdenied` where that is what it means. PLN-2's planner guards are
+written that way.
+
+**A caution this does raise:** `runWorkspaceFunction` is not a faithful
+stand-in for an HTTP call. It has no `$auth`, and at least one error
+behaviour differs. Function-level testing stays useful, but anything
+about auth or error shape needs a real request.
+
+The original finding, kept for the record:
+
+## ~~🟡 Workaround adopted, not fully resolved: `accessdenied` strips the message~~
 
 Confirmed (GOV-1, via `runWorkspaceFunction`): `precondition { error_type
 = "accessdenied" ... }` strips the custom message and returns a generic
@@ -407,6 +447,83 @@ inserting two of them.
 **Rule for the remaining epics:** when a spec asks for a unique index that
 includes an optional reference, it cannot be built as specified. Enforce
 it in the API and say so in the table's header comment.
+
+---
+
+## 🧠 Worth knowing (PLN-2): a function's header comment **is** its `description`
+
+They are one field, not two. Writing both — the repo's usual "rich
+comment block, then `description = "..."` inside the function" — makes
+Xano **concatenate** them into a single description blob, and the
+`description =` statement itself vanishes from the source on round-trip.
+
+Pushed PLN-2's `resolve_actor` that way and got back a description that
+was the ten-line comment with the one-line summary stuck on the end, and
+a `.xs` file with no `description` statement in it at all.
+
+**Do:** write the header comment and nothing else. It round-trips exactly
+(the only artefact is a double space after `//`), so the local file and
+the live function stay diffable — which is the whole point of
+`CLAUDE.md`'s "fetch live and diff before pushing" rule.
+
+**Do not:** add `description =` to a function that already has a header
+comment. `functions/guards/*.xs` and several others still do this; their
+live descriptions are doubled. Harmless, cosmetic, not worth a sweep —
+just don't copy the pattern into new files.
+
+---
+
+## 🧠 Worth knowing (PLN-2): a test suite of only rejections proves nothing
+
+PLN-2's eight planned functional cases were **all** negative — "this
+should be refused". A guard hard-wired to `throw` unconditionally would
+have passed all eight while blocking the entire planner for everyone.
+
+Added a positive-path case per entity guard (`assert_agent(3,1)` and
+`assert_task(3,1)` return the row *and* its workspace) before calling the
+epic done.
+
+**Rule for the remaining epics:** any time a story's test table is all
+rejections — guards, validation, permission checks — add the "and the
+right caller still gets through" case. It is the one that catches a
+fail-closed bug, and specs written from a security angle routinely omit
+it. Applies directly to GOV-1's guards and LOG-1's status engine.
+
+---
+
+## 🟡 Re-verify after a re-push, even a comment-only one
+
+PLN-2's guards were verified, then all seven were re-pushed to fix the
+`description` duplication above, then **re-verified from scratch**. The
+second run was not ceremony: the first run's evidence belonged to code
+that no longer existed, and a push that returns no parse error is not
+proof the logic survived (CLAUDE.md already says this for new pushes —
+it applies equally to edits that "only" touch comments).
+
+All eight cases plus the two positive-path checks were green both times.
+
+---
+
+## 🟡 Needs a real HTTP test (PLN-3): `inputerror` prefixes its message
+
+`planner/assert_same_workspace` returns
+`"Param:  - Entities must belong to the same workspace"` rather than the
+clean sentence. VAL-1 requires friendly messages, so if that prefix is
+real it is a VAL-1 violation — and it would affect **every** existing
+`inputerror` guard: `guards/assert_state`, `guards/assert_fresh`,
+`guards/assert_not_archived`, `ops/build_diagnostic_bundle`. Pre-existing
+and codebase-wide, not introduced by PLN-2.
+
+**Not chased yet, on purpose.** PUB-1 already proved
+`runWorkspaceFunction` distorts error shape — `accessdenied` appeared to
+strip its custom message there, and real HTTP showed it did not (see the
+resolved entry above). The prefix may be the same kind of harness
+artefact. Checking it needs a real endpoint, and PLN-3 builds the first
+one.
+
+**At PLN-3:** call an endpoint that trips an `inputerror` over real HTTP
+from the browser and look at the actual response body. If the prefix is
+real, fix it once, centrally, for all five call sites.
 
 ---
 
