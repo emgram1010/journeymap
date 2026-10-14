@@ -389,6 +389,56 @@
     "severity": "info",
     "fix_hint": "Reload the day and drag again. The order was left exactly as it was — a partial reorder is never applied."
   },
+  "E-PLAN-001": {
+    "code": "E-PLAN-001",
+    "feature": "PLAN-1",
+    "user_message": "Give the template a unique name (up to 80 characters).",
+    "what_happened": "A plan template was saved with no name, a name over 80 characters, or a name another template in the same account already uses.",
+    "likely_cause": "The name was left blank, or a template for this purpose already exists.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Check the template list first — if one already covers this, edit it rather than making a second. Your typing was kept."
+  },
+  "E-PLAN-002": {
+    "code": "E-PLAN-002",
+    "feature": "PLAN-1",
+    "user_message": "Choose a window between 1 and 366 days.",
+    "what_happened": "A template's planning window was saved as zero, negative, or longer than a year.",
+    "likely_cause": "The field was left at zero, or a number of weeks was typed where days were expected.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "The window is in days and counts both the first and last day, so a fortnight is 14, not 15."
+  },
+  "E-PLAN-003": {
+    "code": "E-PLAN-003",
+    "feature": "PLAN-1",
+    "user_message": "Enter a start time like 08:00.",
+    "what_happened": "A template's default start time was not a 24-hour HH:MM value.",
+    "likely_cause": "A single-digit hour (\"8:00\"), or an hour above 23.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Use two digits for both parts. This is the time each day starts in plans made from this template; it can still be changed per day afterwards."
+  },
+  "E-PLAN-004": {
+    "code": "E-PLAN-004",
+    "feature": "PLAN-1",
+    "user_message": "Only published maps can be used in a plan.",
+    "what_happened": "A journey map was attached to a template before it had ever been published.",
+    "likely_cause": "The map is still a draft, so there is no fixed version of it for a plan to work from.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Open the map and publish a version, then attach it. The full message names the map. Publishing freezes a copy, which is what stops a plan's work changing underneath it later."
+  },
+  "E-PLAN-005": {
+    "code": "E-PLAN-005",
+    "feature": "PLAN-1",
+    "user_message": "This plan has work recorded against it, so it can't be deleted. Archive it instead.",
+    "what_happened": "A delete was refused because the plan already has jobs, a publication or logged activity.",
+    "likely_cause": "Someone tried to delete a plan that has already been used.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Archive the plan. It leaves the plan list and stops accepting changes, but everything recorded against it stays intact."
+  },
   "E-P3A-001": {
     "code": "E-P3A-001",
     "feature": "P3A-1",
