@@ -259,6 +259,36 @@
     "severity": "info",
     "fix_hint": "Enter zero or a positive number. Zero means the plan makes no AI throughput assumption at all."
   },
+  "E-PLN-004": {
+    "code": "E-PLN-004",
+    "feature": "PLN-4",
+    "user_message": "You already have a model with this id.",
+    "what_happened": "A model was added using an id another model in the same account already uses.",
+    "likely_cause": "The model was already added, or the id differs only by capitalisation — ids are lower-cased, so \"GPT-X\" and \"gpt-x\" are the same id.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Check the model list first. If the existing one has the wrong prices, edit it rather than adding a second."
+  },
+  "E-PLN-005": {
+    "code": "E-PLN-005",
+    "feature": "PLN-4",
+    "user_message": "A model's id can't be changed after it's created. Add a new model instead.",
+    "what_happened": "An edit tried to change a model's id.",
+    "likely_cause": "A rename was attempted on the id rather than on the display name.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "The display name can be changed freely — change that instead. The id is fixed because \"reset to defaults\" uses it to recognise the built-in models. To really change an id, add a new model and point the agents at it."
+  },
+  "E-PLN-006": {
+    "code": "E-PLN-006",
+    "feature": "PLN-4",
+    "user_message": "This model is still used by some agents. Point them at another model first.",
+    "what_happened": "A model could not be deleted because agents still reference it.",
+    "likely_cause": "The model is assigned to one or more AI agents in a plan.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "The full message names each agent using the model. Open each one and pick a different model, then delete this one. Nothing was deleted."
+  },
   "E-P3A-001": {
     "code": "E-P3A-001",
     "feature": "P3A-1",

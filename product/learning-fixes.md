@@ -504,16 +504,18 @@ All eight cases plus the two positive-path checks were green both times.
 
 ---
 
-## 🔴 Needs your approval: PLN-3's delete path is written but not pushed
+## 🔴 Needs your approval: the planner's delete paths are written but not pushed
 
-`DELETE planner/workspace/{workspace_id}` and the cascade behind it are
-the planner's first destructive code. CLAUDE.md says to ask before any
-delete, and the session's permission layer independently refused the
-push, so both were held.
+Two of them now, and the same question blocks both. CLAUDE.md says to
+ask before any delete, and the session's permission layer independently
+refused the pushes.
 
 - **Ready for review:** `functions/planner/delete_workspace_cascade.xs`
-  (children first, one `db.transaction`, counts taken before deleting).
-- **Blocks:** FT-PLN-3-07, FT-PLN-3-08, FT-PLN-3-09, and US-PLN-3-04/05.
+  (children first, one `db.transaction`, counts taken before deleting)
+  and `functions/planner/delete_model_guard.xs` (refuses while any
+  agent still references the model, and names them).
+- **Blocks:** FT-PLN-3-07/08/09 and US-PLN-3-04/05; FT-PLN-4-08/09 and
+  US-PLN-4-05.
 - **Already prepared:** a throwaway plan (account 6, ws 4 — 2 agents,
   3 timelines, 6 tasks, 2 backlog) and a sibling plan (ws 5) that must
   survive, so verification is one push and one test run.
