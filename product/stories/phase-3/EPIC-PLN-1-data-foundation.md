@@ -3,7 +3,7 @@
 > **Amended by phase-4 `EPIC-P3A-1` (US-P3A-1-01):** add `planner_workspace.is_archived`, `plan_template_id`; `planner_agent.user_id`, `is_active`; `planner_task.tweak_reason`; `planner_task.title` nullable at schema level (required by the API when not linked).
 
 **Epic ID:** PLN-1
-**Status:** Planning
+**Status:** Done (see Test Results) — six tables live and constraint-verified; P3A-1's amendments included in the first push
 **Depends on:** —
 **Goal:** Six normalized Xano tables with explicit primary keys, foreign keys, enums, defaults and indexes, so every later epic builds on a schema that needs no rework.
 
@@ -124,4 +124,77 @@ Run as `workflow_tests/planner_1_data_foundation.xs` (direct `db.*` operations a
 
 ## Test Results
 
-_Not yet run._
+**2026-10-14 — Opus 5 build pass.** Six tables pushed to workspace 1 with
+P3A-1's amendments included in the first push, as P3A-1 intends. Every
+constraint below was exercised with real inserts against a throwaway
+account, not inferred from the schema.
+
+> **Model note:** the build order marks phase-3 as Sonnet. This ran on Opus
+> because the founder was away and had asked for work to continue rather
+> than stall on a model switch. Stronger model than specified, not weaker.
+
+### Tables
+
+| Table | Live id | File |
+|---|---|---|
+| `planner_settings` | 113 | `static/tables/113_planner_settings.xs` |
+| `planner_model` | 114 | `static/tables/114_planner_model.xs` |
+| `planner_workspace` | 115 | `static/tables/115_planner_workspace.xs` |
+| `planner_agent` | 116 | `static/tables/116_planner_agent.xs` |
+| `planner_timeline` | 117 | `static/tables/117_planner_timeline.xs` |
+| `planner_task` | 118 | `static/tables/118_planner_task.xs` |
+
+**Not 74–79.** Those ids were already taken by an unrelated live
+initiative, and Xano assigns ids itself regardless of what a plan reserves
+(PUB-1 asked for 82 and got 112). The reserved-number convention has been
+retired — see `product/learning-fixes.md`.
+
+### Functional cases
+
+| ID | Result |
+|---|---|
+| FT-PLN-1-01 | ✅ Second `planner_settings` row for account 3 rejected by the unique index |
+| FT-PLN-1-02 | ✅ Duplicate `(account_id, model_key)` rejected; the **same** key inserted fine under a different account — tenancy isolation confirmed at the index |
+| FT-PLN-1-03 | ✅ Duplicate workspace name in one account rejected |
+| FT-PLN-1-04 | ✅ Duplicate `(workspace_id, name)` agent rejected |
+| FT-PLN-1-05 | ✅ Second timeline for the same `(agent_id, planned_date)` rejected |
+| FT-PLN-1-06 | ✅ Task with `timeline_id = 0` inserted — the backlog case |
+| FT-PLN-1-07 | ⚠️ Mostly — tokens 2000/500, capacity 8, visible true, active true, duration 30, seq 0, `is_archived` false all confirmed on real inserts. **The two enum defaults are missing** (see Deviations) |
+| FT-PLN-1-08 | ✅ No `assignee`, no timeline `name`, no `planned_start` — none were created |
+| FT-PLN-1-09 | ✅ Every FK present with the documented target, confirmed in the push responses: `account_id→account`, `created_by→user`, `workspace_id→planner_workspace`, `agent_id→planner_agent`, `model_id→planner_model`, `user_id→user`, `timeline_id→planner_timeline`, `assignee_agent_id→planner_agent` |
+| Schema audit (GOV-1) | ✅ All six pass S1/S2/S3/S6/S7 at full strictness — they are above `NEW_TABLE_MIN_ID`, so findings would be errors, not warnings. Manifest entries added to `schemaAudit.ts` |
+
+`npm test`: 213/213. `npm run lint`: exits 0.
+
+### A spec bug caught by testing it
+
+**US-P3A-1-01's `unique (workspace_id, user_id)` would have broken agent
+creation.** An `int` column here cannot hold a real null — it defaults to
+`0` — so that index treats every login-less agent as the same value, and
+the *second* agent in any plan without logins would be rejected. That is
+almost every plan on day one.
+
+Built instead as a non-unique `btree (user_id)`, with "one login per agent
+per plan" enforced in the API (PLN-5/APP-1). Confirmed live: two agents
+with no login insert cleanly under the index set that shipped, and would
+not have under the one specified.
+
+### Deviations
+
+| Change | Why |
+|---|---|
+| `planner_model` gained `updated_at` | Not in the epic's column list, but rates are editable (PLN-4), so the table is not append-only and GOV-1 standard S2 requires it |
+| No unique `(workspace_id, user_id)` | See above — the specified index was unimplementable here |
+| `plan_template_id` is a plain int, not a declared reference | `plan_template` is PLAN-1's table and does not exist yet; adding the reference later means `updateTableSchema`, which drops this table's trim validators. PLAN-1 enforces it |
+| `planner_timeline.status` / `planner_task.status` have no schema default | Specified as `draft` / `planned`. Both were created without one, and a direct insert leaves `""`, which is not a valid enum member. Fixing it now needs `updateTableSchema` (drops validators) or a table recreate — neither worth doing unilaterally while the founder is away. PLN-6 and PLN-7 write the value explicitly on every create, so no API-created row can miss it. **Worth a dashboard edit to close properly.** |
+
+### Not done
+
+- **`workflow_tests/planner_1_data_foundation.xs` was not written.** The FT
+  cases above were all executed directly instead. A workflow-test file
+  cannot be run from a session (no runner is exposed — see
+  `product/learning-fixes.md`), so it would have been an unrunnable
+  restatement of work already done live. The evidence is this table.
+- `docs/planner-data-model.md` **was** written (US-PLN-1-06), including the
+  column dictionary, the delete/propagation rules and the full list of
+  rules the schema cannot enforce with the epic that owns each.

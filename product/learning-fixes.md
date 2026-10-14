@@ -75,7 +75,27 @@ why `account_feature_flag` is its own table, not a JSON column on
 
 ---
 
-## 🔴 Needs a decision: phase-3's table numbering collides with live data
+## ✅ Resolved 2026-10-14: the reserved table-number convention is retired
+
+Decision taken (founder delegated it): **stop reserving table ids; record
+the id Xano actually assigns.** The evidence is now unambiguous — three
+epics in a row asked for ids and got different ones:
+
+| Epic | Asked for | Got |
+|---|---|---|
+| STAGE-1 | 109 | 110, 111 |
+| PUB-1 | 82 | 112 |
+| PLN-1 | 74–79 | 113–118 |
+
+Xano assigns ids on creation and ignores the plan. Local files are named
+after the real id after the push, which is already what happens in
+practice. `product/stories/phase-4/README.md`'s table list and
+`docs/planner-data-model.md` now record real ids; the phase-3 renumbering
+question below dissolves into this rule.
+
+The original finding, kept for the record:
+
+## ~~🔴 Needs a decision: phase-3's table numbering collides with live data~~
 
 Phase-3's `EPIC-PLN-1` reserved table ids **74–79** for the planner
 tables (`planner_settings`, `planner_model`, `planner_workspace`,
@@ -343,6 +363,50 @@ whole system — but it grows with every map in every account, and it runs
 on every publish *and* every readiness check. Worth a `journey_map` column
 (or a join) before there are thousands of maps. Not urgent, and not worth
 an `updateTableSchema` against a table with validators today.
+
+---
+
+## 🔴 Needs a dashboard edit: two planner enum columns have no default
+
+`planner_timeline.status` and `planner_task.status` (PLN-1) were specified
+with defaults `draft` and `planned`. Both shipped without one, so a
+**direct** insert leaves `""` — not even a member of the enum.
+
+No API-created row can hit this: PLN-6 and PLN-7 write `status` explicitly
+on every create. But the schema is wrong, and the only ways to fix it are
+`updateTableSchema` (which silently drops the four `trim` validators on
+`planner_task` — the documented bug above) or deleting and recreating the
+table. Neither is worth doing unilaterally, and the MCP surface has no
+single-column update.
+
+**Needs:** add the two defaults in the Xano dashboard. Five minutes, and
+it closes the last gap in PLN-1's FT-PLN-1-07.
+
+---
+
+## 🧠 Worth knowing: there are no real nullable foreign keys in this workspace
+
+Not a bug — a property of the platform that keeps reshaping designs, so
+it belongs written down once. An `int` column here cannot hold a true
+`null`; it defaults to `0`. Every "nullable FK" in every epic is really
+"`0` means not set":
+
+- `planner_task.timeline_id = 0` → backlog
+- `planner_task.assignee_agent_id = 0` → inherit the timeline's agent
+- `planner_agent.model_id = 0` → no model
+- `planner_agent.user_id = 0` → no login
+- `planner_workspace.plan_template_id = 0` → not from a template
+
+**The consequence that bites: you cannot put a unique index on a nullable
+FK.** In a normal database many rows can share `NULL` there; here they all
+share `0` and collide. This already invalidated one written spec —
+US-P3A-1-01's `unique (workspace_id, user_id)` on `planner_agent` would
+have rejected the second login-less agent in every plan. Caught by
+inserting two of them.
+
+**Rule for the remaining epics:** when a spec asks for a unique index that
+includes an optional reference, it cannot be built as specified. Enforce
+it in the API and say so in the table's header comment.
 
 ---
 

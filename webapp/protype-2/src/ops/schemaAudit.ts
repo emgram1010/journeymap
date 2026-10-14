@@ -82,6 +82,17 @@ export const TABLE_MANIFEST: Record<string, TableExpectation> = {
   plan_change_log: {enumFields: ['change_type'], appendOnly: true},
   activity_log: {naturalKeys: [['client_event_id']], enumFields: ['event_type', 'source'], appendOnly: true},
   account_feature_flag: {naturalKeys: [['account_id', 'flag_key']], enumFields: ['flag_key']},
+
+  // ── Phase-3 planner tables (PLN-1, amended by P3A-1) ────────────────
+  planner_settings: {naturalKeys: [['account_id']]},
+  planner_model: {naturalKeys: [['account_id', 'model_key']]},
+  planner_workspace: {naturalKeys: [['account_id', 'name']]},
+  planner_agent: {naturalKeys: [['workspace_id', 'name']], enumFields: ['kind']},
+  planner_timeline: {naturalKeys: [['agent_id', 'planned_date']], enumFields: ['status']},
+  // planner_task has no natural key on purpose: (timeline_id, seq) must not
+  // be unique, because a reorder rewrites several rows and would collide
+  // mid-flight. PLN-7's resequence function guarantees the ordering instead.
+  planner_task: {enumFields: ['status']},
 };
 
 const FIELD_TYPES = [

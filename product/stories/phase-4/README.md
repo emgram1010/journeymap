@@ -83,7 +83,13 @@ task + stages + who + how long   goes through the stages   start / end / status 
 3. If it needs an engineer or the AI, click **Copy diagnostic bundle** and paste it. It contains the story of what happened and no private data.
 4. A user can quote the **Reference** shown in any error message; search it on the Health page to see the whole timeline.
 
-## New tables (numbers start at 80; 74–79 are reserved by phase-3)
+## New tables
+
+> **The numbers below are a record, not a reservation (corrected 2026-10-14).**
+> Xano assigns table ids on creation and ignores whatever a plan asks for —
+> STAGE-1 asked for 109 and got 110/111, PUB-1 asked for 82 and got 112,
+> PLN-1 asked for 74–79 and got 113–118. Record the id Xano gives and name
+> the local file after it. See `product/learning-fixes.md`.
 
 | # | Table | Epic | MVP? |
 |---|---|---|---|
