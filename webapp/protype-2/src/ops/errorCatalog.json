@@ -349,6 +349,46 @@
     "severity": "info",
     "fix_hint": "One person gets one timeline per day. Move it to a free day, or open the existing timeline and move the tasks across. Nothing was changed, and the two days were not merged."
   },
+  "E-PLN-013": {
+    "code": "E-PLN-013",
+    "feature": "PLN-7",
+    "user_message": "How long should this take? Enter between 1 minute and 24 hours.",
+    "what_happened": "A task's duration was saved as zero, negative, or longer than a day.",
+    "likely_cause": "The field was left at zero, or a number of hours was typed where minutes were expected.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Durations are in minutes, so an hour and a half is 90. A task longer than a day should be split into several. Your typing was kept."
+  },
+  "E-PLN-014": {
+    "code": "E-PLN-014",
+    "feature": "PLN-7",
+    "user_message": "Say what's missing, so whoever picks this up knows what to chase.",
+    "what_happened": "A task was flagged as needing information, with no explanation of what is needed.",
+    "likely_cause": "The status was changed without filling in the reason box.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Write a short note about what you are waiting on. Setting the task back to planned clears the note automatically."
+  },
+  "E-PLN-015": {
+    "code": "E-PLN-015",
+    "feature": "PLN-7",
+    "user_message": "That position isn't valid.",
+    "what_happened": "A task was moved to a negative position in a list.",
+    "likely_cause": "A drag-and-drop sent a bad index — this is a bug in the screen, not something typed.",
+    "owner": "engineer",
+    "severity": "warn",
+    "fix_hint": "Dropping past the end of a list is fine and lands the task at the end. A negative position means the caller computed the drop point wrongly. Nothing was moved."
+  },
+  "E-PLN-016": {
+    "code": "E-PLN-016",
+    "feature": "PLN-7",
+    "user_message": "That new order doesn't match this day's tasks, so nothing was changed.",
+    "what_happened": "A reorder was sent that did not list exactly the tasks currently on that day — one was missing, repeated, or did not belong.",
+    "likely_cause": "The day changed in another tab or by someone else while this screen was open.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload the day and drag again. The order was left exactly as it was — a partial reorder is never applied."
+  },
   "E-P3A-001": {
     "code": "E-P3A-001",
     "feature": "P3A-1",
