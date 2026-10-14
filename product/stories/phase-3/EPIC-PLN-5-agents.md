@@ -3,7 +3,7 @@
 > **Amended by phase-4 `EPIC-P3A-1` (US-P3A-1-03):** an agent with a published timeline or log events is deactivated, not deleted.
 
 **Epic ID:** PLN-5
-**Status:** Planning
+**Status:** Partially done — list/create/update/visibility live and verified over real HTTP; **agent delete (US-PLN-5-04) needs the founder's approval** (see Test Results)
 **Depends on:** PLN-3, PLN-4
 **Goal:** CRUD for workspace agents (people and AI), including show/hide, model assignment, and a delete that propagates correctly to timelines and tasks.
 
@@ -108,4 +108,102 @@ Frontend: `handleSaveAgent`, `handleDeleteAgent`, `handleToggleAgentVisibility`,
 
 ## Test Results
 
-_Not yet run._
+**2026-10-14 — Opus 5 build pass. Partially complete: everything except
+the delete cascade.** Four endpoints live, all exercised over **real
+authenticated HTTP**.
+
+### What shipped
+
+| Endpoint | Live id | File |
+|---|---|---|
+| `GET planner/workspace/{id}/agent` | 534 | `apis/planner/534_workspace_workspace_id_agent_GET.xs` |
+| `POST planner/workspace/{id}/agent` | 535 | `apis/planner/535_workspace_workspace_id_agent_POST.xs` |
+| `PATCH planner/agent/{id}` | 536 | `apis/planner/536_agent_agent_id_PATCH.xs` |
+| `POST planner/workspace/{id}/agent/visibility` | 537 | `apis/planner/537_workspace_workspace_id_agent_visibility_POST.xs` |
+| `planner/return_tasks_to_backlog` | fn 114 | `functions/planner/return_tasks_to_backlog.xs` |
+
+### 🔴 Not done: the delete cascade needs the founder's approval
+
+`DELETE planner/agent/{agent_id}` and `planner/delete_agent_cascade`
+are **written but not pushed** — third delete path held for the same
+reason. The cascade is in `functions/planner/delete_agent_cascade.xs`.
+
+**This blocks FT-PLN-5-07, -08 and -09.**
+
+**But the hard half of FT-PLN-5-07 is already proven.** The risky part
+of an agent delete is not the deleting, it is keeping the work and its
+order — and that lives in `planner/return_tasks_to_backlog`, which is
+a pure move, contains no delete, and **was pushed and verified**:
+
+> ws4's backlog held `Cascade backlog 1` (seq 0) and `Cascade backlog 2`
+> (seq 1). Returning timeline 3's two tasks produced seq **2** and **3**
+> in their original timeline order, with the two existing backlog tasks
+> untouched at 0 and 1, and all six tasks still present. That is
+> US-PLN-5-04's backlog-order acceptance criterion exactly.
+
+### Functional cases
+
+| ID | Result |
+|---|---|
+| FT-PLN-5-01 | ✅ Person and AI agent both created. Defaults applied: capacity 8, `is_visible true`, `is_active true`, auto colour |
+| FT-PLN-5-02 | ✅ Person with a `model_id` → `E-PLN-008`; AI with another account's model → `404 Model not found` (not "forbidden" — the model's existence is not revealed) |
+| FT-PLN-5-03 | ✅ Duplicate name → `E-PLN-007`; capacity `0` and `25` both → `E-PLN-009` |
+| FT-PLN-5-04 | ✅ Renamed an agent owning 2 timelines. Its three timeline rows came back **byte-identical** to a snapshot taken beforehand — same ids, timestamps, dates, start times, statuses. Only the agent row was written |
+| FT-PLN-5-05 | ✅ AI → person cleared `model_id` to 0 in the same write. Person → AI without a model is allowed, as the story requires |
+| FT-PLN-5-06 | ✅ Hide-all flipped all 6 agents, show-all restored all 6, and the plan's counts (agents/timelines/tasks/backlog) were unchanged throughout |
+| FT-PLN-5-07 | ⛔ Blocked — but see the backlog-order evidence above |
+| FT-PLN-5-08 | ⛔ Blocked |
+| FT-PLN-5-09 | ⛔ Blocked — the read/update half is proven: a cross-account `PATCH agent/{id}` returns `404 Agent not found` |
+| FT-PLN-5-10 | ✅ All four endpoints return `401` unauthenticated |
+
+### Beyond the plan
+
+| Case | Result |
+|---|---|
+| US-PLN-5-05 model summary, no N+1 | ✅ One query for all models, indexed in memory. An AI agent with a model resolved to `claude-sonnet-5 (Claude Sonnet 5)`; agents without one returned `null` |
+| Hidden agents are listed | ✅ Included by design — the popover is where you un-hide, so filtering them out would make hiding one-way |
+| Auto colour walks the palette | ✅ Four consecutive creates took `#475569`, `#0d9488`, `#c2410c`, `#b45309` in order |
+| An explicit colour overrides | ✅ `#abcdef` kept |
+| Rename to its own name | ✅ Allowed |
+| Archived plan blocks agent writes | ✅ Create, update and bulk visibility all go through `guards/assert_not_archived` |
+
+`npm test`: 213/213 — including the catalog lint, which required
+`E-PLN-007/008/009` to be cataloged.
+
+### Two live bugs found and fixed during the build
+
+**1. Every new agent got the same colour.** The "is this palette colour
+already used?" test was `($used|contains:$p) == false`. **`|contains:`
+returns `false` for every array** — present or absent, literal or
+variable (isolated across four combinations live). So the test was
+always true and the first palette entry always won. Replaced with a
+nested loop.
+
+**2. "Hide all" hid exactly one agent out of six — and reported
+success.** `db.patch` with `field_name`/`field_value` updates only the
+**first** matching row; there is no "patch where" form. Replaced with a
+read-then-loop, patching each agent by id inside one `db.transaction`.
+
+### ⚠️ What finding #2 means for the delete paths
+
+`db.del` takes the same `field_name`/`field_value` form, so it almost
+certainly deletes one row too. **PLN-3's cascade was written on the
+opposite assumption** — one `db.del` per child table by `workspace_id`.
+Had it been pushed, deleting a plan would have removed one task, one
+timeline, one agent and then the plan itself, **orphaning every
+remaining child against a plan that no longer existed** — exactly the
+corruption GOV-1's integrity audit exists to catch, caused by the
+cleanup meant to prevent it.
+
+`functions/planner/delete_workspace_cascade.xs` has been rewritten to
+read each child set and delete by id. This is the clearest argument yet
+for the delete paths having been held rather than pushed.
+
+### Deviations
+
+| Change | Why |
+|---|---|
+| `return_tasks_to_backlog` takes `(workspace_id, timeline_id)`, not a `task_filter` | US-PLN-5-04 describes a filter, but a filter cannot be passed into a Xano function. Every caller (PLN-5 delete, PLN-6 delete, PLN-7 unschedule) works a timeline at a time anyway |
+| It was pushed and tested even though its only current caller is unpushed | It contains no delete, so it needed no approval — and it holds the part of the cascade most likely to be wrong. Testing it now means that when the delete is approved, only the deleting itself is unverified |
+| Three new error codes | `E-PLN-007` (duplicate agent name), `E-PLN-008` (model on a person), `E-PLN-009` (capacity out of range). The epic specifies the behaviours but names no codes |
+| Agent writes are blocked on an archived plan | Not in PLN-5, but P3A-1 makes an archived plan read-only and this is a write to its contents |

@@ -550,6 +550,63 @@ go any time.
 
 ---
 
+## 🔴 Latent bug in existing code: `|contains:` on an array is always false
+
+`|contains:` returns **`false` for every array** — value present or
+absent, literal or variable. Confirmed live across four combinations.
+It is a string-substring filter; on an array it is not merely wrong, it
+is wrong in the direction that reads as "not found". `index_of` and
+`in_array` do not exist either.
+
+Found when PLN-5 handed every new agent the same colour.
+
+**Four existing uses are on arrays and are therefore doing nothing:**
+
+| File | Line | What it was meant to do |
+|---|---|---|
+| `apis/journey_map/76_..._export_linked_graph_GET.xs` | 90, 111, 150 | `!($visited|contains:X)` — the **cycle/duplicate guard** of a breadth-first graph walk |
+| `apis/journey_map/130_..._build_full_POST.xs` | 220 | `$builder_phase_indices|contains:$loop_idx` |
+
+The export one is the worrying one: `$visited` never reports a hit, so
+every edge re-adds its target to the frontier on every round. On a map
+graph with a cycle or even a diamond it re-walks nodes and duplicates
+output, bounded only by whatever depth cap that endpoint has.
+
+**Not fixed here, deliberately** — both are live endpoints unrelated to
+the planner, and rewriting a graph traversal unsupervised is riskier
+than flagging it. Needs a decision: fix them, or confirm they are
+unreachable.
+
+The other seven uses in the repo are on **strings** (search text, a log
+message) and are fine.
+
+**The rule going forward:** test array membership with a `foreach` loop,
+or with `x in $arr` inside a `db.query` `where` clause (that form does
+work — it compiles to SQL).
+
+---
+
+## 🧠 Worth knowing (PLN-5): `db.patch`/`db.del` only touch the FIRST match
+
+`db.patch` with `field_name`/`field_value` updates **one** row, not
+every match. There is no "patch where" form. Confirmed live: PLN-5's
+"hide all" patched by `workspace_id` and flipped exactly one of six
+agents, returning `200` with no hint anything was skipped.
+
+`db.del` takes the same form and almost certainly behaves the same way.
+
+**This nearly shipped a data-corruption bug.** PLN-3's
+`delete_workspace_cascade` was written as one `db.del` per child table
+by `workspace_id`. Had it been pushed, deleting a plan would have
+removed one task, one timeline, one agent and then the plan — leaving
+every other child orphaned against a plan that no longer existed. It
+has been rewritten to read each child set and delete by id.
+
+**The rule:** to write or delete many rows, `db.query` them, then loop
+patching/deleting by `id`, inside a `db.transaction`.
+
+---
+
 ## 🧠 Worth knowing (PLN-3): `|get` with a VARIABLE key ignores its default
 
 The single nastiest XanoScript trap found so far, because it fails

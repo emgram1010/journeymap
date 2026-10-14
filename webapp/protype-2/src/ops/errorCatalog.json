@@ -289,6 +289,36 @@
     "severity": "info",
     "fix_hint": "The full message names each agent using the model. Open each one and pick a different model, then delete this one. Nothing was deleted."
   },
+  "E-PLN-007": {
+    "code": "E-PLN-007",
+    "feature": "PLN-5",
+    "user_message": "This plan already has someone with that name.",
+    "what_happened": "An agent was added or renamed to a name another agent in the same plan already uses.",
+    "likely_cause": "Two people with the same first name, or the same person added twice.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Use something that tells them apart, like a surname or initial. Names only have to be unique inside one plan, so the same name is fine in a different plan. Your typing was kept."
+  },
+  "E-PLN-008": {
+    "code": "E-PLN-008",
+    "feature": "PLN-5",
+    "user_message": "Only AI agents can have a model.",
+    "what_happened": "A model was assigned to an agent whose kind is \"person\".",
+    "likely_cause": "The kind was switched to person without clearing the model, or the wrong agent was being edited.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "A model is only used to work out token costs, which only apply to AI agents. Either switch this agent to AI, or leave the model unset. Switching an AI agent to a person clears its model automatically."
+  },
+  "E-PLN-009": {
+    "code": "E-PLN-009",
+    "feature": "PLN-5",
+    "user_message": "Daily capacity has to be more than 0 and no more than 24 hours.",
+    "what_happened": "An agent's daily capacity was saved outside the range a day allows.",
+    "likely_cause": "A zero, a negative number, or a value above 24 was entered.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Enter the hours this person or agent is available on a normal day. Zero would mean they can never be scheduled, so use hide instead if that is what you want."
+  },
   "E-P3A-001": {
     "code": "E-P3A-001",
     "feature": "P3A-1",
