@@ -67,6 +67,8 @@ function MapEditorRoute() {
 import React from 'react';
 import AppLayout from './AppLayout';
 import PlannerApp from './planner/PlannerApp';
+import PerformToday from './perform/PerformToday';
+import {PerformErrorBoundary} from './perform/PerformErrorBoundary';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -80,6 +82,10 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/architectures/:id" element={<ProtectedRoute><AppLayout><ArchitectureDetail /></AppLayout></ProtectedRoute>} />
           <Route path="/maps/:id" element={<ProtectedRoute><AppLayout><MapEditorRoute /></AppLayout></ProtectedRoute>} />
           <Route path="/planner" element={<ProtectedRoute><AppLayout><PlannerApp /></AppLayout></ProtectedRoute>} />
+          {/* APP-1: deliberately NOT inside AppLayout — the performer app is
+              phone-first and has nothing to do with the desktop sidebar chrome
+              the authoring tools share. */}
+          <Route path="/perform" element={<ProtectedRoute><PerformErrorBoundary><PerformToday /></PerformErrorBoundary></ProtectedRoute>} />
           <Route path="/account" element={<ProtectedRoute><AppLayout><AccountSettings /></AppLayout></ProtectedRoute>} />
           <Route path="/health" element={<AdminRoute><AppLayout><HealthPage /></AppLayout></AdminRoute>} />
           {/* Default redirect */}

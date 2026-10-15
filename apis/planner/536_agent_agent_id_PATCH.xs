@@ -14,6 +14,16 @@
 // reads it for a person, so it would sit there until something else
 // tripped over it. PERSON → AI is allowed without a model — the UI
 // simply shows no cost until one is chosen (US-PLN-5-02).
+//
+// APP-1 (US-APP-1-01) adds `user_id`: which login performs this
+// agent's work. 0 clears the link — an agent without one simply
+// cannot appear in `perform/today` for anyone, which is the whole
+// enforcement (nothing else needs to check it). ONE LOGIN PER AGENT
+// PER PLAN, checked here rather than with a unique index: an int
+// column can't hold a real null, so a unique index on (workspace_id,
+// user_id) would reject every second login-less agent (see CLAUDE.md
+// on nullable FKs) — exactly the same shape as the `name` clash check
+// just below, done the same way.
 query "agent/{agent_id}" verb=PATCH {
   api_group = "planner"
   auth = "user"
@@ -29,6 +39,7 @@ query "agent/{agent_id}" verb=PATCH {
     decimal daily_capacity_hours?
     int model_id?
     bool is_visible?
+    int user_id?
     text correlation_id? filters=trim
   }
 
@@ -151,6 +162,38 @@ query "agent/{agent_id}" verb=PATCH {
       }
     }
 
+    // APP-1 (US-APP-1-01).
+    var $next_user {
+      value = $existing.user_id
+    }
+
+    conditional {
+      if ($raw_input|has:"user_id") {
+        var.update $next_user {
+          value = $input.user_id
+        }
+      }
+    }
+
+    // No conditional needed: ids start at 1, so a lookup for id 0 (the
+    // "no link" sentinel) naturally returns null — the same answer a
+    // conditional guard would have produced, without depending on an
+    // `as` var's visibility outside a branch.
+    db.get user {
+      field_name = "id"
+      field_value = $next_user
+    } as $linked_user
+
+    // Guarded by `$next_user != 0` IN the where clause (not a separate
+    // conditional around the query) — 0 means "no link", and plenty of
+    // other agents legitimately also have 0, which must never count as
+    // a clash. A plain var computed earlier is fine inside a where
+    // clause; it compiles to SQL (CLAUDE.md).
+    db.query planner_agent {
+      where = $next_user != 0 && $db.planner_agent.workspace_id == $existing.workspace_id && $db.planner_agent.user_id == $next_user && $db.planner_agent.id != $input.agent_id
+      return = {type: "count"}
+    } as $user_clash
+
     db.query planner_agent {
       where = $db.planner_agent.workspace_id == $existing.workspace_id && $db.planner_agent.name == $next_name && $db.planner_agent.id != $input.agent_id
       return = {type: "count"}
@@ -226,6 +269,32 @@ query "agent/{agent_id}" verb=PATCH {
       }
     }
 
+    // APP-1 (US-APP-1-01). Tenancy first (does this login even belong
+    // here), then uniqueness (one login, one agent, per plan).
+    conditional {
+      if ($reject_code == "" && $next_user != 0 && ($linked_user == null || $linked_user.account_id != $actor.account_id)) {
+        var.update $reject_code {
+          value = "E-PLN-010"
+        }
+
+        var.update $reject_msg {
+          value = "That login doesn't belong to this account. (E-PLN-010)"
+        }
+      }
+    }
+
+    conditional {
+      if ($reject_code == "" && $user_clash > 0) {
+        var.update $reject_code {
+          value = "E-PLN-011"
+        }
+
+        var.update $reject_msg {
+          value = "That login is already linked to someone else in this plan. (E-PLN-011)"
+        }
+      }
+    }
+
     conditional {
       if ($reject_code != "") {
         function.run "ops/log_event" {
@@ -261,6 +330,7 @@ query "agent/{agent_id}" verb=PATCH {
         daily_capacity_hours: $next_capacity
         is_visible          : $next_visible
         model_id            : $next_model
+        user_id             : $next_user
         updated_at          : "now"
       }
     } as $updated

@@ -1,4 +1,54 @@
 {
+  "E-APP-001": {
+    "code": "E-APP-001",
+    "feature": "APP-1",
+    "user_message": "No connection. Reconnect to continue. Your last tap was not saved.",
+    "what_happened": "The performer app tried to send a tap (or load today's list) while the device had no connection, or the request failed at the network level before reaching the server.",
+    "likely_cause": "The phone or computer lost its connection.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reconnect and tap again. Nothing was queued on purpose — the MVP has no offline mode, so a queued tap could silently go stale."
+  },
+  "E-APP-002": {
+    "code": "E-APP-002",
+    "feature": "APP-1",
+    "user_message": "That didn't save. Tap again. Reference: {ref}.",
+    "what_happened": "A tap reached the server (or the request otherwise failed) but did not come back with a clear answer — a 500, a timeout, or a response the app could not parse.",
+    "likely_cause": "A transient server problem, or a bug in the endpoint being called.",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "Tapping again is safe — the log row and the task's status are written together, so a failed attempt leaves neither, and a repeat with the same client_event_id is a no-op if the first one actually landed. If this repeats, check the Health page for a matching failure event."
+  },
+  "E-APP-003": {
+    "code": "E-APP-003",
+    "feature": "APP-1",
+    "user_message": "You can't change this step.",
+    "what_happened": "A performer tried to act on a step that isn't scheduled to them, or asked for a step id that doesn't belong to their account.",
+    "likely_cause": "The step was reassigned, the link was stale, or the id belongs to someone else's work.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload today's list. If the step really should be theirs, check the assignment in the plan."
+  },
+  "E-APP-004": {
+    "code": "E-APP-004",
+    "feature": "APP-1",
+    "user_message": "Please sign in again.",
+    "what_happened": "The stored session token was missing, expired, or rejected by the server.",
+    "likely_cause": "The session expired, or the token was revoked.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Sign in again. Nothing from before the expiry was lost — every tap up to that point was already recorded."
+  },
+  "E-APP-005": {
+    "code": "E-APP-005",
+    "feature": "APP-1",
+    "user_message": "Something went wrong. Reference: {ref}. We've recorded it.",
+    "what_happened": "An error the app did not anticipate — an unhandled exception in the performer screen, or a response shape it didn't expect.",
+    "likely_cause": "A bug, or a backend response that changed shape.",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "Quote the Reference on the Health page to find the exact event. The screen recovers to a safe empty state rather than staying crashed."
+  },
   "E-OBS-001": {
     "code": "E-OBS-001",
     "feature": "OBS-1",

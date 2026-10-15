@@ -40,9 +40,18 @@ export function __setEventSenderForTests(impl: EventSender | null): void {
 async function defaultSend(input: LogEventInput): Promise<void> {
   // Imported lazily to avoid a hard circular dependency between xano.ts
   // (which attaches a correlation id to every request) and this module.
-  const {xanoRequest} = await import('../xano');
+  //
+  // FOUND 2026-10-15 (APP-1, first real-browser exercise of this path):
+  // this call was targeting the journey-map group's base URL, which has
+  // no `/ops/event` route at all — every client-side event has 404'd
+  // since OBS-1 was built. `baseUrl: getXanoOpsBaseUrl()` points it at
+  // the group `/ops/*` actually lives in. See xano.ts's own header
+  // comment on `getXanoOpsBaseUrl` for the second, separate defect this
+  // did not mask (the endpoint's `redis.*` calls 403 on this Xano plan).
+  const {xanoRequest, getXanoOpsBaseUrl} = await import('../xano');
   await xanoRequest('/ops/event', {
     method: 'POST',
+    baseUrl: getXanoOpsBaseUrl(),
     body: {
       feature: input.feature,
       step: input.step,

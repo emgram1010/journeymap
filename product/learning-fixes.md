@@ -504,7 +504,7 @@ All eight cases plus the two positive-path checks were green both times.
 
 ---
 
-## 🔴 Needs your approval: five delete paths, one nightly job, two scratch functions
+## 🔴 Needs your approval: five delete paths, one nightly job, three scratch functions
 
 The planner backend is otherwise complete. Everything below is written,
 reviewed and commented; none of it has been pushed, because CLAUDE.md
@@ -528,8 +528,9 @@ tests and should not stay.
 |---|---|---|
 | `scratch/verify_transitions` (133) | Walked all 35 (status, event) pairs so the live table could be diffed against the TypeScript | None — read-only |
 | `scratch/tamper_task_status` (137) | **Writes a task status bypassing the event engine**, to prove the replay audit catches tampering | Real. It is the exact thing the audit exists to detect. Not reachable over HTTP (workspace functions have no route), but it should go. |
+| `scratch/recent_app1_events` (142, added APP-1) | Read-only, lists `event_log` rows for `feature = "APP-1"` — used to verify the OBS-1 pipeline fix below | None — read-only |
 
-Deleting a function is still a delete, so both are waiting on you.
+Deleting a function is still a delete, so all three are waiting on you.
 
 **Also worth adding to the nightly job when it is approved:**
 `ops/audit_execution` (live, function 136) — the execution-layer twin of
@@ -595,6 +596,14 @@ Test data also left behind, deliberately: account 6 plans **4** and
 **5** (the cascade fixture) are needed to finish PLN-3's delete tests.
 Plans **6, 7, 8** in the same account are leftovers from testing and can
 go any time.
+
+**Added 2026-10-15 (APP-1), workspace 9 (account 6):** agent **15**
+("Second Agent APP1", unlinked, created to test the one-login-per-agent
+clash); timeline **18** (2026-10-15, agent 14) and work_item **4**
+("APP-1 live demo job", with work_tasks 9–10) — a genuinely fresh,
+published job used to prove Start/Done/Blocked work in a real browser
+rather than replaying already-finished test data. All harmless, all
+visible in the UI, all safe to delete whenever.
 
 ---
 
@@ -1345,6 +1354,83 @@ addresses the performer's end.
 
 Worth a deliberate decision about whether those get screens, or whether
 the planner UI (item 1) is expected to absorb them when it gets wired.
+
+---
+
+## ✅ Fixed 2026-10-15 (APP-1): OBS-1's client-side event pipeline had never worked, for two independent reasons
+
+Found while verifying APP-1 over a REAL browser against the real backend
+— the first time any feature's `logEvent()` calls had been driven
+through an actual page rather than a unit test or `runWorkspaceFunction`.
+After every tap and every page load, `event_log` stayed completely
+empty for `feature = "APP-1"`. Two separate, compounding defects, both
+pre-existing and affecting every feature that uses `ops/logEvent.ts` —
+not something APP-1 introduced:
+
+**1. Wrong API group.** `xano.ts`'s `getOpsHealth`, `getOpsIssues`,
+`getOpsBundle`, and `logEvent.ts`'s `defaultSend` all called
+`xanoRequest('/ops/...')`, which targets the journey-map group
+(`ER4MRRWZ`). The `/ops/*` endpoints live in their own group ("Ops",
+canonical `-2MhtESP`, needing the `:v1` suffix). Confirmed live:
+`ER4MRRWZ/ops/health` → 404; `-2MhtESP:v1/ops/health` → the app's own
+friendly 403 (admin-only). **This means the Health page itself — the
+founder's primary support tool — has never loaded real data in a real
+browser**, independent of anything else. Fixed by adding an optional
+`baseUrl` to `xanoRequest`'s options and a `getXanoOpsBaseUrl()`
+constant (CLAUDE.md has the detail).
+
+**2. The endpoint itself 403'd for everyone, admin or not.**
+`apis/ops/1_ops_event_POST.xs` used `redis.ratelimit`/`redis.get`/
+`redis.set` for its rate limit and de-dup window. All three are
+rejected outright on this Xano plan (`"Not supported. Please upgrade
+your Xano instance."`). So even pointed at the right URL, every call
+still failed. Rewritten to do the same job — same codes, same windows
+(20/min, 5s de-dup) — with a plain `db.query` against `event_log`
+itself, no new infrastructure. Verified: first call `{accepted:true}`
+and a row written; an identical call inside 5 seconds `{accepted:
+false}` and no second row.
+
+**Verified end to end through the real app, not a manual request**: a
+real `Start`/`Reopen` tap and a real page load both produced correct
+`event_log` rows with the right `feature`, `step`, `entity_id` and
+`metadata`.
+
+**Worth noting:** fix #2 is a judgment call, not purely mechanical —
+it changes the rate-limit/de-dup mechanism from Redis to a DB query.
+Made unilaterally because it restores already-documented, already-agreed
+behaviour (same codes, same windows) rather than changing any product
+decision, and because leaving the whole pipeline silently dead was
+worse. Flagging it here rather than treating it as routine. The new
+query is unindexed on `user_id` alone — fine at today's volume (the
+table is pruned daily), worth an index if client-event volume grows
+enough to matter.
+
+---
+
+## 🟡 Worth knowing (APP-1): the existing Playwright suite's reliability in this environment is unconfirmed
+
+APP-1's E2E test plan (E2E-APP-1-01…05, G01…G03) was instead driven
+through a REAL Chrome session against the real backend — every tap
+verified by reading the actual database row back, which is a stronger
+check than a typical Playwright assertion. No new `.spec.ts` file was
+written.
+
+**Why, given Playwright is actually configured and runnable here**
+(unlike Xano's `workflow_test`s, which have no runner at all — see the
+entry below): a quick check of `playwright.config.ts` found its
+`webServer.port` set to `5173`, but `package.json`'s own `dev` script
+hardcodes `--port=3000`. Running one existing spec
+(`e2e/cell-identifiers.spec.ts`) got partway through a test and then
+the worker exited; inconclusive within the time available, but not a
+clean pass either. **Not chased further** — it's a pre-existing
+question about the whole e2e harness, not something APP-1 caused, and
+diagnosing it is a separate task from building APP-1.
+
+**Needs:** before leaning on Playwright for a future epic's completion
+gate, confirm `e2e/*.spec.ts` actually runs green end to end once,
+starting from a clean `npx playwright test`. If the port mismatch is
+real, it's a one-line fix (align `playwright.config.ts`'s `webServer`
+to the `dev` script's actual port, or vice versa).
 
 ---
 

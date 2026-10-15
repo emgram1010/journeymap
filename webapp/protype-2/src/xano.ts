@@ -608,10 +608,33 @@ const DEFAULT_XANO_AUTH_BASE_URL = 'https://xdjc-i7zz-jhm2.n7e.xano.io/api:RPonu
 export const getXanoAuthBaseUrl = () => trimTrailingSlash(import.meta.env.VITE_XANO_AUTH_BASE_URL?.trim() || DEFAULT_XANO_AUTH_BASE_URL);
 export const getAuthToken = () => (typeof localStorage !== 'undefined' ? localStorage.getItem('authToken') : null);
 
+// ── Ops API group ────────────────────────────────────────────────────────────
+// FOUND 2026-10-15, while verifying APP-1 over a real browser: every `/ops/*`
+// call in this file (getOpsHealth, getOpsIssues, getOpsBundle) AND
+// `ops/logEvent.ts`'s `defaultSend` were calling the plain `xanoRequest`,
+// which targets `getXanoBaseUrl()` — the JOURNEY-MAP group. The ops/*
+// endpoints were pushed to their OWN group ("Ops", canonical `-2MhtESP`,
+// requiring the `:v1` suffix — confirmed from that group's own OpenAPI
+// spec). Every one of these calls has therefore been hitting a 404 in a
+// real browser since OBS-1 was built: the Health page has never loaded
+// real data, and no client-side event has ever reached `event_log`,
+// independent of (and in addition to) the already-documented `xanoRequest`
+// export bug. See learning-fixes.md for the full write-up, including a
+// SECOND, separate defect this did not mask: `apis/ops/1_ops_event_POST.xs`
+// itself 403s with "Not supported. Please upgrade your Xano instance." —
+// this Xano plan does not support the `redis.*` filters that endpoint's
+// rate limit and de-dup are built on. Fixing THIS base-URL mismatch alone
+// is not enough to make events land; that second issue is a platform
+// capability question, left for the founder, not fixed here.
+const DEFAULT_XANO_OPS_BASE_URL = 'https://xdjc-i7zz-jhm2.n7e.xano.io/api:-2MhtESP:v1';
+export const getXanoOpsBaseUrl = () => trimTrailingSlash(import.meta.env.VITE_XANO_OPS_BASE_URL?.trim() || DEFAULT_XANO_OPS_BASE_URL);
+
 type RequestOptions = {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: Record<string, unknown>;
   signal?: AbortSignal;
+  /** Overrides which API group's base URL this call targets. Defaults to the journey-map group. */
+  baseUrl?: string;
 };
 
 export class XanoHttpError extends Error {
@@ -640,13 +663,13 @@ export class XanoHttpError extends Error {
 // in the localStorage offline buffer with no way to drain. Invisible until
 // the truncated e2e spec stopped blocking the type-check.
 export async function xanoRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const {method = 'GET', body, signal} = options;
+  const {method = 'GET', body, signal, baseUrl} = options;
   const token = getAuthToken();
   const correlationId = newCorrelationId();
   const headers: Record<string, string> = {Accept: 'application/json', [CORRELATION_HEADER]: correlationId};
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (body) headers['Content-Type'] = 'application/json';
-  const response = await fetch(`${getXanoBaseUrl()}${path}`, {
+  const response = await fetch(`${baseUrl ?? getXanoBaseUrl()}${path}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
@@ -1467,14 +1490,14 @@ export interface OpsBundleResponse {
   owner: 'user' | 'product_manager' | 'engineer';
 }
 
-export const getOpsHealth = () => xanoRequest<OpsHealthResponse>('/ops/health');
+export const getOpsHealth = () => xanoRequest<OpsHealthResponse>('/ops/health', {baseUrl: getXanoOpsBaseUrl()});
 
 export const getOpsIssues = (params: {accountId?: number; since?: string} = {}) => {
   const query = new URLSearchParams();
   if (params.accountId !== undefined) query.set('account_id', String(params.accountId));
   if (params.since) query.set('since', params.since);
   const qs = query.toString();
-  return xanoRequest<OpsIssuesResponse>(`/ops/issues${qs ? `?${qs}` : ''}`);
+  return xanoRequest<OpsIssuesResponse>(`/ops/issues${qs ? `?${qs}` : ''}`, {baseUrl: getXanoOpsBaseUrl()});
 };
 
 export const getOpsBundle = (params: {correlationId?: string; entityType?: string; entityId?: number; accountId?: number}) => {
@@ -1484,7 +1507,7 @@ export const getOpsBundle = (params: {correlationId?: string; entityType?: strin
   if (params.entityId !== undefined) query.set('entity_id', String(params.entityId));
   if (params.accountId !== undefined) query.set('account_id', String(params.accountId));
   const qs = query.toString();
-  return xanoRequest<OpsBundleResponse>(`/ops/bundle${qs ? `?${qs}` : ''}`);
+  return xanoRequest<OpsBundleResponse>(`/ops/bundle${qs ? `?${qs}` : ''}`, {baseUrl: getXanoOpsBaseUrl()});
 };
 
 // ── Dashboard journey map management ────────────────────────────────────────
