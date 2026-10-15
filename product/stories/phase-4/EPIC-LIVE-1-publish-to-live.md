@@ -2,7 +2,7 @@
 
 **Epic ID:** LIVE-1
 **Feature:** The planner publishes a timeline to live; performers see a frozen snapshot, and later planner changes stay with the planner.
-**Status:** Planning
+**Status:** MVP core built and verified over real HTTP. Bulk publish is deferred by the epic; the planner UI (US-LIVE-1-05) is not built; change logging is wired into the duration edit only (see Test Results)
 **Depends on:** SCHED-1, P3A-1 (provides `planner_agent.user_id`)
 **MVP:** in scope except bulk publish (US-LIVE-1-03, deferred).
 **Goal:** **Publish to live** freezes a timeline's plan and makes it visible to its performer. After that, the planner may still change the plan, but performers do **not** see those changes, and every change is logged against the published snapshot so plan-vs-actual stays meaningful.
@@ -126,4 +126,103 @@ Follows GOV-1 standards, VAL-1 rules and OBS-1 events.
 
 ## Test Results
 
-_Not yet run._
+**2026-10-15 — Opus 5 build pass. MVP core built.** Two tables, two
+functions, one endpoint, 18 unit tests, verified over **real
+authenticated HTTP**.
+
+### What shipped
+
+| Thing | Live id | File |
+|---|---|---|
+| `plan_publication` | table 125 | `static/tables/125_plan_publication.xs` |
+| `plan_change_log` | table 126 | `static/tables/126_plan_change_log.xs` |
+| `POST planner/timeline/{id}/publish` | 562 | `apis/planner/562_timeline_timeline_id_publish_POST.xs` |
+| `live/build_publication` | fn 127 | `functions/live/build_publication.xs` |
+| `live/log_plan_change` | fn 129 | `functions/live/log_plan_change.xs` |
+| `publishBlockers`, `canonicalizePublication`, `diffPlan` | — | `webapp/protype-2/src/liveModel.ts` |
+
+### The guarantee, demonstrated
+
+This is the result the whole epic exists for:
+
+1. Timeline 17 was published with four items; `pt-38` was frozen at
+   **30 minutes**, hash `4490bf7e…`.
+2. The planner then re-timed that same step to **55 minutes**.
+3. The live plan now reads 55. **The publication still reads 30, and
+   its hash is unchanged.**
+4. One `plan_change_log` row was written: `pt-38`,
+   `duration_changed`, `{30} → {55}`, by user 9, against publication 1.
+
+The performer sees what they were given; the planner sees the current
+plan; the difference is on the record. None of those three is
+achievable without the other two.
+
+### Unit tests
+
+| ID | Result |
+|---|---|
+| UT-LIVE-1-01 | ✅ Empty timeline → only `EMPTY` |
+| UT-LIVE-1-02 | ✅ Step with no assignee → `NO_ASSIGNEE` with the count and ids |
+| UT-LIVE-1-03 | ✅ `needs_info` step → `NEEDS_INFO` |
+| UT-LIVE-1-04 | ✅ A ready timeline returns no blockers at all |
+| UT-LIVE-1-05 | ✅ Same input hashes identically; input order is irrelevant but `seq` is not; changing seq, duration, assignee, start, work-task ids or a label all change the string |
+| UT-LIVE-1-06 | ✅ `moved`, `added`, `removed`, `duration_changed`, `reassigned` each detected; one item can produce three changes at once; an unchanged plan produces none |
+| UT-LIVE-1-G01 | ✅ Messages are plain language with correct singular/plural, and contain no codes, field names or `null` |
+
+Two behaviours worth calling out, both tested:
+
+- **An unassigned step is not also reported as having no login.** Two
+  complaints about one problem is how a blocker list becomes noise.
+- **A pipe inside a label cannot forge a field boundary** in the hash
+  — the same escaping discipline as PUB-1.
+
+`npm test`: **266/266** (18 new).
+
+### Functional cases
+
+| ID | Result |
+|---|---|
+| FT-LIVE-1-01 | ✅ Publishing a ready timeline wrote one publication (4 items, hash recorded) and set the timeline `published` |
+| FT-LIVE-1-02 | ✅ Blocked by `NO_LOGIN` with a plain sentence naming the person; the timeline stayed `draft` and nothing was written |
+| FT-LIVE-1-03 | ✅ Publishing again → `E-LIVE-005` |
+| FT-LIVE-1-04 | ✅ See "The guarantee, demonstrated" above — edit allowed, one log row, snapshot hash unchanged |
+| FT-LIVE-1-05 | ⛔ Bulk publish is deferred by the epic (US-LIVE-1-03) |
+| FT-LIVE-1-06 | ✅ By construction — no update or delete route exists for either table, and neither has an `updated_at` |
+| FT-LIVE-1-07 | ✅ A draft day still edits freely, and writes **no** change-log row. Confirmed by making the same edit on a draft day and seeing the log stay at one row |
+| FT-LIVE-1-08 | ✅ Tenancy runs through `planner/assert_timeline`; unauthenticated publish → `401` |
+| E2E-LIVE-1-01/02 | ⛔ No UI (US-LIVE-1-05 not built) |
+
+### A real bug this epic exposed in PLN-6
+
+**`GET timeline/{id}` and the timeline list both hardcoded
+`status: "draft"`.** That was *true* while publishing was on hold
+(PLN-6's Non-Goals) and became a lie the moment LIVE-1 shipped: a
+published day still read as a draft, so nothing in the planner could
+tell live days from draft ones — and the first publish looked like it
+had failed when it had actually succeeded.
+
+Both endpoints now return the real column. Fixed, pushed and
+re-verified: the read and the list both show `published`.
+
+### A tooling hazard found the hard way
+
+**The MCP `updateTableContentItem` tool does not reliably patch.**
+Calling it with `{user_id: 9}` on an agent row also reset that row's
+`workspace_id`, moving the agent into a different plan — and a
+follow-up call supplying `workspace_id` explicitly did not put it
+back. Repaired with a scratch function using `db.patch`, which worked
+first time.
+
+**Use a scratch function with `db.patch` for ad-hoc row edits**, never
+that tool. Its own description warns it is destructive; this is what
+that means in practice.
+
+### Deviations and gaps
+
+| Item | Why |
+|---|---|
+| Change logging is wired into the **duration edit only** | `tweak` is the clearest case and proves the mechanism end to end. Move, reorder, add and remove also need the same call in PLN-6/PLN-7's endpoints — straightforward now that `live/log_plan_change` exists and does nothing on a draft day, so callers need no condition of their own |
+| No bulk publish | Deferred by the epic (US-LIVE-1-03) |
+| No planner UI | US-LIVE-1-05 not built, like the other UI stories this session |
+| `expected_minutes` and `planned_start` are not in the canonical string | They are derived values that follow from the items and the timeline's start; including a derived field in a tamper-evidence hash means it changes when the derivation changes rather than when the plan does. They are still returned in the snapshot JSON |
+| FT-LIVE-1-G06 (audit check) not added | PLN-8's audit does not yet check "published timeline without a publication" or a hash mismatch. Same gap as JOB-1's FT-G05 — both belong in a follow-up audit pass |

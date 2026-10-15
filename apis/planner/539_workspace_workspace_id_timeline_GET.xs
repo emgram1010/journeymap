@@ -240,7 +240,7 @@ query "workspace/{workspace_id}/timeline" verb=GET {
             label        : $label
             planned_date : $t.planned_date
             start_time   : $t.start_time
-            status       : "draft"
+            status       : $t.status
             task_count   : ($count_tally|get:$key:0)
             total_minutes: ($minutes_tally|get:$key:0)
             out_of_window: $oow

@@ -266,6 +266,25 @@ query "planner_task/{planner_task_id}/tweak" verb=PATCH {
       data = {duration_minutes: $next_duration, tweak_reason: $next_reason, updated_at: "now"}
     } as $updated
 
+    // LIVE-1 (US-LIVE-1-04): if this day is already published, the
+    // change is recorded against the publication. Does nothing for a
+    // draft day, so the call is unconditional on that score — only on
+    // whether the duration actually moved.
+    conditional {
+      if ($old_duration != $next_duration) {
+        function.run "live/log_plan_change" {
+          input = {
+            timeline_id: $slot.timeline_id
+            item_ref   : ("pt-" ~ ($input.planner_task_id|to_text))
+            change_type: "duration_changed"
+            before     : {scheduled_minutes: $old_duration}
+            after      : {scheduled_minutes: $next_duration}
+            changed_by : $actor.user_id
+          }
+        } as $plan_change
+      }
+    }
+
     function.run "ops/log_event" {
       input = {
         feature       : "SCHED-1"

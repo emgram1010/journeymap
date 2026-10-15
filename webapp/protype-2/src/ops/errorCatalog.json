@@ -529,6 +529,66 @@
     "severity": "info",
     "fix_hint": "Reasons point at one of the job's recorded details so the change can be explained later. If none fits, choose Other. Giving no reason at all is also fine."
   },
+  "E-LIVE-001": {
+    "code": "E-LIVE-001",
+    "feature": "LIVE-1",
+    "user_message": "There's nothing on this timeline to publish.",
+    "what_happened": "Publish to live was attempted on a day with no work scheduled on it.",
+    "likely_cause": "The day was created but nothing has been dragged onto it yet.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Schedule at least one piece of work on the day first. Publishing an empty day would show the person an empty list."
+  },
+  "E-LIVE-002": {
+    "code": "E-LIVE-002",
+    "feature": "LIVE-1",
+    "user_message": "Some steps don't have a person assigned.",
+    "what_happened": "Publish to live was refused because at least one scheduled step has nobody to do it.",
+    "likely_cause": "A step was scheduled onto a day without picking who does it, and the day has no default person either.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "The full message says how many. Assign someone to each step, or set the day's person. Nothing was published."
+  },
+  "E-LIVE-003": {
+    "code": "E-LIVE-003",
+    "feature": "LIVE-1",
+    "user_message": "Some steps are marked 'needs info'. Complete them first.",
+    "what_happened": "Publish to live was refused because at least one step is still waiting on information.",
+    "likely_cause": "Someone flagged a step as needing information and it has not been resolved.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Open each flagged step, deal with what it is waiting on, and set it back to planned. Sending someone work that is known to be incomplete wastes their time."
+  },
+  "E-LIVE-004": {
+    "code": "E-LIVE-004",
+    "feature": "LIVE-1",
+    "user_message": "That person doesn't have a login yet, so they can't see their work.",
+    "what_happened": "Publish to live was refused because an assigned person has no linked login.",
+    "likely_cause": "The person was added to the plan as a name, without being connected to a user account.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "The full message names them. Link their login on the agent, or assign the work to someone who has one. Publishing to a person who cannot sign in would look successful and deliver nothing."
+  },
+  "E-LIVE-005": {
+    "code": "E-LIVE-005",
+    "feature": "LIVE-1",
+    "user_message": "This timeline is already published.",
+    "what_happened": "Publish to live was attempted on a day that has already been published.",
+    "likely_cause": "The button was clicked twice, or the day was published from another screen.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Nothing changed. A day is published once — the frozen copy the person sees must not move under them. Later planner changes are recorded separately and stay with the planner."
+  },
+  "E-LIVE-006": {
+    "code": "E-LIVE-006",
+    "feature": "LIVE-1",
+    "user_message": "We couldn't publish. Nothing was changed.",
+    "what_happened": "Publishing failed partway and was rolled back.",
+    "likely_cause": "A database or connection problem during the write.",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "Try again. The publication and the day's status are written together, so a failure leaves no half-published day. If it keeps happening, copy the diagnostic bundle from the Health page."
+  },
   "E-P3A-001": {
     "code": "E-P3A-001",
     "feature": "P3A-1",

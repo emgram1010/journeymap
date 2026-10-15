@@ -4,6 +4,12 @@
 // Same derivation rules as the list endpoint: the label and the agent's
 // name are computed here, never stored, so renaming the agent changes
 // them on the next read without writing to this timeline.
+//
+// ⚠️ `status` RETURNS THE REAL COLUMN. It used to be hardcoded to
+// "draft", which was true while publishing was on hold (PLN-6
+// Non-Goals) and became a lie the moment LIVE-1 shipped: a published
+// timeline still read as a draft, so nothing could tell the two
+// apart. Caught while testing LIVE-1's first successful publish.
 query "timeline/{timeline_id}" verb=GET {
   api_group = "planner"
   auth = "user"
@@ -76,7 +82,7 @@ query "timeline/{timeline_id}" verb=GET {
     label        : $label
     planned_date : $timeline.planned_date
     start_time   : $timeline.start_time
-    status       : "draft"
+    status       : $timeline.status
     task_count   : ($tasks|count)
     total_minutes: $total_minutes
     out_of_window: $oow
