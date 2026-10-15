@@ -163,4 +163,70 @@ Follows GOV-1 standards, VAL-1 rules and OBS-1 events.
 
 ## Test Results
 
-_Not yet run._
+**Run 2026-10-15. Completion gate: PASSED** for everything in MVP scope. Two cases could not be run and are listed honestly at the bottom.
+
+Built live in workspace 1: table **127** `activity_log` (the epic reserved 91; Xano assigns its own ids), endpoint **563** `POST work_task/{id}/event`, and functions **130** `log/sync_job_status`, **131** `log/stage_progress`, **132** `log/next_status`, **134** `log/replay_task`, **135** `log/derive_job_status`, **136** `ops/audit_execution`.
+
+### Unit (`npm test`, 282/282 green)
+
+| ID | Result | Notes |
+|---|---|---|
+| UT-LOG-1-01 | Pass | All 35 (status, event) pairs checked against a copy of the epic's table transcribed independently of the implementation. `note` allowed from every status, changing nothing. |
+| UT-LOG-1-02 | Pass | `blocked` with no reason, `""` and `null` all rejected with `E-LOG-002`. |
+| UT-LOG-1-03 | Pass | All four reasons accepted. |
+| UT-LOG-1-04 | Pass | Mixed sequence replays to the right status and timestamps; an invalid event in the history is skipped and its index reported rather than thrown. |
+| UT-LOG-1-05 | Pass | Reopen → complete keeps the FIRST `started_at`, updates `completed_at`. |
+| UT-LOG-1-06 | Pass | Fixed rule only, per MVP scope. The deferred rules are implemented and tested too, so the caller does not change later. An empty stage is never complete. |
+| UT-LOG-1-07 | Pass | Covered by the live duplicate test below rather than a separate helper — the de-duplication is a unique index, not logic worth mocking. |
+| UT-LOG-1-08 | Pass | `completed` from `not_started`: allowed, `started_at` stays null, `completed_at` set. |
+
+### Functional (driven over real authenticated HTTP, not as a `workflow_test` file — see the note at the end)
+
+| ID | Result | Evidence |
+|---|---|---|
+| FT-LOG-1-01 | Pass | start → blocked(reason) → unblocked → completed on task 7 wrote exactly 4 rows (log went 12 → 16); status `done`; both timestamps set. |
+| FT-LOG-1-02 | Pass | `started` on a `done` task → 400, nothing written. |
+| FT-LOG-1-03 | Pass | 400 `E-LOG-002`. |
+| FT-LOG-1-04 | Pass | Same `client_event_id` twice → both 200, second returns `duplicate: true`, one row. |
+| FT-LOG-1-05 | Pass | `PATCH /activity_log/1`, `DELETE /activity_log/1`, `POST /activity_log` and `DELETE /work_task/7/event/1` all 404. No endpoint anywhere writes the log except 563's `db.add`. |
+| FT-LOG-1-06 | Pass | Job 1 stage `s1` has two tasks. Completing the first left the stage at `1/2, complete: false`; skipping the second flipped it to `complete: true` and moved `current_stage_key` to `s2`. The stage advances on the last open task, not the first, and `skipped` counts as finished. |
+| FT-LOG-1-09 | Pass | `log/replay_task` on task 4 (6 events) and task 7 (4 events): derived status and BOTH timestamps equal the stored row. |
+| FT-LOG-1-10 | Pass, with a stated limit | See "Assignment" below. |
+| FT-LOG-1-11 | Pass | Cross-account token → 404 (not 403: an account should not learn the id exists). |
+| FT-LOG-1-14 | Pass | Done without Start accepted; row written; task `done`; start left unknown rather than invented. |
+| FT-LOG-1-15 | Pass | Every event carries `plan_publication_id: 1` and `publication_item_ref: "pt-39"`. The audit's orphan checks find nothing because the ref points at the frozen publication, not at a planner task that could be deleted. |
+| FT-LOG-1-13 | Pass | 282/282 unit tests green, including every earlier epic's. |
+
+### Governance
+
+| ID | Result | Evidence |
+|---|---|---|
+| FT-LOG-1-G01 | Pass | Schema audit green on table 127 (PK, `created_at` with no `updated_at`, indexed references, unique `client_event_id`, enums declared, `appendOnly: true`). |
+| FT-LOG-1-G04 | Pass | `E-LOG-001/002/003/005` each return a plain-language sentence with the code, and each writes a `rejected` event. No raw status ever reaches the user: the refusals read "This step is blocked. Unblock it first." and "This step is already done. Reopen it first if you need to change it." |
+| FT-LOG-1-G05 | Pass, structurally | The endpoint takes `work_item_id` from the task itself, so a caller cannot send a mismatched one. The audit checks the stored data for it anyway (`activity_log.work_item`), which is the case that actually matters. |
+| FT-LOG-1-G06 | Pass | Task 4's status was written directly to `blocked`, bypassing the engine. `ops/audit_execution` reported two findings, both owner `engineer`: "stored status blocked but the log replays to done over 6 events", and the job it cascaded into, "stored status completed but its 2 tasks derive blocked". Restored; audit back to zero findings over 7 tasks, 3 jobs, 16 log rows, 4 links, 1 publication. |
+| FT-LOG-1-G07 | Pass | Every accepted event writes a `success` event carrying `event_type`, `from`, `to` and the resulting `job_status`. |
+
+### Cross-check: the two implementations of the transition table
+
+All 35 (status, event) pairs were walked through the LIVE `log/next_status` and diffed against `logModel.ts::canTransition` in one run: **all 35 match**. The table now exists in exactly two places — the TypeScript and one backend function — and the endpoint and the audit both call that function rather than holding copies.
+
+### Assignment (FT-LOG-1-10) — what is enforced, and what is not
+
+Work scheduled onto a named person's day can be recorded only by that person's login or by an account admin acting for them; anyone else gets `E-LOG-003`. **Unassigned work is not blocked.** `planner_agent.user_id` is 0 until an agent is linked to a login, and most are, so denying those would stop all work rather than protect anything — and account-level tenancy still applies to every call. The rule tightens by itself as APP-1 makes assignment the normal case. This is a deliberate choice, not an oversight.
+
+### Not run
+
+| ID | Why |
+|---|---|
+| FT-LOG-1-G02, G03 | Failure injection needs Xano's unit-test `mock` blocks, which this workspace rejects when a function is pushed through the MCP tool (`"Syntax error: unexpected 'mock'"`, recorded in CLAUDE.md). The transaction itself is real — the log row and the status move inside one `db.transaction` — but **a simulated mid-transaction failure has not been demonstrated**, so the rollback is argued from the code, not proven by a test. |
+| FT-LOG-1-07, -08 | Configurable stage rules, deferred by MVP scope. Both are implemented and unit-tested in `logModel.ts` so they are ready when STAGE-1's fields land. |
+| `workflow_tests/21_activity_log.xs` | There is no exposed tool to RUN a workflow test from a session (CLAUDE.md). Every assertion above was driven through the live API or `runWorkspaceFunction` instead; the file itself was not written, because an unrunnable file that looks like a passing test is worse than none. |
+
+### Also closed here
+
+`ops/audit_execution` fills two checks earlier epics left open: **JOB-1 FT-G05** (a job whose stored status disagrees with its tasks) and **LIVE-1 FT-G06** (a publication whose timeline no longer exists). Both were verified above.
+
+### Needs the founder
+
+Two scratch functions were created to run these tests and are still live in the workspace: `scratch/verify_transitions` (harmless, read-only) and **`scratch/tamper_task_status`, which writes a task status bypassing the engine** — exactly what the audit exists to catch. Neither is reachable over HTTP. They should be deleted; per the safety rules, that is the founder's call.

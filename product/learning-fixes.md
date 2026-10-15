@@ -504,7 +504,7 @@ All eight cases plus the two positive-path checks were green both times.
 
 ---
 
-## 🔴 Needs your approval: five delete paths + one nightly job, all written, none pushed
+## 🔴 Needs your approval: five delete paths, one nightly job, two scratch functions
 
 The planner backend is otherwise complete. Everything below is written,
 reviewed and commented; none of it has been pushed, because CLAUDE.md
@@ -519,6 +519,22 @@ independently refused those pushes too.
 | `functions/planner/delete_timeline_cascade.xs` | Delete a day, returning its tasks to the backlog | FT-PLN-6-11 |
 | `functions/planner/delete_task.xs` | Delete one task and close the gap | FT-PLN-7-16 |
 | `tasks/20_planner_integrity_audit.xs` | Nightly audit across accounts | FT-PLN-8-07 |
+
+**Added 2026-10-15 (LOG-1): two scratch functions to delete.** These are
+live in the workspace now, not files — they were created to run LOG-1's
+tests and should not stay.
+
+| Live function | Why it exists | Risk if left |
+|---|---|---|
+| `scratch/verify_transitions` (133) | Walked all 35 (status, event) pairs so the live table could be diffed against the TypeScript | None — read-only |
+| `scratch/tamper_task_status` (137) | **Writes a task status bypassing the event engine**, to prove the replay audit catches tampering | Real. It is the exact thing the audit exists to detect. Not reachable over HTTP (workspace functions have no route), but it should go. |
+
+Deleting a function is still a delete, so both are waiting on you.
+
+**Also worth adding to the nightly job when it is approved:**
+`ops/audit_execution` (live, function 136) — the execution-layer twin of
+`ops/audit_integrity`. It is what proves the record is trustworthy, and
+right now nothing runs it on a schedule.
 
 **Three things worth knowing before you decide:**
 
@@ -1039,6 +1055,100 @@ alongside each phase-3 story (`PLN-1`, `PLN-3`, `PLN-5`, `PLN-6`,
 `PLN-7`, `PLN-8` each have a one-line pointer to it already). Don't
 build phase-3 first and bolt P3A-1 on after — the whole point is to
 avoid a second migration.
+
+---
+
+## 🧠 Worth knowing (LOG-1): the stage's "done" flag is computed, not stored
+
+The epic says a stage advances when its completion rule is satisfied, which
+reads like it wants a `stage_status` to write to. It doesn't get one.
+
+Two caches already shadow the activity log — `work_task.status` and
+`work_item.status` — and each one is a thing that can silently drift and
+therefore has to be audited every night. A third would buy nothing: "is
+every task in this stage finished" is a count over rows we are already
+reading, and a count cannot drift. `log/stage_progress` derives it on
+read, and the record-event endpoint returns it inline so the performer
+app learns "stage finished" without a second call.
+
+**The rule for the next epic:** before adding a column that caches a
+fact, check whether the fact is a count or a comparison over data you
+already have. If it is, derive it. Every cache is a promise to audit it
+forever.
+
+---
+
+## ✅ Fixed during LOG-1: the transition table was in two places
+
+LOG-1's first version put the status transition table inside the
+record-event endpoint, and the replay audit — written an hour later —
+had its own copy.
+
+That is the one duplication that actually matters here. **An audit
+holding its own copy of the rule it audits will eventually disagree with
+the engine, and it will sound exactly as certain when it is the one
+that's wrong.** It would report healthy data as broken, or miss real
+tampering, with no way to tell which from the output.
+
+Extracted to `log/next_status` (one backend copy, called by both), and
+the same move applied to job status: `log/derive_job_status` is
+read-only and `log/sync_job_status` is now just the writer on top of it.
+Verified by walking all 35 (status, event) pairs through the live
+function and diffing against `logModel.ts` — all 35 matched.
+
+---
+
+## 🟡 Stated limit (LOG-1): assignment is enforced only where assignment exists
+
+`POST work_task/{id}/event` denies an event with `E-LOG-003` when the
+task is scheduled onto a named person's day and the caller is neither
+that person nor an account admin.
+
+**Where no one is assigned, it does not deny.** `planner_agent.user_id`
+is 0 until an agent is linked to a login, and most still are, so denying
+unassigned work would stop everything rather than protect anything.
+Account-level tenancy still applies to every call, so this is "no one
+specific to check against", not "no check".
+
+This tightens by itself as APP-1 makes assignment normal. **Flagging it
+because it is an authorisation rule that is weaker than it looks** — if
+you want it strict before APP-1, that is a one-line change plus a
+backfill linking agents to logins.
+
+---
+
+## 🟡 Not proven (LOG-1): the rollback on a failed log write
+
+The log row and the task's status are written inside one
+`db.transaction`, so a failure part-way should leave neither. **That is
+argued from the code, not demonstrated.** Simulating a mid-transaction
+failure needs Xano's unit-test `mock` blocks, which this workspace
+rejects for any function pushed through the MCP tool.
+
+It is the most important write path in the product, so the gap is worth
+naming rather than burying in a test table. Two ways to close it when
+you want to: build the mock in the Xano dashboard by hand, or add a
+deliberate constraint violation behind a flag that only a test can set —
+the second one is more honest about what it is, but it does put a test
+switch in a production endpoint, which the test conventions forbid.
+
+---
+
+## ✅ Closed during LOG-1: two audit checks earlier epics left open
+
+`ops/audit_execution` (function 136) is the execution-layer twin of
+`ops/audit_integrity`, and it picks up the two checks that were carried
+forward: **JOB-1 FT-G05** (a job whose stored status disagrees with its
+tasks) and **LIVE-1 FT-G06** (a publication whose timeline is gone). It
+also adds LOG-1's own replay check, log orphans, and log rows whose
+denormalised job disagrees with their task.
+
+It is separate from `ops/audit_integrity` rather than added to it
+because PLN-8 already showed this workspace rejects a single audit
+function once it grows past a certain size.
+
+**Nothing runs it on a schedule yet** — that is part of the nightly job
+still waiting on approval above.
 
 ---
 

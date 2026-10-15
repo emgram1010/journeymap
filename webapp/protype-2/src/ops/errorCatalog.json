@@ -589,6 +589,56 @@
     "severity": "error",
     "fix_hint": "Try again. The publication and the day's status are written together, so a failure leaves no half-published day. If it keeps happening, copy the diagnostic bundle from the Health page."
   },
+  "E-LOG-001": {
+    "code": "E-LOG-001",
+    "feature": "LOG-1",
+    "user_message": "That action isn't available for this step right now.",
+    "what_happened": "An action was taken that isn't allowed from the step's current state — for example starting something already finished.",
+    "likely_cause": "The screen was showing an out-of-date state, or someone else moved the step first.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "The full message says what state the step is in and what to do instead — usually reopening it, or unblocking it first. Nothing was recorded."
+  },
+  "E-LOG-002": {
+    "code": "E-LOG-002",
+    "feature": "LOG-1",
+    "user_message": "Pick a reason so the team knows why.",
+    "what_happened": "A step was marked blocked without choosing a reason.",
+    "likely_cause": "The reason list was skipped.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Choose one of the four reasons. A blocked step with no reason tells the planner there is a problem but nothing about what to chase, which is barely better than not flagging it."
+  },
+  "E-LOG-003": {
+    "code": "E-LOG-003",
+    "feature": "LOG-1",
+    "user_message": "This step isn't assigned to you.",
+    "what_happened": "Someone tried to record progress on work that belongs to another person.",
+    "likely_cause": "A stale link, or the work was reassigned after the screen loaded.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Refresh your list. If the work really is yours, ask the planner to reassign it to you — the record needs to show who actually did it."
+  },
+  "E-LOG-004": {
+    "code": "E-LOG-004",
+    "feature": "LOG-1",
+    "user_message": "Your tap wasn't saved. Please try again.",
+    "what_happened": "Recording an action failed and was rolled back.",
+    "likely_cause": "A connection or database problem at the moment of the tap.",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "Tap again — repeats are safe, because the same tap is never recorded twice. The log entry and the step's status are written together, so a failure leaves neither. This is the most important write path in the product; repeated failures should be looked at immediately."
+  },
+  "E-LOG-005": {
+    "code": "E-LOG-005",
+    "feature": "LOG-1",
+    "user_message": "Pick one of the listed reasons.",
+    "what_happened": "A blocked step was sent with a reason that isn't one of the four allowed.",
+    "likely_cause": "A client sent its own wording instead of choosing from the list.",
+    "owner": "engineer",
+    "severity": "info",
+    "fix_hint": "The reasons are a fixed list so they can be counted and compared across jobs. Free text belongs in the note instead."
+  },
   "E-P3A-001": {
     "code": "E-P3A-001",
     "feature": "P3A-1",

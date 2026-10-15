@@ -30,14 +30,19 @@ task + stages + who + how long   goes through the stages   start / end / status 
 
 ## MVP build order
 
-> **Status as of 2026-10-14 (end of the long autonomous session).**
-> Steps 0–9 are built. Everything through PLAN-1 is live and verified
-> over real authenticated HTTP.
+> **Status as of 2026-10-15.** Steps 0–13 are built. Everything
+> through LOG-1 is live and verified over real authenticated HTTP:
+> a journey map becomes a version, a plan, a job, scheduled work, a
+> published day, and finally a record of what actually happened.
 >
-> **Six things are written but NOT pushed, waiting on the founder** —
-> five delete paths and one nightly job. They are listed in one table
-> at the top of `product/learning-fixes.md`. Nothing else blocks the
-> next epic.
+> **The whole backend loop closes.** What is missing is the screens:
+> PLAN-1, JOB-1, SCHED-1, LIVE-1 and LOG-1 all shipped backend-only.
+> APP-1 (step 14) is the first UI of the execution half.
+>
+> **Eight things are written but NOT pushed or NOT deleted, waiting
+> on the founder** — five delete paths, one nightly job and two
+> scratch functions. They are listed in one table at the top of
+> `product/learning-fixes.md`. Nothing else blocks the next epic.
 
 | # | Epic (feature) | Depends on | MVP delivers | Model |
 |---|---|---|---|---|
@@ -54,8 +59,8 @@ task + stages + who + how long   goes through the stages   start / end / status 
 | 10 | [JOB-1 Jobs and tasks](EPIC-JOB-1-jobs-and-tasks.md) ✅ | 9 | Jobs pinned to a version; tasks generated and hydrated — **backend done**, no UI | Sonnet |
 | 11 | [SCHED-1 Scheduling and tweaks](EPIC-SCHED-1-scheduling-and-tweaks.md) ✅ | 10 | One scheduled item per task; per-job duration tweak — **done except the two deletes** | Sonnet |
 | 12 | [LIVE-1 Publish to live](EPIC-LIVE-1-publish-to-live.md) ✅ | 11 | Per-timeline frozen snapshot; planner changes logged after — **MVP core done**, no bulk publish, no UI | Sonnet, then Opus review |
-| 13 | [LOG-1 Activity log and status engine](EPIC-LOG-1-activity-log-and-status-engine.md) ← **next** | 10, 12 | Append-only log; fixed statuses; Done allowed without Start | **Opus** |
-| 14 | [APP-1 Performer app](EPIC-APP-1-performer-app.md) | 12, 13 | Today's items; one-tap actions | Sonnet |
+| 13 | [LOG-1 Activity log and status engine](EPIC-LOG-1-activity-log-and-status-engine.md) ✅ | 10, 12 | Append-only log; fixed statuses; Done allowed without Start — **done**, no UI; failure-injection tests not runnable here | **Opus** |
+| 14 | [APP-1 Performer app](EPIC-APP-1-performer-app.md) ← **next** | 12, 13 | Today's items; one-tap actions | Sonnet |
 | 15 | [VAR-1 Variance and outliers](EPIC-VAR-1-variance-and-outliers.md) | 13 | Per-task expected/scheduled/actual; outlier flag | Sonnet |
 | 16 | [E2E-1 End-to-end validation](EPIC-E2E-1-end-to-end-validation.md) | all | Whole loop; integrity audit; supportability demo | Sonnet, then Opus final review |
 
