@@ -1152,6 +1152,126 @@ still waiting on approval above.
 
 ---
 
+## 🔭 Holistic flags, 2026-10-15 — noted, NOT acted on
+
+Founder asked for a whole-system look before APP-1, with findings written
+down rather than fixed. Ordered by how much they'd hurt if left. Nothing
+below has been touched.
+
+### 🔴 1. The chain breaks in the middle: the planner UI never talks to Xano
+
+The data flow is **map → plan → job → schedule → publish → execute**.
+Verified today in `webapp/planningFrontendv2`: **zero `fetch` calls, zero
+`axios`, no HTTP client in `package.json` at all** — state lives in
+`localStorage` (`src/App.tsx`, `src/data/initialData.ts`).
+
+So of the three modules:
+
+| Module | Backend | UI | Wired together |
+|---|---|---|---|
+| Intelligence (journey map) | ✅ | ✅ | ✅ |
+| Planning | ✅ PLN-1…PLN-8, 41 endpoints | ✅ exists | ❌ **not connected** |
+| Execution | ✅ LIVE-1 + LOG-1 | APP-1, next | will be ✅ |
+
+**Why this matters more than it looks:** the planner is the module that
+*feeds* execution. If no one can create a plan or publish a day through a
+UI, then APP-1 ships correct and has nothing real to display — the only
+way to get work in front of a performer is by calling the API by hand.
+The two ends of the chain will be wired and the middle will not.
+
+**There is no epic for this.** The build order goes straight from LIVE-1
+to APP-1. A "PLN-9: wire the planner frontend" has been mentioned in
+passing but was never added to `product/stories/phase-4/README.md`.
+
+**Recommendation (not done):** decide whether PLN-9 goes before or after
+APP-1. Before = the demo is a real end-to-end loop. After = APP-1 lands
+sooner but can only be demoed with hand-made data.
+
+### 🔴 2. Three modules in your head, two apps on disk
+
+Founder describes the product as three modules and the execution one as
+"a mobile app". The build order currently puts APP-1 as a **route inside
+the journey-map app** (`webapp/protype-2`).
+
+That's a mismatch worth settling before APP-1 rather than after:
+
+- A performer is a different person from a planner, probably on a phone,
+  and probably has no business seeing the journey map at all.
+- Bundling them means the performer downloads/loads the whole authoring
+  app to tap four buttons.
+- Splitting later means moving auth, routing and the API client.
+
+**Not a bug — a structural decision that gets expensive once APP-1 has
+code in it.**
+
+### 🟡 3. Publishing is one agent-day at a time
+
+`plan_publication` is keyed per `timeline_id`, and a timeline is **one
+agent, one day**. A team of five planned across a week is **25 separate
+publish actions**. Bulk publish was deferred as a convenience; at 25
+clicks it stops being a convenience.
+
+Also unresolved, and worth checking before APP-1 relies on it: the table
+is `appendOnly` with a unique `timeline_id`, which seems to mean **a day
+can be published once and never re-published**. If a planner publishes
+Monday and then genuinely needs to change it, it isn't clear what the
+supported move is. I have not tested this — flagging it as a question,
+not a defect.
+
+### 🟡 4. There is no timezone anywhere in the system
+
+Verified: **no `timezone` column on any table**. `planner_timeline.planned_date`
+is a bare date supplied by the caller, and `activity_log.occurred_at` is
+server time in milliseconds.
+
+For one team in one city this is invisible. The moment there are two
+timezones, "what's on my plate today?" has no defined answer — the
+performer's device decides, the planner's device decided something else,
+and the server is in UTC.
+
+**Cheapest point to fix is before APP-1 writes its "today" query.** One
+column on `account` (or `planner_agent`) and a stated convention. Doing
+it afterwards means re-interpreting dates that are already stored.
+
+### 🟡 5. "The user receives their tasks" — nothing pushes anything
+
+Founder's description of execution is *"the user **receives** all their
+tasks"*. Today the model is strictly pull: the app would ask the API
+what's on today. There is no notification, email, or push anywhere in
+the build order, and no device-token storage.
+
+Not a gap in what was specified — a gap between the **spec and the
+sentence the founder used to describe it**. Worth settling whether "MVP
+performer app" means "opens the app and sees today" (pull, cheap) or
+"gets told" (push, a whole piece of infrastructure).
+
+### 🟡 6. `activity_log` grows forever, and the audit scans all of it
+
+One row per tap, append-only, no retention. OBS-1's retention tiers are
+deferred. `ops/audit_execution` currently reads every task, every job and
+every log row, and runs one replay query **per task**.
+
+Correct and fast today (7 tasks, 16 rows). It is O(tasks) queries per
+nightly run, so it degrades smoothly rather than suddenly — but it is the
+first thing that will need scoping to "open and recently-closed jobs"
+rather than everything, exactly as the epic's own wording anticipated.
+
+**No action needed yet.** Noting the trigger: when a nightly audit starts
+taking minutes, this is why.
+
+### 🟡 7. Five of six execution-layer epics shipped with no UI
+
+PLAN-1, JOB-1, SCHED-1, LIVE-1 and LOG-1 are all backend-only. That was
+the right call each time — the backend is the risky half and the specs
+were detailed — but the debt is now concentrated: **templates, jobs,
+scheduling and publishing have no screens at all**, and APP-1 only
+addresses the performer's end.
+
+Worth a deliberate decision about whether those get screens, or whether
+the planner UI (item 1) is expected to absorb them when it gets wired.
+
+---
+
 ## How to use this file
 
 When picking up any of the 🔴/🟡 items: read the linked epic file in
