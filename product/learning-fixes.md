@@ -1218,7 +1218,7 @@ Monday and then genuinely needs to change it, it isn't clear what the
 supported move is. I have not tested this — flagging it as a question,
 not a defect.
 
-### 🟡 4. There is no timezone anywhere in the system
+### 🔴 4. There is no timezone anywhere in the system
 
 Verified: **no `timezone` column on any table**. `planner_timeline.planned_date`
 is a bare date supplied by the caller, and `activity_log.occurred_at` is
@@ -1229,9 +1229,66 @@ timezones, "what's on my plate today?" has no defined answer — the
 performer's device decides, the planner's device decided something else,
 and the server is in UTC.
 
-**Cheapest point to fix is before APP-1 writes its "today" query.** One
-column on `account` (or `planner_agent`) and a stated convention. Doing
-it afterwards means re-interpreting dates that are already stored.
+**Raised to 🔴 2026-10-15** after the founder confirmed this matters:
+store Zulu, convert per user.
+
+#### The storage is already correct — don't "fix" it
+
+The founder's instinct (UTC in the database, convert on display) is right
+**for instants**, and wrong for planned dates. Both already exist in the
+schema, each with the right type, by luck rather than design:
+
+| Field | Type today | Kind of time | Verdict |
+|---|---|---|---|
+| `activity_log.occurred_at` | `timestamp` (ms) | instant | ✅ UTC, convert on display |
+| `work_task.started_at` / `completed_at` | `timestamp` | instant | ✅ same |
+| `planner_timeline.planned_date` | `date` | calendar day | ✅ **leave as a bare date** |
+| `planner_timeline.start_time` | `text` `"HH:MM"` | wall-clock | ✅ leave as text |
+
+**Why `planned_date` must NOT become a UTC instant:** "Monday the 16th" in
+Sydney is a different 24 hours than in LA. Stored as midnight Zulu, a
+planner in LA sees their Monday render as Sunday 5pm. Keeping it a bare
+date plus a wall-clock string also means **DST needs no handling at all** —
+there is no instant to shift.
+
+**So the data layer needs no migration.** What is missing is a reference
+point: nowhere in the system says *whose clock* to convert to.
+
+#### Level of effort
+
+Three phases; they stack, and only the first is urgent.
+
+| Phase | What it buys | LOE |
+|---|---|---|
+| **0 — build the seam** | APP-1 asks the server "what is today for me?" through one function instead of trusting the device. Function initially returns UTC. | **1–2 hrs** |
+| **1 — account timezone** | One zone per company. Covers every single-location customer. Display conversion across both UIs. | **~½ day** |
+| **2 — per-person timezone** | NY planner schedules for a Manila performer; each sees their own clock, planner sees both. | **~2 days** |
+
+**Phase 0 is the one that matters now.** Without it, APP-1 hard-codes a
+notion of "today" from the browser and every later phase is a rewrite of
+the thing APP-1 is built around. With it, phases 1 and 2 are a change to
+one function's body.
+
+#### Two things that will shape the real cost
+
+1. **`planner_agent` and `account` both carry `trim` text validators**, so
+   adding a timezone column hits the documented `updateTableSchema`
+   validator-drop bug. Per the standing workaround this becomes a **side
+   table** (`planner_agent_timezone`) — plus, per the AUTH-1 lesson, **its
+   own dedicated `GET` endpoint**, or the frontend silently never sees the
+   value. That pattern is most of phase 2's two days; it is not the logic.
+2. **Unverified:** whether XanoScript's `transform_timestamp` accepts IANA
+   zone names (`"Asia/Manila"`) or only `"UTC"`. Every use in the repo so
+   far passes `"UTC"`. If it does not support them, server-side "today for
+   this person" has to be computed differently and phase 2 grows. **Worth a
+   ten-minute scratch-function test before committing to the estimate.**
+
+#### Still undecided
+
+Whose timezone wins when a planner and a performer differ. Recommendation:
+**the performer's** — the plan is about when that person actually works —
+with the account's zone as the fallback and UTC as the last resort.
+Awaiting the founder.
 
 ### 🟡 5. "The user receives their tasks" — nothing pushes anything
 
