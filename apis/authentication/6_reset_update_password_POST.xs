@@ -1,4 +1,11 @@
 // Allows user to update the password in the password reset flow
+//
+// FOUND 2026-10-15 (E2E-1): logged the whole user record — including
+// the BRAND-NEW hashed password, written moments earlier in this same
+// call — into event_log every time someone changes their password.
+// The worst-timed instance of this bug (same class already fixed on
+// signup; auth/login, auth/me and reset/magic-link-login fixed the
+// same session). ids only now.
 query "reset/update_password" verb=POST {
   api_group = "Authentication"
   auth = "user"
@@ -33,13 +40,14 @@ query "reset/update_password" verb=POST {
       data = {password: $input.password}
     } as $user
   
-    // Create event log
+    // Create event log. ids only — never the user record (it carries
+    // the password just set, above).
     function.run "Getting Started Template/create_event_log" {
       input = {
         user_id   : $user.id
         account_id: $user.account_id
         action    : "reset_password"
-        metadata  : $user
+        metadata  : {user_id: $user.id, account_id: $user.account_id}
       }
     } as $event_log
   }
