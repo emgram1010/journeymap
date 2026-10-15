@@ -504,7 +504,7 @@ All eight cases plus the two positive-path checks were green both times.
 
 ---
 
-## 🔴 Needs your approval: five delete paths, one nightly job, seven scratch functions
+## 🔴 Needs your approval: five delete paths, one nightly job, thirteen scratch functions
 
 The planner backend is otherwise complete. Everything below is written,
 reviewed and commented; none of it has been pushed, because CLAUDE.md
@@ -533,8 +533,13 @@ tests and should not stay.
 | `scratch/nested_conditional_probe` (145, added VAR-1) | Read-only, isolated a nested-conditional question while debugging | None — read-only |
 | `scratch/zero_vs_null_probe` (146, added VAR-1) | Read-only, confirmed the critical `0 == null` finding below | None — read-only |
 | `scratch/var1_check` (148, added VAR-1) | Read-only, lists `event_log` rows for `feature = "VAR-1"` and confirms row counts are unchanged by reading variance | None — read-only |
+| `scratch/claim_map` (149, added E2E-1) | Patches `owner_user`/`account_id` on a map created via the journey-map MCP tool, which has no auth context | Low — a scratch write, but only ever run against E2E-1's own test maps |
+| `scratch/enable_flag` (150, added E2E-1) | Enables an `account_feature_flag` row by account+key | Low — generic flag toggle, same shape as the product's own mechanism |
+| `scratch/add_workspace_map` (151, added E2E-1) | Inserts a `planner_workspace_map` row directly — works around the missing "add a map to an existing plan" endpoint above | Low — same effect a real endpoint would have, just without the guard rails one might add |
+| `scratch/disable_flag` (152, added E2E-1) | Created, never actually invoked (see the flag decision above) | None |
+| `scratch/inspect_recent_events` (153, added E2E-1) | Read-only, lists the most recent `event_log` rows — this is what surfaced the password-logging bug above | None — read-only |
 
-Deleting a function is still a delete, so all seven are waiting on you.
+Deleting a function is still a delete, so all thirteen are waiting on you.
 
 **Also worth adding to the nightly job when it is approved:**
 `ops/audit_execution` (live, function 136) — the execution-layer twin of
@@ -1469,6 +1474,106 @@ anything comparing a `decimal` or `int` column directly (recall the
 already-documented finding that an untouched decimal column defaults
 to `0` in the database, not `null` — this is the SAME landmine from
 the comparison side rather than the storage side).
+
+---
+
+## 🔴 Fixed (security), needs a decision on history: full user records were being logged, hashed secrets included
+
+Found live during E2E-1's supportability drill, inspecting real
+`event_log` rows for safety: `auth/login`, `auth/me`, `reset/magic-link-login`
+and `reset/update_password` all passed the WHOLE `$user` record as event
+metadata. That record carries the hashed password (`auth/login`, and
+the password just set, `reset/update_password`) or the hashed
+`password_reset.token` (`reset/magic-link-login`). `auth/me` fires on
+every single page load — the highest-volume call in the app.
+
+Same class of bug already fixed on signup (2026-10-14's "signup never
+created an account" entry, in passing) — these four were missed at
+the time. **Fixed immediately** (not just flagged) because it's the
+identical, precedented, one-line change signup already got: `metadata`
+is `{user_id, account_id}` only, everywhere. Verified live:
+`auth/me` still works, and the resulting log row carries only the two
+ids.
+
+**Needs a decision, not fixed:** `event_log` already holds ~3,400 rows.
+An unknown number from before this fix may still carry a hashed
+password or reset token. These are hashes (not plaintext), so the
+immediate risk is lower than it looks, but they have no business in an
+operational log table. Redacting or purging them is a bulk update
+across production data — exactly the kind of action this file exists
+to hold for your decision rather than do unilaterally. Options: leave
+them (hashes, low urgency) / write a one-time scrub that blanks
+`metadata` on rows whose `action` is one of the four above / nothing —
+your call.
+
+---
+
+## 🔴 Missing capability, found building E2E-1: no way to add a map to an existing plan
+
+US-E2E-1-02 needed two different work types in ONE plan instance.
+PLAN-1's `template/{id}/instance` only accepts the maps listed on the
+TEMPLATE **at the moment the instance is created** — `template/{id}`
+PATCH's own header comment says so explicitly: "changes only what the
+NEXT instance will be made from." There is no endpoint to add a map to
+a workspace that already exists.
+
+**Worked around for the test** by inserting a `planner_workspace_map`
+row directly (scratch function, not a product fix) — this is exactly
+the gap a real planner would hit the first time they wanted to add a
+second work type to an already-running plan. **Recommend**: either a
+small `POST workspace/{id}/map` endpoint, or make this one of PLN-9's
+stories when that epic is scoped.
+
+---
+
+## 🧠 Worth knowing (E2E-1): an empty-string required field leaks a raw Xano message
+
+`POST workspace/{id}/agent` with `name: ""` returned `"Missing param:
+name"` — a raw framework message, not a VAL-1 catalog entry — even
+though `name` is `required: true` and PLN-5 has its own friendly
+`E-VAL-001` ("Give this person or agent a name.") for exactly this
+case. Xano's own required-field check runs BEFORE the app's validation
+code ever sees the request, for an empty string specifically (omitting
+the key entirely, or sending whitespace, both reach the friendly
+message — confirmed `"x".repeat(80)` correctly returns `E-VAL-002`).
+
+**Narrow and minor** — found on one endpoint, during a drill, not swept
+across every form. Worth a look whenever VAL-1's junk-corpus test is
+run for real (US-E2E-1-11, not done this pass — see below).
+
+---
+
+## ✅ Verified during E2E-1: a fresh synthetic loop, map 178's data-safety rehearsal, tenancy
+
+Full detail in `EPIC-E2E-1-end-to-end-validation.md`'s Test Results.
+Worth summarizing the live state changes here specifically:
+
+- **Left ON, deliberately**: `publish_gate` for account 6 (the
+  session's standing test account). Reasoning: account 6 is disposable
+  test data, not a customer; the flag only makes FUTURE publishes on
+  it more correct (immutable versions), and turning it back off would
+  remove a safety net from fixtures future sessions may reuse.
+- **Map 178 (the real production fixture) was never written to.**
+  Confirmed by re-fetching its snapshot after the rehearsal and
+  comparing byte-for-byte against the one taken before touching
+  anything — identical. All mutating calls (owner reassignment,
+  duration fills, backfill) targeted only the clone, map 204.
+- **New test data, safe to ignore or delete whenever**: journey maps
+  202, 203 (E2E-1's synthetic "Receiving"/"Quality Check" SOPs, account
+  6), clone 204 (account 2, `cloned_from_map_id: 178`), plan template 2
+  and workspace 12 (account 6), agents 16 (linked to user 9).
+- **New scratch functions, added to the held-for-deletion list below**:
+  `claim_map` (149), `enable_flag` (150), `add_workspace_map` (151),
+  `disable_flag` (152, created but never actually invoked — the
+  decision above was to leave the flag on), `inspect_recent_events`
+  (153).
+
+**Caveat on the `xano-journey-map` MCP tool**: `create_journey_map` and
+`clone_scenario` have no auth context, so every map they create lands
+with `owner_user: 0, account_id: 0`. Both had to be patched by hand
+afterward. Worth remembering for any future session using that tool —
+it is not a bug in THIS project, just a gap between that tool and this
+app's tenancy model.
 
 ---
 

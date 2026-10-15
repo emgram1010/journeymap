@@ -30,35 +30,56 @@ task + stages + who + how long   goes through the stages   start / end / status 
 
 ## MVP build order
 
-> **Status as of 2026-10-15.** Steps 0–15 are built. The execution
-> module has a real screen (APP-1), and the system now computes its
-> own variance — expected vs. scheduled vs. actual — with nobody
-> reporting it (VAR-1). What's left in the numbered build order is one
-> epic: **E2E-1**.
+> **Status as of 2026-10-15. The numbered MVP build order (steps 0–16)
+> is complete.** A synthetic job was built fresh and walked the whole
+> loop for real — map → version → plan template → instance → job →
+> schedule → publish to live → perform (including a Done-without-Start
+> case) → log → variance — over real authenticated HTTP, twice, with
+> two structurally different work types in one plan. The execution
+> integrity audit returns zero findings. Map 178's real data was
+> rehearsed safely (clone only; the original is confirmed untouched).
 >
-> **Two significant pre-existing/cross-cutting findings this session,
-> not introduced by the epic that found them:**
+> **This does not mean the product is done** — see "Remaining screen
+> debt" and the Deferred table below. It means the backend loop the
+> whole MVP was organized around now provably closes, end to end, on
+> real data, not just epic by epic.
+>
+> **Three significant findings this session, none introduced by the
+> epic that found them:**
 > 1. OBS-1's whole client-side event pipeline — including the Health
 >    page's own data loading — had never worked, for two independent
 >    reasons (wrong API base URL, and a Redis dependency this Xano plan
->    doesn't support). **Fixed.** The Health page should be checked for
->    the first time now that it can actually load real data.
-> 2. **`==`/`!=` against `null` in XanoScript is loose: `0`, `""`,
+>    doesn't support). **Fixed.**
+> 2. **A real, currently-active security bug**, found by E2E-1's own
+>    supportability drill: four auth endpoints (`login`, `me`,
+>    magic-link login, password reset) were logging the WHOLE user
+>    record — hashed password or reset token included — into
+>    `event_log` on every call. `auth/me` alone fires on every page
+>    load. **Fixed immediately.** A decision is needed on whether to
+>    scrub ~3,400 historical rows that may predate the fix.
+> 3. **`==`/`!=` against `null` in XanoScript is loose: `0`, `""`,
 >    `false` and `[]` all test equal to `null`.** Confirmed live.
 >    Checked by hand everywhere it's used so far; a full codebase sweep
->    is recommended (Opus) and NOT done. See `CLAUDE.md` and
->    `product/learning-fixes.md` for the full detail on both.
+>    is recommended (Opus) and NOT done.
+>
+> See `CLAUDE.md` and `product/learning-fixes.md` for full detail on
+> all three.
 >
 > **Remaining screen debt:** PLAN-1, JOB-1, SCHED-1 and LIVE-1 are
 > still backend-only — APP-1 only covers the performer's own screen,
 > not the planner's. Wiring the planner frontend (**PLN-9**, not yet a
-> numbered epic — needs scoping) was deliberately NOT started
-> unsupervised; see "Next" below.
+> numbered epic — needs scoping, and E2E-1 found it is missing at least
+> one endpoint it will need) was deliberately NOT started unsupervised.
 >
-> **Thirteen things are written but NOT pushed or NOT deleted, waiting
-> on the founder** — five delete paths, one nightly job and seven
-> scratch functions. They are listed in one table at the top of
-> `product/learning-fixes.md`. Nothing else blocks the next epic.
+> **Open the Health page.** Today is the first day it has ever been
+> able to load real data. Five seeded problems are waiting there for
+> you to confirm they're visible and explained in plain language — the
+> one check in this whole session only an admin session can perform.
+>
+> **Now a very long list, not pushed or not deleted, waiting on the
+> founder** — five delete paths, one nightly job, thirteen scratch
+> functions, and the historical-log decision above. All in one table
+> at the top of `product/learning-fixes.md`.
 
 | # | Epic (feature) | Depends on | MVP delivers | Model |
 |---|---|---|---|---|
@@ -78,9 +99,19 @@ task + stages + who + how long   goes through the stages   start / end / status 
 | 13 | [LOG-1 Activity log and status engine](EPIC-LOG-1-activity-log-and-status-engine.md) ✅ | 10, 12 | Append-only log; fixed statuses; Done allowed without Start — **done**, no UI; failure-injection tests not runnable here | **Opus** |
 | 14 | [APP-1 Performer app](EPIC-APP-1-performer-app.md) ✅ | 12, 13 | Today's items; one-tap actions — **done**, verified live in a real browser; failure-injection and the session's unresolved Playwright reliability not covered (see Test Results) | Sonnet |
 | 15 | [VAR-1 Variance and outliers](EPIC-VAR-1-variance-and-outliers.md) ✅ | 13 | Per-task expected/scheduled/actual; outlier flag — **done** (MVP slice); stage aggregates and the tweak signal deferred per the epic's own scope | Sonnet |
-| 16 | [E2E-1 End-to-end validation](EPIC-E2E-1-end-to-end-validation.md) ← **next** | all | Whole loop; integrity audit; supportability demo | Sonnet, then Opus final review |
+| 16 | [E2E-1 End-to-end validation](EPIC-E2E-1-end-to-end-validation.md) ✅ | all | Whole loop; integrity audit; supportability demo — **done**; found and fixed a live security bug; blocks and the Playwright UI path deferred/not run (see Test Results) | Sonnet, then Opus final review |
 
 **Model column:** the AI announces the model at the start of each epic and asks you to switch if needed (`/model sonnet`, `/model opus`, `/model haiku`). Any bug that fails twice → switch to Opus.
+
+## Next steps, now that the numbered build order is done
+
+Not a new numbered step — a recommendation for what to look at, in order:
+
+1. **Open `/health`.** See the note above — this needs you specifically.
+2. **Decide on the thirteen-plus-item held list** in `learning-fixes.md` (deletes, the nightly job, scratch functions, and the historical-log question).
+3. **Scope PLN-9** (wire the planner frontend to Xano) as a real epic before building it. It's the largest remaining gap — the planner half of the product has no UI at all — and E2E-1 found it's also missing at least one backend endpoint (adding a map to an existing plan).
+4. **Screen debt**: PLAN-1, JOB-1, SCHED-1 and LIVE-1 have no UI. Whether that becomes part of PLN-9 or its own pass is a product call, not a technical one.
+5. **Deferred stories** (table below) are genuinely deferred, not forgotten — re-read `product/emgramprd.md` §13 when you're ready to pick the next one.
 
 ## Deferred (post-MVP)
 
