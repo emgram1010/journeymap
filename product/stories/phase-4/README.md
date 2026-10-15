@@ -53,8 +53,8 @@ task + stages + who + how long   goes through the stages   start / end / status 
 | 9 | [PLAN-1 Plan template and instance](EPIC-PLAN-1-plan-template-and-instance.md) ✅ | 7, 8 | Tiny template copied into instances — **backend done**, UI not built | Sonnet |
 | 10 | [JOB-1 Jobs and tasks](EPIC-JOB-1-jobs-and-tasks.md) ✅ | 9 | Jobs pinned to a version; tasks generated and hydrated — **backend done**, no UI | Sonnet |
 | 11 | [SCHED-1 Scheduling and tweaks](EPIC-SCHED-1-scheduling-and-tweaks.md) ✅ | 10 | One scheduled item per task; per-job duration tweak — **done except the two deletes** | Sonnet |
-| 12 | [LIVE-1 Publish to live](EPIC-LIVE-1-publish-to-live.md) ← **next** | 11 | Per-timeline frozen snapshot; planner changes logged after | Sonnet, then Opus review |
-| 13 | [LOG-1 Activity log and status engine](EPIC-LOG-1-activity-log-and-status-engine.md) | 10, 12 | Append-only log; fixed statuses; Done allowed without Start | **Opus** |
+| 12 | [LIVE-1 Publish to live](EPIC-LIVE-1-publish-to-live.md) ✅ | 11 | Per-timeline frozen snapshot; planner changes logged after — **MVP core done**, no bulk publish, no UI | Sonnet, then Opus review |
+| 13 | [LOG-1 Activity log and status engine](EPIC-LOG-1-activity-log-and-status-engine.md) ← **next** | 10, 12 | Append-only log; fixed statuses; Done allowed without Start | **Opus** |
 | 14 | [APP-1 Performer app](EPIC-APP-1-performer-app.md) | 12, 13 | Today's items; one-tap actions | Sonnet |
 | 15 | [VAR-1 Variance and outliers](EPIC-VAR-1-variance-and-outliers.md) | 13 | Per-task expected/scheduled/actual; outlier flag | Sonnet |
 | 16 | [E2E-1 End-to-end validation](EPIC-E2E-1-end-to-end-validation.md) | all | Whole loop; integrity audit; supportability demo | Sonnet, then Opus final review |

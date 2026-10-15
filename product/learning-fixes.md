@@ -582,6 +582,43 @@ go any time.
 
 ---
 
+## 🔴 Never use the MCP `updateTableContentItem` tool — it corrupts rows
+
+Calling it with one field (`{user_id: 9}`) on an agent row **also
+reset that row's `workspace_id`**, silently moving the agent into a
+different plan. Supplying `workspace_id` back explicitly in a second
+call did **not** fix it.
+
+Repaired with a throwaway function using `db.patch`, which worked
+immediately and correctly.
+
+**For any ad-hoc row edit, write a scratch function with `db.patch`
+and run it with `runWorkspaceFunction`.** The tool's own description
+says it is destructive — this is what that means in practice.
+
+Found in LIVE-1 while linking a login to an agent. The corruption was
+caught within a minute only because the next test failed oddly; a
+quieter change could easily have gone unnoticed.
+
+---
+
+## 🟡 Two integrity checks PLN-8's audit still needs
+
+Both surfaced while building the epics that created the data:
+
+- **JOB-1 (FT-JOB-1-G05):** a `work_task` whose `stage_key`/`lens_key`
+  does not exist as a cell in its job's pinned version.
+- **LIVE-1 (FT-LIVE-1-G06):** a timeline marked `published` with no
+  `plan_publication` row, or a publication whose stored
+  `snapshot_hash` does not match a re-serialisation of its snapshot.
+
+Neither is implemented. They belong in `planner/audit_tasks` (or a
+new `audit_jobs`) and a new `audit_publications`, following the same
+two-pass shape as the existing checks. Worth doing as one small pass
+rather than piecemeal.
+
+---
+
 ## 🔴 GOV-1's stale-write guard cannot work on any planner table
 
 `guards/assert_fresh` (standard S12) compares the `updated_at` a
