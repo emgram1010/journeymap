@@ -109,7 +109,7 @@ Not a new numbered step — a recommendation for what to look at, in order:
 
 1. **Open `/health`.** See the note above — this needs you specifically.
 2. **Decide on the thirteen-plus-item held list** in `learning-fixes.md` (deletes, the nightly job, scratch functions, and the historical-log question).
-3. **Scope PLN-9** (wire the planner frontend to Xano) as a real epic before building it. It's the largest remaining gap — the planner half of the product has no UI at all — and E2E-1 found it's also missing at least one backend endpoint (adding a map to an existing plan).
+3. **Review [PLN-9 (planner frontend wiring)](EPIC-PLN-9-planner-frontend-wiring.md)** — drafted, not built, 2026-10-15. It's the largest remaining gap (the planner half of the product has no UI at all), scoped from an actual read of the existing frontend's code rather than written blind, with three open questions for you at the bottom.
 4. **Screen debt**: PLAN-1, JOB-1, SCHED-1 and LIVE-1 have no UI. Whether that becomes part of PLN-9 or its own pass is a product call, not a technical one.
 5. **Deferred stories** (table below) are genuinely deferred, not forgotten — re-read `product/emgramprd.md` §13 when you're ready to pick the next one.
 
