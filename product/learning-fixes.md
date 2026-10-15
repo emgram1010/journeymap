@@ -1183,9 +1183,26 @@ The two ends of the chain will be wired and the middle will not.
 to APP-1. A "PLN-9: wire the planner frontend" has been mentioned in
 passing but was never added to `product/stories/phase-4/README.md`.
 
-**Recommendation (not done):** decide whether PLN-9 goes before or after
-APP-1. Before = the demo is a real end-to-end loop. After = APP-1 lands
-sooner but can only be demoed with hand-made data.
+#### ✅ Decided 2026-10-15 (founder delegated): APP-1 first, PLN-9 next
+
+Reasons, in order of weight:
+
+1. **PLN-9 is unscoped.** It has no epic, no stories, no test plan. The
+   planner UI is a localStorage prototype, so wiring it means mapping its
+   whole state model onto 41 existing endpoints. Scoping that honestly is
+   a task in itself. APP-1 is fully specified and small.
+2. **APP-1 is demoable on its own.** Published days can be seeded through
+   the API, so "here's Monday, tap start, tap done, watch it recorded" is
+   a real demo of the execution module. PLN-9 first would give the
+   opposite — a planner that writes to the real database with nothing
+   downstream to receive it.
+3. **Building APP-1 first informs PLN-9.** The performer app is the first
+   real consumer of the published-day shape; whatever it finds awkward is
+   exactly what PLN-9 should fix rather than faithfully reproduce.
+4. **The timezone seam has to land in APP-1 anyway** (item 4 below).
+
+**PLN-9 should be written up as a proper epic before it starts**, not
+picked up ad hoc — it is the largest remaining unknown in the build.
 
 ### 🔴 2. Three modules in your head, two apps on disk
 
@@ -1283,12 +1300,14 @@ one function's body.
    this person" has to be computed differently and phase 2 grows. **Worth a
    ten-minute scratch-function test before committing to the estimate.**
 
-#### Still undecided
+#### ✅ Decided 2026-10-15 (founder): the performer's timezone wins
 
-Whose timezone wins when a planner and a performer differ. Recommendation:
-**the performer's** — the plan is about when that person actually works —
-with the account's zone as the fallback and UTC as the last resort.
-Awaiting the founder.
+Resolution order when they differ: **performer's zone → account's zone →
+UTC.** The plan is about when that person actually works, so their clock
+defines their day. A planner in another zone sees the performer's day
+translated, not the other way round.
+
+Phase 0 (the seam) lands inside APP-1. Phases 1 and 2 stay deferred.
 
 ### 🟡 5. "The user receives their tasks" — nothing pushes anything
 
