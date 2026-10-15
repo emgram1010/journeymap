@@ -504,7 +504,7 @@ All eight cases plus the two positive-path checks were green both times.
 
 ---
 
-## 🔴 Needs your approval: five delete paths, one nightly job, three scratch functions
+## 🔴 Needs your approval: five delete paths, one nightly job, seven scratch functions
 
 The planner backend is otherwise complete. Everything below is written,
 reviewed and commented; none of it has been pushed, because CLAUDE.md
@@ -529,8 +529,12 @@ tests and should not stay.
 | `scratch/verify_transitions` (133) | Walked all 35 (status, event) pairs so the live table could be diffed against the TypeScript | None — read-only |
 | `scratch/tamper_task_status` (137) | **Writes a task status bypassing the event engine**, to prove the replay audit catches tampering | Real. It is the exact thing the audit exists to detect. Not reachable over HTTP (workspace functions have no route), but it should go. |
 | `scratch/recent_app1_events` (142, added APP-1) | Read-only, lists `event_log` rows for `feature = "APP-1"` — used to verify the OBS-1 pipeline fix below | None — read-only |
+| `scratch/parse_timestamp_probe` (143, added VAR-1) | Read-only, confirmed `parse_timestamp`/`add_secs_to_timestamp` behave as documented | None — read-only |
+| `scratch/nested_conditional_probe` (145, added VAR-1) | Read-only, isolated a nested-conditional question while debugging | None — read-only |
+| `scratch/zero_vs_null_probe` (146, added VAR-1) | Read-only, confirmed the critical `0 == null` finding below | None — read-only |
+| `scratch/var1_check` (148, added VAR-1) | Read-only, lists `event_log` rows for `feature = "VAR-1"` and confirms row counts are unchanged by reading variance | None — read-only |
 
-Deleting a function is still a delete, so all three are waiting on you.
+Deleting a function is still a delete, so all seven are waiting on you.
 
 **Also worth adding to the nightly job when it is approved:**
 `ops/audit_execution` (live, function 136) — the execution-layer twin of
@@ -1431,6 +1435,40 @@ gate, confirm `e2e/*.spec.ts` actually runs green end to end once,
 starting from a clean `npx playwright test`. If the port mismatch is
 real, it's a one-line fix (align `playwright.config.ts`'s `webServer`
 to the `dev` script's actual port, or vice versa).
+
+---
+
+## 🔴 Needs a decision: a codebase-wide null-vs-falsy sweep, found building VAR-1
+
+`CLAUDE.md` now has the full detail: `== null`/`!= null` in XanoScript
+is a PHP-style LOOSE comparison, so `0`, `""`, `false` and `[]` all
+test equal to `null`. Confirmed directly with a scratch function.
+
+**Why this is a 🔴 and not just a 🧠:** every epic built so far has used
+`== null`/`!= null` as if it were a strict check. Most of the time this
+is harmless by luck (timestamps are never really `0` in production,
+most optional text/int inputs already have their own `""`/`0`-default
+workaround for a different reason) — but nobody has ever swept the
+codebase specifically LOOKING for the one combination that bites:
+**a field whose real, legitimate value can be `0` and that is also
+compared with a bare `== null`/`!= null`, with no `!= 0` alongside it.**
+
+**Not done here, on purpose** — this is a cross-cutting audit, the same
+shape as GOV-1's integrity sweep, not a VAR-1 fix. VAR-1's own use of
+this comparison was checked by hand and is safe in production (every
+timestamp it compares is a real epoch ms, never legitimately `0`), but
+that was checked one function at a time, not swept.
+
+**Recommendation:** a dedicated pass (Opus — this is exactly the kind
+of subtle, easy-to-miss class of bug the model guidance table reserves
+Opus for) that greps every `== null` / `!= null` in `apis/` and
+`functions/`, and for each one asks "can the real column/variable here
+legitimately be `0`, `""`, `false`, or `[]`, and is there already a
+same-value guard next to it?" Likely candidates worth starting with:
+anything comparing a `decimal` or `int` column directly (recall the
+already-documented finding that an untouched decimal column defaults
+to `0` in the database, not `null` — this is the SAME landmine from
+the comparison side rather than the storage side).
 
 ---
 

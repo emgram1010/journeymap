@@ -30,27 +30,33 @@ task + stages + who + how long   goes through the stages   start / end / status 
 
 ## MVP build order
 
-> **Status as of 2026-10-15.** Steps 0–14 are built. The execution
-> module now has a real screen: a performer can open `/perform`, see
-> today's items in order, and tap Start/Done/Blocked/Skip/Reopen —
-> verified end to end in a real browser against the real backend, not
-> just the API.
+> **Status as of 2026-10-15.** Steps 0–15 are built. The execution
+> module has a real screen (APP-1), and the system now computes its
+> own variance — expected vs. scheduled vs. actual — with nobody
+> reporting it (VAR-1). What's left in the numbered build order is one
+> epic: **E2E-1**.
 >
-> **A significant pre-existing bug was found and fixed along the way,
-> not introduced by APP-1:** OBS-1's whole client-side event pipeline
-> — including the Health page's own data loading — had never worked,
-> for two independent reasons (wrong API base URL, and a Redis
-> dependency this Xano plan doesn't support). Both fixed; see
-> `product/learning-fixes.md` for the full write-up. This means the
-> Health page should be checked for the first time now that it can
-> actually load real data.
+> **Two significant pre-existing/cross-cutting findings this session,
+> not introduced by the epic that found them:**
+> 1. OBS-1's whole client-side event pipeline — including the Health
+>    page's own data loading — had never worked, for two independent
+>    reasons (wrong API base URL, and a Redis dependency this Xano plan
+>    doesn't support). **Fixed.** The Health page should be checked for
+>    the first time now that it can actually load real data.
+> 2. **`==`/`!=` against `null` in XanoScript is loose: `0`, `""`,
+>    `false` and `[]` all test equal to `null`.** Confirmed live.
+>    Checked by hand everywhere it's used so far; a full codebase sweep
+>    is recommended (Opus) and NOT done. See `CLAUDE.md` and
+>    `product/learning-fixes.md` for the full detail on both.
 >
 > **Remaining screen debt:** PLAN-1, JOB-1, SCHED-1 and LIVE-1 are
 > still backend-only — APP-1 only covers the performer's own screen,
-> not the planner's.
+> not the planner's. Wiring the planner frontend (**PLN-9**, not yet a
+> numbered epic — needs scoping) was deliberately NOT started
+> unsupervised; see "Next" below.
 >
-> **Nine things are written but NOT pushed or NOT deleted, waiting
-> on the founder** — five delete paths, one nightly job and three
+> **Thirteen things are written but NOT pushed or NOT deleted, waiting
+> on the founder** — five delete paths, one nightly job and seven
 > scratch functions. They are listed in one table at the top of
 > `product/learning-fixes.md`. Nothing else blocks the next epic.
 
@@ -71,8 +77,8 @@ task + stages + who + how long   goes through the stages   start / end / status 
 | 12 | [LIVE-1 Publish to live](EPIC-LIVE-1-publish-to-live.md) ✅ | 11 | Per-timeline frozen snapshot; planner changes logged after — **MVP core done**, no bulk publish, no UI | Sonnet, then Opus review |
 | 13 | [LOG-1 Activity log and status engine](EPIC-LOG-1-activity-log-and-status-engine.md) ✅ | 10, 12 | Append-only log; fixed statuses; Done allowed without Start — **done**, no UI; failure-injection tests not runnable here | **Opus** |
 | 14 | [APP-1 Performer app](EPIC-APP-1-performer-app.md) ✅ | 12, 13 | Today's items; one-tap actions — **done**, verified live in a real browser; failure-injection and the session's unresolved Playwright reliability not covered (see Test Results) | Sonnet |
-| 15 | [VAR-1 Variance and outliers](EPIC-VAR-1-variance-and-outliers.md) ← **next** | 13 | Per-task expected/scheduled/actual; outlier flag | Sonnet |
-| 16 | [E2E-1 End-to-end validation](EPIC-E2E-1-end-to-end-validation.md) | all | Whole loop; integrity audit; supportability demo | Sonnet, then Opus final review |
+| 15 | [VAR-1 Variance and outliers](EPIC-VAR-1-variance-and-outliers.md) ✅ | 13 | Per-task expected/scheduled/actual; outlier flag — **done** (MVP slice); stage aggregates and the tweak signal deferred per the epic's own scope | Sonnet |
+| 16 | [E2E-1 End-to-end validation](EPIC-E2E-1-end-to-end-validation.md) ← **next** | all | Whole loop; integrity audit; supportability demo | Sonnet, then Opus final review |
 
 **Model column:** the AI announces the model at the start of each epic and asks you to switch if needed (`/model sonnet`, `/model opus`, `/model haiku`). Any bug that fails twice → switch to Opus.
 

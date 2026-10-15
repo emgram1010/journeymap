@@ -76,6 +76,62 @@ These were learned the hard way by pushing OBS-1 and hitting real runtime errors
 - **Put a shared RULE in its own function rather than copying it into the reader and the writer.** Not a syntax constraint — a house rule earned here. LOG-1's transition table started out duplicated between the record-event endpoint and the replay audit, which is the one duplication that matters: an audit holding its own copy of the rule it audits will eventually disagree with the engine and sound equally certain either way. Extracted to `log/next_status` (and `log/derive_job_status` out of `log/sync_job_status`), then verified by diffing all 35 live (status, event) pairs against the TypeScript twin.
 - **An untouched `enum` column also defaults to `""`, not `null`, and `??` doesn't catch it.** Same family as the above: a never-touched `time_duration_unit` comes back as an empty string, and frontend fallback code written as `value ?? 'minutes'` only falls through on `null`/`undefined` — `""` sails through unchanged. The `<select>` then visually shows the first option ("minutes", the browser's default for an unmatched value) while the real state stays `""`, which gets silently saved and breaks anything downstream that expects a real unit. Use `value || 'minutes'` (or an explicit `=== ''` check) for any enum-backed dropdown with an empty-string default, not `??`.
 
+## 🔴 CRITICAL, codebase-wide: `==`/`!=` against `null` use PHP-style loose equality — `0`, `""`, `false` and `[]` ALL equal `null`
+
+Found building VAR-1 (2026-10-15), and almost certainly the explanation
+behind several earlier "defensive-looking" double-checks in this
+codebase that were never fully explained. Confirmed with a scratch
+function testing every falsy type directly:
+
+| expression | result |
+|---|---|
+| `0 == null` | **`true`** |
+| `"" == null` | **`true`** |
+| `false == null` | **`true`** |
+| `[] == null` | **`true`** |
+| `1 == null` | `false` (correct) |
+
+**This means `$x == null` / `$x != null` is NEVER a safe way to ask "was
+this really never set" for any field that can legitimately hold a
+falsy value** (`0`, `""`, `false`, an empty array) — it is
+indistinguishable from "this is genuinely zero/empty/false". The
+engine is doing a PHP-style loose comparison, not a strict one.
+
+**Why this hasn't caused visible damage everywhere already:** most
+timestamp fields in this codebase hold real epoch milliseconds in
+production (never legitimately `0`), and several existing call sites
+already double-check defensively — e.g. `log/sync_job_status.xs`:
+`if ($t.started_at != null && $t.started_at != 0 && ...)`. That second
+condition was very likely added because `!= null` alone didn't behave
+as expected, without the root cause being named. It is correct by
+accident, not by understanding.
+
+**The rule going forward:**
+- Never test "was this set" with `== null`/`!= null` alone when the
+  real value could legitimately be `0`, `""`, `false`, or `[]`.
+- For numbers that could be a legitimate zero (a duration, a count), add
+  an explicit `!= 0` alongside `!= null` — belt and suspenders, same
+  shape as the existing `sync_job_status` line, but now written on
+  purpose.
+- For a value that is NEVER legitimately falsy in production (an epoch
+  ms timestamp, a real id starting at 1), `== null` is safe in
+  practice — but write a comment saying so, because a test fixture
+  using `0` or small offsets as a stand-in timestamp WILL trip this
+  (caught exactly that way: `variance/compute_task_variance` passed
+  every golden case with realistic epoch timestamps and silently
+  produced wrong output — "done without start", `actual_minutes: null`
+  — the one time a smoke test used `occurred_at: 0`).
+- **Never use `0` (or an offset from `0`) as a stand-in timestamp in a
+  smoke test again.** Use a realistic epoch base (e.g. `1_800_000_000_000`)
+  plus small minute offsets, exactly like the TypeScript golden
+  fixtures already do.
+
+**Not audited further here:** whether any OTHER existing endpoint
+relies on an unguarded `== null`/`!= null` against a field that can
+really be `0`/`""`/`false` in production data. That is a GOV-1-shaped
+sweep of its own, flagged in `learning-fixes.md`, not done as part of
+VAR-1.
+
 ## Frontend constraints — verified live, APP-1 (2026-10-15)
 
 - **`redis.ratelimit` / `redis.get` / `redis.set` are rejected outright on this Xano plan** with `403 "Not supported. Please upgrade your Xano instance."`, regardless of caller or input. `apis/ops/1_ops_event_POST.xs` (OBS-1) used all three and has therefore refused every call since it was built — rewritten to the same rate-limit/de-dup rule using a plain `db.query ... return = {type: "count"}` against `event_log` with a cutoff timestamp computed into a `var` first, instead. Before using ANY `redis.*` filter on this instance, confirm it works with a scratch function first; assume it does not.
