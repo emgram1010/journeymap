@@ -582,6 +582,52 @@ go any time.
 
 ---
 
+## 🔴 GOV-1's stale-write guard cannot work on any planner table
+
+`guards/assert_fresh` (standard S12) compares the `updated_at` a
+caller last saw against the row's current one. **Every planner table
+declares `updated_at` as a `date`** — day granularity, e.g.
+`"2026-10-15"`.
+
+So two people editing the same row ten minutes apart produce an
+identical `updated_at`, and the guard would pass the second write
+while reporting success. Using it there would be worse than not using
+it, because it would look like protection.
+
+Found in SCHED-1, the first epic to ask for stale-write detection.
+
+**What SCHED-1 does instead:** value-based concurrency — the caller
+sends the duration it last saw, and the write is refused if the row
+has moved on. Narrower (it only fires when the field being changed
+actually moved) but true. Verified live.
+
+**To switch S12 on properly**, `updated_at` must become a `timestamp`
+on `planner_workspace`, `planner_agent`, `planner_timeline`,
+`planner_task`, `work_item` and `work_task`. That is a column type
+change on tables carrying `trim` validators, so it runs into the same
+`updateTableSchema` problem as the other open schema items — it needs
+the Xano dashboard, or the side-table trick.
+
+---
+
+## 🧠 Worth knowing (JOB-1): `enum x?=value` DOES set a working default
+
+PLN-1 recorded two planner enum columns as having no default and read
+it as a platform limitation. It was a syntax problem. JOB-1 created
+`work_item.status` and `work_task.status` with `enum status?=open` and
+`enum status?=not_started`, and both came back with the default in
+place and working.
+
+**Use `enum field?=value` at CREATE time** for any new enum column.
+
+This does **not** fix the two existing columns
+(`planner_timeline.status`, `planner_task.status`): changing them in
+place still needs `updateTableSchema`, which would drop their tables'
+`trim` validators. They remain on the open list — but the API writes
+both explicitly on every create, so no API-created row can miss one.
+
+---
+
 ## 🔴 Latent bug in existing code: `|contains:` on an array is always false
 
 `|contains:` returns **`false` for every array** — value present or
