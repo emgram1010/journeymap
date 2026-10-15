@@ -85,7 +85,9 @@ export const TABLE_MANIFEST: Record<string, TableExpectation> = {
   planner_workspace_map: {naturalKeys: [['workspace_id', 'journey_map_id']], appendOnly: true},
   work_item: {enumFields: ['status']},
   work_task: {naturalKeys: [['work_item_id', 'stage_key', 'lens_key']], enumFields: ['status']},
-  planner_task_work_task: {naturalKeys: [['work_task_id']]},
+  // Built 2026-10-15 as live table 124 (SCHED-1). A link row is
+  // created or removed, never edited, so it carries no `updated_at`.
+  planner_task_work_task: {naturalKeys: [['work_task_id']], appendOnly: true},
   plan_publication: {naturalKeys: [['timeline_id']], appendOnly: true},
   plan_change_log: {enumFields: ['change_type'], appendOnly: true},
   activity_log: {naturalKeys: [['client_event_id']], enumFields: ['event_type', 'source'], appendOnly: true},

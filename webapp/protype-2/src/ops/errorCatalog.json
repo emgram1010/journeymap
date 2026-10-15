@@ -489,6 +489,46 @@
     "severity": "info",
     "fix_hint": "Nothing went wrong and nothing changed — cancelling twice is harmless. The job's tasks are left exactly as they were, because a cancelled job is still history."
   },
+  "E-SCHED-001": {
+    "code": "E-SCHED-001",
+    "feature": "SCHED-1",
+    "user_message": "This step is already on the schedule.",
+    "what_happened": "A job step was scheduled when it already had a slot, or belongs to a cancelled job.",
+    "likely_cause": "The backlog was open in two places, or the step was scheduled a moment ago from another screen.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload the backlog — a step that is already scheduled disappears from it. Each step gets one slot, so the same work can never be given out twice."
+  },
+  "E-SCHED-002": {
+    "code": "E-SCHED-002",
+    "feature": "SCHED-1",
+    "user_message": "Enter a duration between 1 and 1,440 minutes.",
+    "what_happened": "A scheduled duration was saved as zero, negative, fractional, or longer than a day.",
+    "likely_cause": "The field was cleared, or hours were typed where minutes were expected.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Durations are whole minutes, so two hours is 120. Something longer than a day should be split across days. Your typing was kept."
+  },
+  "E-SCHED-003": {
+    "code": "E-SCHED-003",
+    "feature": "SCHED-1",
+    "user_message": "Someone else changed this. Reload to see the latest.",
+    "what_happened": "A duration was saved against a value that had already moved on — someone else edited the same slot first.",
+    "likely_cause": "Two people planning the same day at once, or the same plan open in two tabs.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload and make the change again. Nothing was lost: the refused save was never written, and the other person's change is intact."
+  },
+  "E-SCHED-005": {
+    "code": "E-SCHED-005",
+    "feature": "SCHED-1",
+    "user_message": "Pick a reason from the list or choose 'Other'.",
+    "what_happened": "A duration was changed with a reason that is not one of the job's own details.",
+    "likely_cause": "The detail the reason referred to was renamed or removed after the form was opened.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reasons point at one of the job's recorded details so the change can be explained later. If none fits, choose Other. Giving no reason at all is also fine."
+  },
   "E-P3A-001": {
     "code": "E-P3A-001",
     "feature": "P3A-1",
