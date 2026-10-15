@@ -1416,30 +1416,40 @@ enough to matter.
 
 ---
 
-## 🟡 Worth knowing (APP-1): the existing Playwright suite's reliability in this environment is unconfirmed
+## ✅ Fixed 2026-10-15: the Playwright harness's port mismatch — but existing specs have their own, separate issues
 
-APP-1's E2E test plan (E2E-APP-1-01…05, G01…G03) was instead driven
-through a REAL Chrome session against the real backend — every tap
-verified by reading the actual database row back, which is a stronger
-check than a typical Playwright assertion. No new `.spec.ts` file was
-written.
+APP-1 and E2E-1 both substituted a real Chrome session for Playwright
+(stronger anyway — every action verified by reading the database row
+back), flagging the harness's reliability as unconfirmed rather than
+chasing it mid-epic. Followed up afterward as its own small, bounded
+fix, once the numbered build order was complete.
 
-**Why, given Playwright is actually configured and runnable here**
-(unlike Xano's `workflow_test`s, which have no runner at all — see the
-entry below): a quick check of `playwright.config.ts` found its
-`webServer.port` set to `5173`, but `package.json`'s own `dev` script
-hardcodes `--port=3000`. Running one existing spec
-(`e2e/cell-identifiers.spec.ts`) got partway through a test and then
-the worker exited; inconclusive within the time available, but not a
-clean pass either. **Not chased further** — it's a pre-existing
-question about the whole e2e harness, not something APP-1 caused, and
-diagnosing it is a separate task from building APP-1.
+**Confirmed and fixed**: `playwright.config.ts`'s `webServer.port` and
+`baseURL` were `5173` (Vite's historical default), but `package.json`'s
+`dev` script hardcodes `--port=3000`. `webServer` was checking a port
+the dev server never actually binds, so a clean `npx playwright test`
+run could never reliably find or start it — the inconclusive run
+during APP-1 was this, not a fluke. Pointed the config at 3000 (the
+port the app actually runs on) rather than changing the dev script,
+which other tooling may depend on.
 
-**Needs:** before leaning on Playwright for a future epic's completion
-gate, confirm `e2e/*.spec.ts` actually runs green end to end once,
-starting from a clean `npx playwright test`. If the port mismatch is
-real, it's a one-line fix (align `playwright.config.ts`'s `webServer`
-to the `dev` script's actual port, or vice versa).
+**Verified the fix, not just the theory**: killed every stray dev
+server, ran `e2e/cell-identifiers.spec.ts` from a genuinely cold start.
+**The web server now starts and the test actually runs** — before the
+fix, every spec would have failed before reaching a single assertion.
+
+**What the fix does NOT cover**: the spec itself still fails, at a
+DIFFERENT point — waiting for a chat-toggle button that never appears,
+15s timeout. That's either stale test data, a missing auth/seed step,
+or a selector that drifted from the real UI since the spec was
+written. **Not diagnosed further** — that is a question about one
+spec's own assumptions, not the harness, and chasing every existing
+spec's content is a larger, separate task from fixing the one thing
+that was silently breaking all of them equally.
+
+**Needs**: before trusting ANY existing `.spec.ts` file as a completion
+gate, give it the same treatment — run it cold, expect it may need its
+own fix (auth setup, updated selectors) independent of this one.
 
 ---
 
