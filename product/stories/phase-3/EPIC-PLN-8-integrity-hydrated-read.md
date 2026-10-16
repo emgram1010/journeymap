@@ -61,7 +61,7 @@ Checks (each returns offending ids):
 | `DUP_AGENT_DAY` | two timelines for one agent/date (should be impossible via the unique index; asserted anyway) |
 | `PERSON_WITH_MODEL` | `kind = person` with a `model_id` |
 | `MODEL_DANGLING` | agent `model_id` pointing at a missing model |
-| `NON_DRAFT_STATUS` | timeline `status != draft` (publishing is on hold) |
+| `NON_DRAFT_STATUS` | timeline `status` is neither `draft` nor `published` — a value no endpoint can produce. *Narrowed 2026-10-16 (PLN-9): originally `status != draft`, correct while publishing was on hold, but it flagged every real published day once LIVE-1 shipped.* |
 
 **Acceptance:** On a clean dataset → empty result. Each code is triggered by a deliberately corrupted row in the test and reported with the right ids.
 
@@ -170,7 +170,7 @@ confirmed clean after each restore.
 | `PERSON_WITH_MODEL` | ✅ same row, caught independently |
 | `ORPHAN_AGENT` | ✅ agent pointed at workspace 99999 |
 | `ORPHAN_TIMELINE` | ✅ timeline pointed at agent 99999 — **and two further timelines correctly reported** once their agent left the account's workspaces, which is the checks interacting as intended |
-| `NON_DRAFT_STATUS` | ✅ status forced to `published` |
+| `NON_DRAFT_STATUS` | ✅ status forced to `published` — *valid at the time, when `draft` was the only legal status. The rule was narrowed 2026-10-16 (PLN-9) and `published` no longer triggers it, so this exact case would not fire today; it was re-proven then by blanking a status to `""`, which is the only invalid value Xano's enum actually permits.* |
 | `ORPHAN_TASK` | ✅ task pointed at timeline 99999 |
 | `SEQ_GAP_OR_DUP` | ✅ seq forced to 77 |
 | `CROSS_WORKSPACE_TIMELINE` | ✅ ws4 timeline pointed at a **real** ws5 agent |
