@@ -1,9 +1,13 @@
 // PLN-5 (US-PLN-5-04) — Remove an agent from a plan, keeping the work.
 //
-// ⚠️ NOT PUSHED TO XANO, and neither is the DELETE endpoint that calls
-// it. CLAUDE.md requires the founder to approve any delete. Held for
-// review with the other two: functions/planner/delete_workspace_cascade.xs
-// and functions/planner/delete_model_guard.xs.
+// PUSHED 2026-10-16, on the founder's explicit approval, together with
+// functions/planner/delete_timeline_cascade.xs and the two DELETE
+// endpoints that call them. Approved specifically because neither of
+// these two loses work: both only move tasks back to the backlog.
+// STILL HELD, and deliberately not pushed with them:
+//   functions/planner/delete_task.xs            (destroys work)
+//   functions/planner/delete_workspace_cascade.xs (destroys a whole plan)
+//   functions/planner/delete_model_guard.xs     (part of model delete)
 //
 // NO TASK IS EVER DELETED HERE. That is the shipped behaviour of the
 // localStorage planner's `handleDeleteAgent` and the acceptance
@@ -32,8 +36,17 @@
 // caller's job, not this function's.
 //
 // P3A-1 (US-P3A-1-03): this cascade only runs for an agent with NO
-// history. An agent with a published timeline or log events is
-// deactivated (`is_active = false`) instead, and never reaches here.
+// history — `planner/agent_has_history` is the gate, and the endpoint
+// refuses before ever reaching here if it answers yes.
+//
+// The story says such an agent should be "deactivated instead", via
+// `is_active = false`. THAT FEATURE DOES NOT EXIST: `is_active` is
+// written once as `true` at creation (endpoint 535) and is never read,
+// filtered on, or settable anywhere. So the endpoint refuses and points
+// at hiding the agent — which is real and works — rather than naming a
+// deactivation a planner cannot actually perform. Building deactivate
+// properly (settable, and honoured by the roster and board reads) is
+// its own small story, flagged in PLN-9's Test Results.
 function "planner/delete_agent_cascade" {
   input {
     int workspace_id filters=min:1
@@ -98,6 +111,16 @@ function "planner/delete_agent_cascade" {
         }
       }
     }
+
+    // 5) Normalise the backlog to exactly 1..n. planner/resequence's
+    // own rule is that EVERY mutation ends by resequencing each
+    // container it touched; omitting it here is what left the backlog
+    // on seq 0,1 and tripped PLN-8's SEQ_GAP_OR_DUP on this cascade's
+    // first real run (2026-10-16). The agent's own timelines need no
+    // resequence — they have just been deleted.
+    function.run "planner/resequence" {
+      input = {workspace_id: $input.workspace_id, timeline_id: 0}
+    } as $backlog_reseq
   }
 
   response = {

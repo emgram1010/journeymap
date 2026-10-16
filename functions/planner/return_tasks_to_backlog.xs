@@ -31,8 +31,16 @@ function "planner/return_tasks_to_backlog" {
       return = {type: "list"}
     } as $backlog
 
+    // Starts at 0, NOT -1. seq is a 1..n scheme, so "nothing in the
+    // backlog yet" must make the first returned task seq 1 — starting
+    // at -1 handed it seq 0 and left the container failing PLN-8's
+    // SEQ_GAP_OR_DUP check. Latent until 2026-10-16: the only caller
+    // that could hit an empty backlog was the agent/timeline delete
+    // cascade, which was unpushed until then, and the other caller
+    // (planner/place_task) resequences afterwards so it never showed.
+    // Found by the integrity audit on the cascades' very first run.
     var $max_seq {
-      value = -1
+      value = 0
     }
 
     foreach ($backlog) {

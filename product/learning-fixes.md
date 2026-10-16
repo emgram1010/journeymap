@@ -1695,6 +1695,60 @@ Summarizing the state changes here:
   time all derive from one), matching PLAN-1's model instead of the
   old bare-name placeholder.
 
+## ✅ 2026-10-16: two of the five held deletes approved and shipped
+
+The founder approved the recommended split: **remove an agent** and
+**delete a day** go live; **delete a task** and **delete a plan** stay
+held, because those two are the only ones that actually destroy work.
+`delete_model_guard` stays held with them (it belongs to model delete).
+
+- Live now: `agent_has_history` (157), `delete_timeline_cascade` (158),
+  `delete_agent_cascade` (159), `DELETE agent/{id}` (571),
+  `DELETE timeline/{id}` (572). Full detail, guards and the live test
+  matrix are in PLN-9's Test Results.
+- **The held list is now three, not five**: `delete_task.xs`,
+  `delete_workspace_cascade.xs`, `delete_model_guard.xs`.
+
+### The lesson: the audit caught a bug on the cascades' first real run
+
+PLN-8's `integrity_audit` was built for precisely this moment — its own
+header says it exists to prove the cascades correct "once they are
+allowed to run". It did, on the first one: the backlog came out on
+**seq 0,1 instead of 1,2** (`SEQ_GAP_OR_DUP`).
+
+- Root cause: `return_tasks_to_backlog` seeded `$max_seq = -1`, so the
+  first returned task got seq 0. **It only breaks when the backlog is
+  empty** — with anything already there the arithmetic is right. That
+  is why a function "pushed and tested" since PLN-5 was quietly wrong
+  for a year of commits: its only other caller resequences afterwards
+  and hid it, and the two cascades that could hit an empty backlog had
+  never been allowed to run.
+- Fixed at the root (`$max_seq = 0`) **and** by making both cascades
+  call `planner/resequence` at the end — which `resequence`'s own docs
+  already demanded of every mutation. The cascades were violating a
+  rule the codebase had already written down.
+- **Generalisable:** an unreachable code path is not a tested one. Both
+  cascades were reviewed, committed and described as correct for weeks;
+  the defect surfaced the first time real data flowed through. Hold a
+  path back for safety if you must, but treat it as unverified until
+  the day it runs, and run the audit the moment it does.
+
+### Two more pieces of staleness found while here
+
+- 🔴 **`planner/workspace_has_history` still answers "no history" for
+  every plan.** Its TODOs for `work_item`, `plan_publication` and
+  `activity_log` were never filled in once those tables shipped. Only
+  plan delete reads it, and that stays held — **but it must be
+  implemented before plan delete is ever approved**, or a plan with
+  real recorded work would pass its own safety check.
+- 🟡 **`NON_DRAFT_STATUS` flags every published timeline as corruption.**
+  Written when publishing was on hold, so any non-draft status meant a
+  bad write. LIVE-1 shipped; the audit now reports `clean: false`
+  forever for any account that publishes (4 false violations on account
+  6 today). An integrity check that is permanently red teaches people
+  to ignore it. Should narrow to "neither `draft` nor `published`" —
+  left alone because it is PLN-8's rule to change, not PLN-9's.
+
 ## ✅ 2026-10-16: PLN-9 Opus review pass — a "Save" button that saved nothing
 
 - **The lesson worth keeping, beyond the bug itself:** when an epic

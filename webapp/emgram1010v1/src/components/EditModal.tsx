@@ -37,6 +37,10 @@ interface EditModalProps {
   settings: AppSettings;
   onDeleteAgent?: (agentId: string) => void;
   onSaveAgent?: (agentId: string | null, updates: { name: string; kind: AgentKind; color: string; dailyCapacityHours: number; modelId?: string }) => boolean | void | Promise<boolean | void>;
+  // PLN-6 (US-PLN-6-05), wired 2026-10-16. Optional for the same
+  // reason as onDeleteAgent: when it isn't passed, no delete control
+  // renders at all, rather than offering one that can't work.
+  onDeleteTimeline?: (timelineId: string) => void;
   onConfirmBulkPublish?: (timelineIdsToPublish: string[]) => void;
   onConfirmPublish?: (timelineId: string) => void;
   onReopenTimeline: (timelineId: string) => void;
@@ -51,6 +55,7 @@ export function EditModal({
   onSaveTimeline,
   onSaveAgent,
   onDeleteAgent,
+  onDeleteTimeline,
   onConfirmBulkPublish,
   onConfirmPublish,
   onReopenTimeline,
@@ -89,6 +94,7 @@ export function EditModal({
   const [agentCapacity, setAgentCapacity] = useState<number>(8);
   const [agentModelId, setAgentModelId] = useState<string>('');
   const [confirmRemoveAgent, setConfirmRemoveAgent] = useState(false);
+  const [confirmDeleteTimeline, setConfirmDeleteTimeline] = useState(false);
 
   // Trap focus ref
   const modalRef = useRef<HTMLDivElement>(null);
@@ -101,6 +107,7 @@ export function EditModal({
     setShowDiscardConfirm(false);
     setHasChanges(false);
     setErrors({});
+    setConfirmDeleteTimeline(false);
 
     if (entity.type === 'task') {
       const t = entity.task;
@@ -994,6 +1001,42 @@ export function EditModal({
             </div>
           ) : (
             <div className="w-full flex items-center justify-end gap-3">
+              {/* PLN-6 (US-PLN-6-05): delete this day. Not offered for a
+                  published one — the server refuses it (E-P3A-003) and
+                  showing the control would only invite that refusal. */}
+              {entity.type === 'timeline' && onDeleteTimeline && !isLocked && (
+                <div className="mr-auto flex items-center gap-2">
+                  {confirmDeleteTimeline ? (
+                    <>
+                      <span className="text-xs text-red-700">Tasks return to backlog.</span>
+                      <button
+                        id="confirm-delete-timeline-btn"
+                        type="button"
+                        onClick={() => onDeleteTimeline(entity.timeline.id)}
+                        className="px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded"
+                      >
+                        Confirm delete
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteTimeline(false)}
+                        className="px-2 py-1.5 text-xs text-neutral-600 hover:text-neutral-900"
+                      >
+                        Keep
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      id="delete-timeline-btn"
+                      type="button"
+                      onClick={() => setConfirmDeleteTimeline(true)}
+                      className="px-3 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded"
+                    >
+                      Delete this day
+                    </button>
+                  )}
+                </div>
+              )}
               <button
                 type="button"
                 onClick={handleRequestClose}

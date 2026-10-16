@@ -6,7 +6,7 @@ import {
   listWorkspaces, getBoard,
   createAgent, updateAgent, setWorkspaceAgentVisibility,
   createTimeline, updateTimeline, publishTimeline as publishTimelineApi, reorderTimeline,
-  createTask, updateTask, placeTask,
+  createTask, updateTask, placeTask, deleteAgent, deleteTimeline,
   listTemplates, createWorkspaceFromTemplate, TemplateListEntry,
   updateWorkspace,
 } from './lib/plannerApi';
@@ -362,12 +362,46 @@ export default function App() {
     }
   };
 
-  // PLN-9: deleting an agent (and a task, and a timeline) has no live
-  // backend endpoint yet — `functions/planner/delete_agent_cascade.xs`
-  // exists but is deliberately NOT pushed, per CLAUDE.md's "ask before
-  // any delete." Rather than fake a delete that doesn't persist, this
-  // action is left unavailable (onDeleteAgent simply isn't passed to
-  // EditModal below) until the founder approves pushing it.
+  // PLN-5 (US-PLN-5-04) — wired 2026-10-16, once the founder approved
+  // the two non-destructive deletes. No task is ever lost: the
+  // server returns the agent's work to the backlog first. An agent
+  // with recorded work is refused by the server (E-P3A-002) and that
+  // message surfaces in the toast.
+  const handleDeleteAgent = (agentId: string) => {
+    deleteAgent(Number(agentId))
+      .then(({ tasks_returned }) => {
+        if (activeAgentId === agentId) setActiveAgentId(null);
+        if (focusedAgentId === agentId) setFocusedAgentId(null);
+        setActiveModalEntity(null);
+        if (tasks_returned > 0) {
+          setBacklogPlacementConfirmation(
+            `${tasks_returned} task${tasks_returned === 1 ? '' : 's'} moved to the backlog`
+          );
+          setTimeout(() => setBacklogPlacementConfirmation(null), 4000);
+        }
+        return refreshBoard();
+      })
+      .catch(reportActionError);
+  };
+
+  // PLN-6 (US-PLN-6-05) — same approval, same guarantee: the day goes,
+  // its tasks return to the backlog. A published day is refused by the
+  // server (E-P3A-003).
+  const handleDeleteTimeline = (timelineId: string) => {
+    deleteTimeline(Number(timelineId))
+      .then(({ tasks_returned }) => {
+        if (activeTimelineId === timelineId) setActiveTimelineId(null);
+        setActiveModalEntity(null);
+        if (tasks_returned > 0) {
+          setBacklogPlacementConfirmation(
+            `${tasks_returned} task${tasks_returned === 1 ? '' : 's'} moved to the backlog`
+          );
+          setTimeout(() => setBacklogPlacementConfirmation(null), 4000);
+        }
+        return refreshBoard();
+      })
+      .catch(reportActionError);
+  };
 
   // Open Task Edit Modal
   const handleOpenTaskEditModal = (taskId: string) => {
@@ -1081,6 +1115,8 @@ export default function App() {
         onSaveTimeline={handleSaveTimelineFromModal}
         settings={settings}
         onSaveAgent={handleSaveAgent}
+        onDeleteAgent={handleDeleteAgent}
+        onDeleteTimeline={handleDeleteTimeline}
         onConfirmBulkPublish={handleConfirmBulkPublish}
         onConfirmPublish={handlePublishTimeline}
         onReopenTimeline={handleReopenTimeline}

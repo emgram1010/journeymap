@@ -73,6 +73,22 @@ export const updateAgent = (
 export const setWorkspaceAgentVisibility = (workspaceId: number, visible: boolean) =>
   performRequest<{agents: RawAgent[]}>(`/workspace/${workspaceId}/agent/visibility`, {method: 'POST', body: {visible}});
 
+/**
+ * PLN-5 (US-PLN-5-04) — remove an agent from the plan. Pushed
+ * 2026-10-16 on the founder's approval of the two non-destructive
+ * deletes. NO TASK IS LOST: their days' tasks go back to the backlog
+ * and any override pointing at them is cleared.
+ *
+ * Refuses (E-P3A-002) if the agent has recorded work — a published day
+ * or any logged activity — because a frozen publication and the
+ * activity log both still point at them.
+ */
+export const deleteAgent = (agentId: number) =>
+  performRequest<{deleted_agent_id: number; timelines_removed: number; tasks_returned: number; assignments_cleared: number}>(
+    `/agent/${agentId}`,
+    {method: 'DELETE'},
+  );
+
 // ── Timelines ────────────────────────────────────────────────────────────
 
 export interface RawTimeline {
@@ -116,6 +132,17 @@ export const publishTimeline = (timelineId: number) =>
     `/timeline/${timelineId}/publish`,
     {method: 'POST'},
   );
+
+/**
+ * PLN-6 (US-PLN-6-05) — delete one day. The day goes, the work stays:
+ * its tasks return to the backlog, keeping their order. Refuses
+ * (E-P3A-003) for a PUBLISHED day, whose frozen publication and log
+ * events still reference it.
+ */
+export const deleteTimeline = (timelineId: number) =>
+  performRequest<{deleted_timeline_id: number; tasks_returned: number; moved_ids: number[]}>(`/timeline/${timelineId}`, {
+    method: 'DELETE',
+  });
 
 /** PLN-7 — exact permutation of this timeline's own task ids; a partial or foreign id is refused and nothing is written. */
 export const reorderTimeline = (timelineId: number, taskIds: number[]) =>

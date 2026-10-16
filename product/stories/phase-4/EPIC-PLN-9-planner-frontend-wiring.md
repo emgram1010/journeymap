@@ -289,3 +289,48 @@ Fixed, all four:
 - **No sign-out, and no recovery from an expired token mid-session.** `AuthGate` only validates on mount, so if a token expires while the app is open, every request 401s and the user gets error toasts forever with no path back to the login screen. Worth a small follow-up: treat a 401 from any call as "session over" and drop back to the gate.
 - The "Add Agent" modal's title reads **"Edit Agent — undefined"** when adding, because `handleOpenAddAgentModal` doesn't set `isNew: true`. Pre-existing (predates this epic, same in `planningFrontendv2`), purely cosmetic, one-line fix whenever someone is next in that file.
 - `handleSelectScenario` / `ComponentSheetModal` reference hardcoded demo ids (`agent-marcus` etc.) that cannot exist in real data — dead QA scaffolding from the localStorage era. Harmless, but it is now misleading dead code.
+
+### Checkpoint 4, 2026-10-16: the two non-destructive deletes, approved and shipped
+
+The founder approved exactly the split recommended: **remove an agent** and **delete a day** go live; **delete a task** and **delete a plan** stay held, because those two are the ones that actually destroy work.
+
+**Now live** — `planner/agent_has_history` (157), `planner/delete_timeline_cascade` (158), `planner/delete_agent_cascade` (159), `DELETE agent/{id}` (571), `DELETE timeline/{id}` (572).
+
+**Still held, unchanged:** `delete_task.xs`, `delete_workspace_cascade.xs`, `delete_model_guard.xs`.
+
+**The guarantee that made these two safe to approve:** neither loses work. Removing an agent returns every task on their days to the backlog and clears any override pointing at them; deleting a day returns its tasks the same way. Only empty timelines and the agent row are actually destroyed.
+
+**Guards built to spec:** an agent with a published day or any logged activity is refused (`E-P3A-002`), and a published day cannot be deleted at all (`E-P3A-003`) — in both cases because LIVE-1's frozen publication and LOG-1's activity log still point at those rows.
+
+#### The integrity audit earned its keep on its first real use
+
+PLN-8's `integrity_audit` was written with this exact moment in mind — its own header says it exists to prove the cascades correct "once they are allowed to run." It did, immediately: the first real agent delete left the backlog on **seq 0,1 instead of 1,2**, tripping `SEQ_GAP_OR_DUP`.
+
+Root cause: `planner/return_tasks_to_backlog` seeded `$max_seq = -1`, so the first returned task got `-1 + 1 = 0`. It only misbehaves when the backlog is **empty** — with anything already in it, the max-based arithmetic is correct, which is why the function had been "pushed and tested" since PLN-5 without anyone noticing. Its only other caller (`place_task`) resequences afterwards and silently papered over it. The two cascades were the sole callers that could hit an empty backlog, and they had never been allowed to run.
+
+Fixed twice over, deliberately:
+1. `return_tasks_to_backlog` now seeds `$max_seq = 0`, fixing the root cause for any future caller.
+2. Both cascades now end by calling `planner/resequence` on the backlog — which `resequence`'s own documentation already required of *every* mutation ("ends by calling this for each container it touched"). The cascades were quietly violating a rule the codebase had already written down.
+
+Re-verified by rebuilding the exact failing condition (a genuinely empty backlog in a different plan): tasks landed on `seq 1,2` in their original order. The audit is now free of orphans and sequence violations after three real cascade runs.
+
+#### Verified live, end to end
+
+| Case | Result |
+|---|---|
+| Delete agent with 2 published days | ✅ Refused, `E-P3A-002`, real name interpolated |
+| Delete a published day | ✅ Refused, `E-P3A-003` |
+| Delete a nonexistent agent id | ✅ `Agent not found` (tenancy guard, no existence leak) |
+| Delete agent with 1 draft day + 2 tasks | ✅ 1 timeline removed, 2 tasks returned, 2 overrides cleared, order preserved |
+| Delete agent with no timelines at all | ✅ Clean no-op cascade |
+| Delete a day holding a task (empty backlog) | ✅ Task preserved at `seq 1`; the regression case |
+| Same two flows through the real UI | ✅ Refusal surfaced in the toast with the server's own wording, modal stayed open; happy path moved the task to the backlog (2 → 3 waiting) and the column emptied |
+
+#### Deliberate deviation from the story text, and why
+
+US-P3A-1-03 specifies the refusal should read *"{name} has recorded work. Deactivate them instead."* **It does not say that.** `is_active` on an agent is written once as `true` at creation and is never read, filtered on, or settable anywhere — deactivation does not exist. Telling a planner to do something the product cannot do is the same failure as a Save button that doesn't save. The message points at **hiding** the agent instead, which is real and already works. Shipped as: *"{name} has recorded work, so they can't be removed. Hide them from the roster instead. (E-P3A-002)"*
+
+**New flags raised:**
+- **Build deactivate properly, or drop it from the spec.** It needs to be settable and honoured by the roster and board reads. Currently it is a dormant column that one story depends on.
+- **`planner/workspace_has_history` is stale and now dangerous.** It still returns "no history" for every plan because its TODOs for `work_item`, `plan_publication` and `activity_log` were never filled in once those tables existed — which they all now do. It is only reachable from plan delete, which stays held, **but it must be implemented before plan delete is ever approved**, or a plan with real recorded work would sail through its own safety check.
+- **`NON_DRAFT_STATUS` is a stale audit rule.** It flags every published timeline as a violation, because it was written when publishing was on hold and any non-draft status meant corruption. LIVE-1 shipped; published days are now normal. The audit therefore reports `clean: false` forever for any account that publishes — 4 violations on this account, all false. That slowly trains people to ignore the audit, which is worse than not having one. Recommend narrowing it to "a status that is neither `draft` nor `published`". Not changed here — it belongs to PLN-8, and silently redefining another epic's integrity rule is not a call to make mid-task.
