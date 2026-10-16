@@ -1598,6 +1598,47 @@ app's tenancy model.
 
 ---
 
+## ✅ Fixed 2026-10-16 (PLN-9): the board endpoint hardcoded every timeline's status to "draft"
+
+Same bug class LIVE-1 already found and fixed on two sibling endpoints
+(539, 540): `workspace/{id}/board` (548, PLN-8 — "the whole plan in one
+request") pushed `status: "draft"` as a literal, never `$tl.status`.
+Never caught before because PLN-9 is the first real UI consumer of
+this endpoint — a nightly audit or a functional test checking the
+WRITE path wouldn't have noticed a READ-side hardcode like this.
+
+**Verified it wasn't cosmetic**: the existing planner frontend already
+has its own "(locked — timeline published)" UI logic gated on this
+exact field. It was silently dead for every real published day until
+now — confirmed by watching it correctly lock a real published
+timeline's tasks the moment the fix went live.
+
+Fixed: `status: $tl.status`, matching the already-established pattern.
+
+---
+
+## ✅ Started 2026-10-16: PLN-9 build, checkpoint 1 (login + real read)
+
+Full detail in `EPIC-PLN-9-planner-frontend-wiring.md`'s Test Results.
+Summarizing the state changes here:
+
+- **New app at `webapp/emgram1010v1`**, copied from `planningFrontendv2`
+  (`src/` confirmed byte-identical by diff at copy time — everything
+  since is new). `planningFrontendv2` itself was NOT deleted or
+  touched — left in place in case anything still needs cross-checking
+  against it, pending a founder decision on whether to retire it once
+  the new one is further along.
+- **New test account** (user 10, its own account) created via real
+  signup, used to prove the new app's login screen end to end.
+- Confirmed **this app is a separate origin from `protype-2`** — no
+  shared browser session, by construction, not a bug. One account
+  logs into each separately.
+- Writes are still local-only (same as the app's state before this
+  epic) — only reading real data is wired so far. Not a regression;
+  the deliberate next slice.
+
+---
+
 ## How to use this file
 
 When picking up any of the 🔴/🟡 items: read the linked epic file in

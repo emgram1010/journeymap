@@ -17,6 +17,14 @@
 // maths, because two implementations will eventually disagree and the
 // UI will show one time while the API believes another.
 //
+// FOUND 2026-10-16 (PLN-9, the first real UI consumer of this
+// endpoint): `status` was hardcoded to `"draft"` here, never
+// `$tl.status` — the exact same bug LIVE-1 already found and fixed on
+// the timeline list and single-timeline read endpoints (539, 540),
+// just never applied here. Every published day would have shown as
+// still a draft on the one screen built to actually read this field.
+// Fixed the same way: read the real column.
+//
 // Backlog tasks are included in `tasks[]` with `timeline_id: 0` (the
 // local spelling of "no timeline") and `planned_start: null`.
 query "workspace/{workspace_id}/board" verb=GET {
@@ -156,7 +164,7 @@ query "workspace/{workspace_id}/board" verb=GET {
             label        : $label
             planned_date : $tl.planned_date
             start_time   : $tl.start_time
-            status       : "draft"
+            status       : $tl.status
             out_of_window: $oow
           }
         }

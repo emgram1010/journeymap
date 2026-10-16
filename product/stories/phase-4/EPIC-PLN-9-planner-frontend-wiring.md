@@ -1,10 +1,34 @@
 # PLN-9 — Planner Frontend Wiring
 
 **Epic ID:** PLN-9
-**Feature:** The planner app (`webapp/planningFrontendv2`) talks to the real backend (PLN-1…PLN-8, PLAN-1, SCHED-1, LIVE-1) instead of `localStorage`.
-**Status:** DRAFT — scoped, not built. Written up for review before any code changes, per the founder's own build protocol. Not yet a numbered step in `README.md`'s build order; add it there once approved.
+**Feature:** The planner app talks to the real backend (PLN-1…PLN-8, PLAN-1, SCHED-1, LIVE-1) instead of `localStorage`.
+**Status:** APPROVED 2026-10-16 — the three open questions below are answered. Building now.
 **Depends on:** PLN-1…PLN-8 ✅, PLAN-1 ✅, SCHED-1 ✅, LIVE-1 ✅ (all backend-complete). APP-1 ✅, as the first real consumer of the published-day shape this epic also writes to.
 **Goal:** A planner opens the real app, creates a plan from a template, schedules real work onto real agents' real days, and publishes — and everything a performer sees in `/perform` came from an actual plan a human built in this UI, not from a script.
+
+## Decisions (founder, 2026-10-16)
+
+1. **New home: `webapp/emgram1010v1`.** Not folded into `protype-2`, and not left at `webapp/planningFrontendv2`. Deployed via **Xano static hosting** (not Vercel/Netlify/etc.) — the founder's own infrastructure choice. Research below.
+2. **Share connection code with APP-1: yes.** See "HTTP client" below for how, given these are two separate Vite apps with no monorepo tooling between them.
+3. **Model: Sonnet throughout, Opus review after** — the recommendation this file already made. Confirmed.
+
+### Xano static hosting — what this changes about the build
+
+Researched 2026-10-15/16 (not prior knowledge — Xano is not a platform with stable public conventions to assume). Source: [Xano's own static-hosting docs](https://docs.xano.com/xano-features/static-hosting), [Xano's walkthrough](https://www.xano.com/learn/host-your-frontend-in-xano-with-static-hosting/).
+
+- Xano serves a **built static output** (Vite's `dist` folder), uploaded as a zip, either via the dashboard or the CLI. There is no server running at runtime — it is pure static file serving.
+- Separate dev/prod domains per static host, deployed independently with one click once a build is uploaded.
+- **One static host already exists in the workspace** (`id 1`, name "default", a dev URL already assigned, no prod yet, zero builds uploaded so far). Reusing this one rather than creating a second, per the project's own "reuse, don't duplicate" rule.
+- **No confirmed SPA rewrite/fallback support** — Xano's docs don't describe one, and "no persistent server" strongly implies there isn't one. A deep link to a route that isn't `/` could 404 on refresh.
+  - **Not a blocker for this epic**: the existing planner UI (what this epic is wiring up) has **no router at all** — `main.tsx` renders one `<App />` with no `react-router-dom`, and its "plan vs. schedule" view is a plain `useState` toggle, not a route. Zero deep-link risk as currently built.
+  - **Worth remembering if routing is ever added later**: prefer `HashRouter` (`/#/...`) over `BrowserRouter` on this host, or confirm Xano's fallback behavior directly first. Not relevant to THIS epic's own scope.
+- **Deployment is a separate step from this epic's own build-and-test work** — `npm run build` → zip `dist` → upload → deploy. Will do this once there's something real to deploy, not before.
+
+### HTTP client — how "share with APP-1" actually works here
+
+`webapp/protype-2` and `webapp/emgram1010v1` are two independent Vite projects (separate `package.json`, separate `node_modules`) with no workspace tool (pnpm/yarn/npm workspaces, Turborepo) connecting them. True shared code needs one of those; introducing one is a real scope increase on top of an already-large epic.
+
+**Decision: duplicate the proven client, not re-architect the repo.** `performApi.ts` (APP-1's planner-group HTTP client, already tested and live-verified) gets copied into the new app, byte-for-byte, with a header comment saying so and naming the sibling file. This is the same tolerance this project has already extended to deliberate TypeScript/XanoScript twins (`logModel.ts` ↔ its XanoScript mirror, `versionHash.ts` ↔ `pub/canonical_hash.xs`) — two files, proven to agree, kept in sync by convention and a comment, not by tooling. A real monorepo migration is a legitimate future improvement, flagged, not done as a side effect of this epic.
 
 ---
 
@@ -157,12 +181,28 @@ Wire `template` (GET/POST), `template/{id}/instance`.
 
 Follows GOV-1/VAL-1/OBS-1 exactly as every other epic. Nothing new in kind — only in surface area, since this epic touches the most existing endpoints of any epic so far.
 
-## Open questions for the founder
+## Open questions — ANSWERED 2026-10-16
 
-1. **Where should this app live?** Folded into `protype-2` next to APP-1 (one deployable, like the session's own precedent), or kept as its own app with its own URL? Affects auth wiring (shared login vs. separate) and is cheap to decide now, expensive to change later (`learning-fixes.md` flag #2).
-2. **Is the HTTP-client unification (Finding 6) worth doing as part of this epic**, or should PLN-9 build its own third client to avoid touching APP-1's code at all? Recommended: unify, since it removes a maintenance seam, but it is a real scope increase.
-3. **Model for this epic**: given its size (the biggest single wiring task in the project) and that it touches the most existing, already-proven endpoints, this looks like a Sonnet build with an Opus review pass after, same pattern as PUB-1/LOG-1 — but it is closer to "a lot of surface area" than "a lot of risk", so Sonnet throughout is also defensible. Founder's call once the story count is final.
+1. ~~Where should this app live?~~ **`webapp/emgram1010v1`, deployed via Xano static hosting.** See "Decisions" at the top.
+2. ~~Is the HTTP-client unification worth doing?~~ **Yes, by duplication with a comment, not a monorepo migration.** See "Decisions" at the top.
+3. ~~Model for this epic?~~ **Sonnet, Opus review after.**
 
 ## Test Results
 
-_Not started. This file is a scoping document, not a build record._
+### Checkpoint 1, 2026-10-16: login + real read-only data (US-PLN-9-01, -02)
+
+**App scaffolded at `webapp/emgram1010v1`** — copied from `planningFrontendv2` (identical `src/`, confirmed by diff), `npm install` clean, `npm run build` produces a working `dist` (the thing that gets uploaded to Xano static hosting). Founder is handling the actual upload; this epic's job is to leave the folder ready for it.
+
+**Login built and verified live** (`AuthGate.tsx`, `src/lib/authApi.ts`) — this app never had one, since it never called anything real. A real signup → real login → real session, driven through the actual rendered form (not just a fetch call), confirmed working. Documented explicitly: this app is a **separate origin** from `protype-2` (Xano static hosting vs. wherever `protype-2` deploys), so `localStorage` does NOT carry a session between them — one account, two separate sign-ins. Worth remembering before assuming "logged into one = logged into both."
+
+**A real, live bug found and fixed in the exact endpoint this epic depends on most**: `workspace/{id}/board` (endpoint 548, PLN-8) hardcoded every timeline's `status` to `"draft"` — the identical bug class LIVE-1 already found and fixed on two sibling endpoints (539, 540), just never applied here. Fixed: reads the real column now. **Verified it mattered**: the existing frontend already has its own "(locked — timeline published)" UI logic that depends on this field — it was silently dead code until this fix, and is now visibly correct against real published timelines.
+
+**Real data confirmed rendering correctly**, end to end, logged in as the session's own test account:
+- Workspace list loads (`GET workspace`), defaults to the most recent plan
+- Full board loads in one request (`GET workspace/{id}/board` — built for exactly this, per its own header comment) — agents, timelines, tasks, settings, models
+- A real published timeline shows **"Published"** (not the old hardcoded "Draft") and correctly locks its own tasks from editing — existing UI logic, now fed real data
+- Task planned-start times are **server-derived, never recomputed client-side** — confirmed against real data: a 10-minute task at 08:00 correctly pushes the next task to 08:10, then 08:25 after a 15-minute one. This is a correction to the epic's own earlier "Finding 2": the backend's `planner/derive_tasks` already computes this exactly the way the frontend's own `formatMinutesToTime` wraps a day — the frontend does not need to reimplement the cumulative-duration maths at all for reading; `planningLogic.ts`'s existing recompute function may still earn its keep for optimistic UI later, but it is not required for this checkpoint.
+
+**New shared-client files** (`src/lib/`): `correlationId.ts`, `xanoHttpError.ts`, `performApi.ts` — kept byte-identical in spirit to their `protype-2`/APP-1 siblings, per the "duplicate, don't re-architect" decision. Plus this app's own `plannerApi.ts` (the real endpoint calls, in their real verified shapes) and `plannerAdapter.ts` (mapping those onto the existing, unchanged `src/types.ts`).
+
+**Not yet wired — writes are still local-only.** Creating/editing an agent, moving a task, publishing a day: all still just update React state, same as before this epic, and will be lost on refresh. This is the deliberate next slice (US-PLN-9-03/04/05), not a bug in what's built so far — flagging it so it is never mistaken for "done."
