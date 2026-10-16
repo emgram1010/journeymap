@@ -11,9 +11,23 @@
 // by the index, which is the right outcome and leaves this check
 // unexercised by construction.
 //
-// NON_DRAFT_STATUS catches a timeline that somehow left `draft` while
-// publishing is on hold (PLN-6 Non-Goals). Today only LIVE-1 may ever
-// move it, so anything else is a bug or a direct database edit.
+// NON_DRAFT_STATUS catches a timeline whose status is neither `draft`
+// nor `published` — i.e. a value no endpoint can legitimately produce,
+// so a bug or a direct database edit.
+//
+// ⚠️ IT USED TO FLAG `published` TOO, and that was right when it was
+// written: publishing was on hold (PLN-6 Non-Goals) and `draft` was
+// the only legal value. LIVE-1 shipped, real published days exist, and
+// the rule silently turned into a permanent false positive — every
+// account that publishes anything reported `clean: false` forever (4
+// of them on one account when this was found, all bogus). An integrity
+// check that is always red is worse than no check, because it teaches
+// people to ignore the one that eventually matters. Narrowed
+// 2026-10-16, during PLN-9.
+//
+// The code name is kept as-is deliberately: nothing consumes it
+// programmatically, and PLN-8's own Test Results record a historical
+// pass against this name that a rename would orphan.
 //
 // Two passes per check, for the reason in planner/audit_agents.
 // Composite keys are built from pre-hoisted vars: concatenating piped
@@ -154,8 +168,12 @@ function "planner/audit_timelines" {
               }
             }
 
+            // One line, as every boolean condition here must be — a
+            // multi-line `&&` fails to parse (CLAUDE.md). An empty
+            // status is correctly caught: an untouched enum reads as
+            // "", which matches neither allowed value.
             conditional {
-              if ($c.status != "draft") {
+              if ($c.status != "draft" && $c.status != "published") {
                 array.push $violations {
                   value = {code: "NON_DRAFT_STATUS", entity: "planner_timeline", id: $c.id, detail: $c.status}
                 }

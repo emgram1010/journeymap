@@ -334,3 +334,19 @@ US-P3A-1-03 specifies the refusal should read *"{name} has recorded work. Deacti
 - **Build deactivate properly, or drop it from the spec.** It needs to be settable and honoured by the roster and board reads. Currently it is a dormant column that one story depends on.
 - **`planner/workspace_has_history` is stale and now dangerous.** It still returns "no history" for every plan because its TODOs for `work_item`, `plan_publication` and `activity_log` were never filled in once those tables existed — which they all now do. It is only reachable from plan delete, which stays held, **but it must be implemented before plan delete is ever approved**, or a plan with real recorded work would sail through its own safety check.
 - **`NON_DRAFT_STATUS` is a stale audit rule.** It flags every published timeline as a violation, because it was written when publishing was on hold and any non-draft status meant corruption. LIVE-1 shipped; published days are now normal. The audit therefore reports `clean: false` forever for any account that publishes — 4 violations on this account, all false. That slowly trains people to ignore the audit, which is worse than not having one. Recommend narrowing it to "a status that is neither `draft` nor `published`". Not changed here — it belongs to PLN-8, and silently redefining another epic's integrity rule is not a call to make mid-task.
+
+### Checkpoint 5, 2026-10-16: both stale-safety-check flags closed
+
+The founder picked up the two items flagged above. Both were the same failure mode, and the same one as the "Save settings" button earlier in this epic: **code that was correct when written and silently became wrong when the world changed around it.** No edit broke them, no test went red — they just stopped meaning what they said.
+
+**`planner/workspace_has_history` — implemented (was three hardcoded zeros).** Now counts jobs in the plan, publications via its timelines, and activity via its jobs. Verified both directions: workspace 12, which ran the real E2E loop, now reports `has_history: true` with 3 jobs / 2 publications / 9 logged events — it would previously have reported no history and been deletable. Two genuinely untouched plans still correctly report none. Plan delete remains held, so this changes no behaviour today; it means the gate will be right if that is ever approved, which was the precondition stated in Checkpoint 4.
+
+**`NON_DRAFT_STATUS` — narrowed to "neither `draft` nor `published`".** Account 6 now audits `clean: true` (it had 4 permanent false positives); account 2 also clean.
+
+**Proving a narrowed check can still fail.** Relaxing a safety rule risks silently disabling it, so green was not accepted as evidence: a throwaway timeline's status was blanked to `""` with a scratch `db.patch`, the audit went red on exactly that row (`NON_DRAFT_STATUS`, `detail: ""`), the probe was deleted, and the audit returned to clean. The rule tolerates `published` and still catches real corruption.
+
+Two incidental findings worth keeping:
+- **Xano enforces enum values at the database layer.** `db.patch` with `status: "archived"` is refused outright (`Input "archived" is not one of the allowable values`). `""` is the only invalid status reachable in practice — which is exactly the untouched-enum default CLAUDE.md already documents, so the check guards a real case rather than a hypothetical one.
+- The code name was **not** renamed despite now being slightly inaccurate. Nothing consumes it programmatically, and PLN-8's own Test Results record a historical pass against that name that a rename would orphan.
+
+**Flagged, not fixed:** PLN-8's epic document still describes this rule as "timeline `status != draft` (publishing is on hold)" in two places. Editing another epic's document was not part of the request — worth a one-line correction when someone is next in that file.

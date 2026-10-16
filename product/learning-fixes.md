@@ -1733,21 +1733,54 @@ allowed to run". It did, on the first one: the backlog came out on
   path back for safety if you must, but treat it as unverified until
   the day it runs, and run the audit the moment it does.
 
-### Two more pieces of staleness found while here
+### Two more pieces of staleness found while here — both now fixed
 
-- 🔴 **`planner/workspace_has_history` still answers "no history" for
-  every plan.** Its TODOs for `work_item`, `plan_publication` and
-  `activity_log` were never filled in once those tables shipped. Only
-  plan delete reads it, and that stays held — **but it must be
-  implemented before plan delete is ever approved**, or a plan with
-  real recorded work would pass its own safety check.
-- 🟡 **`NON_DRAFT_STATUS` flags every published timeline as corruption.**
-  Written when publishing was on hold, so any non-draft status meant a
-  bad write. LIVE-1 shipped; the audit now reports `clean: false`
-  forever for any account that publishes (4 false violations on account
-  6 today). An integrity check that is permanently red teaches people
-  to ignore it. Should narrow to "neither `draft` nor `published`" —
-  left alone because it is PLN-8's rule to change, not PLN-9's.
+Both were the same failure mode as the cascades above, and as the
+"Save settings" button before them: **code that was correct when
+written and silently became wrong when the world changed around it.**
+Nothing edited them, nothing broke, no test went red. They just quietly
+stopped meaning what they said.
+
+- ✅ **`planner/workspace_has_history` answered "no history" for every
+  plan on earth.** It added three hardcoded zeros, with TODOs for
+  `work_item`, `plan_publication` and `activity_log` — all three
+  unbuilt at the time, so "no" was genuinely correct. JOB-1, LIVE-1 and
+  LOG-1 then shipped and the TODOs were never filled in, turning an
+  honest placeholder into a safety check that always passed. Only plan
+  delete reads it and that is still held, so nothing acted on the wrong
+  answer. **Implemented 2026-10-16**: jobs in the plan, publications
+  via its timelines, activity via its jobs. Verified both directions —
+  the plan that ran the real E2E loop now reports 3 jobs / 2
+  publications / 9 logged events (it was previously deletable); two
+  genuinely untouched plans still report no history.
+- ✅ **`NON_DRAFT_STATUS` flagged every published timeline as
+  corruption.** Written when publishing was on hold and `draft` was the
+  only legal value, so `status != "draft"` meant a bad write. LIVE-1
+  shipped and the rule became a permanent false positive: every account
+  that published anything read `clean: false` forever (4 bogus
+  violations on account 6). **Narrowed 2026-10-16** to "neither `draft`
+  nor `published`".
+  - **Narrowing a check means proving it can still fail.** Green after
+    a narrowing is only good news if red is still reachable, so the
+    rule was re-provoked deliberately: a throwaway timeline's status
+    was blanked to `""` via a scratch `db.patch`, the audit went red on
+    exactly that row (`detail: ""`), the probe was deleted, and the
+    audit went clean again. Accounts 6 and 2 both clean now.
+  - Incidental finding: **Xano enforces enum values at the database
+    layer** — `db.patch` with `status: "archived"` is rejected outright
+    (`Input "archived" is not one of the allowable values`). `""` is
+    the only invalid state reachable in practice, which is exactly the
+    untouched-enum default CLAUDE.md already warns about. So this check
+    defends against a real case, not a hypothetical one.
+  - The code name was deliberately **not** renamed despite now being
+    slightly inaccurate: nothing consumes it programmatically, and
+    PLN-8's Test Results record a historical pass against that name
+    which a rename would orphan.
+
+**Still stale, flagged not fixed:** PLN-8's epic doc describes this rule
+as "timeline `status != draft` (publishing is on hold)" in two places.
+Editing another epic's document wasn't part of this request — worth a
+one-line correction when someone is next in that file.
 
 ## ✅ 2026-10-16: PLN-9 Opus review pass — a "Save" button that saved nothing
 
