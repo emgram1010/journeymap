@@ -76,6 +76,36 @@ These were learned the hard way by pushing OBS-1 and hitting real runtime errors
 - **Put a shared RULE in its own function rather than copying it into the reader and the writer.** Not a syntax constraint — a house rule earned here. LOG-1's transition table started out duplicated between the record-event endpoint and the replay audit, which is the one duplication that matters: an audit holding its own copy of the rule it audits will eventually disagree with the engine and sound equally certain either way. Extracted to `log/next_status` (and `log/derive_job_status` out of `log/sync_job_status`), then verified by diffing all 35 live (status, event) pairs against the TypeScript twin.
 - **An untouched `enum` column also defaults to `""`, not `null`, and `??` doesn't catch it.** Same family as the above: a never-touched `time_duration_unit` comes back as an empty string, and frontend fallback code written as `value ?? 'minutes'` only falls through on `null`/`undefined` — `""` sails through unchanged. The `<select>` then visually shows the first option ("minutes", the browser's default for an unmatched value) while the real state stays `""`, which gets silently saved and breaks anything downstream that expects a real unit. Use `value || 'minutes'` (or an explicit `=== ''` check) for any enum-backed dropdown with an empty-string default, not `??`.
 
+## 🔴 CRITICAL: `db.patch` on a `json` column MERGES with the existing value — it does NOT replace it
+
+Confirmed live, the hard way, during a security cleanup (2026-10-16):
+`db.patch event_log { data = {metadata: {a: 99, d: 4}} }` against a row
+whose `metadata` was already `{a: 1, b: 2, c: 3}` produced
+**`{a: 99, b: 2, c: 3, d: 4}`** — `a` overwritten, `b`/`c` preserved from
+before, `d` added. A shallow merge, exactly like `|set:` would do, not
+a replace. This is DIFFERENT from every other column type confirmed
+this project (text/int/enum/bool all fully replace) — it is specific
+to `json`-typed columns.
+
+**Why this is CRITICAL and not just worth-knowing:** a cleanup meant to
+ERASE sensitive data from ~2,600 rows ran, reported success, incremented
+its own counter correctly — and left every original key fully intact,
+because it was merging a "safe" object on top of the dangerous one
+instead of replacing it. The bug was caught only by re-querying and
+checking, not by trusting the function's own reported counts.
+
+**The fix: a TWO-STEP patch.** Patch the column to `null` first (there
+is nothing to merge a new object INTO, so this one genuinely clears
+it), then patch it again with the real value in a second call.
+Confirmed live: `null` then `{d: 4}` on a column that was `{a,b,c}`
+correctly yields exactly `{d: 4}`, nothing else.
+
+**The rule going forward:** never trust a single `db.patch` to replace
+a `json` column's content. If the intent is "this is now exactly X,"
+two patches. If the intent is "merge X into whatever is there," one
+patch is correct and this is a feature, not a bug — know which one you
+mean before writing it.
+
 ## 🔴 CRITICAL, codebase-wide: `==`/`!=` against `null` use PHP-style loose equality — `0`, `""`, `false` and `[]` ALL equal `null`
 
 Found building VAR-1 (2026-10-15), and almost certainly the explanation

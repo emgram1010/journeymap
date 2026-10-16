@@ -504,7 +504,7 @@ All eight cases plus the two positive-path checks were green both times.
 
 ---
 
-## 🔴 Needs your approval: five delete paths, one nightly job, thirteen scratch functions
+## 🔴 Needs your approval: five delete paths, one nightly job, sixteen scratch functions
 
 The planner backend is otherwise complete. Everything below is written,
 reviewed and commented; none of it has been pushed, because CLAUDE.md
@@ -538,8 +538,11 @@ tests and should not stay.
 | `scratch/add_workspace_map` (151, added E2E-1) | Inserts a `planner_workspace_map` row directly — works around the missing "add a map to an existing plan" endpoint above | Low — same effect a real endpoint would have, just without the guard rails one might add |
 | `scratch/disable_flag` (152, added E2E-1) | Created, never actually invoked (see the flag decision above) | None |
 | `scratch/inspect_recent_events` (153, added E2E-1) | Read-only, lists the most recent `event_log` rows — this is what surfaced the password-logging bug above | None — read-only |
+| `scratch/scrub_auth_metadata` (154, added 2026-10-16) | **Already run** (2,626 rows cleaned, with your go-ahead) — the write capability stays live until deleted | None left to do, but it's still a function that can write; delete once reviewed |
+| `scratch/verify_scrub` (155, added 2026-10-16) | Read-only, confirmed zero rows still over-exposed after the cleanup above | None — read-only |
+| `scratch/json_patch_probe` (156, added 2026-10-16) | Read-only-in-effect (writes a throwaway row, never a real one), proved the merge-vs-replace finding in `CLAUDE.md` | None |
 
-Deleting a function is still a delete, so all thirteen are waiting on you.
+Deleting a function is still a delete, so all sixteen are waiting on you.
 
 **Also worth adding to the nightly job when it is approved:**
 `ops/audit_execution` (live, function 136) — the execution-layer twin of
@@ -1487,7 +1490,7 @@ the comparison side rather than the storage side).
 
 ---
 
-## 🔴 Fixed (security), needs a decision on history: full user records were being logged, hashed secrets included
+## ✅ Fixed (security), both the code and the history: full user records were being logged, hashed secrets included
 
 Found live during E2E-1's supportability drill, inspecting real
 `event_log` rows for safety: `auth/login`, `auth/me`, `reset/magic-link-login`
@@ -1505,16 +1508,24 @@ is `{user_id, account_id}` only, everywhere. Verified live:
 `auth/me` still works, and the resulting log row carries only the two
 ids.
 
-**Needs a decision, not fixed:** `event_log` already holds ~3,400 rows.
-An unknown number from before this fix may still carry a hashed
-password or reset token. These are hashes (not plaintext), so the
-immediate risk is lower than it looks, but they have no business in an
-operational log table. Redacting or purging them is a bulk update
-across production data — exactly the kind of action this file exists
-to hold for your decision rather than do unilaterally. Options: leave
-them (hashes, low urgency) / write a one-time scrub that blanks
-`metadata` on rows whose `action` is one of the four above / nothing —
-your call.
+**✅ History cleaned 2026-10-16, on the founder's explicit go-ahead.**
+Scrubbed `metadata` to `{user_id, account_id}` on every `event_log` row
+from the four actions above whose metadata had more than those two
+keys: **2,626 rows fixed**, out of 2,634 checked at the time (8 were
+already clean).
+
+**One real mistake caught and fixed before trusting it**: the first
+attempt reported `scrubbed: 2626` and looked successful, but a
+follow-up re-check found **every single row still fully exposed** —
+`db.patch` on a `json` column turned out to MERGE the new object into
+the old one rather than replacing it (now documented in `CLAUDE.md` as
+its own critical finding), so "set metadata to `{user_id,
+account_id}`" had silently added two keys without removing any of the
+dangerous ones. Fixed by clearing the column to `null` first, then
+setting the real value in a second patch — verified this time by
+re-reading a specific previously-leaky row directly and confirming
+zero rows still exceed two keys, not by trusting the function's own
+counters a second time.
 
 ---
 
