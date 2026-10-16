@@ -162,6 +162,40 @@ really be `0`/`""`/`false` in production data. That is a GOV-1-shaped
 sweep of its own, flagged in `learning-fixes.md`, not done as part of
 VAR-1.
 
+## 🔴 Xano routing: a static path segment can be permanently shadowed by an earlier dynamic path in the same API group + verb
+
+Found live building PLN-9 (2026-10-16): `GET journey_map/search` (endpoint
+210, built for IL-01-04, meant to be an account-scoped published-map
+search) 400s on **every single call** with `"Value is not a valid
+integer." {"param":"journey_map_id"}` — a param that endpoint doesn't
+even declare. Root cause: `GET journey_map/{journey_map_id}` (endpoint
+23, built almost two months earlier in the same group) matches first,
+and the literal segment `"search"` gets bound to `{journey_map_id}`
+and fails its own `int` validator. Endpoint 210 has therefore been
+dead code since the day it was created — it builds, it has no syntax
+error, and it will never once execute.
+
+**This is invisible from the endpoint's own source** — 210's XanoScript
+is completely correct in isolation; the collision only exists against
+a sibling endpoint elsewhere in the same group. `getAPI`/`getFunction`
+diffing (already a standing rule below) does not catch this either,
+since nothing about 210's own definition looks wrong.
+
+**The rule going forward:** before adding a new **static** path
+segment (`/foo/search`, `/foo/export`, `/foo/summary`, etc.) next to
+an existing **dynamic** one (`/foo/{foo_id}`) in the same API group
+and verb, check whether the dynamic route already exists — `listAPIs`
+on that group and scan for the same leading segment. If it does, the
+static one is unreachable unless Xano's router is confirmed to prefer
+static paths (not verified here; assume it does not). The safe fix is
+the one used elsewhere in this app when this exact shape showed up:
+don't rely on a sub-path at all — use a different static prefix
+(`/foo-search`) or fold the behavior into a query parameter on the
+list endpoint instead. PLN-9 worked around it by using the plain
+`GET journey_map` (no path param at all, so no collision) and filtering
+client-side, with a known gap noted (owner-scoped, not account-scoped) —
+not a fix to 210 itself, which still needs its own resolution later.
+
 ## Frontend constraints — verified live, APP-1 (2026-10-15)
 
 - **`redis.ratelimit` / `redis.get` / `redis.set` are rejected outright on this Xano plan** with `403 "Not supported. Please upgrade your Xano instance."`, regardless of caller or input. `apis/ops/1_ops_event_POST.xs` (OBS-1) used all three and has therefore refused every call since it was built — rewritten to the same rate-limit/de-dup rule using a plain `db.query ... return = {type: "count"}` against `event_log` with a cutoff timestamp computed into a `var` first, instead. Before using ANY `redis.*` filter on this instance, confirm it works with a scratch function first; assume it does not.

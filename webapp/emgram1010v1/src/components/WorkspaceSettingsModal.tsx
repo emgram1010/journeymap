@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
-import { X, CalendarRange, Bot, Settings as SettingsIcon } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { X, CalendarRange, Bot, Settings as SettingsIcon, Map as MapIcon } from 'lucide-react';
 import { Workspace } from '../types';
 import { getDaysDifference } from '../utils/dateUtils';
+import { listWorkspaceMaps, addWorkspaceMaps, searchJourneyMaps, RawWorkspaceMap, JourneyMapSearchResult } from '../lib/plannerApi';
 
 interface WorkspaceSettingsModalProps {
   isOpen: boolean;
@@ -24,6 +25,26 @@ export function WorkspaceSettingsModal({
   const [outputTpm, setOutputTpm] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+  // PLN-9 (US-PLN-9-06) — maps this plan has accepted, and the picker
+  // for adding another. Self-contained here rather than threaded
+  // through App.tsx's state, since nothing else in this app reads
+  // workspace-map links yet.
+  const [currentMaps, setCurrentMaps] = useState<RawWorkspaceMap[]>([]);
+  const [isLoadingMaps, setIsLoadingMaps] = useState(false);
+  const [mapsError, setMapsError] = useState<string | null>(null);
+  const [candidateMaps, setCandidateMaps] = useState<JourneyMapSearchResult[]>([]);
+  const [pickedMapId, setPickedMapId] = useState<number | null>(null);
+  const [isAddingMap, setIsAddingMap] = useState(false);
+
+  const refreshMaps = useCallback((workspaceId: string) => {
+    setIsLoadingMaps(true);
+    setMapsError(null);
+    return listWorkspaceMaps(Number(workspaceId))
+      .then(({ maps }) => setCurrentMaps(maps))
+      .catch((err) => setMapsError(err instanceof Error ? err.message : 'Could not load this plan’s maps.'))
+      .finally(() => setIsLoadingMaps(false));
+  }, []);
+
   useEffect(() => {
     if (!isOpen || !workspace) return;
     setWindowStart(workspace.planningWindowStart);
@@ -31,7 +52,21 @@ export function WorkspaceSettingsModal({
     setInputTpm(workspace.inputTokensPerMinute);
     setOutputTpm(workspace.outputTokensPerMinute);
     setError(null);
-  }, [isOpen, workspace]);
+    void refreshMaps(workspace.id);
+    searchJourneyMaps().then(({ results }) => setCandidateMaps(results)).catch(() => setCandidateMaps([]));
+  }, [isOpen, workspace, refreshMaps]);
+
+  const handleAddMap = () => {
+    if (!workspace || !pickedMapId) return;
+    setIsAddingMap(true);
+    setMapsError(null);
+    addWorkspaceMaps(Number(workspace.id), [pickedMapId])
+      .then(() => { setPickedMapId(null); return refreshMaps(workspace.id); })
+      .catch((err) => setMapsError(err instanceof Error ? err.message : 'Could not add that map.'))
+      .finally(() => setIsAddingMap(false));
+  };
+
+  const addableMaps = candidateMaps.filter(m => !currentMaps.some(cm => cm.map_id === m.map_id));
 
   useEffect(() => {
     if (!isOpen) return;
@@ -167,6 +202,59 @@ export function WorkspaceSettingsModal({
                 />
               </label>
             </div>
+          </section>
+
+          {/* Maps accepted by this plan (US-PLN-9-06) */}
+          <section className="border-t border-neutral-100 pt-4">
+            <div className="flex items-center gap-1.5 mb-1">
+              <MapIcon className="w-3.5 h-3.5 text-neutral-500" />
+              <h3 className="text-xs font-semibold text-neutral-900">Maps in this plan</h3>
+            </div>
+            <p className="text-[11px] text-neutral-500 mb-2">
+              The journey maps this plan can schedule work from. Only published maps can
+              be added, and a map can't be removed here yet.
+            </p>
+
+            {isLoadingMaps ? (
+              <p className="text-[11px] text-neutral-400">Loading…</p>
+            ) : currentMaps.length === 0 ? (
+              <p className="text-[11px] text-neutral-500">No maps accepted yet.</p>
+            ) : (
+              <ul className="flex flex-col gap-1 mb-2">
+                {currentMaps.map(m => (
+                  <li key={m.map_id} className="text-xs text-neutral-700 px-2.5 py-1.5 bg-neutral-50 rounded border border-neutral-200">
+                    {m.title ?? `Map #${m.map_id}`}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {mapsError && <p className="text-[11px] text-red-600 mb-2">{mapsError}</p>}
+
+            {addableMaps.length > 0 && (
+              <div className="flex items-center gap-2">
+                <select
+                  id="add-map-select"
+                  value={pickedMapId ?? ''}
+                  onChange={e => setPickedMapId(e.target.value ? Number(e.target.value) : null)}
+                  className="flex-1 text-xs px-3 py-2 border border-neutral-200 rounded-md focus:outline-none focus:border-neutral-900 bg-white"
+                >
+                  <option value="">Choose a map to add…</option>
+                  {addableMaps.map(m => (
+                    <option key={m.map_id} value={m.map_id}>{m.title}</option>
+                  ))}
+                </select>
+                <button
+                  id="add-map-btn"
+                  type="button"
+                  onClick={handleAddMap}
+                  disabled={!pickedMapId || isAddingMap}
+                  className="px-3 py-2 bg-neutral-900 text-white rounded-md text-xs font-semibold hover:bg-neutral-800 disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+                >
+                  {isAddingMap ? 'Adding…' : 'Add'}
+                </button>
+              </div>
+            )}
           </section>
 
           {/* Pointer to the global half */}

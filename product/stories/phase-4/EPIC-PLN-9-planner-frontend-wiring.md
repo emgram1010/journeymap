@@ -235,3 +235,26 @@ Follows GOV-1/VAL-1/OBS-1 exactly as every other epic. Nothing new in kind — o
 - Test fixtures (agent "PLN9 Wiring Test", its two tasks) were **left in place** rather than deleted — matches this project's own existing pattern of leaving named QA fixtures (`Orphan Check`, `Chain Check`, `Tenancy Check` users/accounts) rather than performing an ad-hoc delete outside the standing review process.
 
 **Regression:** `npm run lint` (tsc --noEmit) and `npm run build` both clean on `emgram1010v1`. No backend files changed this checkpoint, so no backend regression risk.
+
+### Checkpoint 3, 2026-10-16: add a map to a plan, plan creation from a template (US-PLN-9-06, -07)
+
+**Two new backend endpoints**, both pushed and smoke-tested live before any frontend wiring:
+- `GET workspace/{workspace_id}/map` (569) — which maps a plan has accepted. Needed because nothing else exposed this (board/workspace reads return agents/timelines/tasks/counts, never map links) — the exact "write path with no matching read" gap AUTH-1's side-table lesson already warns about.
+- `POST workspace/{workspace_id}/map` (570) — adds a map to an ALREADY-RUNNING plan, the gap epic finding 5 flagged (`template/{id}` PATCH only changes what the NEXT instance accepts). Append-only and idempotent, same shape as the template's own `add_map_ids`; reuses `planner/assert_maps_publishable` unchanged (a map must belong to the account AND have a published version).
+- Smoke-tested live over real HTTP before any UI touched them: idempotent re-add (`added_count: 0` on a map already linked), a genuinely unpublished map correctly refused ("Publish '...' first"), an empty list refused, a foreign-account map refused — all four paths confirmed with the real workspace (12) and real maps (200–203) in this account.
+
+**Frontend wiring:**
+- `WorkspaceSettingsModal` gained a "Maps in this plan" section: current maps (from the new GET), and an "add a map" picker sourced from a candidate list, calling the new POST and refreshing on success.
+- "New Plan from Template" replaces the old bare-name "New Workspace" flow in the Header/workspace switcher — opens `CreateWorkspaceModal` (new component), lists real templates (`GET template`), and creates via `POST template/{id}/instance`, then switches to the new plan. Creating/editing a template itself stays explicitly deferred (epic's own scope table) — this only ever starts a plan from one that already exists.
+
+**A real, pre-existing platform bug found along the way, not caused by this epic**: the candidate-map picker was meant to use `GET journey_map/search` (endpoint 210, built under a different, earlier epic) — it 400s on every call, unconditionally. Root cause: a routing collision with `GET journey_map/{journey_map_id}` (endpoint 23, built first) — Xano matches the dynamic path for any `journey_map/<anything>` GET, so the literal segment `search` gets parsed as an attempted id and fails its own int validator. Endpoint 210 has been dead code since it was created; nothing about its own source looks wrong, which is what made this worth a CLAUDE.md entry of its own rather than a one-off note here. **Worked around, not fixed**: the picker now calls the plain `GET journey_map` (no path segment, no collision) and filters to `status === 'active'` client-side — with a known, documented gap that this list is owner-scoped, not account-scoped, so a map owned by a different user in the same account won't appear as a candidate even though the add endpoint would accept it. Revisiting endpoint 210 itself is a separate, small fix for whoever owns that epic.
+
+**Verified live**, logged in as the same test user used in Checkpoint 2, against the real backend:
+- Added "E2E-1 Quality Check SOP" to the existing E2E-1 Receiving Plan (idempotent re-add confirmed via direct HTTP: second call reported `added_count: 0`).
+- Confirmed the picker correctly shows nothing to add when every active map in the account is already linked (not a bug — the empty state hides the picker rather than rendering an empty dropdown).
+- Created a brand-new plan ("PLN9 Template Test Plan") from "E2E-1 Receiving Plan Template" with today's date — the app switched to it automatically, board loaded correctly empty (0 agents, matching a fresh instance), and its own "Maps in this plan" correctly showed only the one map the template carried.
+- From that same new plan, added a second map ("E2E-1 Quality Check SOP") via the picker — confirmed it landed and the picker correctly removed it from its own candidate list afterward.
+
+**Regression:** `npm run lint` and `npm run build` both clean. Test fixtures created this checkpoint (maps 200/203 now linked to workspace 12; the new "PLN9 Template Test Plan" workspace) were left in place, same reasoning as Checkpoint 2 — matches this project's existing pattern of leaving named QA fixtures rather than an ad-hoc delete.
+
+**Still open from Checkpoint 2, unchanged**: deleting an agent/task (needs founder approval to push the held functions), reopening a published timeline (no backend support at all).

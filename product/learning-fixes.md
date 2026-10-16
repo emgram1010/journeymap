@@ -1670,6 +1670,31 @@ Summarizing the state changes here:
   on the next load. Treat UI drag-and-drop as the one interaction this
   tool can't reliably drive; verify its backend call directly instead.
 
+## ✅ 2026-10-16: PLN-9 build, checkpoint 3 — add-a-map, plan from template
+
+- Two new, smoke-tested planner endpoints (569 GET / 570 POST
+  `workspace/{id}/map`) close epic finding 5 — a plan already underway
+  can now accept a second work type, which had no endpoint at all
+  before this. Full details and the reasoning behind each design
+  choice are in the endpoints' own header comments and the epic's
+  Test Results.
+- **Found a real, pre-existing platform bug, not introduced here**:
+  `GET journey_map/search` (endpoint 210, a different/earlier epic)
+  has 400'd on every call since the day it was created, because a
+  same-group, same-verb dynamic route (`journey_map/{journey_map_id}`,
+  built first) shadows it — the literal segment `search` gets parsed
+  as an attempted id. Nothing about 210's own source is wrong, so the
+  standing "diff local vs. live before pushing" rule would never have
+  caught this. Full write-up and the general rule promoted to
+  CLAUDE.md (routing collisions between a static and dynamic path in
+  the same group). PLN-9 worked around it (plain `GET journey_map`,
+  filtered client-side) rather than fixing 210, which still needs its
+  own owner to resolve properly.
+- "New Workspace" in the planner UI is now "New Plan from Template" —
+  a real plan always comes from a template now (window, maps, start
+  time all derive from one), matching PLAN-1's model instead of the
+  old bare-name placeholder.
+
 ---
 
 ## How to use this file

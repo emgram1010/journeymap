@@ -7,11 +7,13 @@ import {
   createAgent, updateAgent, setWorkspaceAgentVisibility,
   createTimeline, updateTimeline, publishTimeline as publishTimelineApi, reorderTimeline,
   createTask, updateTask, placeTask,
+  listTemplates, createWorkspaceFromTemplate, TemplateListEntry,
 } from './lib/plannerApi';
 import { adaptWorkspace, adaptBoard } from './lib/plannerAdapter';
 import { ProductNav } from './components/ProductNav';
 import { SettingsModal } from './components/SettingsModal';
 import { WorkspaceSettingsModal } from './components/WorkspaceSettingsModal';
+import { CreateWorkspaceModal } from './components/CreateWorkspaceModal';
 import { Header } from './components/Header';
 import { ScheduleGrid } from './components/ScheduleGrid';
 import { DayBoard } from './components/DayBoard';
@@ -208,20 +210,37 @@ export default function App() {
     }
   };
 
-  // Handler: Create Workspace
-  const handleCreateWorkspace = (name: string) => {
-    const newWs: Workspace = {
-      id: `ws-${Date.now()}`,
-      name,
-      createdAt: new Date().toISOString().split('T')[0],
-      planningWindowStart: '2026-10-12',
-      planningWindowEnd: '2026-10-25',
-      inputTokensPerMinute: DEFAULT_INPUT_TOKENS_PER_MINUTE,
-      outputTokensPerMinute: DEFAULT_OUTPUT_TOKENS_PER_MINUTE,
-    };
-    setWorkspaces(prev => [...prev, newWs]);
-    setActiveWorkspaceId(newWs.id);
-    setActiveTimelineId(null);
+  // US-PLN-9-07: a real plan is created from a template (PLAN-1's
+  // instance endpoint), not from a bare name — the template supplies
+  // the window length, default start time and accepted maps. Creating
+  // or editing a TEMPLATE is explicitly deferred by this epic's own
+  // scope table; this app only ever starts a plan from one that
+  // already exists.
+  const [isCreateWorkspaceModalOpen, setIsCreateWorkspaceModalOpen] = useState(false);
+  const [templates, setTemplates] = useState<TemplateListEntry[]>([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+
+  const handleOpenCreateWorkspaceModal = () => {
+    setIsCreateWorkspaceModalOpen(true);
+    setIsLoadingTemplates(true);
+    listTemplates()
+      .then(({ templates: t }) => setTemplates(t))
+      .catch(() => setTemplates([]))
+      .finally(() => setIsLoadingTemplates(false));
+  };
+
+  const handleCreateWorkspaceFromTemplate = async (templateId: number, name: string, startDate: string): Promise<boolean> => {
+    try {
+      const { workspace } = await createWorkspaceFromTemplate(templateId, { name, start_date: startDate });
+      const { workspaces: entries } = await listWorkspaces();
+      setWorkspaces(entries.map(adaptWorkspace));
+      setActiveTimelineId(null);
+      setActiveWorkspaceId(String(workspace.id));
+      return true;
+    } catch (err) {
+      reportActionError(err);
+      return false;
+    }
   };
 
   // Handler: Rename Workspace
@@ -946,7 +965,7 @@ export default function App() {
           workspaces={workspaces}
           activeWorkspace={activeWorkspace}
           onSelectWorkspace={handleSelectWorkspace}
-          onCreateWorkspace={handleCreateWorkspace}
+          onRequestCreateWorkspace={handleOpenCreateWorkspaceModal}
           onRenameWorkspace={handleRenameWorkspace}
           onDeleteWorkspace={handleDeleteWorkspace}
           onOpenWorkspaceSettings={() => setIsWorkspaceSettingsOpen(true)}
@@ -1081,6 +1100,15 @@ export default function App() {
         onClose={() => setIsWorkspaceSettingsOpen(false)}
         onSave={handleUpdateWorkspaceSettings}
         onOpenGlobalSettings={() => setIsSettingsOpen(true)}
+      />
+
+      {/* New plan from a template (US-PLN-9-07) */}
+      <CreateWorkspaceModal
+        isOpen={isCreateWorkspaceModalOpen}
+        templates={templates}
+        isLoadingTemplates={isLoadingTemplates}
+        onClose={() => setIsCreateWorkspaceModalOpen(false)}
+        onCreate={handleCreateWorkspaceFromTemplate}
       />
 
       {/* Component Sheet & Deliverables Modal (§11 & §8) */}

@@ -3,7 +3,7 @@
 // workspace, not assumed from a spec). `plannerAdapter.ts` maps these
 // into the existing frontend types (`src/types.ts`), which this epic
 // deliberately keeps unchanged where possible.
-import {performRequest} from './performApi';
+import {performRequest, getJourneyMapBaseUrl} from './performApi';
 
 // ── Workspaces (plans) ──────────────────────────────────────────────────
 
@@ -182,3 +182,88 @@ export interface BoardResponse {
 }
 
 export const getBoard = (workspaceId: number) => performRequest<BoardResponse>(`/workspace/${workspaceId}/board`);
+
+// ── Maps accepted by a plan (US-PLN-9-06) ───────────────────────────────
+//
+// `workspace/{id}/map` (569 GET, 570 POST) — new this checkpoint. Found
+// missing during E2E-1 (epic finding 5): `template/{id}` PATCH only
+// changes what the NEXT instance accepts, so a plan already underway
+// had no way to accept a second work type at all. See the endpoints'
+// own header comments for the full reasoning. Removing a map isn't
+// possible yet — same "deletes are held" reasoning as agents/tasks.
+
+export interface RawWorkspaceMap {
+  map_id: number;
+  title: string | null;
+}
+
+export const listWorkspaceMaps = (workspaceId: number) =>
+  performRequest<{maps: RawWorkspaceMap[]}>(`/workspace/${workspaceId}/map`);
+
+export const addWorkspaceMaps = (workspaceId: number, mapIds: number[]) =>
+  performRequest<{map_ids: number[]; added_count: number}>(`/workspace/${workspaceId}/map`, {
+    method: 'POST',
+    body: {map_ids: mapIds},
+  });
+
+/**
+ * Candidate maps for the "add a map" picker — the journey-map group, not
+ * the planner group. Only a hint for the picker; `addWorkspaceMaps` above
+ * is what actually re-validates "published" server-side.
+ *
+ * ⚠️ NOT `GET journey_map/search` (endpoint 210, the account-scoped,
+ * published-only search that would have been the right fit) — confirmed
+ * live that it 400s with "journey_map_id... not a valid integer" on
+ * EVERY call, because `journey_map/{journey_map_id}` (endpoint 23,
+ * built earlier) shadows it: Xano's router matches the dynamic path
+ * for any `journey_map/<anything>` GET, so the literal segment "search"
+ * is parsed as an attempted `journey_map_id` and fails int validation.
+ * Endpoint 210 is dead code as a result — a routing collision worth
+ * knowing before adding a static path next to an existing dynamic one
+ * in the same group (see CLAUDE.md).
+ *
+ * Falls back to the plain `GET journey_map` (endpoint 18) instead,
+ * filtered to `status === 'active'` client-side. Known gap: that
+ * endpoint is OWNER-scoped (`owner_user == auth.id`), not account-
+ * scoped, so a map owned by a different user in the same account won't
+ * appear here even though `addWorkspaceMaps` would accept it. Revisit
+ * once the routing collision above is fixed and 210 is reachable.
+ */
+export interface JourneyMapSearchResult {
+  map_id: number;
+  title: string;
+  status: string;
+}
+
+export const searchJourneyMaps = () =>
+  performRequest<Array<{id: number; title: string; status: string}>>('/journey_map', {baseUrl: getJourneyMapBaseUrl()}).then(
+    (maps) => ({results: maps.filter(m => m.status === 'active').map(m => ({map_id: m.id, title: m.title, status: m.status}))}),
+  );
+
+// ── Plan templates (US-PLN-9-07) ────────────────────────────────────────
+//
+// Only read + instantiate are wired here. Creating/editing a template is
+// explicitly deferred by the epic's own scope table — this app only ever
+// offers "start a plan from an existing template."
+
+export interface RawTemplate {
+  id: number;
+  account_id: number;
+  name: string;
+  window_days: number;
+  default_start_time: string;
+  is_active: boolean;
+}
+
+export interface TemplateListEntry {
+  template: RawTemplate;
+  maps: Array<{map_id: number; title: string | null}>;
+}
+
+export const listTemplates = () => performRequest<{templates: TemplateListEntry[]}>('/template');
+
+export const createWorkspaceFromTemplate = (templateId: number, body: {name: string; start_date: string}) =>
+  performRequest<{workspace: RawWorkspace; from_template_id: number; default_start_time: string; window_days: number; accepted_map_count: number}>(
+    `/template/${templateId}/instance`,
+    {method: 'POST', body},
+  );

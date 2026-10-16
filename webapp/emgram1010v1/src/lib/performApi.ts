@@ -20,10 +20,24 @@ export function getPlannerBaseUrl(): string {
   return trimTrailingSlash(configured || DEFAULT_PLANNER_BASE_URL);
 }
 
+// PLN-9 (US-PLN-9-06) — the journey-map group, needed only to list
+// candidate maps for "add a map to this plan" (journey_map/search).
+// Same base URL protype-2's own xano.ts already uses for this group;
+// same bearer token works across groups since both check it against
+// the same `user` table.
+const DEFAULT_JOURNEY_MAP_BASE_URL = 'https://xdjc-i7zz-jhm2.n7e.xano.io/api:ER4MRRWZ';
+
+export function getJourneyMapBaseUrl(): string {
+  const configured = import.meta.env.VITE_XANO_JOURNEY_MAP_BASE_URL?.trim();
+  return trimTrailingSlash(configured || DEFAULT_JOURNEY_MAP_BASE_URL);
+}
+
 export interface PerformRequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: Record<string, unknown>;
   signal?: AbortSignal;
+  /** Defaults to the planner group; pass getJourneyMapBaseUrl() for a journey-map call. */
+  baseUrl?: string;
 }
 
 /**
@@ -57,7 +71,7 @@ function extractServerMessage(responseText: string): string | null {
 }
 
 export async function performRequest<T>(path: string, options: PerformRequestOptions = {}): Promise<T> {
-  const {method = 'GET', body, signal} = options;
+  const {method = 'GET', body, signal, baseUrl} = options;
   const token = getAuthToken();
   const correlationId = newCorrelationId();
   const headers: Record<string, string> = {Accept: 'application/json', [CORRELATION_HEADER]: correlationId};
@@ -66,7 +80,7 @@ export async function performRequest<T>(path: string, options: PerformRequestOpt
 
   let response: Response;
   try {
-    response = await fetch(`${getPlannerBaseUrl()}${path}`, {
+    response = await fetch(`${baseUrl ?? getPlannerBaseUrl()}${path}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
