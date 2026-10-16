@@ -1637,6 +1637,39 @@ Summarizing the state changes here:
   epic) — only reading real data is wired so far. Not a regression;
   the deliberate next slice.
 
+## ✅ 2026-10-15: PLN-9 build, checkpoint 2 — writes wired
+
+- Agents (create/edit/visibility), tasks (create/edit/move/reorder),
+  timelines (create/edit/move), and single-timeline publish all now
+  hit the real backend from `webapp/emgram1010v1`, then refetch the
+  whole board rather than hand-patching local state — see the epic's
+  own Test Results for the full list and what's still deliberately
+  unwired (deletes, reopen-to-draft, template/map stories).
+- **New bug class, caught live before it shipped**: a `useState` hook
+  declared AFTER a component's conditional early return
+  (`if (!isOpen || !entity) return null`) is skipped on every render
+  where that return fires, which changes the hook count between
+  renders. React's own error is blunt ("Rendered more hooks than
+  during the previous render") but `tsc` has no opinion on hook
+  ordering at all, so this only surfaces by actually opening the
+  component in a browser. Worth remembering for any other modal/panel
+  component with an early return above its hooks.
+- **This session had no working login for the app** (new conversation,
+  no remembered password, and this app's login has no signup link).
+  Recovered using the technique CLAUDE.md already documents for HTTP
+  testing — `Getting Started Template/generate_magic_link` for a known
+  test user's email, then a real POST to `reset/magic-link-login` —
+  and wrote the resulting bearer token straight into the browser's
+  `localStorage.authToken` via the browser tool's JS executor, rather
+  than ever typing or storing a real password. Works for a UI session
+  exactly as well as it works for a plain HTTP test.
+- The browser automation tool's synthetic `left_click_drag` did not
+  register with this app's drag-and-drop reordering — confirmed by
+  elimination: the identical reorder, issued as a direct HTTP call to
+  `timeline/{id}/reorder`, worked and the board correctly reflected it
+  on the next load. Treat UI drag-and-drop as the one interaction this
+  tool can't reliably drive; verify its backend call directly instead.
+
 ---
 
 ## How to use this file

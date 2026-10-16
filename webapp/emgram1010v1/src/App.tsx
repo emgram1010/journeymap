@@ -2,7 +2,12 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Calendar, LayoutList, Hammer } from 'lucide-react';
 import { Workspace, Timeline, Task, Agent, ViewMode, AppSettings } from './types';
 import { DEFAULT_SETTINGS, DEFAULT_INPUT_TOKENS_PER_MINUTE, DEFAULT_OUTPUT_TOKENS_PER_MINUTE } from './data/initialData';
-import { listWorkspaces, getBoard } from './lib/plannerApi';
+import {
+  listWorkspaces, getBoard,
+  createAgent, updateAgent, setWorkspaceAgentVisibility,
+  createTimeline, updateTimeline, publishTimeline as publishTimelineApi, reorderTimeline,
+  createTask, updateTask, placeTask,
+} from './lib/plannerApi';
 import { adaptWorkspace, adaptBoard } from './lib/plannerAdapter';
 import { ProductNav } from './components/ProductNav';
 import { SettingsModal } from './components/SettingsModal';
@@ -13,9 +18,8 @@ import { DayBoard } from './components/DayBoard';
 import { BacklogDrawer } from './components/BacklogDrawer';
 import { EditModal, ModalEntity } from './components/EditModal';
 import { ComponentSheetModal } from './components/ComponentSheetModal';
-import { calculateTaskLanding, recomputeTimelineTaskTimes, getTimelineReadiness, formatMinutesToTime, parseTimeToMinutes } from './utils/planningLogic';
+import { getTimelineReadiness, formatMinutesToTime, parseTimeToMinutes } from './utils/planningLogic';
 import { formatShortDate, generateDaysList, getDaysDifference } from './utils/dateUtils';
-import { getNextAgentColor } from './utils/agentUtils';
 
 export default function App() {
   const [dataLoaded, setDataLoaded] = useState(false);
@@ -51,18 +55,20 @@ export default function App() {
   // Drag tracking state across components
   const [isDraggingTaskFromTimeline, setIsDraggingTaskFromTimeline] = useState(false);
 
-  // Recomputes planned_start for every task in a timeline (cascading from
-  // the timeline's own startTime) and merges the result back into a full
-  // tasks array. Call this as the final step of ANY mutation that touches
-  // a timeline's tasks (add / move / reorder / delete) or its startTime.
-  const recomputeTimeline = (allTasks: Task[], timelineId: string | null, timelineOverride?: Timeline): Task[] => {
-    if (!timelineId) return allTasks;
-    const timeline = timelineOverride || timelines.find(tl => tl.id === timelineId);
-    if (!timeline) return allTasks;
-    const ordered = allTasks.filter(t => t.timelineId === timelineId).sort((a, b) => a.seq - b.seq);
-    const recomputed = recomputeTimelineTaskTimes(timeline, ordered);
-    const map = new Map(recomputed.map(t => [t.id, t]));
-    return allTasks.map(t => map.has(t.id) ? map.get(t.id)! : t);
+  // PLN-9 (US-PLN-9-03/04/05): every mutation below hits the real
+  // backend, then refetches the whole board rather than hand-patching
+  // local state — the same call Checkpoint 1 already proved derives
+  // planned_start correctly. This is a deliberate simplification over
+  // the old localStorage version's in-memory recompute helpers
+  // (`recomputeTimelineTaskTimes`, `calculateTaskLanding`): the server
+  // is the single source of truth for sequencing, derived start times
+  // and effective assignees (CLAUDE.md: "reference, do not copy"), so
+  // duplicating that math client-side would just be a second place for
+  // it to drift out of sync.
+  const [actionError, setActionError] = useState<string | null>(null);
+  const reportActionError = (err: unknown) => {
+    setActionError(err instanceof Error ? err.message : 'Something went wrong — please try again.');
+    setTimeout(() => setActionError(null), 6000);
   };
 
   // PLN-9 (US-PLN-9-02): real data, not localStorage. Two loads, same
@@ -127,6 +133,15 @@ export default function App() {
   useEffect(() => {
     if (!activeWorkspaceId) return;
     void loadActiveBoard(activeWorkspaceId);
+  }, [activeWorkspaceId, loadActiveBoard]);
+
+  // Re-pull the active board after a write succeeds. Deliberately does
+  // NOT reset `dataLoaded`/show the full-screen spinner again — only
+  // the small "Loading…" pill (already wired to `isLoadingBoard`)
+  // appears, so a save doesn't blank the screen the user is looking at.
+  const refreshBoard = useCallback(() => {
+    if (!activeWorkspaceId) return Promise.resolve();
+    return loadActiveBoard(activeWorkspaceId);
   }, [activeWorkspaceId, loadActiveBoard]);
 
   // Derived current workspace & agents
@@ -245,22 +260,34 @@ export default function App() {
     }));
   };
 
-  // Agent Roster handlers
+  // Agent Roster handlers (US-PLN-9-03)
   const handleToggleAgentVisibility = (agentId: string) => {
-    setAgents(prev => prev.map(a => a.id === agentId ? { ...a, isVisible: !a.isVisible } : a));
+    const agent = agents.find(a => a.id === agentId);
+    if (!agent) return;
+    updateAgent(Number(agentId), { is_visible: !agent.isVisible })
+      .then(() => refreshBoard())
+      .catch(reportActionError);
   };
 
   const handleShowAllAgents = () => {
-    setAgents(prev => prev.map(a => a.workspaceId === activeWorkspaceId ? { ...a, isVisible: true } : a));
+    if (!activeWorkspaceId) return;
+    setWorkspaceAgentVisibility(Number(activeWorkspaceId), true)
+      .then(() => refreshBoard())
+      .catch(reportActionError);
   };
 
+  // The backend's bulk endpoint is a plain "everyone visible/hidden" —
+  // it has no notion of "except the one I'm looking at". This UI's own
+  // "hide all" has always meant that exception, so it stays a
+  // two-step client action: hide everyone, then show the one(s) the
+  // user is actively focused on back.
   const handleHideAllAgents = () => {
-    setAgents(prev => prev.map(a => {
-      if (a.workspaceId === activeWorkspaceId) {
-        return { ...a, isVisible: a.id === activeAgentId || a.id === focusedAgentId };
-      }
-      return a;
-    }));
+    if (!activeWorkspaceId) return;
+    const keepVisibleIds = new Set([activeAgentId, focusedAgentId].filter((id): id is string => !!id));
+    setWorkspaceAgentVisibility(Number(activeWorkspaceId), false)
+      .then(() => Promise.all([...keepVisibleIds].map(id => updateAgent(Number(id), { is_visible: true }))))
+      .then(() => refreshBoard())
+      .catch(reportActionError);
   };
 
   const handleOpenAddAgentModal = () => {
@@ -279,67 +306,46 @@ export default function App() {
     });
   };
 
-  const handleSaveAgent = (
+  // Returns `false` on a rejected save so EditModal keeps the form open
+  // with the user's typing intact instead of closing as if it worked.
+  const handleSaveAgent = async (
     agentId: string | null,
     updates: { name: string; kind: 'person' | 'ai'; color: string; dailyCapacityHours: number; modelId?: string }
-  ) => {
-    if (agentId) {
-      // Update existing agent
-      setAgents(prev => prev.map(a => a.id === agentId ? { ...a, ...updates } : a));
-      // Update assignee name on timelines and tasks
-      setTimelines(prev => prev.map(tl => tl.agentId === agentId ? { ...tl, assignee: updates.name } : tl));
-      setTasks(prev => prev.map(t => {
-        const tl = timelines.find(x => x.id === t.timelineId);
-        if (tl && tl.agentId === agentId) {
-          return { ...t, assignee: updates.name };
-        }
-        return t;
-      }));
-    } else {
-      // Add new agent
-      const nextColor = updates.color || getNextAgentColor(agentsInActiveWs);
-      const newAgent: Agent = {
-        id: `agent-${Date.now()}`,
-        workspaceId: activeWorkspaceId,
-        name: updates.name,
-        kind: updates.kind,
-        color: nextColor,
-        dailyCapacityHours: updates.dailyCapacityHours || 8,
-        isVisible: true,
-        modelId: updates.modelId,
-      };
-      setAgents(prev => [...prev, newAgent]);
-      setActiveAgentId(newAgent.id);
+  ): Promise<boolean> => {
+    try {
+      if (agentId) {
+        await updateAgent(Number(agentId), {
+          name: updates.name,
+          kind: updates.kind,
+          color: updates.color,
+          daily_capacity_hours: updates.dailyCapacityHours,
+          model_id: updates.kind === 'ai' && updates.modelId ? Number(updates.modelId) : 0,
+        });
+      } else {
+        if (!activeWorkspaceId) return false;
+        const { agent } = await createAgent(Number(activeWorkspaceId), {
+          name: updates.name,
+          kind: updates.kind,
+          color: updates.color || undefined,
+          daily_capacity_hours: updates.dailyCapacityHours,
+          model_id: updates.kind === 'ai' && updates.modelId ? Number(updates.modelId) : undefined,
+        });
+        setActiveAgentId(String(agent.id));
+      }
+      await refreshBoard();
+      return true;
+    } catch (err) {
+      reportActionError(err);
+      return false;
     }
-    setActiveModalEntity(null);
   };
 
-  // Remove an agent: its timelines are deleted and their tasks return to the
-  // backlog (nothing is destroyed except the empty timelines themselves).
-  const handleDeleteAgent = (agentId: string) => {
-    const agent = agents.find(a => a.id === agentId);
-    if (!agent) return;
-    const removedTimelineIds = new Set(
-      timelines.filter(t => t.agentId === agentId).map(t => t.id)
-    );
-    setTasks(prev => prev.map(t =>
-      t.timelineId && removedTimelineIds.has(t.timelineId)
-        ? {
-            ...t,
-            timelineId: null,
-            seq: 0,
-            planned_start: '',
-            assignee: t.assignee === agent.name ? undefined : t.assignee,
-          }
-        : t
-    ));
-    setTimelines(prev => prev.filter(t => t.agentId !== agentId));
-    setAgents(prev => prev.filter(a => a.id !== agentId));
-    if (activeAgentId === agentId) setActiveAgentId(null);
-    if (focusedAgentId === agentId) setFocusedAgentId(null);
-    if (activeTimelineId && removedTimelineIds.has(activeTimelineId)) setActiveTimelineId(null);
-    setActiveModalEntity(null);
-  };
+  // PLN-9: deleting an agent (and a task, and a timeline) has no live
+  // backend endpoint yet — `functions/planner/delete_agent_cascade.xs`
+  // exists but is deliberately NOT pushed, per CLAUDE.md's "ask before
+  // any delete." Rather than fake a delete that doesn't persist, this
+  // action is left unavailable (onDeleteAgent simply isn't passed to
+  // EditModal below) until the founder approves pushing it.
 
   // Open Task Edit Modal
   const handleOpenTaskEditModal = (taskId: string) => {
@@ -407,35 +413,66 @@ export default function App() {
     });
   };
 
-  // Save Task from Modal
-  const handleSaveTaskFromModal = (taskId: string, updates: Partial<Task>) => {
-    setTasks(prev => {
-      const target = prev.find(t => t.id === taskId);
-      const merged = prev.map(t => t.id === taskId ? { ...t, ...updates } : t);
-      // Duration/status edits shift every step below it, so recompute the
-      // cascade for this task's timeline (planned_start is never taken
-      // from the modal directly).
-      return recomputeTimeline(merged, target?.timelineId ?? null);
-    });
-    setActiveModalEntity(null);
-    setAcknowledgedTaskId(taskId);
-    setTimeout(() => {
-      setAcknowledgedTaskId(null);
-    }, 2500);
+  // Save Task from Modal — EditModal's own form only ever sends title,
+  // duration, assignee, status, notes, needsInfoReason: never
+  // timelineId/seq (moving a task is always `task/place`, never this).
+  //
+  // The assignee field is free text ("inherits timeline assignee if
+  // blank"), but the backend only takes an `assignee_agent_id` int
+  // override. Blank clears the override (0); a name that matches an
+  // agent in this plan resolves to that override; anything else can't
+  // be saved as a real override, so the save is refused client-side
+  // rather than silently dropped.
+  const handleSaveTaskFromModal = async (taskId: string, updates: Partial<Task>): Promise<boolean> => {
+    const target = tasks.find(t => t.id === taskId);
+    const nextAssignee = (updates.assignee ?? '').trim();
+    let assigneeAgentId: number | undefined;
+    if (nextAssignee !== (target?.assignee ?? '').trim()) {
+      if (nextAssignee === '') {
+        assigneeAgentId = 0;
+      } else {
+        const match = agentsInActiveWs.find(a => a.name === nextAssignee);
+        if (!match) {
+          reportActionError(new Error(`No one in this plan is named "${nextAssignee}" — pick an existing agent's name, or leave it blank to inherit the day's assignee.`));
+          return false;
+        }
+        assigneeAgentId = Number(match.id);
+      }
+    }
+    try {
+      await updateTask(Number(taskId), {
+        title: updates.title,
+        duration_minutes: updates.duration,
+        notes: updates.notes,
+        status: updates.status,
+        needs_info_reason: updates.needsInfoReason ?? '',
+        ...(assigneeAgentId !== undefined ? { assignee_agent_id: assigneeAgentId } : {}),
+      });
+      await refreshBoard();
+      setAcknowledgedTaskId(taskId);
+      setTimeout(() => setAcknowledgedTaskId(null), 2500);
+      return true;
+    } catch (err) {
+      reportActionError(err);
+      return false;
+    }
   };
 
-  // Save Timeline from Modal
-  const handleSaveTimelineFromModal = (timelineId: string, updates: Partial<Timeline>) => {
-    let mergedTimeline: Timeline | null = null;
-    setTimelines(prev => prev.map(tl => {
-      if (tl.id !== timelineId) return tl;
-      mergedTimeline = { ...tl, ...updates };
-      return mergedTimeline;
-    }));
-    if (updates.startTime !== undefined && mergedTimeline) {
-      setTasks(prev => recomputeTimeline(prev, timelineId, mergedTimeline!));
+  // Save Timeline from Modal — only start time and date are editable
+  // here; moving to a different agent is the grid's own drag gesture
+  // (handleMoveTimelineCell).
+  const handleSaveTimelineFromModal = async (timelineId: string, updates: Partial<Timeline>): Promise<boolean> => {
+    try {
+      await updateTimeline(Number(timelineId), {
+        start_time: updates.startTime,
+        planned_date: updates.plannedDate,
+      });
+      await refreshBoard();
+      return true;
+    } catch (err) {
+      reportActionError(err);
+      return false;
     }
-    setActiveModalEntity(null);
   };
 
   // Request confirmation before publishing a single timeline (Story G1).
@@ -452,275 +489,107 @@ export default function App() {
     });
   };
 
-  // Publish Timeline
+  // Publish Timeline (LIVE-1). The server re-checks readiness itself and
+  // returns every blocker at once (its own doc comment) — the client
+  // check here is only to avoid an obviously-futile request.
   const handlePublishTimeline = (timelineId: string) => {
-    setTimelines(prev => prev.map(tl => {
-      if (tl.id !== timelineId) return tl;
-      // Defense-in-depth: never publish a timeline that isn't ready, even
-      // if a caller bypasses its own disabled-state check.
-      const tlTasks = tasks.filter(t => t.timelineId === tl.id);
-      const readiness = getTimelineReadiness(tl, tlTasks, activeWorkspace);
-      if (!readiness.ready) return tl;
-      return { ...tl, status: 'published' };
-    }));
+    const tl = timelines.find(t => t.id === timelineId);
+    if (!tl) return;
+    const tlTasks = tasks.filter(t => t.timelineId === tl.id);
+    const readiness = getTimelineReadiness(tl, tlTasks, activeWorkspace);
+    if (!readiness.ready) return;
+    publishTimelineApi(Number(timelineId))
+      .then(() => refreshBoard())
+      .catch(reportActionError);
   };
 
-  // Reopen Timeline
-  const handleReopenTimeline = (timelineId: string) => {
-    setTimelines(prev => prev.map(tl => tl.id === timelineId ? { ...tl, status: 'draft' } : tl));
-    if (activeModalEntity && activeModalEntity.type === 'timeline' && activeModalEntity.timeline.id === timelineId) {
-      setActiveModalEntity((prev: ModalEntity | null) => prev && prev.type === 'timeline' ? {
-        ...prev,
-        timeline: { ...prev.timeline, status: 'draft' }
-      } : prev);
-    } else if (activeModalEntity && activeModalEntity.type === 'task' && activeModalEntity.timeline?.id === timelineId) {
-      setActiveModalEntity((prev: ModalEntity | null) => prev && prev.type === 'task' && prev.timeline ? {
-        ...prev,
-        timeline: { ...prev.timeline, status: 'draft' }
-      } : prev);
-    }
+  // PLN-9: there is no "unpublish" on the backend (LIVE-1's own design —
+  // once live, the planner keeps editing the SAME published day forward,
+  // with every change logged rather than the day reverting to draft;
+  // that logging is VAR-1/LOG-1 territory, out of this epic's scope).
+  // The UI's "Reopen to edit" buttons stay in place but can't actually
+  // revert anything yet, so this just says so instead of lying about it.
+  const handleReopenTimeline = (_timelineId: string) => {
+    reportActionError(new Error('Reopening a published day isn’t available yet — ask the founder.'));
   };
 
-  // Reorder Tasks within Timeline
+  // Reorder Tasks within Timeline (PLN-7: exact permutation of this
+  // day's own task ids; the server refuses and writes nothing on a
+  // partial or foreign id, so the client doesn't need to pre-check).
   const handleReorderTasks = (timelineId: string, reorderedTasks: Task[]) => {
-    setTasks(prev => {
-      const taskMap = new Map(reorderedTasks.map(t => [t.id, t]));
-      const merged = prev.map(t => taskMap.has(t.id) ? taskMap.get(t.id)! : t);
-      return recomputeTimeline(merged, timelineId);
-    });
+    reorderTimeline(Number(timelineId), reorderedTasks.map(t => Number(t.id)))
+      .then(() => refreshBoard())
+      .catch(reportActionError);
   };
 
   // Add Task directly into timeline
   const handleAddTaskToTimeline = (
     timelineId: string,
-    title: string, 
-    plannedStart: string, 
-    duration: number, 
+    title: string,
+    _plannedStart: string,
+    duration: number,
     assignee?: string
   ) => {
     if (!activeWorkspaceId || !timelineId) return;
-
-    const currentTasks = tasks.filter(t => t.timelineId === timelineId);
-    const nextSeq = currentTasks.length + 1;
-
-    const newTask: Task = {
-      id: `task-${Date.now()}`,
-      workspaceId: activeWorkspaceId,
-      timelineId,
+    const agentOverride = assignee ? agentsInActiveWs.find(a => a.name === assignee) : undefined;
+    createTask(Number(activeWorkspaceId), {
       title,
-      seq: nextSeq,
-      planned_start: plannedStart,
-      duration,
-      assignee: assignee || '',
-      notes: '',
-      status: 'planned',
-    };
-
-    setTasks(prev => recomputeTimeline([...prev, newTask], timelineId));
+      duration_minutes: duration,
+      timeline_id: Number(timelineId),
+      ...(agentOverride ? { assignee_agent_id: Number(agentOverride.id) } : {}),
+    })
+      .then(() => refreshBoard())
+      .catch(reportActionError);
   };
 
-  // Move Task to Backlog
+  // Move Task to Backlog (PLN-7's `place`, destination omitted).
   const handleMoveTaskToBacklog = (taskId: string) => {
-    const currentTask = tasks.find(t => t.id === taskId);
-    if (!currentTask) return;
-    const oldTimelineId = currentTask.timelineId;
-
-    setTasks(prev => {
-      return prev.map(t => {
-        if (t.id === taskId) {
-          return {
-            ...t,
-            timelineId: null,
-            seq: 0,
-            planned_start: '',
-          };
-        }
-        return t;
-      });
-    });
-
-    // Re-index and recompute cascade times for remaining tasks in old timeline
-    if (oldTimelineId) {
-      setTimeout(() => {
-        setTasks(latestTasks => recomputeTimeline(latestTasks, oldTimelineId));
-      }, 10);
-    }
+    placeTask(Number(taskId), {})
+      .then(() => refreshBoard())
+      .catch(reportActionError);
   };
 
-  // Move Task across Agent Day Columns (DayBoard drag)
+  // Move Task across Agent Day Columns (DayBoard drag) — lands at a
+  // specific index within an EXISTING timeline.
   const handleMoveTaskToAgentDayTimeline = (
-    taskId: string, 
-    targetTimelineId: string, 
+    taskId: string,
+    targetTimelineId: string,
     targetIndex: number
   ) => {
-    const task = tasks.find(t => t.id === taskId);
-    const targetTl = timelines.find(t => t.id === targetTimelineId);
-    if (!task || !targetTl) return;
-
-    const targetTlTasks = tasks
-      .filter(t => t.timelineId === targetTimelineId && t.id !== taskId)
-      .sort((a, b) => a.seq - b.seq);
-
-    const oldTimelineId = task.timelineId;
-
-    // Determine duration/assignee for the arriving task; start time is
-    // always recomputed by the cascade below, never set here.
-    const landing = calculateTaskLanding(task, targetTl);
-
-    const updatedTask: Task = {
-      ...task,
-      timelineId: targetTimelineId,
-      duration: landing.duration,
-      assignee: landing.assignee,
-      status: landing.status,
-      needsInfoReason: landing.needsInfoReason,
-    };
-
-    // Insert at target index
-    const newList = [...targetTlTasks];
-    const clampedIndex = Math.min(Math.max(0, targetIndex), newList.length);
-    newList.splice(clampedIndex, 0, updatedTask);
-
-    const reorderedTarget = newList.map((t, idx) => ({
-      ...t,
-      seq: idx + 1,
-    }));
-
-    setTasks(prev => {
-      const map = new Map(reorderedTarget.map(t => [t.id, t]));
-      const merged = prev.map(t => {
-        if (map.has(t.id)) return map.get(t.id)!;
-        return t;
-      });
-      return recomputeTimeline(merged, targetTimelineId);
-    });
-
-    // Re-index & recompute old timeline if different
-    if (oldTimelineId && oldTimelineId !== targetTimelineId) {
-      setTimeout(() => {
-        setTasks(latestTasks => recomputeTimeline(latestTasks, oldTimelineId));
-      }, 10);
-    }
+    placeTask(Number(taskId), { timeline_id: Number(targetTimelineId), index: targetIndex })
+      .then(() => refreshBoard())
+      .catch(reportActionError);
   };
 
   // Move a task that's already on a timeline to a different agent/day
-  // (Epic E3's "Move…" menu action). Creates the target timeline if that
-  // agent doesn't have one on that day yet, mirroring
-  // handleAddBacklogTaskToAgentDay's creation logic.
+  // (Epic E3's "Move…" menu action). `createTimeline` is idempotent — if
+  // that agent already has a day started, it just returns it.
   const handleMoveTaskToAgentDay = (taskId: string, agentId: string, day: string) => {
     if (!activeWorkspaceId) return;
-    const agent = agents.find(a => a.id === agentId);
-    const task = tasks.find(t => t.id === taskId);
-    if (!agent || !task) return;
-
-    let targetTl = timelines.find(
-      tl => tl.workspaceId === activeWorkspaceId && tl.agentId === agentId && tl.plannedDate === day
-    );
-    const isNewTimeline = !targetTl;
-    if (!targetTl) {
-      targetTl = {
-        id: `tl-${Date.now()}`,
-        workspaceId: activeWorkspaceId,
-        agentId,
-        name: `${formatShortDate(day)} — ${agent.name}`,
-        plannedDate: day,
-        assignee: agent.name,
-        status: 'draft',
-        startTime: '08:00',
-      };
-      setTimelines(prev => [...prev, targetTl!]);
-    } else if (targetTl.status === 'published') {
-      // Defense-in-depth: the picker already disables this combination.
-      return;
-    }
-
-    const oldTimelineId = task.timelineId;
-
-    const targetTlTasks = tasks
-      .filter(t => t.timelineId === targetTl!.id && t.id !== taskId)
-      .sort((a, b) => a.seq - b.seq);
-
-    const landing = calculateTaskLanding(task, targetTl);
-
-    const movedTask: Task = {
-      ...task,
-      timelineId: targetTl.id,
-      duration: landing.duration,
-      assignee: landing.assignee,
-      status: landing.status,
-      needsInfoReason: landing.needsInfoReason,
-    };
-
-    const newList = [...targetTlTasks, movedTask];
-    const reordered = newList.map((t, idx) => ({ ...t, seq: idx + 1 }));
-
-    setTasks(prev => {
-      const map = new Map(reordered.map(t => [t.id, t]));
-      const merged = prev.map(t => map.has(t.id) ? map.get(t.id)! : t);
-      return recomputeTimeline(merged, targetTl!.id, isNewTimeline ? targetTl! : undefined);
-    });
-
-    if (oldTimelineId && oldTimelineId !== targetTl.id) {
-      setTimeout(() => {
-        setTasks(latestTasks => recomputeTimeline(latestTasks, oldTimelineId));
-      }, 10);
-    }
+    createTimeline(Number(activeWorkspaceId), Number(agentId), day)
+      .then(({ timeline }) => placeTask(Number(taskId), { timeline_id: timeline.id }))
+      .then(() => refreshBoard())
+      .catch(reportActionError);
   };
 
-  // Pull Task from Backlog into Timeline
+  // Pull Task from Backlog into Timeline (or reorder within one, when
+  // targetTimelineId is omitted — defaults to the active timeline).
   const handlePullToTimeline = (
-    taskId: string, 
-    targetTimelineId?: string, 
+    taskId: string,
+    targetTimelineId?: string,
     targetIndex?: number
   ) => {
     const tlId = targetTimelineId || activeTimelineId;
     if (!tlId) return;
-    const targetTl = timelines.find(t => t.id === tlId);
-    if (!targetTl) return;
-
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    const tlTasks = tasks
-      .filter(t => t.timelineId === tlId)
-      .sort((a, b) => a.seq - b.seq);
-
-    const insertIdx = targetIndex !== undefined ? targetIndex : tlTasks.length;
-
-    // Determine duration/assignee only; start time is always recomputed
-    // by the cascade below, never set here.
-    const landing = calculateTaskLanding(task, targetTl);
-
-    const placedTask: Task = {
-      ...task,
-      timelineId: tlId,
-      duration: landing.duration,
-      assignee: landing.assignee,
-      status: landing.status,
-      needsInfoReason: landing.needsInfoReason,
-    };
-
-    const newList = [...tlTasks];
-    const clamped = Math.min(Math.max(0, insertIdx), newList.length);
-    newList.splice(clamped, 0, placedTask);
-
-    const reordered = newList.map((t, idx) => ({
-      ...t,
-      seq: idx + 1,
-    }));
-
-    setTasks(prev => {
-      const map = new Map(reordered.map(t => [t.id, t]));
-      const merged = prev.map(t => map.has(t.id) ? map.get(t.id)! : t);
-      return recomputeTimeline(merged, tlId);
-    });
+    placeTask(Number(taskId), { timeline_id: Number(tlId), ...(targetIndex !== undefined ? { index: targetIndex } : {}) })
+      .then(() => refreshBoard())
+      .catch(reportActionError);
   };
 
   // Add a backlog task to a chosen agent's timeline on a chosen day, from
-  // the Backlog drawer's "Add to timeline..." picker (replaces the old
-  // ambiguous "Place onto active timeline" quick action). Creates the
-  // timeline if that agent doesn't have one on that day yet, then shows a
-  // brief confirmation of exactly where the task landed.
+  // the Backlog drawer's "Add to timeline..." picker. Creates the
+  // timeline if that agent doesn't have one on that day yet (idempotent),
+  // then shows a brief confirmation of exactly where the task landed.
   const handleAddBacklogTaskToAgentDay = (
     taskId: string,
     agentId: string,
@@ -729,162 +598,64 @@ export default function App() {
   ) => {
     if (!activeWorkspaceId) return;
     const agent = agents.find(a => a.id === agentId);
-    const task = tasks.find(t => t.id === taskId);
-    if (!agent || !task) return;
-
-    let targetTl = timelines.find(
-      tl => tl.workspaceId === activeWorkspaceId && tl.agentId === agentId && tl.plannedDate === day
-    );
-    const isNewTimeline = !targetTl;
-    if (!targetTl) {
-      targetTl = {
-        id: `tl-${Date.now()}`,
-        workspaceId: activeWorkspaceId,
-        agentId,
-        name: `${formatShortDate(day)} — ${agent.name}`,
-        plannedDate: day,
-        assignee: agent.name,
-        status: 'draft',
-        startTime: '08:00',
-      };
-      setTimelines(prev => [...prev, targetTl!]);
-    } else if (targetTl.status === 'published') {
-      // Defense-in-depth: the picker already disables this combination.
-      return;
-    }
-
-    const tlTasks = tasks
-      .filter(t => t.timelineId === targetTl!.id)
-      .sort((a, b) => a.seq - b.seq);
-    const insertIdx = targetIndex !== undefined ? targetIndex : tlTasks.length;
-
-    const landing = calculateTaskLanding(task, targetTl);
-
-    const placedTask: Task = {
-      ...task,
-      timelineId: targetTl.id,
-      duration: landing.duration,
-      assignee: landing.assignee,
-      status: landing.status,
-      needsInfoReason: landing.needsInfoReason,
-    };
-
-    const newList = [...tlTasks];
-    const clamped = Math.min(Math.max(0, insertIdx), newList.length);
-    newList.splice(clamped, 0, placedTask);
-
-    const reordered = newList.map((t, idx) => ({
-      ...t,
-      seq: idx + 1,
-    }));
-
-    setTasks(prev => {
-      const map = new Map(reordered.map(t => [t.id, t]));
-      const merged = prev.map(t => map.has(t.id) ? map.get(t.id)! : t);
-      return recomputeTimeline(merged, targetTl!.id, isNewTimeline ? targetTl! : undefined);
-    });
-
-    const landedStep = clamped + 1;
-    setBacklogPlacementConfirmation(`Added to ${agent.name} · ${formatShortDate(day)}, step ${landedStep}`);
-    setTimeout(() => setBacklogPlacementConfirmation(null), 3500);
+    if (!agent) return;
+    createTimeline(Number(activeWorkspaceId), Number(agentId), day)
+      .then(({ timeline }) =>
+        placeTask(Number(taskId), { timeline_id: timeline.id, ...(targetIndex !== undefined ? { index: targetIndex } : {}) })
+      )
+      .then(({ moved }) => {
+        setBacklogPlacementConfirmation(`Added to ${agent.name} · ${formatShortDate(day)}, step ${moved.clamped_index + 1}`);
+        setTimeout(() => setBacklogPlacementConfirmation(null), 3500);
+        return refreshBoard();
+      })
+      .catch(reportActionError);
   };
 
   // Create Backlog Task
   const handleCreateBacklogTask = (title: string, duration: number, assignee?: string) => {
     if (!activeWorkspaceId) return;
-    const newTask: Task = {
-      id: `task-${Date.now()}`,
-      workspaceId: activeWorkspaceId,
-      timelineId: null,
+    const agentOverride = assignee ? agentsInActiveWs.find(a => a.name === assignee) : undefined;
+    createTask(Number(activeWorkspaceId), {
       title,
-      seq: 0,
-      planned_start: '',
-      duration,
-      assignee: assignee || '',
-      notes: '',
-      status: 'planned',
-    };
-    setTasks(prev => [...prev, newTask]);
+      duration_minutes: duration,
+      ...(agentOverride ? { assignee_agent_id: Number(agentOverride.id) } : {}),
+    })
+      .then(() => refreshBoard())
+      .catch(reportActionError);
   };
 
-  // Delete Task
-  const handleDeleteTask = (taskId: string) => {
-    const taskToDelete = tasks.find(t => t.id === taskId);
-    setTasks(prev => prev.filter(t => t.id !== taskId));
-
-    if (taskToDelete?.timelineId) {
-      const tlId = taskToDelete.timelineId;
-      setTimeout(() => {
-        setTasks(latestTasks => recomputeTimeline(latestTasks, tlId));
-      }, 10);
-    }
+  // PLN-9: deleting a task has no live backend endpoint yet — same
+  // "held, not pushed" reasoning as handleDeleteAgent above
+  // (`functions/planner/delete_task.xs`). DayBoard/BacklogDrawer both
+  // require this prop, so it stays wired to a clear refusal rather
+  // than silently removing the row from local state only.
+  const handleDeleteTask = (_taskId: string) => {
+    reportActionError(new Error('Deleting a task isn’t available yet — ask the founder.'));
   };
 
-  // Create or start timeline for an Agent on a specific Day
+  // Create or start timeline for an Agent on a specific Day (idempotent
+  // server-side — a second click on the same cell just opens the
+  // existing day rather than erroring).
   const handleStartTimelineForAgentDay = (agentId: string, day: string) => {
     if (!activeWorkspaceId) return;
-
-    // Check if timeline already exists for this agent on this day
-    const existing = timelines.find(t => t.workspaceId === activeWorkspaceId && t.agentId === agentId && t.plannedDate === day);
-    if (existing) {
-      setActiveTimelineId(existing.id);
-      setActiveAgentId(agentId);
-      setActiveDay(day);
-      return;
-    }
-
-    const agent = agents.find(a => a.id === agentId);
-    const newTl: Timeline = {
-      id: `tl-${Date.now()}`,
-      workspaceId: activeWorkspaceId,
-      agentId,
-      name: `${formatShortDate(day)} — ${agent?.name || 'Agent'}`,
-      plannedDate: day,
-      assignee: agent?.name || 'Agent',
-      status: 'draft',
-      startTime: '08:00',
-    };
-
-    setTimelines(prev => [...prev, newTl]);
-    setActiveTimelineId(newTl.id);
-    setActiveAgentId(agentId);
-    setActiveDay(day);
+    createTimeline(Number(activeWorkspaceId), Number(agentId), day)
+      .then(({ timeline }) => {
+        setActiveTimelineId(String(timeline.id));
+        setActiveAgentId(agentId);
+        setActiveDay(day);
+        return refreshBoard();
+      })
+      .catch(reportActionError);
   };
 
-  // Grid Drag: Move timeline cell to new day (sideways) or new agent (vertically)
-  // Enforces ONE AGENT, ONE TIMELINE, PER DAY rule (§4)
+  // Grid Drag: Move timeline cell to new day (sideways) or new agent
+  // (vertically). The server refuses (never merges) if the target agent
+  // already has a timeline on that date — ONE AGENT, ONE TIMELINE, PER
+  // DAY (§4) — so no client-side pre-check is needed to stay honest.
   const handleMoveTimelineCell = (timelineId: string, targetAgentId: string, targetDate: string) => {
-    // Refusal check: does target cell already have a timeline?
-    const occupied = timelines.find(t => 
-      t.workspaceId === activeWorkspaceId && 
-      t.agentId === targetAgentId && 
-      t.plannedDate === targetDate && 
-      t.id !== timelineId
-    );
-
-    if (occupied) {
-      console.warn('Move refused: Target agent already has a timeline on that date.');
-      return;
-    }
-
-    const targetAgent = agents.find(a => a.id === targetAgentId);
-
-    setTimelines(prev => prev.map(tl => {
-      if (tl.id === timelineId) {
-        return {
-          ...tl,
-          agentId: targetAgentId,
-          plannedDate: targetDate,
-          assignee: targetAgent?.name || tl.assignee,
-          name: `${formatShortDate(targetDate)} — ${targetAgent?.name || tl.assignee}`,
-        };
-      }
-      return tl;
-    }));
-
-    if (targetAgent) {
-      setTasks(prev => prev.map(t => t.timelineId === timelineId ? { ...t, assignee: targetAgent.name } : t));
-    }
+    updateTimeline(Number(timelineId), { agent_id: Number(targetAgentId), planned_date: targetDate })
+      .then(() => refreshBoard())
+      .catch(reportActionError);
   };
 
   // Grid Drop: Task from backlog dropped onto filled cell
@@ -892,47 +663,21 @@ export default function App() {
     handlePullToTimeline(taskId, timelineId);
   };
 
-  // Grid Drop: Task from backlog dropped onto empty cell
-  // Creates timeline for agent on that day, and places task in it! (§4)
+  // Grid Drop: Task from backlog dropped onto empty cell — creates the
+  // timeline for that agent/day, then places the task into it. (§4)
   const handleDropTaskOnEmptyCell = (taskId: string, agentId: string, date: string) => {
-    const agent = agents.find(a => a.id === agentId);
-    const newTlId = `tl-${Date.now()}`;
-    const newTl: Timeline = {
-      id: newTlId,
-      workspaceId: activeWorkspaceId,
-      agentId,
-      name: `${formatShortDate(date)} — ${agent?.name || 'Agent'}`,
-      plannedDate: date,
-      assignee: agent?.name || 'Agent',
-      status: 'draft',
-      startTime: '08:00',
-    };
-
-    setTimelines(prev => [...prev, newTl]);
-    setActiveTimelineId(newTlId);
-
-    // Place the task into the newly created timeline (start time cascades
-    // from the new timeline's startTime, not hardcoded)
-    setTasks(prev => {
-      const merged = prev.map(t => {
-        if (t.id === taskId) {
-          return {
-            ...t,
-            timelineId: newTlId,
-            seq: 1,
-            assignee: agent?.name || t.assignee,
-            status: 'planned' as const,
-          };
-        }
-        return t;
-      });
-      return recomputeTimeline(merged, newTlId, newTl);
-    });
+    if (!activeWorkspaceId) return;
+    createTimeline(Number(activeWorkspaceId), Number(agentId), date)
+      .then(({ timeline }) => {
+        setActiveTimelineId(String(timeline.id));
+        return placeTask(Number(taskId), { timeline_id: timeline.id });
+      })
+      .then(() => refreshBoard())
+      .catch(reportActionError);
   };
 
   // Roster Drop: Drop backlog task directly onto an agent in the roster
   const handleDropTaskOnAgent = (taskId: string, agentId: string) => {
-    // Find timeline for agent on activeDay, or create one
     const tl = timelines.find(t => t.workspaceId === activeWorkspaceId && t.agentId === agentId && t.plannedDate === activeDay);
     if (tl) {
       handlePullToTimeline(taskId, tl.id);
@@ -981,17 +726,28 @@ export default function App() {
     });
   };
 
-  // Confirm Bulk Publish
+  // Confirm Bulk Publish (US-PLN-9-05): LIVE-1 only exposes a
+  // single-timeline publish, so "publish day" is this client-side loop
+  // over it — flagged as a deliberate, not-yet-built backend gap in the
+  // epic itself. Each call re-checks readiness on the server regardless
+  // of what this modal showed when it opened, and failures accumulate
+  // into one message rather than stopping the whole batch at the first
+  // one (a day half-published is still useful; a silent full failure
+  // over one bad timeline would not be).
   const handleConfirmBulkPublish = (timelineIdsToPublish: string[]) => {
-    setTimelines(prev => prev.map(tl => {
-      if (!timelineIdsToPublish.includes(tl.id)) return tl;
-      // Defense-in-depth: re-check readiness here too, in case state
-      // shifted between opening the modal and confirming.
-      const tlTasks = tasks.filter(t => t.timelineId === tl.id);
-      const readiness = getTimelineReadiness(tl, tlTasks, activeWorkspace);
-      if (!readiness.ready) return tl;
-      return { ...tl, status: 'published' };
-    }));
+    Promise.allSettled(timelineIdsToPublish.map(id => publishTimelineApi(Number(id))))
+      .then((results) => {
+        const failures = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+        if (failures.length > 0) {
+          const firstMsg = failures[0].reason instanceof Error ? failures[0].reason.message : 'Something went wrong.';
+          reportActionError(new Error(
+            failures.length === timelineIdsToPublish.length
+              ? firstMsg
+              : `${timelineIdsToPublish.length - failures.length} of ${timelineIdsToPublish.length} published. First problem: ${firstMsg}`
+          ));
+        }
+        return refreshBoard();
+      });
     setActiveModalEntity(null);
   };
 
@@ -1168,6 +924,18 @@ export default function App() {
           Loading…
         </div>
       )}
+      {/* PLN-9: a rejected write's friendly server message (VAL-1), or a
+          not-yet-available action's own explanation — surfaced here
+          rather than inside EditModal so it still reaches the user for
+          actions with no modal at all (visibility toggles, drag moves). */}
+      {actionError && (
+        <div
+          id="action-error-toast"
+          className="absolute top-3 left-1/2 -translate-x-1/2 z-50 max-w-md rounded-lg bg-red-50 border border-red-200 shadow-sm px-3.5 py-2 text-xs text-red-800"
+        >
+          {actionError}
+        </div>
+      )}
       {/* LEFT PRODUCT RAIL NAV (~60px) */}
       <ProductNav onOpenSettings={() => setIsSettingsOpen(true)} />
 
@@ -1292,7 +1060,6 @@ export default function App() {
         onSaveTimeline={handleSaveTimelineFromModal}
         settings={settings}
         onSaveAgent={handleSaveAgent}
-        onDeleteAgent={handleDeleteAgent}
         onConfirmBulkPublish={handleConfirmBulkPublish}
         onConfirmPublish={handlePublishTimeline}
         onReopenTimeline={handleReopenTimeline}

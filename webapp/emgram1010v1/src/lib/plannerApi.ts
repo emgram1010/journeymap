@@ -44,6 +44,20 @@ export interface RawAgent {
 export const listAgents = (workspaceId: number) =>
   performRequest<{agents: {agents: Array<{agent: RawAgent; model: unknown}>}}>(`/workspace/${workspaceId}/agent`);
 
+export const createAgent = (
+  workspaceId: number,
+  body: {name: string; kind: 'person' | 'ai'; color?: string; daily_capacity_hours?: number; model_id?: number},
+) => performRequest<{agent: RawAgent}>(`/workspace/${workspaceId}/agent`, {method: 'POST', body});
+
+export const updateAgent = (
+  agentId: number,
+  body: Partial<{name: string; kind: 'person' | 'ai'; color: string; daily_capacity_hours: number; model_id: number; is_visible: boolean; user_id: number}>,
+) => performRequest<{agent: RawAgent}>(`/agent/${agentId}`, {method: 'PATCH', body});
+
+/** PLN-5 (US-PLN-5-03) — "show all"/"hide all" in one call, every agent in the plan. */
+export const setWorkspaceAgentVisibility = (workspaceId: number, visible: boolean) =>
+  performRequest<{agents: RawAgent[]}>(`/workspace/${workspaceId}/agent/visibility`, {method: 'POST', body: {visible}});
+
 // ── Timelines ────────────────────────────────────────────────────────────
 
 export interface RawTimeline {
@@ -68,6 +82,30 @@ export const listTimelines = (workspaceId: number, dateFrom?: string, dateTo?: s
   return performRequest<{timelines: RawTimeline[]}>(`/workspace/${workspaceId}/timeline${suffix}`);
 };
 
+/** PLN-6 — idempotent: an existing (agent_id, planned_date) row is returned as `created: false`, never duplicated. */
+export const createTimeline = (workspaceId: number, agentId: number, plannedDate: string, startTime?: string) =>
+  performRequest<{timeline: RawTimeline; created: boolean; out_of_window: boolean}>(`/workspace/${workspaceId}/timeline`, {
+    method: 'POST',
+    body: {agent_id: agentId, planned_date: plannedDate, ...(startTime ? {start_time: startTime} : {})},
+  });
+
+/** PLN-6 — start_time, or moving to another agent/date. Refuses (does not merge) if the target cell is already taken. */
+export const updateTimeline = (
+  timelineId: number,
+  body: Partial<{agent_id: number; planned_date: string; start_time: string}>,
+) => performRequest<{timeline: RawTimeline}>(`/timeline/${timelineId}`, {method: 'PATCH', body});
+
+/** LIVE-1 — freezes this day for the performer. Throws with every blocker's message if the day isn't ready. */
+export const publishTimeline = (timelineId: number) =>
+  performRequest<{publication: {id: number; timeline_id: number; item_count: number}; published_at: number}>(
+    `/timeline/${timelineId}/publish`,
+    {method: 'POST'},
+  );
+
+/** PLN-7 — exact permutation of this timeline's own task ids; a partial or foreign id is refused and nothing is written. */
+export const reorderTimeline = (timelineId: number, taskIds: number[]) =>
+  performRequest<{tasks: RawTask[]}>(`/timeline/${timelineId}/reorder`, {method: 'POST', body: {task_ids: taskIds}});
+
 // ── Tasks (one timeline, or the backlog when timelineId is 0/omitted) ────
 
 export interface RawTask {
@@ -91,6 +129,25 @@ export const listTasks = (workspaceId: number, timelineId?: number) => {
   const qs = timelineId ? `?timeline_id=${timelineId}` : '';
   return performRequest<{timeline_id: number; is_backlog: boolean; tasks: RawTask[]}>(`/workspace/${workspaceId}/task${qs}`);
 };
+
+/** PLN-7 — omit `timeline_id` for the backlog. Appended at the end; the container is resequenced server-side. */
+export const createTask = (
+  workspaceId: number,
+  body: {title: string; duration_minutes?: number; notes?: string; timeline_id?: number; assignee_agent_id?: number},
+) => performRequest<{task_id: number; container: RawTask[]}>(`/workspace/${workspaceId}/task`, {method: 'POST', body});
+
+/** PLN-7 — a task's own fields only. Never moves it — see placeTask. */
+export const updateTask = (
+  taskId: number,
+  body: Partial<{title: string; duration_minutes: number; notes: string; assignee_agent_id: number; status: 'planned' | 'needs_info'; needs_info_reason: string}>,
+) => performRequest<{task: RawTask; container: RawTask[]}>(`/task/${taskId}`, {method: 'PATCH', body});
+
+/** PLN-7 — the only thing allowed to move a task: another timeline, or the backlog when `timeline_id` is omitted/0. */
+export const placeTask = (taskId: number, body: {timeline_id?: number; index?: number}) =>
+  performRequest<{moved: {source_timeline_id: number; clamped_index: number}; destination_tasks: RawTask[]}>(`/task/${taskId}/place`, {
+    method: 'POST',
+    body,
+  });
 
 // ── The whole plan in one request (PLN-8) ───────────────────────────────
 //
