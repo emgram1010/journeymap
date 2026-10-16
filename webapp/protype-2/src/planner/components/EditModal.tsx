@@ -25,11 +25,22 @@ interface EditModalProps {
   isOpen: boolean;
   entity: ModalEntity | null;
   onClose: () => void;
-  onSaveTask: (taskId: string, updates: Partial<Task>) => void;
-  onSaveTimeline: (timelineId: string, updates: Partial<Timeline>) => void;
+  // PLN-9: these now hit the real backend, which can genuinely reject
+  // a save (duplicate name, bad duration, a cell someone else took).
+  // Returning `false` tells this modal to stay open with the user's
+  // typing intact (CLAUDE.md: "keep the user's typing on any rejected
+  // save") instead of closing as if it had worked; the message itself
+  // surfaces through App.tsx's own toast. A `void` return (or no
+  // handler at all) is treated the same as `true` — close as before.
+  onSaveTask: (taskId: string, updates: Partial<Task>) => boolean | void | Promise<boolean | void>;
+  onSaveTimeline: (timelineId: string, updates: Partial<Timeline>) => boolean | void | Promise<boolean | void>;
   settings: AppSettings;
   onDeleteAgent?: (agentId: string) => void;
-  onSaveAgent?: (agentId: string | null, updates: { name: string; kind: AgentKind; color: string; dailyCapacityHours: number; modelId?: string }) => void;
+  onSaveAgent?: (agentId: string | null, updates: { name: string; kind: AgentKind; color: string; dailyCapacityHours: number; modelId?: string }) => boolean | void | Promise<boolean | void>;
+  // PLN-6 (US-PLN-6-05), wired 2026-10-16. Optional for the same
+  // reason as onDeleteAgent: when it isn't passed, no delete control
+  // renders at all, rather than offering one that can't work.
+  onDeleteTimeline?: (timelineId: string) => void;
   onConfirmBulkPublish?: (timelineIdsToPublish: string[]) => void;
   onConfirmPublish?: (timelineId: string) => void;
   onReopenTimeline: (timelineId: string) => void;
@@ -44,6 +55,7 @@ export function EditModal({
   onSaveTimeline,
   onSaveAgent,
   onDeleteAgent,
+  onDeleteTimeline,
   onConfirmBulkPublish,
   onConfirmPublish,
   onReopenTimeline,
@@ -52,6 +64,15 @@ export function EditModal({
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // PLN-9: true while a save is in flight against the real backend.
+  // Declared up here with the rest of this component's hooks, NOT next
+  // to handleSave below — that function is defined after this
+  // component's `if (!isOpen || !entity) return null` early return, so
+  // a hook declared down there would be skipped whenever the modal is
+  // closed, changing the hook count between renders (confirmed live:
+  // "Rendered more hooks than during the previous render" the moment
+  // the modal opened).
+  const [isSaving, setIsSaving] = useState(false);
 
   // Task form state
   const [taskTitle, setTaskTitle] = useState('');
@@ -73,6 +94,7 @@ export function EditModal({
   const [agentCapacity, setAgentCapacity] = useState<number>(8);
   const [agentModelId, setAgentModelId] = useState<string>('');
   const [confirmRemoveAgent, setConfirmRemoveAgent] = useState(false);
+  const [confirmDeleteTimeline, setConfirmDeleteTimeline] = useState(false);
 
   // Trap focus ref
   const modalRef = useRef<HTMLDivElement>(null);
@@ -85,6 +107,7 @@ export function EditModal({
     setShowDiscardConfirm(false);
     setHasChanges(false);
     setErrors({});
+    setConfirmDeleteTimeline(false);
 
     if (entity.type === 'task') {
       const t = entity.task;
@@ -248,7 +271,7 @@ export function EditModal({
   };
 
   // Validate & Save
-  const handleSave = () => {
+  const handleSave = async () => {
     if (isLocked) {
       onClose();
       return;
@@ -264,14 +287,16 @@ export function EditModal({
         setErrors(newErrors);
         return;
       }
-      onSaveAgent?.(entity.agent?.id || null, {
+      setIsSaving(true);
+      const result = await onSaveAgent?.(entity.agent?.id || null, {
         name: agentName.trim(),
         kind: agentKind,
         color: agentColor,
         dailyCapacityHours: agentCapacity,
         modelId: agentKind === 'ai' ? (agentModelId || undefined) : undefined,
       });
-      onClose();
+      setIsSaving(false);
+      if (result !== false) onClose();
       return;
     }
 
@@ -291,7 +316,8 @@ export function EditModal({
       }
 
       // Commit task
-      onSaveTask(entity.task.id, {
+      setIsSaving(true);
+      const result = await onSaveTask(entity.task.id, {
         title: taskTitle.trim(),
         planned_start: isBacklogTask ? '' : taskStart.trim(),
         duration: durNum,
@@ -300,8 +326,8 @@ export function EditModal({
         notes: taskNotes.trim(),
         needsInfoReason: taskStatus === 'needs_info' ? (taskNeedsInfoReason.trim() || 'Missing required information') : undefined,
       });
-
-      onClose();
+      setIsSaving(false);
+      if (result !== false) onClose();
     } else if (entity.type === 'timeline') {
       // Timeline validation
       if (!tlDate) {
@@ -316,12 +342,13 @@ export function EditModal({
         return;
       }
 
-      onSaveTimeline(entity.timeline.id, {
+      setIsSaving(true);
+      const result = await onSaveTimeline(entity.timeline.id, {
         plannedDate: tlDate,
         startTime: tlStartTime,
       });
-
-      onClose();
+      setIsSaving(false);
+      if (result !== false) onClose();
     }
   };
 
@@ -708,9 +735,10 @@ export function EditModal({
               id="save-agent-btn"
               type="button"
               onClick={handleSave}
-              className="px-4 py-1.5 bg-neutral-900 text-white rounded-md text-xs font-semibold hover:bg-neutral-800 transition-colors shadow-xs"
+              disabled={isSaving}
+              className="px-4 py-1.5 bg-neutral-900 text-white rounded-md text-xs font-semibold hover:bg-neutral-800 transition-colors shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {entity.isNew ? 'Add Agent' : 'Save Changes'}
+              {isSaving ? 'Saving…' : entity.isNew ? 'Add Agent' : 'Save Changes'}
             </button>
           </div>
         </div>
@@ -973,6 +1001,42 @@ export function EditModal({
             </div>
           ) : (
             <div className="w-full flex items-center justify-end gap-3">
+              {/* PLN-6 (US-PLN-6-05): delete this day. Not offered for a
+                  published one — the server refuses it (E-P3A-003) and
+                  showing the control would only invite that refusal. */}
+              {entity.type === 'timeline' && onDeleteTimeline && !isLocked && (
+                <div className="mr-auto flex items-center gap-2">
+                  {confirmDeleteTimeline ? (
+                    <>
+                      <span className="text-xs text-red-700">Tasks return to backlog.</span>
+                      <button
+                        id="confirm-delete-timeline-btn"
+                        type="button"
+                        onClick={() => onDeleteTimeline(entity.timeline.id)}
+                        className="px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded"
+                      >
+                        Confirm delete
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteTimeline(false)}
+                        className="px-2 py-1.5 text-xs text-neutral-600 hover:text-neutral-900"
+                      >
+                        Keep
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      id="delete-timeline-btn"
+                      type="button"
+                      onClick={() => setConfirmDeleteTimeline(true)}
+                      className="px-3 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded"
+                    >
+                      Delete this day
+                    </button>
+                  )}
+                </div>
+              )}
               <button
                 type="button"
                 onClick={handleRequestClose}
@@ -984,14 +1048,14 @@ export function EditModal({
                 id="modal-save-btn"
                 type="button"
                 onClick={handleSave}
-                disabled={!hasChanges}
+                disabled={!hasChanges || isSaving}
                 className={`px-4 py-1.5 rounded-md text-xs font-medium transition-all shadow-xs ${
-                  hasChanges
+                  hasChanges && !isSaving
                     ? 'bg-neutral-900 text-white hover:bg-neutral-800 cursor-pointer'
                     : 'bg-neutral-200 text-neutral-400 cursor-not-allowed border border-neutral-300'
                 }`}
               >
-                {hasChanges ? 'Save changes' : 'No changes'}
+                {isSaving ? 'Saving…' : hasChanges ? 'Save changes' : 'No changes'}
               </button>
             </div>
           )}

@@ -1,6 +1,6 @@
 import React from 'react';
 import {NavLink, useLocation} from 'react-router-dom';
-import {Sparkles, CalendarRange} from 'lucide-react';
+import {Sparkles, CalendarRange, PlayCircle} from 'lucide-react';
 
 /**
  * Persistent app chrome for every signed-in route.
@@ -28,6 +28,16 @@ const NAV_ITEMS = [
     to: '/planner',
     matches: (p: string) => p.startsWith('/planner'),
   },
+  /* The third layer of the product. `/perform` has existed and worked
+     since APP-1, but was reachable only by typing the URL — it was
+     never in this menu, so nobody could get to it. Added 2026-10-16. */
+  {
+    id: 'nav-execution',
+    label: 'Execution',
+    icon: PlayCircle,
+    to: '/perform',
+    matches: (p: string) => p.startsWith('/perform'),
+  },
 ];
 
 export default function AppLayout({children}: {children: React.ReactNode}) {
@@ -38,7 +48,10 @@ export default function AppLayout({children}: {children: React.ReactNode}) {
       <nav
         id="app-sidebar"
         aria-label="Main"
-        className="w-52 shrink-0 border-r border-zinc-200 bg-white px-3 py-4 flex flex-col gap-1"
+        /* Hidden below `md`: /perform is phone-first (APP-1) and now renders
+           inside this layout, so on a phone the performer gets the full
+           width and none of the desktop authoring chrome. */
+        className="hidden md:flex w-52 shrink-0 border-r border-zinc-200 bg-white px-3 py-4 flex-col gap-1"
       >
         {NAV_ITEMS.map(({id, label, icon: Icon, to, matches}) => {
           const isActive = matches(pathname);

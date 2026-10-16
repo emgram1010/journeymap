@@ -7,8 +7,7 @@ import {
   Edit2,
   Trash2,
   CalendarRange,
-  SlidersHorizontal,
-  Settings
+  SlidersHorizontal
 } from 'lucide-react';
 import { Workspace } from '../types';
 import { formatShortDate, getDaysDifference } from '../utils/dateUtils';
@@ -17,27 +16,31 @@ interface HeaderProps {
   workspaces: Workspace[];
   activeWorkspace: Workspace | null;
   onSelectWorkspace: (id: string) => void;
-  onCreateWorkspace: (name: string) => void;
+  // PLN-9 (US-PLN-9-07): creating a real plan needs a template, not just
+  // a name (PLAN-1's instance endpoint derives the window/maps from one)
+  // — this now opens CreateWorkspaceModal in App.tsx instead of taking a
+  // bare name inline.
+  onRequestCreateWorkspace: () => void;
   onRenameWorkspace: (id: string, newName: string) => void;
-  onDeleteWorkspace: (id: string) => void;
+  // PLN-9: optional, and currently NOT passed — deleting a plan has no
+  // live backend endpoint (held pending the founder's approval), so the
+  // control isn't rendered rather than faking a delete that comes back
+  // on refresh. Same precedent as EditModal's `onDeleteAgent`.
+  onDeleteWorkspace?: (id: string) => void;
   onOpenWorkspaceSettings: () => void;
-  onOpenSettings: () => void;
 }
 
 export function Header({
   workspaces,
   activeWorkspace,
   onSelectWorkspace,
-  onCreateWorkspace,
+  onRequestCreateWorkspace,
   onRenameWorkspace,
   onDeleteWorkspace,
   onOpenWorkspaceSettings,
-  onOpenSettings,
 }: HeaderProps) {
   // Workspace dropdown state
   const [isWsDropdownOpen, setIsWsDropdownOpen] = useState(false);
-  const [isCreatingWs, setIsCreatingWs] = useState(false);
-  const [newWsName, setNewWsName] = useState('');
   const [editingWsId, setEditingWsId] = useState<string | null>(null);
   const [editWsName, setEditWsName] = useState('');
 
@@ -61,7 +64,6 @@ export function Header({
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsWsDropdownOpen(false);
-        setIsCreatingWs(false);
         setEditingWsId(null);
       }
     }
@@ -70,20 +72,6 @@ export function Header({
   }, []);
 
   const windowDays = getDaysDifference(windowStart, windowEnd);
-
-  const handleStartCreateWs = () => {
-    setIsCreatingWs(true);
-    setNewWsName('');
-  };
-
-  const handleConfirmCreateWs = () => {
-    if (newWsName.trim()) {
-      onCreateWorkspace(newWsName.trim());
-      setIsCreatingWs(false);
-      setNewWsName('');
-      setIsWsDropdownOpen(false);
-    }
-  };
 
   const handleStartRenameWs = (ws: Workspace, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -101,6 +89,7 @@ export function Header({
 
   const handleDeleteWs = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!onDeleteWorkspace) return;
     if (confirm('Delete this workspace and all associated timelines?')) {
       onDeleteWorkspace(id);
     }
@@ -192,7 +181,7 @@ export function Header({
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
-                          {workspaces.length > 1 && (
+                          {onDeleteWorkspace && workspaces.length > 1 && (
                             <button
                               onClick={(e) => handleDeleteWs(ws.id, e)}
                               className="p-1 text-neutral-400 hover:text-red-600 rounded"
@@ -210,58 +199,18 @@ export function Header({
 
               {/* Create Workspace Row */}
               <div className="border-t border-neutral-100 pt-1.5 px-2">
-                {isCreatingWs ? (
-                  <div className="flex items-center gap-1.5 py-1">
-                    <input
-                      type="text"
-                      placeholder="Workspace name..."
-                      value={newWsName}
-                      onChange={(e) => setNewWsName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleConfirmCreateWs();
-                        if (e.key === 'Escape') setIsCreatingWs(false);
-                      }}
-                      className="flex-1 px-2.5 py-1 text-xs border border-neutral-300 rounded focus:outline-none focus:border-neutral-900"
-                      autoFocus
-                    />
-                    <button
-                      onClick={handleConfirmCreateWs}
-                      disabled={!newWsName.trim()}
-                      className="px-2 py-1 bg-neutral-900 text-white rounded text-xs hover:bg-neutral-800 disabled:opacity-50"
-                    >
-                      Add
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    id="create-workspace-dropdown-btn"
-                    onClick={handleStartCreateWs}
-                    className="w-full text-left px-2 py-1.5 text-xs text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 rounded flex items-center gap-1.5 font-medium"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    New Workspace
-                  </button>
-                )}
+                <button
+                  id="create-workspace-dropdown-btn"
+                  onClick={() => { setIsWsDropdownOpen(false); onRequestCreateWorkspace(); }}
+                  className="w-full text-left px-2 py-1.5 text-xs text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 rounded flex items-center gap-1.5 font-medium"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  New Plan from Template
+                </button>
               </div>
             </div>
           )}
         </div>
-
-        <div className="w-px h-5 bg-neutral-200 shrink-0" />
-
-        {/* Global settings — rates & model pricing. It sits in the left zone
-            because the right zone's button widths are matched to the toolbar
-            seam directly below; adding anything there would shift them. */}
-        <button
-          id="app-settings-btn"
-          type="button"
-          onClick={onOpenSettings}
-          className="w-8 h-8 shrink-0 flex items-center justify-center rounded-md text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
-          title="Settings — rates & model pricing"
-          aria-label="Settings"
-        >
-          <Settings className="w-4 h-4" />
-        </button>
 
       </div>
 

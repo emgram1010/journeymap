@@ -82,10 +82,14 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/architectures/:id" element={<ProtectedRoute><AppLayout><ArchitectureDetail /></AppLayout></ProtectedRoute>} />
           <Route path="/maps/:id" element={<ProtectedRoute><AppLayout><MapEditorRoute /></AppLayout></ProtectedRoute>} />
           <Route path="/planner" element={<ProtectedRoute><AppLayout><PlannerApp /></AppLayout></ProtectedRoute>} />
-          {/* APP-1: deliberately NOT inside AppLayout — the performer app is
-              phone-first and has nothing to do with the desktop sidebar chrome
-              the authoring tools share. */}
-          <Route path="/perform" element={<ProtectedRoute><PerformErrorBoundary><PerformToday /></PerformErrorBoundary></ProtectedRoute>} />
+          {/* APP-1 was deliberately OUTSIDE AppLayout: the performer app is
+              phone-first and wanted nothing to do with the desktop sidebar.
+              That held until the sidebar gained an Execution item (PLN-9,
+              2026-10-16) — a menu entry that navigates somewhere with no way
+              back is worse than no entry. It is wrapped now, and the sidebar
+              itself hides below `md`, so a performer on a phone still gets
+              the full-width focused screen the original decision protected. */}
+          <Route path="/perform" element={<ProtectedRoute><AppLayout><PerformErrorBoundary><PerformToday /></PerformErrorBoundary></AppLayout></ProtectedRoute>} />
           <Route path="/account" element={<ProtectedRoute><AppLayout><AccountSettings /></AppLayout></ProtectedRoute>} />
           <Route path="/health" element={<AdminRoute><AppLayout><HealthPage /></AppLayout></AdminRoute>} />
           {/* Default redirect */}

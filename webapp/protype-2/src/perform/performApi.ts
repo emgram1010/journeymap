@@ -23,10 +23,25 @@ export function getPlannerBaseUrl(): string {
   return trimTrailingSlash(configured || DEFAULT_PLANNER_BASE_URL);
 }
 
+// PLN-9 — the journey-map group, needed by the planner's "add a map to
+// this plan" picker. Same group `xano.ts` targets; declared here too so
+// a caller can pass it as `baseUrl` below without reaching into that
+// much larger module. Same bearer token works across groups, since both
+// check it against the same `user` table.
+const DEFAULT_JOURNEY_MAP_BASE_URL = 'https://xdjc-i7zz-jhm2.n7e.xano.io/api:ER4MRRWZ';
+
+export function getJourneyMapBaseUrl(): string {
+  const configured = import.meta.env.VITE_XANO_JOURNEY_MAP_BASE_URL?.trim();
+  return trimTrailingSlash(configured || DEFAULT_JOURNEY_MAP_BASE_URL);
+}
+
 export interface PerformRequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH';
+  // DELETE added by PLN-9: the planner can now remove an agent or a day.
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: Record<string, unknown>;
   signal?: AbortSignal;
+  /** Defaults to the planner group; pass getJourneyMapBaseUrl() for a journey-map call. */
+  baseUrl?: string;
 }
 
 /**
@@ -63,7 +78,7 @@ function extractServerMessage(responseText: string): string | null {
 }
 
 export async function performRequest<T>(path: string, options: PerformRequestOptions = {}): Promise<T> {
-  const {method = 'GET', body, signal} = options;
+  const {method = 'GET', body, signal, baseUrl} = options;
   const token = getAuthToken();
   const correlationId = newCorrelationId();
   const headers: Record<string, string> = {Accept: 'application/json', [CORRELATION_HEADER]: correlationId};
@@ -72,7 +87,7 @@ export async function performRequest<T>(path: string, options: PerformRequestOpt
 
   let response: Response;
   try {
-    response = await fetch(`${getPlannerBaseUrl()}${path}`, {
+    response = await fetch(`${baseUrl ?? getPlannerBaseUrl()}${path}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
