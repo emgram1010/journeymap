@@ -258,3 +258,34 @@ Follows GOV-1/VAL-1/OBS-1 exactly as every other epic. Nothing new in kind — o
 **Regression:** `npm run lint` and `npm run build` both clean. Test fixtures created this checkpoint (maps 200/203 now linked to workspace 12; the new "PLN9 Template Test Plan" workspace) were left in place, same reasoning as Checkpoint 2 — matches this project's existing pattern of leaving named QA fixtures rather than an ad-hoc delete.
 
 **Still open from Checkpoint 2, unchanged**: deleting an agent/task (needs founder approval to push the held functions), reopening a published timeline (no backend support at all).
+
+### Opus review pass, 2026-10-16
+
+Run on Opus per the model-guidance table's "review pass after a risky epic" rule, over everything PLN-9 built across all three checkpoints.
+
+**One real bug found, and it was the same class this epic had already been careful about everywhere else — just not here.** Checkpoint 2 established the principle plainly: *don't fake a write that doesn't persist; say so.* That was applied to agent delete, task delete and reopen-timeline — but **not** to the four workspace-level handlers, which were left local-only when the epic scoped narrowly around them. The sharpest edge was `handleUpdateWorkspaceSettings`: the Workspace Settings modal has a button literally labelled **"Save settings"**, and clicking it wrote to React state only. The planner would move their planning window, watch the header update to confirm it, and lose it on the next refresh — no error, no warning. That is precisely what "never fail silently" (OBS-1) exists to prevent, and it is worse than the delete cases because the user takes an explicit, affirmative Save action and is actively told it worked.
+
+It was not cosmetic either: the planning window drives out-of-window publish blocking (`getTimelineReadiness`) and the schedule grid's visible dates. A planner widening their window to cover a date, publishing that day, then reloading would find the window reverted and the day out-of-window again — with no way to understand why.
+
+Fixed, all four:
+| Handler | Was | Now |
+|---|---|---|
+| `handleUpdateWorkspaceSettings` | local-only behind a "Save settings" button | wired to `PATCH workspace/{id}` (526); returns `false` on rejection so the modal keeps the user's edits |
+| `handleRenameWorkspace` | local-only | wired to the same endpoint |
+| `handleDeleteWorkspace` | **faked a delete** — confirmed "Delete this workspace and all associated timelines?", removed it from the list, and it returned on refresh | control no longer rendered (`onDeleteWorkspace` made optional and not passed), exactly the `onDeleteAgent` precedent |
+| `handleUpdatePlanningWindow` | dead code (defined, never passed to anything) | removed |
+
+`526` was smoke-tested over real HTTP first — happy path persists, and both rejection paths return proper friendly messages ("The end date can't be before the start date. (E-PLN-002)", "You already have a plan with this name. (E-PLN-001)") which the toast surfaces.
+
+**Verified live, specifically against the failure mode itself** — changed the window and throughput through the real Save button, then hard-refreshed: `Oct 16 – Oct 25 · 10 days` and `input_tokens_per_minute: 4500` both survived (confirmed in the database directly, not just on screen). Renamed a plan through the dropdown, confirmed it reached the database, renamed it back. Confirmed the delete control is gone from the workspace dropdown (rename pencil still present, no trash icon).
+
+**Checked and found clean** (no changes needed):
+- `planner_workspace_map` endpoints (569/570) against the known landmines: `|get` with a variable key passes `:null` as its default (the safe pattern); the `conditional` inside `foreach` branches on the **loop item** (`$a.already`), not a var updated earlier in the same iteration; the `1`/`null` membership sentinel avoids the `0 == null` loose-equality trap. The `var.update` counter inside `db.transaction` → `foreach` → `conditional` was already proven live (`added_count` reported 1 and 0 correctly).
+- **Adapter crash risk ruled out**: `adaptTask` reads `raw.effective_assignee.name` unguarded. Traced the board endpoint (548) — it builds `tasks[]` entirely from `planner/derive_tasks`, including the backlog pass, and `derive_tasks` always emits `effective_assignee` as a present object (`name` may be null). Safe. Worth stating because the live tests in Checkpoints 2–3 never exercised a backlog task — the test plan had zero of them — so this path was unverified-by-testing and needed to be settled by reading.
+- Every `??` in the PLN-9 files checked against the "untouched enum/text column is `""`, which `??` sails past" rule — none sit on that trap; `adaptSettings` correctly uses `|| '$'`.
+- `AuthGate` — clean; no raw technical messages leak to the login screen.
+
+**Flagged, not fixed** (new, small, not in this epic's scope):
+- **No sign-out, and no recovery from an expired token mid-session.** `AuthGate` only validates on mount, so if a token expires while the app is open, every request 401s and the user gets error toasts forever with no path back to the login screen. Worth a small follow-up: treat a 401 from any call as "session over" and drop back to the gate.
+- The "Add Agent" modal's title reads **"Edit Agent — undefined"** when adding, because `handleOpenAddAgentModal` doesn't set `isNew: true`. Pre-existing (predates this epic, same in `planningFrontendv2`), purely cosmetic, one-line fix whenever someone is next in that file.
+- `handleSelectScenario` / `ComponentSheetModal` reference hardcoded demo ids (`agent-marcus` etc.) that cannot exist in real data — dead QA scaffolding from the localStorage era. Harmless, but it is now misleading dead code.

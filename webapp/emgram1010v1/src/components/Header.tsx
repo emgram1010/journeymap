@@ -21,7 +21,11 @@ interface HeaderProps {
   // bare name inline.
   onRequestCreateWorkspace: () => void;
   onRenameWorkspace: (id: string, newName: string) => void;
-  onDeleteWorkspace: (id: string) => void;
+  // PLN-9: optional, and currently NOT passed — deleting a plan has no
+  // live backend endpoint (held pending the founder's approval), so the
+  // control isn't rendered rather than faking a delete that comes back
+  // on refresh. Same precedent as EditModal's `onDeleteAgent`.
+  onDeleteWorkspace?: (id: string) => void;
   onOpenWorkspaceSettings: () => void;
 }
 
@@ -84,6 +88,7 @@ export function Header({
 
   const handleDeleteWs = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!onDeleteWorkspace) return;
     if (confirm('Delete this workspace and all associated timelines?')) {
       onDeleteWorkspace(id);
     }
@@ -175,7 +180,7 @@ export function Header({
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
-                          {workspaces.length > 1 && (
+                          {onDeleteWorkspace && workspaces.length > 1 && (
                             <button
                               onClick={(e) => handleDeleteWs(ws.id, e)}
                               className="p-1 text-neutral-400 hover:text-red-600 rounded"

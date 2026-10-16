@@ -1695,6 +1695,37 @@ Summarizing the state changes here:
   time all derive from one), matching PLAN-1's model instead of the
   old bare-name placeholder.
 
+## ✅ 2026-10-16: PLN-9 Opus review pass — a "Save" button that saved nothing
+
+- **The lesson worth keeping, beyond the bug itself:** when an epic
+  decides "don't fake a write that doesn't persist — say so plainly"
+  (PLN-9 checkpoint 2 did exactly this for agent delete, task delete
+  and reopen-timeline), that decision has to be applied to **every**
+  unwired write in the app, not just the ones in the slice being
+  worked on. PLN-9 scoped narrowly around the four workspace-level
+  handlers and left them local-only — so the app ended up honest about
+  deletes while still quietly lying about a button labelled **"Save
+  settings"**. An affirmative Save that silently discards on refresh is
+  worse than a missing feature, because the user is actively told it
+  worked. Caught only by a dedicated review pass, not by any test:
+  `tsc` was clean, the build was clean, and the UI visibly "worked."
+- Not cosmetic: the planning window drives out-of-window publish
+  blocking and the schedule grid's dates, so the revert-on-refresh
+  would have un-done a planner's fix and re-blocked a publish with no
+  explanation.
+- Fixed by wiring settings + rename to `PATCH workspace/{id}` (526,
+  which already existed and needed no change), removing the faked
+  delete control, and deleting one dead handler. Verified against the
+  failure mode specifically: changed values through the real Save
+  button, hard-refreshed, confirmed in the database.
+- **Verification note worth repeating:** the review also found that
+  `adaptTask` dereferences `effective_assignee.name` unguarded, on a
+  path that *no live test had ever exercised* (every test plan had
+  zero backlog tasks). It turned out safe — `derive_tasks` always
+  emits the object — but only reading the backend settled it. When a
+  test fixture never produces a given shape, "it worked live" is not
+  evidence about that shape.
+
 ---
 
 ## How to use this file

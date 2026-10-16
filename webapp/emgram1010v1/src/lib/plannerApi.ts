@@ -26,6 +26,21 @@ export interface WorkspaceListEntry {
 
 export const listWorkspaces = () => performRequest<{workspaces: WorkspaceListEntry[]}>('/workspace');
 
+/**
+ * PLN-3 — rename a plan, move its planning window, or change its token
+ * throughput. Wired during PLN-9's Opus review pass: the Workspace
+ * Settings modal had a literal "Save settings" button that only ever
+ * wrote to React state, so a planner could move their planning window,
+ * watch the header update, and lose it on the next refresh — with no
+ * error, which is exactly what CLAUDE.md's "never fail silently" rule
+ * exists to prevent. The window is not cosmetic either: it drives
+ * out-of-window publish blocking and the schedule grid's visible dates.
+ */
+export const updateWorkspace = (
+  workspaceId: number,
+  body: Partial<{name: string; planning_window_start: string; planning_window_end: string; input_tokens_per_minute: number; output_tokens_per_minute: number}>,
+) => performRequest<{workspace: RawWorkspace}>(`/workspace/${workspaceId}`, {method: 'PATCH', body});
+
 // ── Agents ───────────────────────────────────────────────────────────────
 
 export interface RawAgent {

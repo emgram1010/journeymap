@@ -8,6 +8,7 @@ import {
   createTimeline, updateTimeline, publishTimeline as publishTimelineApi, reorderTimeline,
   createTask, updateTask, placeTask,
   listTemplates, createWorkspaceFromTemplate, TemplateListEntry,
+  updateWorkspace,
 } from './lib/plannerApi';
 import { adaptWorkspace, adaptBoard } from './lib/plannerAdapter';
 import { ProductNav } from './components/ProductNav';
@@ -192,8 +193,23 @@ export default function App() {
   }), [activeWorkspace]);
 
   // Handler: Update workspace-scoped settings (planning window + throughput)
-  const handleUpdateWorkspaceSettings = (workspaceId: string, updates: Partial<Workspace>) => {
-    setWorkspaces(prev => prev.map(ws => ws.id === workspaceId ? { ...ws, ...updates } : ws));
+  // Returns false on a rejected save so the modal stays open with the
+  // user's edits intact, same contract as EditModal's handlers.
+  const handleUpdateWorkspaceSettings = async (workspaceId: string, updates: Partial<Workspace>): Promise<boolean> => {
+    try {
+      await updateWorkspace(Number(workspaceId), {
+        planning_window_start: updates.planningWindowStart,
+        planning_window_end: updates.planningWindowEnd,
+        input_tokens_per_minute: updates.inputTokensPerMinute,
+        output_tokens_per_minute: updates.outputTokensPerMinute,
+      });
+      const { workspaces: entries } = await listWorkspaces();
+      setWorkspaces(entries.map(adaptWorkspace));
+      return true;
+    } catch (err) {
+      reportActionError(err);
+      return false;
+    }
   };
 
   // Handler: Select Workspace
@@ -245,39 +261,26 @@ export default function App() {
 
   // Handler: Rename Workspace
   const handleRenameWorkspace = (id: string, newName: string) => {
-    setWorkspaces(prev => prev.map(ws => ws.id === id ? { ...ws, name: newName } : ws));
+    updateWorkspace(Number(id), { name: newName })
+      .then(() => listWorkspaces())
+      .then(({ workspaces: entries }) => setWorkspaces(entries.map(adaptWorkspace)))
+      .catch(reportActionError);
   };
 
-  // Handler: Delete Workspace
-  const handleDeleteWorkspace = (id: string) => {
-    const remaining = workspaces.filter(ws => ws.id !== id);
-    setWorkspaces(remaining);
-    setAgents(prev => prev.filter(a => a.workspaceId !== id));
-    setTimelines(prev => prev.filter(t => t.workspaceId !== id));
-    setTasks(prev => prev.filter(t => t.workspaceId !== id));
-
-    if (remaining.length > 0) {
-      handleSelectWorkspace(remaining[0].id);
-    } else {
-      setActiveWorkspaceId('');
-      setActiveTimelineId(null);
-    }
-  };
-
-  // Update Planning Window
-  const handleUpdatePlanningWindow = (start: string, end: string) => {
-    if (!activeWorkspaceId) return;
-    setWorkspaces(prev => prev.map(ws => {
-      if (ws.id === activeWorkspaceId) {
-        return {
-          ...ws,
-          planningWindowStart: start,
-          planningWindowEnd: end,
-        };
-      }
-      return ws;
-    }));
-  };
+  // PLN-9: deleting a PLAN is held for the same reason as deleting an
+  // agent or a task — `functions/planner/delete_workspace_cascade.xs`
+  // exists but is not pushed (CLAUDE.md: ask before any delete). The
+  // old local-only version was the worst of the three: it asked "Delete
+  // this workspace and all associated timelines?", removed the plan
+  // from the list, and the plan was back on the next refresh. The
+  // delete control is simply not rendered now (Header's
+  // `onDeleteWorkspace` is optional), same precedent as EditModal's
+  // `onDeleteAgent`.
+  //
+  // `handleUpdatePlanningWindow` used to live here too — dead code
+  // (defined, never passed to anything) left over from an older header
+  // popover that the Workspace Settings modal replaced. Removed rather
+  // than wired, since the modal's own save path now covers it.
 
   // Agent Roster handlers (US-PLN-9-03)
   const handleToggleAgentVisibility = (agentId: string) => {
@@ -967,7 +970,6 @@ export default function App() {
           onSelectWorkspace={handleSelectWorkspace}
           onRequestCreateWorkspace={handleOpenCreateWorkspaceModal}
           onRenameWorkspace={handleRenameWorkspace}
-          onDeleteWorkspace={handleDeleteWorkspace}
           onOpenWorkspaceSettings={() => setIsWorkspaceSettingsOpen(true)}
         />
 

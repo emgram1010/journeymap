@@ -8,7 +8,10 @@ interface WorkspaceSettingsModalProps {
   isOpen: boolean;
   workspace: Workspace | null;
   onClose: () => void;
-  onSave: (workspaceId: string, updates: Partial<Workspace>) => void;
+  // PLN-9: this now writes to the real backend, which can reject (a
+  // bad window, an archived plan). `false` keeps the modal open with
+  // the user's edits intact — same contract as EditModal's handlers.
+  onSave: (workspaceId: string, updates: Partial<Workspace>) => boolean | void | Promise<boolean | void>;
   onOpenGlobalSettings: () => void;
 }
 
@@ -24,6 +27,12 @@ export function WorkspaceSettingsModal({
   const [inputTpm, setInputTpm] = useState(0);
   const [outputTpm, setOutputTpm] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // Declared here with the other hooks, NOT next to handleSave below —
+  // that sits after this component's `if (!isOpen || !workspace) return
+  // null` early return, and a hook declared past an early return
+  // changes the hook count between renders (hit exactly this in
+  // EditModal; see CLAUDE.md / the epic's Checkpoint 2 notes).
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   // PLN-9 (US-PLN-9-06) — maps this plan has accepted, and the picker
   // for adding another. Self-contained here rather than threaded
@@ -81,7 +90,7 @@ export function WorkspaceSettingsModal({
 
   const windowDays = getDaysDifference(windowStart, windowEnd);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!windowStart || !windowEnd) {
       setError('Both window dates are required.');
       return;
@@ -90,13 +99,15 @@ export function WorkspaceSettingsModal({
       setError('Window end must be on or after the window start.');
       return;
     }
-    onSave(workspace.id, {
+    setIsSavingSettings(true);
+    const result = await onSave(workspace.id, {
       planningWindowStart: windowStart,
       planningWindowEnd: windowEnd,
       inputTokensPerMinute: inputTpm,
       outputTokensPerMinute: outputTpm,
     });
-    onClose();
+    setIsSavingSettings(false);
+    if (result !== false) onClose();
   };
 
   return (
@@ -288,9 +299,10 @@ export function WorkspaceSettingsModal({
             id="save-workspace-settings-btn"
             type="button"
             onClick={handleSave}
-            className="px-4 py-1.5 bg-neutral-900 text-white rounded-md text-xs font-semibold hover:bg-neutral-800 transition-colors shadow-xs"
+            disabled={isSavingSettings}
+            className="px-4 py-1.5 bg-neutral-900 text-white rounded-md text-xs font-semibold hover:bg-neutral-800 transition-colors shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Save settings
+            {isSavingSettings ? 'Saving…' : 'Save settings'}
           </button>
         </div>
       </div>
