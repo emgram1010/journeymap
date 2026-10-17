@@ -2,7 +2,7 @@
 
 **Epic ID:** PLAN-2
 **Feature:** A durable, per-person "agent profile" that exists independent of any one plan.
-**Status:** Planning
+**Status:** Done (to-do / in-progress / done)
 **Depends on:** phase-3 PLN-1 (`planner_agent`), phase-4 P3A-1
 **Model:** Sonnet (ordinary CRUD + a side table; nothing touches the status engine or a publish gate)
 **Goal:** One place that answers "is this person eligible to be an agent, and what are their defaults" — referenced by every plan they're ever on, instead of re-entered inside each one.
@@ -109,4 +109,46 @@ This is the foundation PLAN-3 builds on (a plan template's agent roster points a
 
 ## Test Results
 
-*(empty — to be filled when built)*
+**2026-10-17 — Sonnet 5 build pass. All stories built and verified over real authenticated HTTP, plus a real click-through in the browser.**
+
+| Thing | Live id | File |
+|---|---|---|
+| `agent_profile` | table 129 | `static/tables/129_agent_profile.xs` |
+| `planner/assert_agent_profile` | fn 163 | `functions/planner/assert_agent_profile.xs` |
+| `planner/assert_agent_profiles_eligible` | fn 164 | `functions/planner/assert_agent_profiles_eligible.xs` |
+| `POST planner/agent-profile` | 573 | `apis/planner/573_agent_profile_POST.xs` |
+| `GET planner/agent-profile` | 574 | `apis/planner/574_agent_profile_GET.xs` |
+| `PATCH planner/agent-profile/{id}` | 575 | `apis/planner/575_agent_profile_profile_id_PATCH.xs` |
+| `isValidColorHex`/`isValidCapacityHours`/`isValidProfileName` | — | `webapp/protype-2/src/agentProfile.ts` |
+| Agents modal | — | `webapp/protype-2/src/planner/components/AgentProfilesModal.tsx`, wired into `Header.tsx`/`PlannerApp.tsx` |
+
+Decisions D-1 and D-2 both taken as recommended: AI profiles carry their own `account_id`; profile management is not role-gated beyond ordinary auth for MVP.
+
+### Unit tests
+`npm test`: 347/347 (7 new — UT-PLAN-2-01/02 plus the profile-name helper).
+
+### Functional (real HTTP, account 2 / javierc9@gmail.com)
+| Case | Result |
+|---|---|
+| AI profile, no name | ✅ `E-PLAN-007` |
+| AI profile, valid name + color | ✅ created, `kind: "ai"`, `user_id: 0` |
+| Person profile for an existing user | ✅ created, `kind: "person"`, `account_id: 0` (tenancy via `user.account_id` instead) |
+| Same user profiled twice | ✅ `E-PLAN-006` |
+| Invalid color (`"blue"`) | ✅ `E-PLAN-009` |
+| Zero capacity | ✅ `E-PLAN-008` |
+| `GET` list | ✅ both profiles returned, person's `display_name` correctly resolved from `user.name` ("Jav"), AI's own name used directly |
+| `PATCH is_eligible: false` → `GET` | ✅ dropped from default list; `?include_ineligible=true` brings it back |
+| `assert_agent_profiles_eligible` — empty list / mixed accounts / ineligible | ✅ `ok:true` (empty); `not_found` (cross-account, profile 1 of 2 checked before failing fast); `not_eligible` (toggled off) |
+
+### UI
+Real click-through in a running `npm run dev` session: opened the new "Agents" button in the Planner header, saw the two profiles created during the HTTP tests (with the person's real name resolved), typed a new AI agent name ("Weekend Dispatcher") and added it — appeared instantly in the list via a full reload of the account's profiles.
+
+### Deviations
+- No admin-only restriction on these endpoints (matches PLAN-1's own precedent: "a template is ordinary planning work," same logic applies to tagging an agent).
+- `GET account/my_team_members` (an existing endpoint, a different API group — "Members & Accounts", canonical `Fcgmwc6Y`) is reused as the candidate list for tagging, rather than building a new one — added `getAccountsBaseUrl()` to `performApi.ts` following the exact pattern `getJourneyMapBaseUrl` already established.
+
+## Notes
+
+- The "copy forward vs. template-as-truth" debate that motivated this epic resolved in favor of template-as-truth (see PLAN-3) — this epic itself doesn't take a position on that; it only had to provide a durable identity for either design to reference.
+- Confirmed live, consistent with `planner_agent`'s own documented reasoning: a DB unique index on `user_id` would have rejected every second AI profile (they all default to `0`), so uniqueness is enforced the same way `plan_template`'s name uniqueness is — a count check in the endpoint, not a schema constraint.
+- `GET agent-profile`'s tenancy merge (person via `user.account_id`, AI via its own `account_id` column, combined with an `in` + `||` `where` clause) worked first try — no live surprises, unlike several earlier epics' XanoScript gotchas.

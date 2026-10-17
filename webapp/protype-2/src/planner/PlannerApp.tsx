@@ -13,6 +13,7 @@ import {
 import { adaptWorkspace, adaptBoard } from './plannerAdapter';
 import { SettingsModal } from './components/SettingsModal';
 import { WorkspaceSettingsModal } from './components/WorkspaceSettingsModal';
+import { AgentProfilesModal } from './components/AgentProfilesModal';
 import { CreateWorkspaceModal } from './components/CreateWorkspaceModal';
 import { Header } from './components/Header';
 import { ScheduleGrid } from './components/ScheduleGrid';
@@ -53,6 +54,7 @@ export default function PlannerApp() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isWorkspaceSettingsOpen, setIsWorkspaceSettingsOpen] = useState(false);
+  const [isAgentProfilesOpen, setIsAgentProfilesOpen] = useState(false);
 
   // Drag tracking state across components
   const [isDraggingTaskFromTimeline, setIsDraggingTaskFromTimeline] = useState(false);
@@ -1002,6 +1004,7 @@ export default function PlannerApp() {
           onRequestCreateWorkspace={handleOpenCreateWorkspaceModal}
           onRenameWorkspace={handleRenameWorkspace}
           onOpenWorkspaceSettings={() => setIsWorkspaceSettingsOpen(true)}
+          onOpenAgentProfiles={() => setIsAgentProfilesOpen(true)}
         />
 
         {/* Workspace Body: Board/Grid + Backlog */}
@@ -1136,6 +1139,9 @@ export default function PlannerApp() {
         onSave={handleUpdateWorkspaceSettings}
         onOpenGlobalSettings={() => setIsSettingsOpen(true)}
       />
+
+      {/* Agents (PLAN-2, US-PLAN-2-03): account-wide, not workspace-scoped */}
+      <AgentProfilesModal isOpen={isAgentProfilesOpen} onClose={() => setIsAgentProfilesOpen(false)} />
 
       {/* New plan from a template (US-PLN-9-07) */}
       <CreateWorkspaceModal

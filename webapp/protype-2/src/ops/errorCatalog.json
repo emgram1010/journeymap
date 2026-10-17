@@ -489,6 +489,66 @@
     "severity": "info",
     "fix_hint": "Archive the plan. It leaves the plan list and stops accepting changes, but everything recorded against it stays intact."
   },
+  "E-PLAN-006": {
+    "code": "E-PLAN-006",
+    "feature": "PLAN-2",
+    "user_message": "This person is already set up as an agent.",
+    "what_happened": "A user was tagged as an agent a second time.",
+    "likely_cause": "They already have a profile; the create form was submitted again for the same person.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Find their existing profile and edit it instead of creating a new one — one profile per real login."
+  },
+  "E-PLAN-007": {
+    "code": "E-PLAN-007",
+    "feature": "PLAN-2",
+    "user_message": "Give this AI agent a name.",
+    "what_happened": "An AI agent profile (no login) was saved with no name.",
+    "likely_cause": "The name field was left blank — a person profile gets its name from their login, but an AI profile has no login to borrow one from.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Name the AI agent directly, same as naming one inside a plan today."
+  },
+  "E-PLAN-008": {
+    "code": "E-PLAN-008",
+    "feature": "PLAN-2",
+    "user_message": "Daily capacity must be a positive number of hours.",
+    "what_happened": "An agent profile's default daily capacity was zero or negative.",
+    "likely_cause": "The field was left at zero or a negative number was typed.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Enter the usual number of hours this person or AI agent is expected to work in a day — it's only a default, and can still be changed per plan."
+  },
+  "E-PLAN-009": {
+    "code": "E-PLAN-009",
+    "feature": "PLAN-2",
+    "user_message": "Enter a color like #4f46e5.",
+    "what_happened": "An agent profile's color wasn't a 6-digit hex value.",
+    "likely_cause": "A color name or a shorthand 3-digit hex was typed instead of the full 6-digit form.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Use the full #RRGGBB form, e.g. #4f46e5."
+  },
+  "E-PLAN-010": {
+    "code": "E-PLAN-010",
+    "feature": "PLAN-3",
+    "user_message": "This person isn't tagged as an agent right now.",
+    "what_happened": "A template tried to add an agent profile that's currently marked ineligible.",
+    "likely_cause": "The profile was toggled off (PLAN-2) after it was last used, or was never fully set up.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Re-enable the agent's profile first, or pick someone else."
+  },
+  "E-PLAN-011": {
+    "code": "E-PLAN-011",
+    "feature": "PLAN-2",
+    "user_message": "That user isn't on this account.",
+    "what_happened": "An agent profile was requested for a user outside the caller's account.",
+    "likely_cause": "A stale or mistaken user id.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Only teammates on this account can be tagged as agents."
+  },
   "E-JOB-001": {
     "code": "E-JOB-001",
     "feature": "JOB-1",

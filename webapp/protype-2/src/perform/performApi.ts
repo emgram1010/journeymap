@@ -35,6 +35,16 @@ export function getJourneyMapBaseUrl(): string {
   return trimTrailingSlash(configured || DEFAULT_JOURNEY_MAP_BASE_URL);
 }
 
+// PLAN-2 — the "Members & Accounts" group, needed to list an account's
+// users as candidates for tagging as an agent. Same bearer token works
+// across groups, same reasoning as the journey-map base URL above.
+const DEFAULT_ACCOUNTS_BASE_URL = 'https://xdjc-i7zz-jhm2.n7e.xano.io/api:Fcgmwc6Y';
+
+export function getAccountsBaseUrl(): string {
+  const configured = import.meta.env.VITE_XANO_ACCOUNTS_BASE_URL?.trim();
+  return trimTrailingSlash(configured || DEFAULT_ACCOUNTS_BASE_URL);
+}
+
 export interface PerformRequestOptions {
   // DELETE added by PLN-9: the planner can now remove an agent or a day.
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';

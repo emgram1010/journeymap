@@ -3,7 +3,7 @@
 // workspace, not assumed from a spec). `plannerAdapter.ts` maps these
 // into the existing frontend types (`src/types.ts`), which this epic
 // deliberately keeps unchanged where possible.
-import {performRequest, getJourneyMapBaseUrl} from '../perform/performApi';
+import {performRequest, getJourneyMapBaseUrl, getAccountsBaseUrl} from '../perform/performApi';
 
 // ── Workspaces (plans) ──────────────────────────────────────────────────
 
@@ -309,3 +309,50 @@ export const createWorkspaceFromTemplate = (templateId: number, body: {name: str
     `/template/${templateId}/instance`,
     {method: 'POST', body},
   );
+
+// ── Agent profiles (PLAN-2, US-PLAN-2-02) ──────────────────────────────────
+//
+// A durable, per-person identity independent of any one plan — see the
+// epic's own header for why `planner_agent` alone couldn't do this.
+// Account-scoped, not workspace-scoped: these calls don't take a
+// workspace id at all.
+
+export interface RawAgentProfile {
+  id: number;
+  user_id: number;
+  account_id: number;
+  kind: 'person' | 'ai';
+  name: string;
+  color: string;
+  default_daily_capacity_hours: number;
+  is_eligible: boolean;
+}
+
+export interface AgentProfileListEntry {
+  profile: RawAgentProfile;
+  display_name: string;
+}
+
+export const listAgentProfiles = (includeIneligible = false) =>
+  performRequest<{profiles: AgentProfileListEntry[]}>(`/agent-profile${includeIneligible ? '?include_ineligible=true' : ''}`);
+
+export const createAgentProfile = (body: {user_id?: number; name?: string; color?: string; default_daily_capacity_hours?: number}) =>
+  performRequest<{profile: RawAgentProfile}>('/agent-profile', {method: 'POST', body});
+
+export const updateAgentProfile = (
+  profileId: number,
+  body: Partial<{name: string; color: string; default_daily_capacity_hours: number; is_eligible: boolean}>,
+) => performRequest<{profile: RawAgentProfile}>(`/agent-profile/${profileId}`, {method: 'PATCH', body});
+
+// ── Team members (Members & Accounts group) — candidates for tagging ───────
+
+export interface TeamMember {
+  id: number;
+  created_at: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  account_id: number;
+}
+
+export const listTeamMembers = () => performRequest<TeamMember[]>('/account/my_team_members', {baseUrl: getAccountsBaseUrl()});

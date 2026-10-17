@@ -2,7 +2,7 @@
 
 **Epic ID:** PLAN-3
 **Feature:** A plan template remembers which agents belong to it; creating an instance copies them in automatically.
-**Status:** Planning
+**Status:** In-progress (to-do / in-progress / done) — PLAN-2 done
 **Depends on:** PLAN-1 ✅ (template/instance, backend only), PLAN-2 (agent profile)
 **Model:** Sonnet (extends an already-proven copy pattern; no new mechanism)
 **Goal:** The founder builds a template once — maps **and** agents — and every future instance starts staffed, without re-adding the same people each time. Manual trigger only; no auto-recurrence (that's later).
@@ -120,3 +120,7 @@ This epic also finishes PLAN-1's own unbuilt UI story (`US-PLAN-1-05`) — build
 ## Test Results
 
 *(empty — to be filled when built)*
+
+## Notes
+
+*(running build log — what was decided, built, found, and why; kept so a summary can be produced later without re-deriving it from code/git history)*

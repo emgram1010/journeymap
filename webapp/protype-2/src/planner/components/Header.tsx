@@ -7,7 +7,8 @@ import {
   Edit2,
   Trash2,
   CalendarRange,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Users
 } from 'lucide-react';
 import { Workspace } from '../types';
 import { formatShortDate, getDaysDifference } from '../utils/dateUtils';
@@ -28,6 +29,9 @@ interface HeaderProps {
   // on refresh. Same precedent as EditModal's `onDeleteAgent`.
   onDeleteWorkspace?: (id: string) => void;
   onOpenWorkspaceSettings: () => void;
+  // PLAN-2 (US-PLAN-2-03) — account-scoped, not workspace-scoped: tags
+  // a teammate as an agent so they're selectable on a template's roster.
+  onOpenAgentProfiles: () => void;
 }
 
 export function Header({
@@ -38,6 +42,7 @@ export function Header({
   onRenameWorkspace,
   onDeleteWorkspace,
   onOpenWorkspaceSettings,
+  onOpenAgentProfiles,
 }: HeaderProps) {
   // Workspace dropdown state
   const [isWsDropdownOpen, setIsWsDropdownOpen] = useState(false);
@@ -229,6 +234,16 @@ export function Header({
           <span className="truncate">
             {formatShortDate(windowStart)} – {formatShortDate(windowEnd)} · {windowDays} days
           </span>
+        </button>
+
+        <button
+          id="agent-profiles-btn"
+          onClick={onOpenAgentProfiles}
+          className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium text-neutral-700 bg-white hover:bg-neutral-100 hover:text-neutral-900 border border-neutral-300 hover:border-neutral-400 transition-colors shadow-2xs shrink-0"
+          title="Agents — tag teammates or add an AI agent, account-wide"
+        >
+          <Users className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+          <span className="truncate">Agents</span>
         </button>
 
         <button
