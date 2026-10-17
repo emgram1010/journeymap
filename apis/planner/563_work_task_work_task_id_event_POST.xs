@@ -263,6 +263,35 @@ query "work_task/{work_task_id}/event" verb=POST {
       }
     }
 
+    // APP-2 (US-APP-2-02, -06): a note event was always accepted with
+    // whatever text came in, including none at all. "The UI helps, the
+    // server always re-checks" (CLAUDE.md) — the Step screen's own box
+    // refuses an empty save, but this endpoint is the one that actually
+    // enforces it.
+    conditional {
+      if ($reject_code == "" && $input.event_type == "note" && ($input.note == null || $input.note == "")) {
+        var.update $reject_code {
+          value = "E-LOG-006"
+        }
+
+        var.update $reject_msg {
+          value = "Write something before saving. (E-LOG-006)"
+        }
+      }
+    }
+
+    conditional {
+      if ($reject_code == "" && $input.event_type == "note" && ($input.note|strlen) > 1000) {
+        var.update $reject_code {
+          value = "E-LOG-007"
+        }
+
+        var.update $reject_msg {
+          value = "Notes can be up to 1,000 characters. (E-LOG-007)"
+        }
+      }
+    }
+
     conditional {
       if ($reject_code == "" && $to == "") {
         var.update $reject_code {

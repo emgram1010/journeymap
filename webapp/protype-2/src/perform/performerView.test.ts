@@ -45,6 +45,12 @@ function statusEntry(workTaskId: number, status: TaskStatus, overrides: Partial<
     task: 'Do the thing',
     done_when: 'The thing is done',
     expected_minutes: 30,
+    // APP-2 (US-APP-2-01, -02): required on the real wire shape now
+    // (hydrate_statuses always sends both), so every fixture needs
+    // them too — these APP-1 tests predate APP-2 and don't exercise
+    // session/notes themselves, hence the bare defaults.
+    session: null,
+    notes: [],
     ...overrides,
   };
 }

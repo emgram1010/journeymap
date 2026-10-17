@@ -12,6 +12,7 @@ import {
   newClientEventId,
   optimisticReducer,
   mapActionError,
+  FALLBACK_STATUS,
   type PerformerSnapshot,
   type StatusMap,
   type TaskStatus,
@@ -162,7 +163,7 @@ export default function PerformToday() {
             type: 'confirm',
             workTaskId,
             entry: {
-              ...(s[workTaskId] ?? prior ?? {work_task_id: workTaskId, stage_key: '', lens_key: '', status: result.to, started_at: null, completed_at: null, stage_label: null, lens_label: null, task: null, done_when: null, expected_minutes: null}),
+              ...(s[workTaskId] ?? prior ?? {work_task_id: workTaskId, ...FALLBACK_STATUS}),
               status: result.to,
               started_at: result.work_task.started_at,
               completed_at: result.work_task.completed_at,

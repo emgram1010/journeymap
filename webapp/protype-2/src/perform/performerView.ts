@@ -61,6 +61,29 @@ export interface PerformerSnapshot {
   items: SnapshotItem[];
 }
 
+/**
+ * APP-2 (US-APP-2-01) — which job, which flow and which plan a step
+ * belongs to. Added because the screen had no way to tell two jobs on
+ * the same flow apart (review, 2026-10-17) — every field here is
+ * sourced from the pinned version/job, same rule as `task`/`done_when`
+ * above, never the live map or the live plan.
+ */
+export interface RawSessionInfo {
+  work_item_id: number;
+  title: string | null;
+  flow_title: string | null;
+  version_no: number | null;
+  plan_id: number | null;
+  plan_name: string | null;
+}
+
+/** APP-2 (US-APP-2-02) — one note, server-stamped, newest first as the API already orders them. */
+export interface RawNote {
+  note: string;
+  occurred_at: number;
+  author: string | null;
+}
+
 /** Live state for one work_task, plus the text hydrated from its pinned version — same hydration endpoint 555 already does for JOB-1. */
 export interface WorkTaskStatusEntry {
   work_task_id: number;
@@ -74,10 +97,28 @@ export interface WorkTaskStatusEntry {
   task: string | null;
   done_when: string | null;
   expected_minutes: number | null;
+  session: RawSessionInfo | null;
+  notes: RawNote[];
 }
 
 /** Keyed by `work_task_id`. */
 export type StatusMap = Record<number, WorkTaskStatusEntry>;
+
+/** camelCase twin of RawSessionInfo — same split as the rest of this file: snake_case off the wire, camelCase once parsed. */
+export interface SessionInfo {
+  workItemId: number;
+  title: string | null;
+  flowTitle: string | null;
+  versionNo: number | null;
+  planId: number | null;
+  planName: string | null;
+}
+
+export interface PerformerNote {
+  note: string;
+  occurredAt: number;
+  author: string | null;
+}
 
 export interface PerformerSubStep {
   workTaskId: number;
@@ -91,6 +132,8 @@ export interface PerformerSubStep {
   task: string | null;
   doneWhen: string | null;
   expectedMinutes: number | null;
+  session: SessionInfo | null;
+  notes: PerformerNote[];
 }
 
 export interface PerformerItem {
@@ -110,7 +153,7 @@ export interface PerformerItem {
 }
 
 /** A status entry used when a work_task_id has no live row in the map yet (should not normally happen — work_task rows are never deleted — but a merge must degrade, not crash, on a sparse or stale join). */
-const FALLBACK_STATUS: Omit<WorkTaskStatusEntry, 'work_task_id'> = {
+export const FALLBACK_STATUS: Omit<WorkTaskStatusEntry, 'work_task_id'> = {
   stage_key: '',
   lens_key: '',
   status: 'not_started',
@@ -121,6 +164,8 @@ const FALLBACK_STATUS: Omit<WorkTaskStatusEntry, 'work_task_id'> = {
   task: null,
   done_when: null,
   expected_minutes: null,
+  session: null,
+  notes: [],
 };
 
 function parseHHMM(value: string): number {
@@ -145,7 +190,7 @@ function formatHHMM(totalMinutes: number): string {
  * in_progress, else not_started. A single-task item is just the
  * degenerate case of a one-element block.
  */
-function deriveBlockStatus(subStatuses: TaskStatus[]): TaskStatus {
+export function deriveBlockStatus(subStatuses: TaskStatus[]): TaskStatus {
   if (subStatuses.length === 0) return 'not_started';
   if (subStatuses.some((s) => s === 'blocked')) return 'blocked';
   if (subStatuses.every((s) => s === 'done' || s === 'skipped')) return 'done';
@@ -199,6 +244,17 @@ export function toPerformerItems(snapshot: PerformerSnapshot, statuses: StatusMa
         task: entry.task,
         doneWhen: entry.done_when,
         expectedMinutes: entry.expected_minutes,
+        session: entry.session
+          ? {
+              workItemId: entry.session.work_item_id,
+              title: entry.session.title,
+              flowTitle: entry.session.flow_title,
+              versionNo: entry.session.version_no,
+              planId: entry.session.plan_id,
+              planName: entry.session.plan_name,
+            }
+          : null,
+        notes: entry.notes.map((n) => ({note: n.note, occurredAt: n.occurred_at, author: n.author})),
       };
     });
 

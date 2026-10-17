@@ -689,6 +689,26 @@
     "severity": "info",
     "fix_hint": "The reasons are a fixed list so they can be counted and compared across jobs. Free text belongs in the note instead."
   },
+  "E-LOG-006": {
+    "code": "E-LOG-006",
+    "feature": "LOG-1",
+    "user_message": "Write something before saving.",
+    "what_happened": "A note was saved with no text.",
+    "likely_cause": "The note box was submitted empty.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "An empty note was always accepted before APP-2 (US-APP-2-02) added this check — the Step screen's own box also refuses an empty save, but this is the one that actually enforces it."
+  },
+  "E-LOG-007": {
+    "code": "E-LOG-007",
+    "feature": "LOG-1",
+    "user_message": "Notes can be up to 1,000 characters.",
+    "what_happened": "A note was longer than the allowed length.",
+    "likely_cause": "Pasted text, or several notes combined into one.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Shorten the note and save again. The typed text is kept on screen, per CLAUDE.md's rule to never discard a rejected save's input."
+  },
   "E-P3A-001": {
     "code": "E-P3A-001",
     "feature": "P3A-1",
