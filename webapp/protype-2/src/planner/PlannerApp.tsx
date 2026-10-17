@@ -14,6 +14,7 @@ import { adaptWorkspace, adaptBoard } from './plannerAdapter';
 import { SettingsModal } from './components/SettingsModal';
 import { WorkspaceSettingsModal } from './components/WorkspaceSettingsModal';
 import { AgentProfilesModal } from './components/AgentProfilesModal';
+import { TemplatesModal } from './components/TemplatesModal';
 import { CreateWorkspaceModal } from './components/CreateWorkspaceModal';
 import { Header } from './components/Header';
 import { ScheduleGrid } from './components/ScheduleGrid';
@@ -55,6 +56,7 @@ export default function PlannerApp() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isWorkspaceSettingsOpen, setIsWorkspaceSettingsOpen] = useState(false);
   const [isAgentProfilesOpen, setIsAgentProfilesOpen] = useState(false);
+  const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
 
   // Drag tracking state across components
   const [isDraggingTaskFromTimeline, setIsDraggingTaskFromTimeline] = useState(false);
@@ -246,17 +248,21 @@ export default function PlannerApp() {
       .finally(() => setIsLoadingTemplates(false));
   };
 
-  const handleCreateWorkspaceFromTemplate = async (templateId: number, name: string, startDate: string): Promise<boolean> => {
+  const handleCreateWorkspaceFromTemplate = async (
+    templateId: number,
+    name: string,
+    startDate: string,
+  ): Promise<{ok: true; skippedAgents: Array<{profile_id: number; name: string | null}>} | {ok: false}> => {
     try {
-      const { workspace } = await createWorkspaceFromTemplate(templateId, { name, start_date: startDate });
+      const { workspace, skipped_agents } = await createWorkspaceFromTemplate(templateId, { name, start_date: startDate });
       const { workspaces: entries } = await listWorkspaces();
       setWorkspaces(entries.map(adaptWorkspace));
       setActiveTimelineId(null);
       setActiveWorkspaceId(String(workspace.id));
-      return true;
+      return {ok: true, skippedAgents: skipped_agents};
     } catch (err) {
       reportActionError(err);
-      return false;
+      return {ok: false};
     }
   };
 
@@ -1005,6 +1011,7 @@ export default function PlannerApp() {
           onRenameWorkspace={handleRenameWorkspace}
           onOpenWorkspaceSettings={() => setIsWorkspaceSettingsOpen(true)}
           onOpenAgentProfiles={() => setIsAgentProfilesOpen(true)}
+          onOpenTemplates={() => setIsTemplatesOpen(true)}
         />
 
         {/* Workspace Body: Board/Grid + Backlog */}
@@ -1142,6 +1149,17 @@ export default function PlannerApp() {
 
       {/* Agents (PLAN-2, US-PLAN-2-03): account-wide, not workspace-scoped */}
       <AgentProfilesModal isOpen={isAgentProfilesOpen} onClose={() => setIsAgentProfilesOpen(false)} />
+
+      {/* Templates (PLAN-3, US-PLAN-3-04): build/edit a template's maps + agent roster */}
+      <TemplatesModal
+        isOpen={isTemplatesOpen}
+        onClose={() => setIsTemplatesOpen(false)}
+        onTemplatesChanged={() => {
+          listTemplates()
+            .then(({ templates: t }) => setTemplates(t))
+            .catch(() => {});
+        }}
+      />
 
       {/* New plan from a template (US-PLN-9-07) */}
       <CreateWorkspaceModal

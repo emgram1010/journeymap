@@ -8,7 +8,8 @@ import {
   Trash2,
   CalendarRange,
   SlidersHorizontal,
-  Users
+  Users,
+  FileStack
 } from 'lucide-react';
 import { Workspace } from '../types';
 import { formatShortDate, getDaysDifference } from '../utils/dateUtils';
@@ -32,6 +33,9 @@ interface HeaderProps {
   // PLAN-2 (US-PLAN-2-03) — account-scoped, not workspace-scoped: tags
   // a teammate as an agent so they're selectable on a template's roster.
   onOpenAgentProfiles: () => void;
+  // PLAN-3 (US-PLAN-3-04) — build/edit templates (maps + agent roster),
+  // separate from "New Plan from Template" which only instantiates one.
+  onOpenTemplates: () => void;
 }
 
 export function Header({
@@ -43,6 +47,7 @@ export function Header({
   onDeleteWorkspace,
   onOpenWorkspaceSettings,
   onOpenAgentProfiles,
+  onOpenTemplates,
 }: HeaderProps) {
   // Workspace dropdown state
   const [isWsDropdownOpen, setIsWsDropdownOpen] = useState(false);
@@ -211,6 +216,14 @@ export function Header({
                 >
                   <Plus className="w-3.5 h-3.5" />
                   New Plan from Template
+                </button>
+                <button
+                  id="manage-templates-dropdown-btn"
+                  onClick={() => { setIsWsDropdownOpen(false); onOpenTemplates(); }}
+                  className="w-full text-left px-2 py-1.5 text-xs text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 rounded flex items-center gap-1.5 font-medium"
+                >
+                  <FileStack className="w-3.5 h-3.5" />
+                  Manage Templates
                 </button>
               </div>
             </div>

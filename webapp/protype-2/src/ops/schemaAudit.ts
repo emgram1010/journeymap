@@ -82,6 +82,10 @@ export const TABLE_MANIFEST: Record<string, TableExpectation> = {
   // Link tables: rows are added or removed, never edited, so they have
   // no `updated_at` (GOV-1 S10).
   plan_template_map: {naturalKeys: [['plan_template_id', 'journey_map_id']], appendOnly: true},
+  // Built 2026-10-17 as live table 130 (PLAN-3). Same link-table shape
+  // as plan_template_map one line up — a row is added or removed,
+  // never edited.
+  plan_template_agent: {naturalKeys: [['plan_template_id', 'agent_profile_id']], appendOnly: true},
   planner_workspace_map: {naturalKeys: [['workspace_id', 'journey_map_id']], appendOnly: true},
   work_item: {enumFields: ['status']},
   work_task: {naturalKeys: [['work_item_id', 'stage_key', 'lens_key']], enumFields: ['status']},

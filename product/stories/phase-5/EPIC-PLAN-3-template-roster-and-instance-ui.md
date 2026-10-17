@@ -2,7 +2,7 @@
 
 **Epic ID:** PLAN-3
 **Feature:** A plan template remembers which agents belong to it; creating an instance copies them in automatically.
-**Status:** In-progress (to-do / in-progress / done) — PLAN-2 done
+**Status:** Done (to-do / in-progress / done)
 **Depends on:** PLAN-1 ✅ (template/instance, backend only), PLAN-2 (agent profile)
 **Model:** Sonnet (extends an already-proven copy pattern; no new mechanism)
 **Goal:** The founder builds a template once — maps **and** agents — and every future instance starts staffed, without re-adding the same people each time. Manual trigger only; no auto-recurrence (that's later).
@@ -119,8 +119,49 @@ This epic also finishes PLAN-1's own unbuilt UI story (`US-PLAN-1-05`) — build
 
 ## Test Results
 
-*(empty — to be filled when built)*
+**2026-10-17 — Sonnet 5 build pass. All stories built, pushed, and verified over real authenticated HTTP plus a real click-through in a running browser.**
+
+| Thing | Live id | File |
+|---|---|---|
+| `plan_template_agent` | table 130 | `static/tables/130_plan_template_agent.xs` |
+| `POST planner/template` | 550 (extended) | `apis/planner/550_template_POST.xs` |
+| `PATCH planner/template/{id}` | 552 (extended) | `apis/planner/552_template_template_id_PATCH.xs` |
+| `GET planner/template` | 553 (extended) | `apis/planner/553_template_GET.xs` |
+| `POST planner/template/{id}/instance` | 551 (extended) | `apis/planner/551_template_template_id_instance_POST.xs` |
+| Templates modal (build/edit maps + roster) | — | `webapp/protype-2/src/planner/components/TemplatesModal.tsx` |
+| Skip-result screen | — | `webapp/protype-2/src/planner/components/CreateWorkspaceModal.tsx` |
+
+Decisions D-1 and D-2 both taken as recommended: skip-and-report, never block the whole instance; a template is unrestricted in how many instances it seeds in parallel (no chain-identity concept needed).
+
+### Unit tests
+`npm test`: 347/347. (No new pure-function unit tests were needed for this epic — the window/date math was already covered by PLAN-1's `planTemplate.ts`; this epic's logic is server-side copy/validation plus UI wiring.)
+
+### A real XanoScript bug caught and fixed mid-build
+The first draft of `551`'s roster-resolution branched `agents_to_copy`/`skipped_agents` directly on a variable (`$rinfo`) that had been `var.update`d earlier in the *same* `foreach` iteration — exactly the documented CLAUDE.md gotcha ("a conditional whose condition reads a variable set earlier in the same iteration silently discards the branch's writes"). Caught by code review before pushing, not live. Rewritten to the proven two-pass shape (`assert_maps_publishable`'s own pattern): pass 1 builds a plain array via `array.push`, pass 2 branches on the loop item's own field. Documented inline in the pushed file as a warning to future edits of this function.
+
+### A real schema-audit (GOV-1) failure, caught by the existing test suite
+`plan_template_agent` initially shipped without a standalone index on `agent_profile_id` (only had it as the second half of the composite unique index) and without a manifest `appendOnly` entry — both are GOV-1 standards (S2, S3) the project's own `schemaAudit.test.ts` enforces against the real `static/tables/` directory. Fixed with one additive `createBtreeIndex` call (no data risk) and a `schemaAudit.ts` manifest entry; `npm test` went from 346/347 to 347/347.
+
+### Functional (real HTTP, account 2 / javierc9@gmail.com)
+| Case | Result |
+|---|---|
+| Create template with `agent_profile_ids: [1,2]` | ✅ roster attached |
+| Create template with an ineligible profile | ✅ `E-PLAN-010` |
+| `PATCH add_agent_profile_ids` twice with the same id | ✅ idempotent, no duplicate row |
+| `GET template` list | ✅ each template's roster present with resolved display names (person via `user.name`, AI direct) |
+| Create instance from a template with 2 eligible agents | ✅ `agent_count: 2`, 2 real `planner_agent` rows created with correct `name`/`kind`/`color`/`user_id` |
+| Create instance after one roster profile went ineligible | ✅ `agent_count: 1`, `skipped_agents: [{profile_id, name}]`, exactly 1 `planner_agent` row created — no partial failure, no silent drop |
+| Template edited (roster added) after an instance already exists | Not re-tested this pass, but inherits PLAN-1's already-proven FT-PLAN-1-05 guarantee — the instance-creation query reads the template's roster once, at creation time only |
+
+### UI (real click-through, `npm run dev`)
+Built a new template ("Weekly Ops UI Test") entirely through the new Templates modal, added an AI agent to its roster via the picker, confirmed the live count updated. Opened "New Plan from a Template," confirmed the template defaulted correctly with "Agents: Weekend Dispatcher" shown before creating. Created the plan — the agent appeared immediately on the new plan's board, copied correctly. Then toggled that same agent ineligible and created a second plan from the same template: the skip-and-report screen appeared exactly as specified ("Weekend Dispatcher isn't tagged as an agent right now, so they weren't added to this plan"), requiring a "Done" click rather than auto-closing — confirming the acceptance criterion that a skip is visible, not silently swallowed.
+
+### Deviations
+- No separate `POST planner/template/{id}/agent` endpoint — the roster is added via the *existing* `add_map_ids`-style append-only input on the create/patch template endpoints, matching how maps already work on this same API, rather than inventing a new shape.
+- "Manage Templates" lives as its own entry next to "New Plan from Template" in the workspace switcher dropdown, rather than inside Workspace Settings — a template is account-level, not workspace-level, so it doesn't belong in a per-workspace settings surface.
 
 ## Notes
 
-*(running build log — what was decided, built, found, and why; kept so a summary can be produced later without re-deriving it from code/git history)*
+- This epic is a direct extension of PLAN-2: `plan_template_agent` points at `agent_profile` (the durable identity), never at a live `planner_agent` row — the same reasoning that made PLAN-2 necessary in the first place.
+- The founder's original concern (recurring templates needing to "remember" agents without re-adding them each time) is now fully addressed for the *manual* instance-creation case. Auto-recurrence (creating the next period's instance on a schedule, without a click) remains explicitly out of scope — a future epic, per the original discussion.
+- Both PLAN-2 and PLAN-3 together are a clean worked example of "template is the record of truth, instance is an isolated copy" applied to a second asset type (agents) using the exact same shape already proven for maps — no new architecture, no new decisions about data integrity needed beyond what D-31/PLAN-1 already settled.

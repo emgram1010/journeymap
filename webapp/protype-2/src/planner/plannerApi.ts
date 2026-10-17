@@ -282,11 +282,11 @@ export const searchJourneyMaps = () =>
     (maps) => ({results: maps.filter(m => m.status === 'active').map(m => ({map_id: m.id, title: m.title, status: m.status}))}),
   );
 
-// ── Plan templates (US-PLN-9-07) ────────────────────────────────────────
+// ── Plan templates (US-PLN-9-07, PLAN-3 US-PLAN-3-04) ──────────────────────
 //
-// Only read + instantiate are wired here. Creating/editing a template is
-// explicitly deferred by the epic's own scope table — this app only ever
-// offers "start a plan from an existing template."
+// PLN-9 wired read + instantiate only; creating/editing a template was
+// explicitly deferred to this epic (completing PLAN-1's own never-built
+// US-PLAN-1-05) — now also carrying the agent roster PLAN-3 adds.
 
 export interface RawTemplate {
   id: number;
@@ -300,15 +300,34 @@ export interface RawTemplate {
 export interface TemplateListEntry {
   template: RawTemplate;
   maps: Array<{map_id: number; title: string | null}>;
+  agents: Array<{profile_id: number; name: string | null}>;
 }
 
 export const listTemplates = () => performRequest<{templates: TemplateListEntry[]}>('/template');
 
+export const createTemplate = (body: {
+  name: string;
+  window_days?: number;
+  default_start_time?: string;
+  map_ids?: number[];
+  agent_profile_ids?: number[];
+}) => performRequest<{template: RawTemplate; map_ids: number[]; agent_profile_ids: number[]}>('/template', {method: 'POST', body});
+
+export const updateTemplate = (
+  templateId: number,
+  body: Partial<{name: string; window_days: number; default_start_time: string; is_active: boolean; add_map_ids: number[]; add_agent_profile_ids: number[]}>,
+) => performRequest<{template: RawTemplate; map_ids: number[]; agent_profile_ids: number[]}>(`/template/${templateId}`, {method: 'PATCH', body});
+
 export const createWorkspaceFromTemplate = (templateId: number, body: {name: string; start_date: string}) =>
-  performRequest<{workspace: RawWorkspace; from_template_id: number; default_start_time: string; window_days: number; accepted_map_count: number}>(
-    `/template/${templateId}/instance`,
-    {method: 'POST', body},
-  );
+  performRequest<{
+    workspace: RawWorkspace;
+    from_template_id: number;
+    default_start_time: string;
+    window_days: number;
+    accepted_map_count: number;
+    agent_count: number;
+    skipped_agents: Array<{profile_id: number; name: string | null}>;
+  }>(`/template/${templateId}/instance`, {method: 'POST', body});
 
 // ── Agent profiles (PLAN-2, US-PLAN-2-02) ──────────────────────────────────
 //

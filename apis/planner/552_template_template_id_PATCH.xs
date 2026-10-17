@@ -1,22 +1,25 @@
 // PLAN-1 (US-PLAN-1-02) — Edit a template, or archive it.
+// PLAN-3 (US-PLAN-3-02) — now also accepts `add_agent_profile_ids`,
+// same append-only shape as `add_map_ids`.
 //
 // NONE OF THIS REACHES AN EXISTING PLAN. Instances copied their
-// window, start time and accepted maps at creation; this endpoint
-// changes only what the NEXT instance will be made from. That is the
-// guarantee the template/instance split exists to provide, and
-// FT-PLAN-1-05 is the test of it — confirmed live.
+// window, start time, accepted maps and agent roster at creation;
+// this endpoint changes only what the NEXT instance will be made
+// from. That is the guarantee the template/instance split exists to
+// provide, and FT-PLAN-1-05 is the test of it — confirmed live.
 //
 // ARCHIVING IS `is_active = false`, never a delete: instances point
 // at this row, and how a plan was originally set up should stay
 // readable long after the template stops being offered. An archived
 // template is hidden from the default list and refuses new instances.
 //
-// ⚠️ MAPS CAN ONLY BE ADDED HERE, NOT REMOVED. Removing one means
-// deleting a `plan_template_map` row, and every delete in this
-// backend is awaiting the founder's approval (see
-// product/learning-fixes.md). `add_map_ids` is append-only and
-// ignores a map already attached, so it is safe to call repeatedly.
-// A `remove_map_ids` input belongs here once deletes are allowed.
+// ⚠️ MAPS AND AGENTS CAN ONLY BE ADDED HERE, NOT REMOVED. Removing one
+// means deleting a `plan_template_map`/`plan_template_agent` row, and
+// every delete in this backend is awaiting the founder's approval (see
+// product/learning-fixes.md). Both `add_*_ids` inputs are append-only
+// and ignore an id already attached, so they're safe to call
+// repeatedly. `remove_*_ids` inputs belong here once deletes are
+// allowed.
 query "template/{template_id}" verb=PATCH {
   api_group = "planner"
   auth = "user"
@@ -28,6 +31,7 @@ query "template/{template_id}" verb=PATCH {
     text default_start_time? filters=trim
     bool is_active?
     json add_map_ids?
+    json add_agent_profile_ids?
     text correlation_id? filters=trim
   }
 
@@ -109,6 +113,18 @@ query "template/{template_id}" verb=PATCH {
       }
     }
 
+    var $add_agents {
+      value = []
+    }
+
+    conditional {
+      if ($raw_input|has:"add_agent_profile_ids") {
+        var.update $add_agents {
+          value = $input.add_agent_profile_ids
+        }
+      }
+    }
+
     db.query plan_template {
       where = $db.plan_template.account_id == $actor.account_id && $db.plan_template.name == $next_name && $db.plan_template.id != $input.template_id
       return = {type: "count"}
@@ -117,6 +133,10 @@ query "template/{template_id}" verb=PATCH {
     function.run "planner/assert_maps_publishable" {
       input = {account_id: $actor.account_id, map_ids: $add_maps}
     } as $maps_check
+
+    function.run "planner/assert_agent_profiles_eligible" {
+      input = {account_id: $actor.account_id, profile_ids: $add_agents}
+    } as $agents_check
 
     var $reject_code {
       value = ""
@@ -182,6 +202,30 @@ query "template/{template_id}" verb=PATCH {
 
         var.update $reject_msg {
           value = "One of those maps isn't available to this account. (E-PLAN-004)"
+        }
+      }
+    }
+
+    conditional {
+      if ($reject_code == "" && $agents_check.ok == false && $agents_check.reason == "not_eligible") {
+        var.update $reject_code {
+          value = "E-PLAN-010"
+        }
+
+        var.update $reject_msg {
+          value = "This person isn't tagged as an agent right now. (E-PLAN-010)"
+        }
+      }
+    }
+
+    conditional {
+      if ($reject_code == "" && $agents_check.ok == false) {
+        var.update $reject_code {
+          value = "E-PLAN-010"
+        }
+
+        var.update $reject_msg {
+          value = "One of those agents isn't available to this account. (E-PLAN-010)"
         }
       }
     }
@@ -254,6 +298,49 @@ query "template/{template_id}" verb=PATCH {
       }
     }
 
+    // Same dedupe shape, one level down: already-attached agent
+    // profiles are skipped rather than rejected.
+    db.query plan_template_agent {
+      where = $db.plan_template_agent.plan_template_id == $input.template_id
+      return = {type: "list"}
+    } as $current_agent_links
+
+    var $have_agent {
+      value = {}
+    }
+
+    var $akey {
+      value = ""
+    }
+
+    foreach ($current_agent_links) {
+      each as $l {
+        var.update $akey {
+          value = $l.agent_profile_id|to_text
+        }
+
+        var.update $have_agent {
+          value = $have_agent|set:$akey:1
+        }
+      }
+    }
+
+    var $to_add_agents {
+      value = []
+    }
+
+    foreach ($add_agents) {
+      each as $pid {
+        var.update $akey {
+          value = $pid|to_text
+        }
+
+        array.push $to_add_agents {
+          value = {profile_id: $pid, already: ($have_agent|get:$akey:null)}
+        }
+      }
+    }
+
     db.transaction {
       stack {
         db.patch plan_template {
@@ -279,6 +366,18 @@ query "template/{template_id}" verb=PATCH {
             }
           }
         }
+
+        foreach ($to_add_agents) {
+          each as $a {
+            conditional {
+              if ($a.already == null) {
+                db.add plan_template_agent {
+                  data = {plan_template_id: $input.template_id, agent_profile_id: $a.profile_id}
+                } as $agent_link
+              }
+            }
+          }
+        }
       }
     }
 
@@ -295,6 +394,23 @@ query "template/{template_id}" verb=PATCH {
       each as $l {
         array.push $map_ids {
           value = $l.journey_map_id
+        }
+      }
+    }
+
+    db.query plan_template_agent {
+      where = $db.plan_template_agent.plan_template_id == $input.template_id
+      return = {type: "list"}
+    } as $final_agent_links
+
+    var $agent_profile_ids {
+      value = []
+    }
+
+    foreach ($final_agent_links) {
+      each as $l {
+        array.push $agent_profile_ids {
+          value = $l.agent_profile_id
         }
       }
     }
@@ -316,7 +432,8 @@ query "template/{template_id}" verb=PATCH {
   }
 
   response = {
-    template: $updated
-    map_ids : $map_ids
+    template         : $updated
+    map_ids          : $map_ids
+    agent_profile_ids: $agent_profile_ids
   }
 }
