@@ -1,4 +1,10 @@
 // Login and retrieve an authentication token
+//
+// FOUND 2026-10-15 (E2E-1's supportability drill): this logged the
+// WHOLE user record — hashed password included — into event_log on
+// every single login. Same class of bug already fixed on signup
+// (2026-10-14); this one, auth/me, and reset/update-password were
+// missed at the time. metadata is ids only now, same pattern.
 query "auth/login" verb=POST {
   api_group = "Authentication"
 
@@ -49,13 +55,13 @@ query "auth/login" verb=POST {
       id = $user.id
     } as $authToken
   
-    // Create an event log for login
+    // Create an event log for login. ids only — never the user record.
     function.run "Getting Started Template/create_event_log" {
       input = {
         user_id   : $user.id
         account_id: $user.account_id
         action    : "login"
-        metadata  : $user
+        metadata  : {user_id: $user.id, account_id: $user.account_id}
       }
     } as $event_log
   }

@@ -145,4 +145,70 @@ Warnings appear on the Health page as low-severity issues with the owner (usuall
 
 ## Test Results
 
-_Not yet run._
+**Run 2026-10-15. Completion gate: PASSED** for everything in MVP scope. Stage aggregates and the tweak signal (US-VAR-1-04/05) are deferred per the epic's own MVP scope table; their tests were not attempted.
+
+Built: `webapp/protype-2/src/variance.ts` (pure), function **144** `variance/compute_task_variance`, function **147** `variance/task_report`, endpoint **568** `GET variance/work_item/{id}`.
+
+### A real bug found via live testing, not by the unit tests
+
+The unit tests' reopen case (UT-VAR-1-07) assumed an explicit `started` event could follow a `reopened` one. Live testing on a real task that had actually been reopened during APP-1's own testing showed this is **impossible in the real system** — `logModel.ts::canTransition` has no `in_progress`+`started` row, and the UI's `availableActions('in_progress')` never offers a Start button. The first version of `computeTaskVariance` treated every reopen as "attempt start unknown", which produced a live, wrong result: `actual_minutes: null` and a spurious `W-VAR-001` on a task that had plainly been worked on.
+
+**Fixed**: on `reopened`, the resumed attempt now begins at the reopen's own timestamp, not `null` — the reopen IS the only signal that work resumed, so it is treated as one. Fixed in `variance.ts`, the test (corrected to the realistic sequence, plus a new test pinning that `start_lateness_minutes` still uses the ORIGINAL first start across a reopen), and the XanoScript twin. Re-verified live afterward: the same real task now reports a correct `actual_minutes` and no warning.
+
+### Also found and documented separately (CLAUDE.md, cross-cutting, not VAR-1-specific)
+
+`==`/`!=` against `null` in XanoScript is a PHP-style LOOSE comparison: `0`, `""`, `false` and `[]` all test equal to `null`. Found because a smoke test using `occurred_at: 0` as a stand-in timestamp silently produced the wrong answer. Does not affect VAR-1 in production (every timestamp compared is a real epoch ms, never legitimately `0`) — checked by hand — but it is a landmine for the rest of the codebase. Flagged in `learning-fixes.md` as needing a dedicated sweep; not done here.
+
+### Unit (`npm test`, 321/321 green — 18 new)
+
+| ID | Result | Notes |
+|---|---|---|
+| UT-VAR-1-01 | Pass | Start 09:00, done 09:40, expected 30 → actual 40, +10 (+33.3%). |
+| UT-VAR-1-02 | Pass | Same with scheduled 45 → -5 (-11.1%). |
+| UT-VAR-1-03 | Pass | Blocked 09:10–09:20 → `blocked_minutes` 10; `actual_minutes` unchanged (elapsed, blocked time included, never subtracted). |
+| UT-VAR-1-04 | Pass | Never started/completed → actual null, no outlier. |
+| UT-VAR-1-05 | Pass | Expected missing → expected gap null; scheduled gap still computed. |
+| UT-VAR-1-06 | Pass | Start 09:05, planned 09:00 → lateness 5. |
+| UT-VAR-1-07 | Pass (corrected) | Reopened then completed directly → actual_minutes from the reopen itself; no warning. |
+| UT-VAR-1-08 | Pass | Outlier boundary: reference 30, actual 60 not flagged, 61 flagged. |
+| UT-VAR-1-09 | Pass | Reference 3, actual 12 not flagged (floor dominates: 3+10=13). |
+| UT-VAR-1-12 | Pass | Frozen input, called twice, identical output, no mutation. |
+| UT-VAR-1-13 | Pass | Done with no start → actual null, `W-VAR-001`. |
+| UT-VAR-1-G01 | Pass | All four warning codes (`W-VAR-001..004`) individually triggered; a clean task carries none. |
+
+UT-VAR-1-10/11 (aggregate thresholds) deferred with the stage-aggregate story.
+
+### Functional / live (real authenticated HTTP, account 6, work_item 4 — a job created fresh during APP-1, with real reopen/block/unblock history)
+
+| ID | Result | Evidence |
+|---|---|---|
+| FT-VAR-1-01 | Pass | Backend `variance/compute_task_variance` matched the TS golden cases exactly over real HTTP-reachable `runWorkspaceFunction` calls, including the reopen fix. |
+| FT-VAR-1-05 | Pass | `GET variance/work_item/99999` (another account's id) → 404 "Job not found". |
+| FT-VAR-1-06 / FT-VAR-1-G03 | Pass | Called the report twice in a row: byte-identical response both times; `activity_log` and `work_task` row counts unchanged across the calls. |
+| FT-VAR-1-G02 | Pass | Report completes; `compute_report` event logged with `duration_ms` (105–454ms observed) and the right counts. |
+
+**`start_lateness_minutes` cross-checked independently**, outside the XanoScript engine entirely: a task's real `started_at` (captured during APP-1 testing) minus the timeline's `planned_date`+`start_time` (parsed via Node's own `Date`), by hand, in a shell — `276.47411666666665` both ways, to the full float. This also incidentally proved the `parse_timestamp`/`add_secs_to_timestamp` chain and the cumulative-seq-offset math inside `variance/task_report` are correct, not just plausible.
+
+**Outlier and scheduled/expected gaps verified on real (if deliberately odd) fixture data**: one task with `expected_minutes: 999` (a LOG-1-era test value) and `scheduled_minutes: 20` correctly used scheduled as the reference (not expected) and reported `expected_gap_pct: -97.8%` against the odd expected value while `scheduled_gap_pct: +11.3%` against the real one — exactly the "scheduled wins over expected" rule (US-VAR-1-02).
+
+### Governance
+
+| ID | Result | Evidence |
+|---|---|---|
+| FT-VAR-1-G02 | Pass | See above. |
+| FT-VAR-1-G03 | Pass | See above. |
+| `data_quality_warning` event | Pass | One event per REPORT (not per row), with a `by_code` tally — confirmed via `event_log`: `{"W-VAR-001":1}` matching the one task that was genuinely done-without-start. |
+
+### Not run / deferred (per the epic's own MVP scope)
+
+| ID | Why |
+|---|---|
+| UT-VAR-1-10, UT-VAR-1-11 | Aggregate thresholds — stage aggregates are explicitly deferred. |
+| FT-VAR-1-02, 03, 04 | Stage report filters and the tweak signal — same deferral. |
+| FT-VAR-1-G01 | Filter validation (bad date range, unknown id) applies to the deferred stage-aggregate endpoint, which was not built. The MVP per-job endpoint's only "filter" is `work_item_id` itself, which is tenancy-checked (FT-VAR-1-05). |
+| E2E-VAR-1-01 | The variance panel (US-VAR-1-05) is explicitly deferred with the aggregate report. |
+| `workflow_tests/23_variance.xs` | Same standing gap as every other epic this session: no tool exists to run a Xano workflow test from here. Driven through `runWorkspaceFunction` and real HTTP instead. |
+
+### Needs the founder
+
+Four more scratch functions used to verify this epic (`parse_timestamp_probe`, `nested_conditional_probe`, `zero_vs_null_probe`, `var1_check` — all read-only) are now on the held-deletion list in `learning-fixes.md`, which also carries the codebase-wide null-comparison sweep recommendation.

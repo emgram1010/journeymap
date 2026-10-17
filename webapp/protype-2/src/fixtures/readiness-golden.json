@@ -1,0 +1,22 @@
+{
+  "map178": {
+    "workTypeName": "leads-to-sales-baseline",
+    "lenses": [
+      {"key": "lens-2", "actorType": "customer"},
+      {"key": "lens-3", "actorType": "internal"}
+    ],
+    "stages": [
+      {"key": "s1", "label": "Initial Contact", "ownerLensKey": "lens-2"},
+      {"key": "s2", "label": "Event Details Gathering", "ownerLensKey": "lens-2"},
+      {"key": "s3", "label": "Item Specification", "ownerLensKey": "lens-2"},
+      {"key": "s4", "label": "Clarification & Refinement", "ownerLensKey": "lens-2"},
+      {"key": "s5", "label": "Quote Preparation", "ownerLensKey": "lens-3"},
+      {"key": "s6", "label": "Quote Delivery", "ownerLensKey": "lens-3"},
+      {"key": "s7", "label": "Follow-Up & Negotiation", "ownerLensKey": "lens-2"},
+      {"key": "s8", "label": "Booking Confirmation", "ownerLensKey": "lens-3"}
+    ],
+    "cellsByStage": {},
+    "expectOwnerNotWorkRole": ["s1", "s2", "s3", "s4", "s7"],
+    "expectNotOwnerNotWorkRole": ["s5", "s6", "s8"]
+  }
+}

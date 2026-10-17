@@ -3,7 +3,7 @@
 > **Amended by phase-4 `EPIC-P3A-1` (US-P3A-1-04):** a published timeline cannot be deleted; only LIVE-1's publish endpoint changes `status`.
 
 **Epic ID:** PLN-6
-**Status:** Planning
+**Status:** Partially done — create/list/read/update/move live and verified over real HTTP; **timeline delete (US-PLN-6-05) needs the founder's approval** (see Test Results)
 **Depends on:** PLN-5
 **Goal:** CRUD for timelines (one agent's plan for one day) enforcing *one agent, one timeline, per day*, with cell moves and a delete that returns tasks to the backlog.
 
@@ -114,4 +114,91 @@ Frontend: `handleStartTimelineForAgentDay`, `handleMoveTimelineCell`, `handleSav
 
 ## Test Results
 
-_Not yet run._
+**2026-10-14 — Opus 5 build pass. Partially complete: everything except
+the delete.** Four endpoints live, all exercised over **real
+authenticated HTTP**.
+
+### What shipped
+
+| Endpoint | Live id | File |
+|---|---|---|
+| `POST planner/workspace/{id}/timeline` | 538 | `apis/planner/538_workspace_workspace_id_timeline_POST.xs` |
+| `GET planner/workspace/{id}/timeline` | 539 | `apis/planner/539_workspace_workspace_id_timeline_GET.xs` |
+| `GET planner/timeline/{id}` | 540 | `apis/planner/540_timeline_timeline_id_GET.xs` |
+| `PATCH planner/timeline/{id}` | 541 | `apis/planner/541_timeline_timeline_id_PATCH.xs` |
+
+### 🔴 Not done: the delete needs the founder's approval
+
+`DELETE planner/timeline/{timeline_id}` and
+`planner/delete_timeline_cascade` are **written but not pushed** —
+fourth and final held delete path. **Blocks FT-PLN-6-11.**
+
+The cascade is only two steps, and **the first is already proven**:
+`planner/return_tasks_to_backlog` is pushed and tested (PLN-5), and it
+is the part that guarantees no task is lost and the backlog keeps its
+order. Only the single `db.del` that follows is unverified.
+
+US-PLN-6-06 (`place_task_id`) is deferred to PLN-7 by the epic itself.
+
+### Functional cases
+
+| ID | Result |
+|---|---|
+| FT-PLN-6-01 | ✅ Created `draft`, `start_time 08:00`, `created: true` |
+| FT-PLN-6-02 | ✅ Same agent + date again → **same id**, `created: false`, no duplicate row |
+| FT-PLN-6-03 | ✅ Agent from another plan → *"Entities must belong to the same workspace"* |
+| FT-PLN-6-04 | ✅ `25:00`, `8:5`, `""` and `abc` all → `E-PLN-010` |
+| FT-PLN-6-05 | ✅ `status: "published"` rejected on **both** create and PATCH → `E-PLN-011` |
+| FT-PLN-6-06 | ✅ A date outside the plan's window was created and returned `out_of_window: true` |
+| FT-PLN-6-07 | ✅ The agent renamed in PLN-5 shows through: `"Oct 20 — Cascade A Renamed"`, with no timeline row written. The label is derived on read, never stored |
+| FT-PLN-6-08 | ✅ `start_time` `09:00 → 09:30` persisted; the timeline's task row came back **byte-identical** (no task rows written) |
+| FT-PLN-6-09 | ✅ All three: move to a free cell succeeded; move onto an occupied cell → `E-PLN-012` with the original timeline **intact**; move onto its own cell → no-op `200`, not a duplicate-key error |
+| FT-PLN-6-10 | ✅ By construction and confirmed — this endpoint writes **no** task rows, and a task row was byte-identical after two moves of its timeline. (An explicit override value was not set, as no task-write endpoint exists until PLN-7; "no task row is written at all" is the stronger claim) |
+| FT-PLN-6-11 | ⛔ Blocked |
+| FT-PLN-6-12 | ✅ `date_from`, `date_from`+`date_to`, and `agent_id` each returned the right subset |
+| FT-PLN-6-13 | ✅ Cross-account `PATCH timeline/{id}` → `404` |
+| FT-PLN-6-14 | ✅ All four endpoints `401` unauthenticated |
+
+Derived counts verified against the database directly: timelines 4 and
+5 reported `tasks=1 mins=30`, timeline 3 reported `0` after its tasks
+had been returned to the backlog by PLN-5's test — matching the rows
+exactly.
+
+`npm test`: 213/213.
+
+### Two more XanoScript traps found, both silent
+
+**1. `task_count` was 0 for every timeline.** The tally loop skipped
+unknown keys with `if ($cur != null)`. **A `conditional` inside a
+`foreach` whose condition reads a variable updated earlier in the same
+iteration silently discards everything the branch writes.** Isolated
+with three side-by-side tallies over identical data:
+
+| condition reads | result |
+|---|---|
+| the loop item (`$r.flag`) | ✅ correct |
+| a constant (`true`) | ✅ correct |
+| a var updated earlier in that iteration (`$cur != null`) | ❌ all writes lost, no error |
+
+That is why `ops/group_issues.xs` and PLN-3's list work — their
+conditions read the loop item. Fixed by scoping the task query with
+`timeline_id in $tl_ids`, so every key is seeded and no `if` is needed
+at all.
+
+**2. An omitted optional `date` input does not exist.** Unlike `text`
+and `int` (which arrive as `""` and `0`), referencing an absent
+optional `date` throws `"Unable to locate input: date_from"` at
+runtime. And on a **GET** there is no JSON body, so
+`util.get_raw_input|has:` cannot detect it either. The date filters are
+declared `text` and widened to sentinel bounds when absent.
+
+Both are now in `CLAUDE.md`.
+
+### Deviations
+
+| Change | Why |
+|---|---|
+| `date_from` / `date_to` are `text`, not `date` | See trap #2 above — a `date` filter on a GET cannot be made optional |
+| Create also runs `assert_same_workspace` | US-PLN-6-01 requires the agent to be in the workspace; `assert_agent` only proves the account, so the plan-level check is explicit |
+| Timeline writes are blocked on an archived plan | Not in PLN-6, but P3A-1 makes an archived plan read-only |
+| `label` uses `"M j"` (e.g. `Oct 20`) | US-PLN-6-02 says `"<Mon D> — <agent_name>"`; this is that format |

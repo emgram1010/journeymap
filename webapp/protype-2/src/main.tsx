@@ -9,7 +9,13 @@ import ArchitectureDashboard from './ArchitectureDashboard';
 import ArchitectureDetail from './ArchitectureDetail';
 import App from './App.tsx';
 import AccountSettings from './AccountSettings.tsx';
+import HealthPage from './health/HealthPage.tsx';
+import {installGlobalErrorHandler} from './ops/globalErrorHandler';
 import './index.css';
+
+// OBS-1 (US-OBS-1-04): catch unhandled errors from anywhere in the app,
+// as early as possible, so a crash still shows up on the Health page.
+installGlobalErrorHandler();
 
 /** Redirects to /login if the user is not authenticated; shows a loading screen while checking. */
 function ProtectedRoute({children}: {children: React.ReactNode}) {
@@ -38,6 +44,19 @@ function PublicRoute({children}: {children: React.ReactNode}) {
   return <>{children}</>;
 }
 
+/**
+ * OBS-1 (US-OBS-1-10): the Health page is for platform admins only. This
+ * is a convenience redirect — every ops/* endpoint enforces the same
+ * check server-side regardless of what this component does.
+ */
+function AdminRoute({children}: {children: React.ReactNode}) {
+  const {user, isLoading} = useAuth();
+  if (isLoading) return null;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!user.is_platform_admin) return <Navigate to="/architectures" replace />;
+  return <>{children}</>;
+}
+
 /** Extracts `:id` from the URL and passes it to the editor. */
 function MapEditorRoute() {
   const {id} = useParams<{id: string}>();
@@ -48,6 +67,8 @@ function MapEditorRoute() {
 import React from 'react';
 import AppLayout from './AppLayout';
 import PlannerApp from './planner/PlannerApp';
+import PerformToday from './perform/PerformToday';
+import {PerformErrorBoundary} from './perform/PerformErrorBoundary';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -61,7 +82,16 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/architectures/:id" element={<ProtectedRoute><AppLayout><ArchitectureDetail /></AppLayout></ProtectedRoute>} />
           <Route path="/maps/:id" element={<ProtectedRoute><AppLayout><MapEditorRoute /></AppLayout></ProtectedRoute>} />
           <Route path="/planner" element={<ProtectedRoute><AppLayout><PlannerApp /></AppLayout></ProtectedRoute>} />
+          {/* APP-1 was deliberately OUTSIDE AppLayout: the performer app is
+              phone-first and wanted nothing to do with the desktop sidebar.
+              That held until the sidebar gained an Execution item (PLN-9,
+              2026-10-16) — a menu entry that navigates somewhere with no way
+              back is worse than no entry. It is wrapped now, and the sidebar
+              itself hides below `md`, so a performer on a phone still gets
+              the full-width focused screen the original decision protected. */}
+          <Route path="/perform" element={<ProtectedRoute><AppLayout><PerformErrorBoundary><PerformToday /></PerformErrorBoundary></AppLayout></ProtectedRoute>} />
           <Route path="/account" element={<ProtectedRoute><AppLayout><AccountSettings /></AppLayout></ProtectedRoute>} />
+          <Route path="/health" element={<AdminRoute><AppLayout><HealthPage /></AppLayout></AdminRoute>} />
           {/* Default redirect */}
           <Route path="*" element={<Navigate to="/architectures" replace />} />
         </Routes>

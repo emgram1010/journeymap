@@ -1,4 +1,8 @@
 // Exchanges magic token for auth token. Logs in user with the one-time link.
+//
+// FOUND 2026-10-15 (E2E-1): logged the whole updated user record —
+// including the hashed password_reset.token — into event_log on every
+// magic-link login. Same fix as auth/login: ids only.
 query "reset/magic-link-login" verb=POST {
   api_group = "Authentication"
 
@@ -79,13 +83,14 @@ query "reset/magic-link-login" verb=POST {
       }
     } as $user1
   
-    // Create an event log for password reset login
+    // Create an event log for password reset login. ids only — never
+    // the user record (it carries the hashed password_reset.token).
     function.run "Getting Started Template/create_event_log" {
       input = {
         user_id   : $user.id
         account_id: $user.account_id
         action    : "login_for_password_reset"
-        metadata  : $user1
+        metadata  : {user_id: $user.id, account_id: $user.account_id}
       }
     } as $event_log
   }

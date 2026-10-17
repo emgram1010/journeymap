@@ -1,9 +1,12 @@
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useRef, useState, type MouseEvent} from 'react';
 import type {Stage, Lens, MatrixCell} from './types';
+import {doesPlannedWork} from './stageOwnerModel';
 
 export type StageEditData = {
   label: string;
   primaryActorLens: string | null;
+  /** STAGE-1 (US-STAGE-1-05) — the selected lens's real Xano id, resolved from the dropdown. Omitted (not sent) only when the dropdown's value can't be matched back to a lens. */
+  ownerLensId?: number | null;
   stageGoal: string | null;
   timeDurationValue: number | null;
   timeDurationUnit: string | null;
@@ -33,8 +36,13 @@ export function StageEditPanel({stage, lenses, cells, onSave, onClose, isSaving}
   const [timeDurationValue, setTimeDurationValue] = useState<string>(
     primaryCell?.timeDurationValue != null ? String(primaryCell.timeDurationValue) : '',
   );
+  // `|| 'minutes'`, not `??`: a never-touched cell's time_duration_unit comes
+  // back as "" (empty string, not null) from the backend's enum column
+  // default — `??` doesn't fall through on "", so the <select> below would
+  // visually show "minutes" while the real state stayed "", silently saving
+  // an invalid empty unit paired with any duration value the user types.
   const [timeDurationUnit, setTimeDurationUnit] = useState<string>(
-    primaryCell?.timeDurationUnit ?? 'minutes',
+    primaryCell?.timeDurationUnit || 'minutes',
   );
   const [plannedDuration, setPlannedDuration] = useState<string>(
     primaryCell?.plannedDuration != null ? String(primaryCell.plannedDuration) : '',
@@ -55,7 +63,7 @@ export function StageEditPanel({stage, lenses, cells, onSave, onClose, isSaving}
   }, [onClose]);
 
   // Close on click-outside
-  const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleOverlayClick = (e: MouseEvent<HTMLDivElement>) => {
     if (e.target === overlayRef.current) onClose();
   };
 
@@ -64,9 +72,20 @@ export function StageEditPanel({stage, lenses, cells, onSave, onClose, isSaving}
     const parsedDuration = timeDurationValue.trim() !== '' ? parseFloat(timeDurationValue) : null;
     const parsedPlanned = plannedDuration.trim() !== '' ? parseFloat(plannedDuration) : null;
     const parsedActual = actualDuration.trim() !== '' ? parseFloat(actualDuration) : null;
+
+    // STAGE-1 (US-STAGE-1-05): the dropdown's option value is `l.key ?? l.id`
+    // (a frontend-local string id as the fallback), never the real Xano row
+    // id — that's only on `xanoId`. Resolve back to the selected lens object
+    // to get the real id the backend's owner_lens_id expects.
+    const selectedLens = primaryActorLens
+      ? lenses.find((l) => (l.key ?? l.id) === primaryActorLens)
+      : undefined;
+    const ownerLensId = primaryActorLens ? selectedLens?.xanoId ?? undefined : null;
+
     onSave({
       label: label.trim(),
       primaryActorLens: primaryActorLens || null,
+      ownerLensId,
       stageGoal: stageGoal.trim() || null,
       timeDurationValue: parsedDuration,
       timeDurationUnit: timeDurationUnit || null,
@@ -128,6 +147,19 @@ export function StageEditPanel({stage, lenses, cells, onSave, onClose, isSaving}
               ))}
             </select>
             <p className="mt-1 text-[10px] text-zinc-400">The actor accountable for this stage's outcome.</p>
+            {/* AUTH-1 (US-AUTH-1-03) */}
+            {(() => {
+              if (!primaryActorLens) return null;
+              const selectedLens = lenses.find((l) => (l.key ?? l.id) === primaryActorLens);
+              if (!selectedLens) return null;
+              const isWorkRole = doesPlannedWork(selectedLens.actorType ?? null, selectedLens.plannedWorkOverride ?? null);
+              if (isWorkRole) return null;
+              return (
+                <p className="mt-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
+                  {selectedLens.label} doesn't do planned work, so this stage won't be ready until you turn on "does planned work" for this row or pick a different owner.
+                </p>
+              );
+            })()}
           </div>
 
           {/* Stage Goal */}
@@ -194,7 +226,11 @@ export function StageEditPanel({stage, lenses, cells, onSave, onClose, isSaving}
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">Actual</label>
+                    {/* TIME-1 (US-TIME-1-03): "Observed today" — this is what the operator
+                        says happens today (an observed baseline), NOT an execution actual.
+                        Execution actuals (once LOG-1/APP-1 exist) live only in the activity
+                        log and never write to this column. */}
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">Observed today</label>
                     <input
                       type="number"
                       min="0"

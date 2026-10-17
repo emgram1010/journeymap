@@ -191,4 +191,33 @@ Each entry: `code`, `feature`, `user_message` (friendly, how to fix), `what_happ
 
 ## Test Results
 
-_Not yet run._
+**2026-10-12 — Sonnet 5 build pass.**
+
+- **Unit tests (webapp/protype-2, `npm test`): 115/115 passing**, including 25 new tests across `errorCatalog`, `fingerprint`, `redact`, `healthStatus`, `groupIssues`, `clientEventBuffer` (dedup/rate gate + offline buffer). Full existing suite stays green.
+- **Typecheck (`npm run lint`): clean** except one pre-existing error in `e2e/chat-session-crud.spec.ts` unrelated to this epic (confirmed present with these changes stashed).
+- **Functional (`workflow_tests/25_observability.xs`) and UI (`e2e/health-page.spec.ts`): written, NOT run.** Both require the backend to actually be pushed to the live Xano workspace — ask before doing that.
+- **Backend XanoScript files are hand-verified against the XanoScript docs and existing repo patterns** (table/function/query/task syntax, `db.transaction`, `function.run`, `try_catch`, `redis.*`, `security.create_uuid`), but **not executed against live Xano**. Two specific risk areas flagged in code comments: `array.group_by` with a composite key in `group_issues.xs` (untested combination), and the correlation-id approach (US-OBS-1-12 — no "middleware" construct found in the docs, so an explicit client-generated id + header is used instead; not yet verified as the best available option on a live workspace).
+- **Scope changes made during the build** (all noted in-file): the daily integrity-audit task is deferred to GOV-1 (doesn't exist yet) — only the 5-minute heartbeat task was built. `planner_agent.user_id` dependency correctly comes from P3A-1, not duplicated here.
+- **Not done:** issue acknowledgement (US-OBS-1-06, table 92), the AI diagnostic tool (part of US-OBS-1-08), retention-tier changes (US-OBS-1-09) — all explicitly deferred per the epic's MVP scope.
+
+---
+
+**2026-10-13 — Pushed to live Xano (workspace 1, "emgram1010"), with the founder's go-ahead.**
+
+**Live now:** `event_log` + `user` additive columns; functions `ops/log_event`, `ops/require_platform_admin`, `ops/error_catalog`, `ops/group_issues`, `ops/build_diagnostic_bundle`; API group "Ops" (id 23) with `ops/event`, `ops/health`, `ops/issues`, `ops/timeline`, `ops/bundle`; `auth/me` updated to expose `is_platform_admin`; task `ops_heartbeat` (id 18, every 5 min).
+
+**Smoke-tested directly (`runWorkspaceFunction`) and confirmed correct:** `ops/log_event` (success, rejected, failure, severity default), `ops/error_catalog`, `ops/require_platform_admin` (denies a non-admin with `accessdenied`), `ops/group_issues` (correct fingerprint/count/timestamps on real data), `ops/build_diagnostic_bundle` (correct event list/count on real data).
+
+**Not yet verified live:** `ops/health` and `ops_heartbeat` (both use the same now-proven patterns as the smoke-tested functions, by direct analogy, but neither could be exercised directly — `ops/health` needs a platform-admin caller, which was deliberately not set on any account without the founder's say; the task fires on its own 5-minute schedule, not on demand). `e2e/health-page.spec.ts` and `workflow_tests/25_observability.xs` still need a real run.
+
+**Real bugs found and fixed during the push** (see `CLAUDE.md` → "XanoScript constraints — verified live" for the durable record other epics should read):
+1. Omitted optional text/int inputs arrive as `""`/`0`, not `null` — broke every `?? fallback`. Fixed with explicit emptiness checks.
+2. `db.query` with `paging` is not a plain array — `foreach`/`[index]` both failed (`"Please use a numerically indexed array."`). Fixed by dropping `paging` everywhere and using `|count` / a found-flag loop instead of indexing.
+3. `array.map` + `array.group_by` + `object.entries` with nested `$this[1][0]` indexing crashed on real data (`"Missing var entry: this"`). Rewrote `group_issues` and `build_diagnostic_bundle` with plain `foreach`/`array.push`/`|get`/`|set` instead — both now confirmed working.
+4. `mock` blocks inside `db.get`/`db.query`, submitted via `createFunction`, were rejected outright. Dropped from `require_platform_admin`; real behaviour confirmed via `runWorkspaceFunction` instead.
+5. `redis.set { ... } as $x` is invalid (no `as` clause). Fixed in `ops/event`.
+6. A multi-line boolean `where` clause failed to parse. Fixed by keeping conditions on one line throughout.
+
+**A real regression, disclosed and left for the founder to fix manually:** `updateTableSchema` silently dropped `validators` (trim/lower on `user.name`/`user.email`/`event_log.action`, and the password-strength rule on `user.password`) even when supplied correctly — confirmed deterministic, not fixable via this MCP tool. Needs restoring in the Xano dashboard UI directly. A `/feedback` bug report is queued.
+
+**Decisions made live, not re-litigated by the founder:** task id 16 was already taken by an unrelated `hourly_mixpanel_ingest` task, so `ops_heartbeat` was created as id 18 instead (local filename kept as `16_...` with a note, since Xano assigns ids on creation). Table ids 74–78 (reserved for phase-3's planner tables) were found already in use live by an unrelated initiative — **phase-3's EPIC-PLN-1 table numbering needs revisiting before that epic is built**, flagged here for whoever picks that up next.

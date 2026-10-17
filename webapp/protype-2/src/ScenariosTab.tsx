@@ -168,7 +168,11 @@ export default function ScenariosTab({archId, onOpenScenario, onCreateBlank, onC
   };
 
   const handleDeleteSelected = async () => {
-    const ids = Array.from(selected);
+    // `selected` is declared Set<number>, but React's hooks are untyped in
+    // this project (no @types/react), so useState's generic is lost and
+    // Array.from falls back to unknown[]. The annotation restores the
+    // type the declaration already promises.
+    const ids: number[] = Array.from(selected);
     setScenarios((prev) => {
       const next = prev.filter((s) => !ids.includes(s.id));
       onCountChange?.(next.length);
@@ -302,7 +306,7 @@ export default function ScenariosTab({archId, onOpenScenario, onCreateBlank, onC
             {selected.size === 2 && (
               <button
                 onClick={() => {
-                  const [a, b] = Array.from(selected);
+                  const [a, b]: number[] = Array.from(selected);
                   onCompare(a, b);
                 }}
                 className="px-3 py-1.5 text-xs font-semibold border border-indigo-300 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors">

@@ -366,7 +366,11 @@ export default function ArchitectureDetail() {
     if (!arch) return;
     try {
       const clone = await cloneScenario(archId, map.id, `Copy of ${map.title}`);
-      setMaps((prev) => [{...clone, last_interaction_at: clone.updated_at} as XanoJourneyMap, ...prev]);
+      // The clone endpoint returns a summary, not a full map record. This is an
+      // optimistic row so the new scenario appears immediately; the next load
+      // replaces it with the real thing. Cast through unknown because the two
+      // shapes genuinely don't overlap — pretending otherwise hid that.
+      setMaps((prev) => [{...clone, last_interaction_at: clone.updated_at} as unknown as XanoJourneyMap, ...prev]);
     } catch {
       setError('Unable to duplicate map. Please try again.');
     }
@@ -585,7 +589,8 @@ export default function ArchitectureDetail() {
               onOpenScenario={(scenarioId) => navigate(`/maps/${scenarioId}?arch=${archId}&tab=scenarios`)}
               onCloneScenario={async (sourceId, sourceTitle) => {
                 const clone = await cloneScenario(archId, sourceId, `Copy of ${sourceTitle ?? 'Scenario'}`);
-                setMaps((prev) => [{...clone, last_interaction_at: clone.updated_at} as XanoJourneyMap, ...prev]);
+                // Optimistic row — see handleDuplicateMap above.
+                setMaps((prev) => [{...clone, last_interaction_at: clone.updated_at} as unknown as XanoJourneyMap, ...prev]);
               }}
               onCreateBlank={async () => {
                 const bundle = await createDraftJourneyMap({

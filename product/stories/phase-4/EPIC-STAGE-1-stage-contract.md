@@ -2,7 +2,7 @@
 
 **Epic ID:** STAGE-1
 **Feature:** Every stage has a real owner and clear rules for when it is done.
-**Status:** Planning
+**Status:** Done (see Test Results) — backend, logic, and UI (including the 06 switch) all built and live-verified
 **Depends on:** OBS-1, GOV-1, VAL-1 (ROLE-1 is deferred)
 **Goal:** A stage's owner becomes a real reference (not a text key), and a stage declares when it is finished and whether it runs back-to-back with the previous stage.
 
@@ -160,4 +160,42 @@ Follows GOV-1 standards, VAL-1 rules and OBS-1 events.
 
 ## Test Results
 
-_Not yet run._
+**2026-10-13 — Sonnet 5 build pass. Built, pushed to Xano workspace 1, smoke-tested.**
+
+### Done and verified
+
+| Story | State | Evidence |
+|---|---|---|
+| 01 `owner_lens_id` (owner only) | ✅ via new table, deliberate deviation | `journey_stage_owner` (table 110) instead of a column — see deviation note below. |
+| 02 backfill with a report | ✅ live | `functions/backfill_stage_owners.xs` (87) + `resolve_stage_owner.xs` (84). Dry-run on map 178: 8/8 resolved, nothing written (confirmed empty table after). Real run: 8/8 written correctly (`lens-2`→1003 ×5, `lens-3`→1004 ×3, matching the epic's own worked example exactly). Ran a second time: same 8 rows, same ids — idempotent, confirmed via direct table read. Deliberately-broken key on a scratch stage: reported unresolved, not thrown, nothing written. |
+| 03 stage PATCH accepts owner_lens_id | ✅ pushed, logic unit-proven; HTTP path unverified | `apis/journey_map/211_journey_stage_update_journey_stage_id_PATCH.xs`. Validates same-map via `db.get`+precondition; keeps `primary_actor_lens` text in sync; response always reports the CURRENT owner (not just what this call touched). Omitting `owner_lens_id` entirely leaves ownership untouched — verified the `$raw_input|has:` 3-way detection (omitted/null/value) live via a scratch function before trusting it here. |
+| 04 `update_stage_contract` tool compatibility | ✅ pushed, logic unit-proven; tool-call path unverified | `ai/tool/update_stage_contract.xs` (70). Writing the owner now syncs both `primary_actor_lens` and `owner_lens_id` via the same `resolve_stage_owner`/`set_stage_owner` functions used by the PATCH endpoint. See bug fix below. |
+| 05 owner dropdown (MVP: owner only) | ✅ wired and browser-verified | `StageEditPanel.tsx`'s existing "Primary Actor" dropdown resolves the selected lens's real `xanoId` and sends it as `owner_lens_id`; also gained an inline warning when the picked owner doesn't do planned work. Live-verified 2026-10-14 (see AUTH-1's Test Results — same session, same browser pass). |
+| 06 "does planned work?" switch — backend | ✅ live | `journey_lens_planned_work` (table 111), `functions/does_planned_work.xs` (86), `functions/set_lens_planned_work.xs` (89), `apis/journey_map/517_journey_lens_planned_work_journey_lens_id_PATCH.xs`. Type defaults (customer→no, internal→yes) and the override-wins rule all confirmed live via a scratch lens: set true, overwrite false, clear → default restored, each checked by reading the table directly. |
+| 06 "does planned work?" switch — UI | ✅ built and browser-verified (2026-10-14) | Row-header toggle in the matrix (`jm-lens-planned-toggle`) — click to flip, persists via api 517, confirmed surviving a full reload. Only rendered for rows that actually have an `actorType` (structural/context rows like "Description" never get it — see AUTH-1's Test Results for why). |
+| Frontend pure-logic mirrors + tests | ✅ | `stageOwnerModel.ts` (`resolveOwner`, `doesPlannedWork`) + `stageOwnerModel.test.ts`, covering UT-STAGE-1-01/02/05. |
+
+### Real bugs found and fixed
+
+**`update_stage_contract`'s "omit a field = keep existing value" was never true.** The original code checked `$input.field != null`, but an omitted optional text input arrives as `""` here, never `null` — the exact trap documented in CLAUDE.md for every prior epic this session, just not yet hit in a *tool* definition specifically. That condition was always true, so every tool call that omitted `stage_goal` or `primary_actor_lens` was silently overwriting it with `""`. Found while wiring up the owner sync (which needed to tell "omitted" from "explicitly cleared" apart) and fixed for both fields using `$raw_input` — verified the omitted/null/value three-way split live via a scratch function (`_scratch_raw_input_test`, deleted after use) before trusting it in the real tool.
+
+### Deviation from the epic, deliberate
+
+US-STAGE-1-01 and 06 specified new **columns**: `journey_stage.owner_lens_id` and `journey_lens.does_planned_work`. Not built that way — both tables have several `filters=trim` text columns, and `updateTableSchema` is confirmed (now three times across this session: `user`/`event_log` in OBS-1, `account` avoided in GOV-1, and these two) to silently drop those validators on every other column. Built as two new 1:1 side tables instead (`journey_stage_owner`, `journey_lens_planned_work`), exactly like GOV-1's `account_feature_flag`. A missing row means "not set," which is the same meaning a null column would have had. `product/stories/phase-4/README.md`'s table-numbering section was corrected to reflect this (it still said "additive column" for GOV-1's case too, never fixed at the time — fixed now for both).
+
+### 2026-10-14 — UI verified live, endpoints 211/517 confirmed end-to-end
+
+A real `npm run dev` + browser session (disposable test account, scratch map) finally closed the gap this epic originally deferred. Both findings below surfaced only because this was the first time anyone actually drove api 211 through its real HTTP path rather than testing the underlying function in isolation — see AUTH-1's Test Results for the full detail and fixes (same session):
+
+- **Owner change wasn't reaching the frontend's own state.** `handleStageDetailsSave` saved the owner to the backend correctly but never read `owner_lens_id` back out of the PATCH response, so the UI's own readiness/owner-dependent logic never saw it without a full page reload. Fixed.
+- **The plain stage-list hydration path never carried `owner_lens_id` at all** (same shape as the `journey_lens_planned_work` gap below it) — needed a dedicated `GET /journey_stage_owner` endpoint (api 519). Fixed.
+- A stage-owner save with untouched (DB-default `0`) duration fields threw a real `E-TIME-003` error from api 44 — fixed (see AUTH-1 Test Results, bug #3).
+
+Endpoints 211 and 517 are now both confirmed working end-to-end via real HTTP calls from the browser (not just function-level testing): owner set/change, planned-work toggle, both persist and survive reload.
+
+### Deferred — and why
+
+- **`exit_condition`, `completion_rule`, `continuous_with_previous`** — deferred per the MVP scope table at the top of this epic; untouched.
+- **Tool 70's MCP-call assembly** (`ai/tool/update_stage_contract.xs`) remains unverified end-to-end — this pass tested the HTTP/browser path (endpoints 211, 517), not the AI-tool-call path. Same open gap as VAL-1's `ops/feature_flag`. Tracked in `product/learning-fixes.md`.
+
+`npm test`: 202/202 pass. `npm run lint`: same pre-existing, unrelated `e2e/chat-session-crud.spec.ts` failure, confirmed untouched by this epic.

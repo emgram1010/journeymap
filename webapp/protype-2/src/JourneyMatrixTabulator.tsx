@@ -13,6 +13,7 @@ import {
   type CellLinkInfo,
 } from './journeyMatrixTabulatorHelpers';
 import type {MatrixCell, Stage, Lens} from './types';
+import {doesPlannedWork} from './stageOwnerModel';
 
 type Props = {
   stages: Stage[];
@@ -27,6 +28,10 @@ type Props = {
   onEditStage: (stageId: string) => void;
   // Optional: map of xanoId → link info for breakpoint indicators
   linkedCells?: Map<number, CellLinkInfo>;
+  // STAGE-1 (US-STAGE-1-06) — toggles a lens row's does_planned_work override
+  onTogglePlannedWork?: (lensId: string) => void;
+  // AUTH-1 (US-AUTH-1-04) — stage.key/id → ready, from computeMapReadiness.perStage
+  stageReadiness?: Record<string, boolean>;
 };
 
 export default function JourneyMatrixTabulator({
@@ -41,6 +46,8 @@ export default function JourneyMatrixTabulator({
   onEditLens,
   onEditStage,
   linkedCells,
+  onTogglePlannedWork,
+  stageReadiness,
 }: Props) {
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -61,6 +68,7 @@ export default function JourneyMatrixTabulator({
   const onUpdateStageLabelRef = useRef(onUpdateStageLabel);
   const onEditLensRef = useRef(onEditLens);
   const onEditStageRef = useRef(onEditStage);
+  const onTogglePlannedWorkRef = useRef(onTogglePlannedWork);
 
   const cellMap = useMemo(
     () => new Map(cells.map((cell) => [`${cell.stageId}:${cell.lensId}`, cell])),
@@ -70,10 +78,12 @@ export default function JourneyMatrixTabulator({
   const tableData = useMemo(
     () =>
       lenses.map((lens) => {
-        const row: Record<string, string> = {
+        const row: Record<string, string | boolean> = {
           id: lens.id,
           lensLabel: lens.label,
           lensActorType: lens.actorType ?? '',
+          // STAGE-1 (US-STAGE-1-06) — resolved value (override or actor_type default), same rule as stageOwnerModel/readiness.
+          lensDoesPlannedWork: doesPlannedWork(lens.actorType ?? null, lens.plannedWorkOverride ?? null),
         };
         stages.forEach((stage) => {
           row[stage.id] = cellMap.get(`${stage.id}:${lens.id}`)?.content ?? '';
@@ -84,8 +94,11 @@ export default function JourneyMatrixTabulator({
   );
 
   const columnsSignature = useMemo(
-    () => stages.map((s) => `${s.id}:${s.label}:${s.stageGoal ?? ''}:${s.primaryActorLens ?? ''}`).join('|'),
-    [stages],
+    () =>
+      stages
+        .map((s) => `${s.id}:${s.label}:${s.stageGoal ?? ''}:${s.primaryActorLens ?? ''}:${stageReadiness?.[s.key ?? s.id] ?? ''}`)
+        .join('|'),
+    [stages, stageReadiness],
   );
 
   const tableDataSignature = useMemo(() => JSON.stringify(tableData), [tableData]);
@@ -122,6 +135,10 @@ export default function JourneyMatrixTabulator({
   useEffect(() => {
     onEditStageRef.current = onEditStage;
   }, [onEditStage]);
+
+  useEffect(() => {
+    onTogglePlannedWorkRef.current = onTogglePlannedWork;
+  }, [onTogglePlannedWork]);
 
   useEffect(() => {
     linkedCellsRef.current = linkedCells;
@@ -164,6 +181,17 @@ export default function JourneyMatrixTabulator({
         return;
       }
 
+      // Intercept clicks on the planned-work toggle.
+      const plannedWorkBtn = (event.target as HTMLElement).closest?.('[data-toggle-planned-work-lens-id]') as HTMLElement | null;
+      if (plannedWorkBtn && container.contains(plannedWorkBtn)) {
+        event.stopPropagation();
+        const lensId = plannedWorkBtn.dataset.togglePlannedWorkLensId;
+        if (lensId) {
+          onTogglePlannedWorkRef.current?.(lensId);
+        }
+        return;
+      }
+
       // Breakpoint indicator click — navigate to the linked map
       const linkIndicator = (event.target as Element).closest?.('.jm-link-indicator') as HTMLElement | null;
       if (linkIndicator) {
@@ -192,7 +220,7 @@ export default function JourneyMatrixTabulator({
   }, []);
 
   const buildColumns = useCallback(
-    (currentStages: Stage[], currentLenses: Lens[]) => [
+    (currentStages: Stage[], currentLenses: Lens[], currentStageReadiness?: Record<string, boolean>) => [
       {
         title: 'Lens',
         field: 'lensLabel',
@@ -202,10 +230,14 @@ export default function JourneyMatrixTabulator({
         headerSort: false,
         formatter: (cell: any) => {
           const rowData = cell.getRow().getData();
+          // AUTH-1 — "does planned work" is an actor-role concept. A structural/
+          // context row (no actorType — Description, Top Pain Point, Key
+          // Variable, ...) isn't an actor at all, so it never gets the toggle.
           return formatLensCellMarkup({
             label: String(cell.getValue() ?? ''),
             actorType: rowData.lensActorType || undefined,
             lensId: String(rowData.id),
+            doesPlannedWork: rowData.lensActorType ? Boolean(rowData.lensDoesPlannedWork) : undefined,
           });
         },
       },
@@ -213,6 +245,7 @@ export default function JourneyMatrixTabulator({
         const ownerLens = stage.primaryActorLens
           ? currentLenses.find((l) => l.key === stage.primaryActorLens || l.id === stage.primaryActorLens)
           : undefined;
+        const stageReadinessKey = stage.key ?? stage.id;
         return {
           title: formatStageHeaderMarkup({
             label: stage.label,
@@ -220,6 +253,7 @@ export default function JourneyMatrixTabulator({
             primaryActorLens: stage.primaryActorLens,
             primaryActorLabel: ownerLens?.label,
             stageId: stage.id,
+            isReady: currentStageReadiness ? currentStageReadiness[stageReadinessKey] : undefined,
           }),
           field: stage.id,
           width: 240,
@@ -254,7 +288,7 @@ export default function JourneyMatrixTabulator({
 
     const table = new Tabulator(containerRef.current, {
       data: tableData,
-      columns: buildColumns(stages, lenses),
+      columns: buildColumns(stages, lenses, stageReadiness),
       index: 'id',
       layout: 'fitDataTable',
       height: '100%',
@@ -286,7 +320,7 @@ export default function JourneyMatrixTabulator({
       tableRef.current = null;
       table.destroy();
     };
-  }, [buildColumns, columnsSignature, renderSignature, stages, tableData, tableDataSignature]);
+  }, [buildColumns, columnsSignature, renderSignature, stageReadiness, stages, tableData, tableDataSignature]);
 
   useEffect(() => {
     const table = tableRef.current;
@@ -298,9 +332,9 @@ export default function JourneyMatrixTabulator({
       return;
     }
 
-    table.setColumns(buildColumns(stages, lenses));
+    table.setColumns(buildColumns(stages, lenses, stageReadiness));
     lastColumnsSignatureRef.current = columnsSignature;
-  }, [buildColumns, columnsSignature, isTableBuilt, lenses, stages]);
+  }, [buildColumns, columnsSignature, isTableBuilt, lenses, stageReadiness, stages]);
 
   useEffect(() => {
     const table = tableRef.current;

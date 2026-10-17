@@ -1,5 +1,6 @@
 import type {ActorFields, ActorType, CellStatus, Lens, MatrixCell, Message, Stage, ToolTraceEntry} from './types';
 import type {SelectedCellContext} from './cellIdentifiers';
+import {CORRELATION_HEADER, newCorrelationId} from './ops/correlationId';
 
 export type JourneyMapStatus = 'draft' | 'active' | 'archived';
 export type ConversationMode = 'interview' | 'chat';
@@ -66,8 +67,10 @@ export interface XanoJourneyMap extends JourneySettings {
   journey_architecture?: number | null;
   // Non-null when this map was cloned from another map.
   cloned_from_map_id?: number | null;
-  // Intelligence Layer taxonomy level: architecture | actor-journey | atomic
-  map_level?: string | null;
+  // Intelligence Layer taxonomy level. Must stay identical to
+  // JourneySettings['map_level'] — this interface extends it, and widening
+  // the type here to plain `string` made the extends relationship invalid.
+  map_level?: 'architecture' | 'actor-journey' | 'atomic' | null;
   intent?: string | null;
   // FK to parent L1/L2 map (TL-3)
   parent_map_id?: number | null;
@@ -91,6 +94,8 @@ export interface XanoJourneyStage {
   display_order?: number | null;
   stage_goal?: string | null;
   primary_actor_lens?: string | null;
+  /** STAGE-1 (US-STAGE-1-01/03) — the validated reference; always the CURRENT owner, even on a PATCH that didn't touch it. */
+  owner_lens_id?: number | null;
 }
 
 export interface XanoJourneyLens {
@@ -488,6 +493,7 @@ const DEFAULT_XANO_JOURNEY_SETTINGS_PATH = '/journey_map/settings/:journeyMapId'
 const DEFAULT_XANO_SMART_AI_SETTINGS_PATH = '/journey_map/smart_ai_settings/:journeyMapId';
 const DEFAULT_XANO_LENS_ACTOR_FIELDS_PATH = '/journey_lens/actor_fields/:journeyLensId';
 const DEFAULT_XANO_UPDATE_STAGE_PATH = '/journey_stage/update/:journeyStageId';
+const DEFAULT_XANO_LENS_PLANNED_WORK_PATH = '/journey_lens/planned_work/:journeyLensId';
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
 
@@ -593,6 +599,8 @@ export const getXanoJourneySettingsPath = () => normalizeOptionalPath(import.met
 export const getXanoSmartAiSettingsPath = () => normalizeOptionalPath(import.meta.env.VITE_XANO_SMART_AI_SETTINGS_PATH) ?? DEFAULT_XANO_SMART_AI_SETTINGS_PATH;
 
 export const getXanoLensActorFieldsPath = () => normalizeOptionalPath(import.meta.env.VITE_XANO_LENS_ACTOR_FIELDS_PATH) ?? DEFAULT_XANO_LENS_ACTOR_FIELDS_PATH;
+
+export const getXanoLensPlannedWorkPath = () => normalizeOptionalPath(import.meta.env.VITE_XANO_LENS_PLANNED_WORK_PATH) ?? DEFAULT_XANO_LENS_PLANNED_WORK_PATH;
 export const getXanoUpdateStagePath = () => normalizeOptionalPath(import.meta.env.VITE_XANO_UPDATE_STAGE_PATH) ?? DEFAULT_XANO_UPDATE_STAGE_PATH;
 
 // ── Auth API group ──────────────────────────────────────────────────────────
@@ -600,29 +608,68 @@ const DEFAULT_XANO_AUTH_BASE_URL = 'https://xdjc-i7zz-jhm2.n7e.xano.io/api:RPonu
 export const getXanoAuthBaseUrl = () => trimTrailingSlash(import.meta.env.VITE_XANO_AUTH_BASE_URL?.trim() || DEFAULT_XANO_AUTH_BASE_URL);
 export const getAuthToken = () => (typeof localStorage !== 'undefined' ? localStorage.getItem('authToken') : null);
 
+// ── Ops API group ────────────────────────────────────────────────────────────
+// FOUND 2026-10-15, while verifying APP-1 over a real browser: every `/ops/*`
+// call in this file (getOpsHealth, getOpsIssues, getOpsBundle) AND
+// `ops/logEvent.ts`'s `defaultSend` were calling the plain `xanoRequest`,
+// which targets `getXanoBaseUrl()` — the JOURNEY-MAP group. The ops/*
+// endpoints were pushed to their OWN group ("Ops", canonical `-2MhtESP`,
+// requiring the `:v1` suffix — confirmed from that group's own OpenAPI
+// spec). Every one of these calls has therefore been hitting a 404 in a
+// real browser since OBS-1 was built: the Health page has never loaded
+// real data, and no client-side event has ever reached `event_log`,
+// independent of (and in addition to) the already-documented `xanoRequest`
+// export bug. See learning-fixes.md for the full write-up, including a
+// SECOND, separate defect this did not mask: `apis/ops/1_ops_event_POST.xs`
+// itself 403s with "Not supported. Please upgrade your Xano instance." —
+// this Xano plan does not support the `redis.*` filters that endpoint's
+// rate limit and de-dup are built on. Fixing THIS base-URL mismatch alone
+// is not enough to make events land; that second issue is a platform
+// capability question, left for the founder, not fixed here.
+const DEFAULT_XANO_OPS_BASE_URL = 'https://xdjc-i7zz-jhm2.n7e.xano.io/api:-2MhtESP:v1';
+export const getXanoOpsBaseUrl = () => trimTrailingSlash(import.meta.env.VITE_XANO_OPS_BASE_URL?.trim() || DEFAULT_XANO_OPS_BASE_URL);
+
 type RequestOptions = {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: Record<string, unknown>;
   signal?: AbortSignal;
+  /** Overrides which API group's base URL this call targets. Defaults to the journey-map group. */
+  baseUrl?: string;
 };
 
-class XanoHttpError extends Error {
+export class XanoHttpError extends Error {
   status: number;
+  /**
+   * OBS-1 (US-OBS-1-12): the correlation id generated for this request.
+   * Shown to the user as "Reference" so they can quote it. Until VAL-1's
+   * standard error envelope exists, this is the id WE sent, not one the
+   * server echoed back — still useful for finding the request on the
+   * Health page's timeline by its own generated id.
+   */
+  reference: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, reference: string) {
     super(message);
     this.status = status;
+    this.reference = reference;
     this.name = 'XanoHttpError';
   }
 }
 
-async function xanoRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const {method = 'GET', body, signal} = options;
+// Exported for ops/logEvent.ts, which lazily imports it to avoid a circular
+// dependency. It was NOT exported before, so that import resolved to
+// undefined and every client-side event send threw — OBS-1's browser event
+// pipeline had never delivered anything, and `failure` events were piling up
+// in the localStorage offline buffer with no way to drain. Invisible until
+// the truncated e2e spec stopped blocking the type-check.
+export async function xanoRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const {method = 'GET', body, signal, baseUrl} = options;
   const token = getAuthToken();
-  const headers: Record<string, string> = {Accept: 'application/json'};
+  const correlationId = newCorrelationId();
+  const headers: Record<string, string> = {Accept: 'application/json', [CORRELATION_HEADER]: correlationId};
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (body) headers['Content-Type'] = 'application/json';
-  const response = await fetch(`${getXanoBaseUrl()}${path}`, {
+  const response = await fetch(`${baseUrl ?? getXanoBaseUrl()}${path}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
@@ -635,6 +682,7 @@ async function xanoRequest<T>(path: string, options: RequestOptions = {}): Promi
     throw new XanoHttpError(
       response.status,
       `Xano ${method} ${path} failed (${response.status}): ${responseText || response.statusText}`,
+      correlationId,
     );
   }
 
@@ -644,7 +692,12 @@ async function xanoRequest<T>(path: string, options: RequestOptions = {}): Promi
 async function authXanoRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const {method = 'GET', body} = options;
   const token = getAuthToken();
-  const headers: Record<string, string> = {Accept: 'application/json'};
+  // Auth failures are exactly what a user reports ("I can't sign in"), so they
+  // carry a correlation id like every other request. This was previously
+  // omitted, which also made the throw below a type error — invisible until
+  // the truncated e2e spec stopped blocking the type-check.
+  const correlationId = newCorrelationId();
+  const headers: Record<string, string> = {Accept: 'application/json', [CORRELATION_HEADER]: correlationId};
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (body) headers['Content-Type'] = 'application/json';
   const response = await fetch(`${getXanoAuthBaseUrl()}${path}`, {
@@ -659,6 +712,7 @@ async function authXanoRequest<T>(path: string, options: RequestOptions = {}): P
     throw new XanoHttpError(
       response.status,
       `Auth ${method} ${path} failed (${response.status}): ${responseText || response.statusText}`,
+      correlationId,
     );
   }
 
@@ -713,6 +767,11 @@ const buildHydratedJourneyMapBundle = (
       label: stage.label,
       stageGoal: stage.stage_goal ?? undefined,
       primaryActorLens: stage.primary_actor_lens ?? undefined,
+      // Defensive passthrough only — the plain stage list/bundle endpoints
+      // don't actually join journey_stage_owner, so this is always null from
+      // here today. The real source is the dedicated journey_stage_owner
+      // fetch in App.tsx (listJourneyStageOwners), which overwrites this.
+      ownerLensId: stage.owner_lens_id ?? null,
     })),
     lenses: sortedLenses.map((lens) => ({
       id: lensKeyById.get(lens.id)!,
@@ -974,17 +1033,25 @@ export async function renameJourneyStage(input: RenameJourneyStageInput): Promis
 
 export async function updateStageDetails(
   stageId: number,
-  data: {label: string; stageGoal?: string | null; primaryActorLens?: string | null},
+  data: {label: string; stageGoal?: string | null; primaryActorLens?: string | null; ownerLensId?: number | null},
 ): Promise<XanoJourneyStage> {
+  const body: Record<string, unknown> = {
+    label: data.label,
+    stage_goal: data.stageGoal ?? null,
+    primary_actor_lens: data.primaryActorLens ?? null,
+  };
+  // STAGE-1 (US-STAGE-1-03): owner_lens_id is only sent when the caller
+  // actually means to touch ownership — the backend reads this via
+  // $raw_input, so omitting the key here leaves an existing owner alone,
+  // while `null` or a number here sets/clears it.
+  if (data.ownerLensId !== undefined) {
+    body.owner_lens_id = data.ownerLensId;
+  }
   return xanoRequest<XanoJourneyStage>(
     buildParameterizedPath(getXanoUpdateStagePath(), {journeyStageId: stageId}),
     {
       method: 'PATCH',
-      body: {
-        label: data.label,
-        stage_goal: data.stageGoal ?? null,
-        primary_actor_lens: data.primaryActorLens ?? null,
-      },
+      body,
     },
   );
 }
@@ -1046,6 +1113,93 @@ export async function updateLensActorFields(input: UpdateLensActorFieldsInput): 
   return xanoRequest<XanoJourneyLens>(
     buildParameterizedPath(getXanoLensActorFieldsPath(), {journeyLensId: input.journeyLensId}),
     {method: 'PATCH', body},
+  );
+}
+
+// ── PUB-1: publish gate and immutable versions ──────────────────────────
+
+/** One blocker from the publish gate (or the readiness check behind it). */
+export interface GateFailure {
+  code: string;
+  stage_key: string | null;
+  lens_key: string | null;
+  message: string;
+}
+
+export interface MapReadinessResponse {
+  ready: boolean;
+  blockers: GateFailure[];
+  warnings: GateFailure[];
+  ready_count: number;
+  total: number;
+  gate_failures: GateFailure[];
+}
+
+export interface PublishedVersion {
+  id: number;
+  version_no: number;
+  content_hash: string;
+  published_at: number | string | null;
+  published_by: number | null;
+  automation_snapshot_id: number | null;
+  stage_count?: number;
+}
+
+export interface PublishResult {
+  journey_map?: XanoJourneyMap;
+  version?: number;
+  /** Null when the publish_gate flag is off — then this endpoint behaves exactly as it did before PUB-1. */
+  map_version?: PublishedVersion | null;
+  gate?: {ready: boolean; gate_failures: GateFailure[]; warnings: GateFailure[]} | null;
+}
+
+/** The server's own readiness check. Mirrors readiness.ts, plus the publish-only "real title" rule. */
+export const getMapReadiness = (journeyMapId: number) =>
+  xanoRequest<MapReadinessResponse>(`/journey_map/${journeyMapId}/readiness`);
+
+/** Frozen version history for a map, newest first. */
+export const listMapVersions = (journeyMapId: number) =>
+  xanoRequest<{journey_map_id: number; count: number; latest_hash: string | null; versions: PublishedVersion[]}>(
+    `/journey_map/${journeyMapId}/versions`,
+  );
+
+/**
+ * Publish version. Rejects with a 400 carrying E-PUB-001 when the gate is on
+ * and the map isn't ready — the thrown XanoHttpError's message holds the
+ * friendly text, and the caller should re-read readiness to list the reasons.
+ */
+export const publishMapVersion = (journeyMapId: number) =>
+  xanoRequest<PublishResult>(`/journey_map/${journeyMapId}/publish`, {method: 'POST', body: {}});
+
+/** AUTH-1 — a single stage-ownership row. journey_stage itself has no owner_lens_id column (STAGE-1's side-table workaround), so the plain stage list/bundle endpoints never return it — this is the only source. */
+export interface XanoJourneyStageOwner {
+  id: number;
+  journey_stage: number;
+  owner_lens_id: number;
+}
+
+/** Every stage's ownership row, across all maps — matched back to the caller's own stages by journey_stage id. */
+export const listJourneyStageOwners = () => xanoRequest<XanoJourneyStageOwner[]>('/journey_stage_owner');
+
+/** STAGE-1/AUTH-1 — a single explicit does_planned_work override row. */
+export interface XanoJourneyLensPlannedWork {
+  id: number;
+  journey_lens: number;
+  does_planned_work: boolean;
+}
+
+/** Every explicit override, across all maps — the small table has no map filter, so the caller matches rows to its own lenses by id. */
+export const listJourneyLensPlannedWork = () =>
+  xanoRequest<XanoJourneyLensPlannedWork[]>('/journey_lens_planned_work');
+
+/** Sets (or clears, with doesPlannedWork=null) the explicit override for one lens. */
+export async function setLensPlannedWork(
+  journeyLensId: number,
+  doesPlannedWork: boolean | null,
+): Promise<{journey_lens_id: number; does_planned_work: boolean}> {
+  return xanoRequest<{journey_lens_id: number; does_planned_work: boolean}>(
+    buildParameterizedPath(getXanoLensPlannedWorkPath(), {journeyLensId}),
+    {method: 'PATCH', body: doesPlannedWork === null ? {clear: true} : {does_planned_work: doesPlannedWork}},
   );
 }
 
@@ -1257,6 +1411,8 @@ export interface XanoUser {
   email: string;
   account_id?: number | null;
   role?: string | null;
+  /** OBS-1: platform-wide admin flag (separate from the per-account `role`). Gates the Health page. */
+  is_platform_admin?: boolean | null;
 }
 
 interface AuthApiResponse {
@@ -1279,6 +1435,80 @@ export async function signupUser(name: string, email: string, password: string):
 export async function getAuthMe(): Promise<XanoUser> {
   return authXanoRequest<XanoUser>('/auth/me');
 }
+
+// ── OBS-1: Health page (admin-only) ─────────────────────────────────────────
+
+export interface OpsHealthResponse {
+  last_heartbeat_at: string | null;
+  failures_24h: number;
+  open_issues_count: number;
+  checked_at: string;
+}
+
+export interface OpsIssue {
+  fingerprint: string;
+  feature: string | null;
+  step: string | null;
+  error_code: string | null;
+  severity: string;
+  count: number;
+  first_seen: string;
+  last_seen: string;
+  latest_message: string | null;
+  sample_correlation_id: string | null;
+  owner: 'user' | 'product_manager' | 'engineer';
+  user_message: string | null;
+  fix_hint: string | null;
+}
+
+export interface OpsIssuesResponse {
+  issues: OpsIssue[];
+  since: string;
+}
+
+export interface OpsBundleEvent {
+  created_at: string;
+  feature: string | null;
+  step: string | null;
+  outcome: string;
+  severity: string | null;
+  error_code: string | null;
+  message: string | null;
+  entity_type: string | null;
+  entity_id: number | null;
+  duration_ms: number | null;
+  metadata: unknown;
+}
+
+export interface OpsBundleResponse {
+  correlation_id: string | null;
+  entity_type: string | null;
+  entity_id: number | null;
+  event_count: number;
+  events: OpsBundleEvent[];
+  catalog_entry: Record<string, unknown> | null;
+  owner: 'user' | 'product_manager' | 'engineer';
+}
+
+export const getOpsHealth = () => xanoRequest<OpsHealthResponse>('/ops/health', {baseUrl: getXanoOpsBaseUrl()});
+
+export const getOpsIssues = (params: {accountId?: number; since?: string} = {}) => {
+  const query = new URLSearchParams();
+  if (params.accountId !== undefined) query.set('account_id', String(params.accountId));
+  if (params.since) query.set('since', params.since);
+  const qs = query.toString();
+  return xanoRequest<OpsIssuesResponse>(`/ops/issues${qs ? `?${qs}` : ''}`, {baseUrl: getXanoOpsBaseUrl()});
+};
+
+export const getOpsBundle = (params: {correlationId?: string; entityType?: string; entityId?: number; accountId?: number}) => {
+  const query = new URLSearchParams();
+  if (params.correlationId) query.set('correlation_id', params.correlationId);
+  if (params.entityType) query.set('entity_type', params.entityType);
+  if (params.entityId !== undefined) query.set('entity_id', String(params.entityId));
+  if (params.accountId !== undefined) query.set('account_id', String(params.accountId));
+  const qs = query.toString();
+  return xanoRequest<OpsBundleResponse>(`/ops/bundle${qs ? `?${qs}` : ''}`, {baseUrl: getXanoOpsBaseUrl()});
+};
 
 // ── Dashboard journey map management ────────────────────────────────────────
 

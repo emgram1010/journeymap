@@ -254,6 +254,8 @@ export interface Stage {
   stageGoal?: string;
   /** Lens key of the actor accountable for this stage's outcome. */
   primaryActorLens?: string;
+  /** STAGE-1 — the validated owner reference (journey_stage.owner_lens_id), always the CURRENT owner. */
+  ownerLensId?: number | null;
 }
 
 export interface Lens {
@@ -272,4 +274,6 @@ export interface Lens {
   /** Ring 2 cost rate — used in L3 leakage math */
   costRateValue?: number | null;
   costRateUnit?: string | null;
+  /** STAGE-1 — explicit journey_lens_planned_work override. null/undefined = use the actor_type default (see stageOwnerModel.doesPlannedWork). */
+  plannedWorkOverride?: boolean | null;
 }

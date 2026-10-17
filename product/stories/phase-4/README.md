@@ -30,25 +30,88 @@ task + stages + who + how long   goes through the stages   start / end / status 
 
 ## MVP build order
 
-| # | Epic (feature) | Depends on | MVP delivers |
-|---|---|---|---|
-| 0 | [P3A-1 Planner amendments](EPIC-P3A-1-planner-amendments.md) | applied while building phase-3 | History-safe planner: archive/deactivate instead of delete; phase-4 columns in the first push |
-| 1 | [OBS-1 Observability and heartbeat](EPIC-OBS-1-observability-and-heartbeat.md) | — | Success/failure events, error catalog, admin-only Health page, Copy diagnostic bundle |
-| 2 | [GOV-1 Data integrity governance](EPIC-GOV-1-data-integrity-governance.md) | 1 | Standards, guards (including existing delete paths), transactions, schema and integrity audits, feature flags |
-| 3 | [VAL-1 Input validation and friendly errors](EPIC-VAL-1-input-validation-and-friendly-errors.md) | 1 | Junk never stored; clear messages; typing preserved |
-| 4 | [TIME-1 Duration model](EPIC-TIME-1-duration-model.md) | 1–3 | One minutes conversion |
-| 5 | [STAGE-1 Stage contract](EPIC-STAGE-1-stage-contract.md) | 1–3 | Real stage owner; "does planned work?" switch per row |
-| 6 | [AUTH-1 Required-field authoring](EPIC-AUTH-1-required-field-authoring.md) | 4, 5 | Required vs. freeform on existing fields; ready marks, progress, checklist |
-| 7 | [PUB-1 Publish version](EPIC-PUB-1-publish-version.md) | 6 | One gate; one immutable version table |
-| 8 | Phase-3 PLN-1 … PLN-8 (with P3A-1) | — | Planner backend |
-| 9 | [PLAN-1 Plan template and instance](EPIC-PLAN-1-plan-template-and-instance.md) | 7, 8 | Tiny template copied into instances |
-| 10 | [JOB-1 Jobs and tasks](EPIC-JOB-1-jobs-and-tasks.md) | 9 | Jobs pinned to a version; tasks generated and hydrated |
-| 11 | [SCHED-1 Scheduling and tweaks](EPIC-SCHED-1-scheduling-and-tweaks.md) | 10 | One scheduled item per task; per-job duration tweak |
-| 12 | [LIVE-1 Publish to live](EPIC-LIVE-1-publish-to-live.md) | 11 | Per-timeline frozen snapshot; planner changes logged after |
-| 13 | [LOG-1 Activity log and status engine](EPIC-LOG-1-activity-log-and-status-engine.md) | 10, 12 | Append-only log; fixed statuses; Done allowed without Start |
-| 14 | [APP-1 Performer app](EPIC-APP-1-performer-app.md) | 12, 13 | Today's items; one-tap actions |
-| 15 | [VAR-1 Variance and outliers](EPIC-VAR-1-variance-and-outliers.md) | 13 | Per-task expected/scheduled/actual; outlier flag |
-| 16 | [E2E-1 End-to-end validation](EPIC-E2E-1-end-to-end-validation.md) | all | Whole loop; integrity audit; supportability demo |
+> **Status as of 2026-10-15. The numbered MVP build order (steps 0–16)
+> is complete.** A synthetic job was built fresh and walked the whole
+> loop for real — map → version → plan template → instance → job →
+> schedule → publish to live → perform (including a Done-without-Start
+> case) → log → variance — over real authenticated HTTP, twice, with
+> two structurally different work types in one plan. The execution
+> integrity audit returns zero findings. Map 178's real data was
+> rehearsed safely (clone only; the original is confirmed untouched).
+>
+> **This does not mean the product is done** — see "Remaining screen
+> debt" and the Deferred table below. It means the backend loop the
+> whole MVP was organized around now provably closes, end to end, on
+> real data, not just epic by epic.
+>
+> **Three significant findings this session, none introduced by the
+> epic that found them:**
+> 1. OBS-1's whole client-side event pipeline — including the Health
+>    page's own data loading — had never worked, for two independent
+>    reasons (wrong API base URL, and a Redis dependency this Xano plan
+>    doesn't support). **Fixed.**
+> 2. **A real, currently-active security bug**, found by E2E-1's own
+>    supportability drill: four auth endpoints (`login`, `me`,
+>    magic-link login, password reset) were logging the WHOLE user
+>    record — hashed password or reset token included — into
+>    `event_log` on every call. `auth/me` alone fires on every page
+>    load. **Fixed immediately.** A decision is needed on whether to
+>    scrub ~3,400 historical rows that may predate the fix.
+> 3. **`==`/`!=` against `null` in XanoScript is loose: `0`, `""`,
+>    `false` and `[]` all test equal to `null`.** Confirmed live.
+>    Checked by hand everywhere it's used so far; a full codebase sweep
+>    is recommended (Opus) and NOT done.
+>
+> See `CLAUDE.md` and `product/learning-fixes.md` for full detail on
+> all three.
+>
+> **Remaining screen debt:** PLAN-1, JOB-1, SCHED-1 and LIVE-1 are
+> still backend-only — APP-1 only covers the performer's own screen,
+> not the planner's. Wiring the planner frontend (**PLN-9**, not yet a
+> numbered epic — needs scoping, and E2E-1 found it is missing at least
+> one endpoint it will need) was deliberately NOT started unsupervised.
+>
+> **Open the Health page.** Today is the first day it has ever been
+> able to load real data. Five seeded problems are waiting there for
+> you to confirm they're visible and explained in plain language — the
+> one check in this whole session only an admin session can perform.
+>
+> **Now a very long list, not pushed or not deleted, waiting on the
+> founder** — five delete paths, one nightly job, thirteen scratch
+> functions, and the historical-log decision above. All in one table
+> at the top of `product/learning-fixes.md`.
+
+| # | Epic (feature) | Depends on | MVP delivers | Model |
+|---|---|---|---|---|
+| 0 | [P3A-1 Planner amendments](EPIC-P3A-1-planner-amendments.md) | applied while building phase-3 | History-safe planner: archive/deactivate instead of delete; phase-4 columns in the first push | Sonnet, then Opus review |
+| 1 | [OBS-1 Observability and heartbeat](EPIC-OBS-1-observability-and-heartbeat.md) | — | Success/failure events, error catalog, admin-only Health page, Copy diagnostic bundle | Sonnet |
+| 2 | [GOV-1 Data integrity governance](EPIC-GOV-1-data-integrity-governance.md) | 1 | Standards, guards (including existing delete paths), transactions, schema and integrity audits, feature flags | **Opus** |
+| 3 | [VAL-1 Input validation and friendly errors](EPIC-VAL-1-input-validation-and-friendly-errors.md) | 1 | Junk never stored; clear messages; typing preserved | Sonnet (Haiku for the junk-input list) |
+| 4 | [TIME-1 Duration model](EPIC-TIME-1-duration-model.md) | 1–3 | One minutes conversion | Sonnet (Haiku for fixtures) |
+| 5 | [STAGE-1 Stage contract](EPIC-STAGE-1-stage-contract.md) | 1–3 | Real stage owner; "does planned work?" switch per row | Sonnet |
+| 6 | [AUTH-1 Required-field authoring](EPIC-AUTH-1-required-field-authoring.md) | 4, 5 | Required vs. freeform on existing fields; ready marks, progress, checklist | Sonnet |
+| 7 | [PUB-1 Publish version](EPIC-PUB-1-publish-version.md) | 6 | One gate; one immutable version table | **Opus** |
+| 8 | Phase-3 PLN-1 … PLN-8 (with P3A-1) ✅ | — | Planner backend — **done**, except the held deletes | Sonnet (Opus review of PLN-2 tenancy and PLN-8 integrity) |
+| 9 | [PLAN-1 Plan template and instance](EPIC-PLAN-1-plan-template-and-instance.md) ✅ | 7, 8 | Tiny template copied into instances — **backend done**, UI not built | Sonnet |
+| 10 | [JOB-1 Jobs and tasks](EPIC-JOB-1-jobs-and-tasks.md) ✅ | 9 | Jobs pinned to a version; tasks generated and hydrated — **backend done**, no UI | Sonnet |
+| 11 | [SCHED-1 Scheduling and tweaks](EPIC-SCHED-1-scheduling-and-tweaks.md) ✅ | 10 | One scheduled item per task; per-job duration tweak — **done except the two deletes** | Sonnet |
+| 12 | [LIVE-1 Publish to live](EPIC-LIVE-1-publish-to-live.md) ✅ | 11 | Per-timeline frozen snapshot; planner changes logged after — **MVP core done**, no bulk publish, no UI | Sonnet, then Opus review |
+| 13 | [LOG-1 Activity log and status engine](EPIC-LOG-1-activity-log-and-status-engine.md) ✅ | 10, 12 | Append-only log; fixed statuses; Done allowed without Start — **done**, no UI; failure-injection tests not runnable here | **Opus** |
+| 14 | [APP-1 Performer app](EPIC-APP-1-performer-app.md) ✅ | 12, 13 | Today's items; one-tap actions — **done**, verified live in a real browser; failure-injection and the session's unresolved Playwright reliability not covered (see Test Results) | Sonnet |
+| 15 | [VAR-1 Variance and outliers](EPIC-VAR-1-variance-and-outliers.md) ✅ | 13 | Per-task expected/scheduled/actual; outlier flag — **done** (MVP slice); stage aggregates and the tweak signal deferred per the epic's own scope | Sonnet |
+| 16 | [E2E-1 End-to-end validation](EPIC-E2E-1-end-to-end-validation.md) ✅ | all | Whole loop; integrity audit; supportability demo — **done**; found and fixed a live security bug; blocks and the Playwright UI path deferred/not run (see Test Results) | Sonnet, then Opus final review |
+
+**Model column:** the AI announces the model at the start of each epic and asks you to switch if needed (`/model sonnet`, `/model opus`, `/model haiku`). Any bug that fails twice → switch to Opus.
+
+## Next steps, now that the numbered build order is done
+
+Not a new numbered step — a recommendation for what to look at, in order:
+
+1. **Open `/health`.** See the note above — this needs you specifically.
+2. **Decide on the thirteen-plus-item held list** in `learning-fixes.md` (deletes, the nightly job, scratch functions, and the historical-log question).
+3. **Review [PLN-9 (planner frontend wiring)](EPIC-PLN-9-planner-frontend-wiring.md)** — drafted, not built, 2026-10-15. It's the largest remaining gap (the planner half of the product has no UI at all), scoped from an actual read of the existing frontend's code rather than written blind, with three open questions for you at the bottom.
+4. **Screen debt**: PLAN-1, JOB-1, SCHED-1 and LIVE-1 have no UI. Whether that becomes part of PLN-9 or its own pass is a product call, not a technical one.
+5. **Deferred stories** (table below) are genuinely deferred, not forgotten — re-read `product/emgramprd.md` §13 when you're ready to pick the next one.
 
 ## Deferred (post-MVP)
 
@@ -81,13 +144,19 @@ task + stages + who + how long   goes through the stages   start / end / status 
 3. If it needs an engineer or the AI, click **Copy diagnostic bundle** and paste it. It contains the story of what happened and no private data.
 4. A user can quote the **Reference** shown in any error message; search it on the Health page to see the whole timeline.
 
-## New tables (numbers start at 80; 74–79 are reserved by phase-3)
+## New tables
+
+> **The numbers below are a record, not a reservation (corrected 2026-10-14).**
+> Xano assigns table ids on creation and ignores whatever a plan asks for —
+> STAGE-1 asked for 109 and got 110/111, PUB-1 asked for 82 and got 112,
+> PLN-1 asked for 74–79 and got 113–118. Record the id Xano gives and name
+> the local file after it. See `product/learning-fixes.md`.
 
 | # | Table | Epic | MVP? |
 |---|---|---|---|
 | 80 | `actor_role` | ROLE-1 | Deferred (number reserved) |
 | 81 | `agent_role` | ROLE-1 | Deferred (number reserved) |
-| 82 | `journey_map_version` | PUB-1 | Yes |
+| ~~82~~ **112** | `journey_map_version` | PUB-1 | Built 2026-10-14 — Xano auto-assigns table ids, so the reserved 82 was not used (see `static/tables/112_journey_map_version.xs`) |
 | 83 | `plan_template` | PLAN-1 | Yes |
 | 84 | `plan_template_map` | PLAN-1 | Yes |
 | 85 | `planner_workspace_map` | PLAN-1 | Yes |
@@ -99,7 +168,9 @@ task + stages + who + how long   goes through the stages   start / end / status 
 | 91 | `activity_log` | LOG-1 | Yes |
 | 92 | `ops_issue_ack` | OBS-1 | Deferred (number reserved) |
 
-**Additive columns (MVP):** `event_log` observability columns (OBS-1); `user.is_platform_admin` (OBS-1); `account.feature_flags` (GOV-1); `journey_stage.owner_lens_id` and `journey_lens.does_planned_work` (STAGE-1); `planner_workspace.is_archived`, `plan_template_id`, `planner_agent.user_id`, `is_active`, `planner_task.tweak_reason`, nullable `planner_task.title` (P3A-1); `workflow_execution.work_item_id` (JOB-1).
+**Additive columns (MVP):** `event_log` observability columns (OBS-1); `user.is_platform_admin` (OBS-1); `planner_workspace.is_archived`, `plan_template_id`, `planner_agent.user_id`, `is_active`, `planner_task.tweak_reason`, nullable `planner_task.title` (P3A-1); `workflow_execution.work_item_id` (JOB-1).
+
+**Additive via new table instead of a column, deliberate (confirmed `updateTableSchema` drops `trim`/`lower` validators on every other column of the table — see CLAUDE.md):** `account_feature_flag` instead of `account.feature_flags` (GOV-1, table 108); `journey_stage_owner` instead of `journey_stage.owner_lens_id` and `journey_lens_planned_work` instead of `journey_lens.does_planned_work` (STAGE-1, tables 110–111).
 
 ## Existing, overlapping initiative
 

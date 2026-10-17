@@ -146,3 +146,4 @@ test.describe('Chat Session CRUD', () => {
       await page.waitForTimeout(1_000);
     }
   });
+});

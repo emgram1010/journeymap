@@ -37,6 +37,8 @@ import {
   LogOut,
   BarChart2,
   Bug,
+  ListChecks,
+  Rocket,
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -94,7 +96,15 @@ import {
   type ParentJourneyContext,
   fetchScorecard,
   type ScorecardResult,
+  listJourneyLensPlannedWork,
+  setLensPlannedWork,
+  listJourneyStageOwners,
+  publishMapVersion,
+  getMapReadiness,
+  type GateFailure,
 } from './xano';
+import {doesPlannedWork} from './stageOwnerModel';
+import {computeMapReadiness, type ReadinessLensInput, type ReadinessStageInput, type ReadinessCellInput} from './readiness';
 import type {CellLinkInfo} from './journeyMatrixTabulatorHelpers';
 
 type InitialLoadState = 'loading' | 'ready' | 'empty' | 'error';
@@ -443,6 +453,20 @@ function DebugPanel({ journeyMapId, turnId, stepLimitWarning }: DebugPanelProps)
 
 // ───────────────────────────────────────────────────────────────────────────
 
+// AUTH-1 (US-AUTH-1-05) — plain-language copy for each readiness.ts reason
+// code. Reason codes themselves stay stable identifiers (readiness.ts never
+// emits prose); this is the one place that turns a code into a sentence.
+const READINESS_REASON_COPY: Record<string, string> = {
+  NO_WORK_TYPE_NAME: 'Map needs a title',
+  NO_STAGES: 'Add at least one stage',
+  NO_STAGE_NAME: 'Stage needs a name',
+  NO_OWNER: 'No owner set for this stage',
+  OWNER_NOT_WORK_ROLE: "Owner doesn't do planned work — pick a different owner or turn the switch on",
+  NO_TASK: "Owner's cell is missing a task",
+  NO_DURATION: "Owner's cell is missing a duration",
+  PARTIAL_WORK_CELL: 'A work cell is half-filled — needs both a task and a duration',
+};
+
 export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -550,6 +574,10 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const [parentMapTitle, setParentMapTitle] = useState<string | null>(null);
   // ── TL-5: Leakage panel toggle ──
   const [isLeakagePanelOpen, setIsLeakagePanelOpen] = useState(false);
+  const [isChecklistOpen, setIsChecklistOpen] = useState(false);
+  const [publishStubMessage, setPublishStubMessage] = useState<string | null>(null);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [serverBlockers, setServerBlockers] = useState<GateFailure[] | null>(null);
   // ── Scorecard / Health Widget (US-MET-12/14) ──
   const [scorecard, setScorecard] = useState<ScorecardResult | null>(null);
   const [scorecardBaseline, setScorecardBaseline] = useState<ScorecardResult | null>(null);
@@ -655,6 +683,120 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
       setInitialLoadState('ready');
     },
     [applyJourneyMapBundle, journeyMapRecord],
+  );
+
+  // AUTH-1/STAGE-1 — hydrate each lens's explicit does_planned_work override.
+  // A separate fetch (not part of the main bundle) so it never risks the
+  // existing load path; the table has no map filter, so this runs once per
+  // map load and matches rows back to the loaded lenses by xanoId.
+  useEffect(() => {
+    if (!journeyMapRecord?.id) return;
+    let cancelled = false;
+    listJourneyLensPlannedWork()
+      .then((overrides) => {
+        if (cancelled) return;
+        const overrideByLensId = new Map(overrides.map((o) => [o.journey_lens, o.does_planned_work]));
+        setLenses((current) => {
+          let changed = false;
+          const next = current.map((lens) => {
+            if (lens.xanoId == null) return lens;
+            const override = overrideByLensId.has(lens.xanoId) ? overrideByLensId.get(lens.xanoId)! : null;
+            if ((lens.plannedWorkOverride ?? null) === override) return lens;
+            changed = true;
+            return {...lens, plannedWorkOverride: override};
+          });
+          return changed ? next : current;
+        });
+      })
+      .catch(() => {
+        // Non-fatal: readiness falls back to the actor_type default when overrides can't load.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [journeyMapRecord?.id]);
+
+  // AUTH-1 — hydrate each stage's real owner_lens_id. journey_stage has no such
+  // column (STAGE-1's side-table workaround — see journey_stage_owner), so the
+  // bundle's plain stage list never carries it; this is a separate fetch for
+  // the same reason as the planned-work one above.
+  useEffect(() => {
+    if (!journeyMapRecord?.id) return;
+    let cancelled = false;
+    listJourneyStageOwners()
+      .then((owners) => {
+        if (cancelled) return;
+        const ownerByStageId = new Map(owners.map((o) => [o.journey_stage, o.owner_lens_id]));
+        setStages((current) => {
+          let changed = false;
+          const next = current.map((stage) => {
+            if (stage.xanoId == null) return stage;
+            const ownerLensId = ownerByStageId.has(stage.xanoId) ? ownerByStageId.get(stage.xanoId)! : null;
+            if ((stage.ownerLensId ?? null) === ownerLensId) return stage;
+            changed = true;
+            return {...stage, ownerLensId};
+          });
+          return changed ? next : current;
+        });
+      })
+      .catch(() => {
+        // Non-fatal: readiness falls back to NO_OWNER when this can't load.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [journeyMapRecord?.id]);
+
+  // PUB-1 (US-PUB-1-02/06) — Publish version. The button is already disabled
+  // while the browser's own readiness says no, but the server checks again
+  // and is the one that decides: if it refuses, its reasons replace the
+  // local ones in the checklist, because the server saw the saved data and
+  // the browser only sees what's on screen.
+  const handlePublishVersion = useCallback(async () => {
+    if (!journeyMapRecord?.id) return;
+    setIsPublishing(true);
+    setXanoError(null);
+    setServerBlockers(null);
+    try {
+      const result = await publishMapVersion(journeyMapRecord.id);
+      const versionNo = result.map_version?.version_no;
+      setPublishStubMessage(
+        versionNo != null
+          ? `Published version ${versionNo}. This version is frozen — live work pins to it.`
+          : 'Published. (The publish gate is off for this account, so no version was frozen.)',
+      );
+      setJourneyMapRecord((current) => (current ? {...current, status: 'active'} : current));
+    } catch (error) {
+      // A gate refusal is a 400 with E-PUB-001; re-read the server's own
+      // reasons so the checklist shows exactly what IT objected to.
+      try {
+        const readiness = await getMapReadiness(journeyMapRecord.id);
+        if (!readiness.ready) {
+          setServerBlockers(readiness.blockers);
+          setIsChecklistOpen(true);
+        }
+      } catch {
+        // Readiness is only here to explain a failure; never let it mask one.
+      }
+      setXanoError(getErrorMessage(error, 'Unable to publish this version.'));
+    } finally {
+      setIsPublishing(false);
+    }
+  }, [journeyMapRecord?.id]);
+
+  const handleTogglePlannedWork = useCallback(
+    (lensId: string) => {
+      const lens = lenses.find((l) => l.id === lensId);
+      if (!lens?.xanoId) return;
+      const current = doesPlannedWork(lens.actorType ?? null, lens.plannedWorkOverride ?? null);
+      const next = !current;
+      setLenses((prev) => prev.map((l) => (l.id === lensId ? {...l, plannedWorkOverride: next} : l)));
+      void setLensPlannedWork(lens.xanoId, next).catch((error) => {
+        setLenses((prev) => prev.map((l) => (l.id === lensId ? {...l, plannedWorkOverride: lens.plannedWorkOverride ?? null} : l)));
+        setXanoError(getErrorMessage(error, 'Unable to update the planned-work switch.'));
+      });
+    },
+    [lenses],
   );
 
   // ── Scorecard refresh (US-MET-14) ──────────────────────────────────────────
@@ -989,6 +1131,73 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const selectedCellShorthand = buildCellShorthand(selectedCell, stages, lenses);
   const selectedCellContext = buildSelectedCellContext({cell: selectedCell, stages, lenses, journeyMapId: journeyMapRecord?.id});
   const selectedCellLens = selectedCell ? lenses.find((l) => l.id === selectedCell.lensId) ?? null : null;
+
+  // AUTH-1 (US-AUTH-1-01) — true when ANY field on the cell has been touched
+  // (task, duration, notes, or any template field). Untouched work cells are
+  // never required; only a cell with something in it must be fully filled.
+  const cellHasAnyContent = (cell: MatrixCell): boolean => {
+    if (cell.content && cell.content.trim() !== '') return true;
+    if (cell.actorFields && typeof cell.actorFields === 'object') {
+      return Object.values(cell.actorFields as Record<string, unknown>).some(
+        (v) => v != null && String(v).trim() !== '',
+      );
+    }
+    // Deliberately NOT checking timeDurationValue here: a never-touched cell's
+    // time_duration_value defaults to 0 at the DB level, same as a real "0
+    // minutes" entry — there's no way to tell them apart from this field
+    // alone, so treating 0 as "touched" would flag every untouched work cell
+    // in the map as PARTIAL_WORK_CELL. Task/content presence is the reliable signal.
+    return false;
+  };
+
+  // AUTH-1 (US-AUTH-1-01/04) — map readiness, recomputed whenever the map's
+  // title, stages, lenses, or cells change. Feeds the ready marks, progress
+  // line, checklist, and (eventually, PUB-1) the publish gate.
+  const mapReadiness = useMemo(() => {
+    const readinessLenses: ReadinessLensInput[] = lenses.map((lens) => ({
+      key: lens.key ?? lens.id,
+      actorType: lens.actorType ?? null,
+      doesPlannedWorkOverride: lens.plannedWorkOverride ?? null,
+    }));
+
+    const readinessStages: ReadinessStageInput[] = stages.map((stage) => {
+      const ownerLens = stage.ownerLensId != null ? lenses.find((l) => l.xanoId === stage.ownerLensId) : undefined;
+      return {
+        key: stage.key ?? stage.id,
+        label: stage.label,
+        ownerLensKey: ownerLens ? ownerLens.key ?? ownerLens.id : null,
+      };
+    });
+
+    const cellsByStage: Record<string, ReadinessCellInput[]> = {};
+    stages.forEach((stage) => {
+      const stageKey = stage.key ?? stage.id;
+      cellsByStage[stageKey] = lenses.map((lens) => {
+        const cell = cells.find((c) => c.stageId === stage.id && c.lensId === lens.id);
+        const actorFieldsRecord = (cell?.actorFields ?? null) as Record<string, unknown> | null;
+        const task =
+          actorFieldsRecord && typeof actorFieldsRecord.task_objective === 'string'
+            ? (actorFieldsRecord.task_objective as string)
+            : null;
+        return {
+          lensKey: lens.key ?? lens.id,
+          task,
+          durationValue: cell?.timeDurationValue ?? null,
+          durationUnit: cell?.timeDurationUnit ?? null,
+          hasAnyContent: cell ? cellHasAnyContent(cell) : false,
+        };
+      });
+    });
+
+    return computeMapReadiness({workTypeName: journeyMapRecord?.title ?? null}, readinessStages, readinessLenses, cellsByStage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [journeyMapRecord?.title, stages, lenses, cells]);
+
+  // stage.key/id → ready, for the matrix's per-stage ready marks.
+  const stageReadinessMap = useMemo(
+    () => Object.fromEntries(mapReadiness.perStage.map((s) => [s.stageKey, s.ready])),
+    [mapReadiness],
+  );
 
   /**
    * SE-B3: Memoized stage health for the detail panel.
@@ -1330,12 +1539,26 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
       setXanoError(null);
 
       try {
+        const durationChanged =
+          (cell.timeDurationValue ?? null) !== (baselineCell?.timeDurationValue ?? null) ||
+          (cell.timeDurationUnit ?? null) !== (baselineCell?.timeDurationUnit ?? null);
+
         const persistedCell = await updateJourneyCell({
           journeyCellId: resolveXanoId(cell, 'cell'),
           content: cell.content,
           status: cell.status,
           isLocked: Boolean(cell.isLocked),
           actorFields: cell.actorFields,
+          // AUTH-1 (US-AUTH-1-02): per-cell duration, only sent when it actually
+          // changed — mirrors the "omitted key = don't touch" convention the
+          // backend's $raw_input|has: check relies on (see api 44). value and
+          // unit must arrive paired (both present or both absent) — the unit
+          // picker always has a selected value, so a unit-only change (value
+          // still null) is sent as neither, not as value:null+unit:"x", which
+          // trips the backend's pairing precondition (E-TIME-003).
+          ...(durationChanged && cell.timeDurationValue != null
+            ? {timeDurationValue: cell.timeDurationValue, timeDurationUnit: cell.timeDurationUnit ?? null}
+            : {}),
         });
 
         const nextCell: MatrixCell = {
@@ -1447,6 +1670,14 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
 
   const toggleCellLock = (id: string) => {
     setCells((currentCells) => currentCells.map((cell) => (cell.id === id ? {...cell, isLocked: !cell.isLocked} : cell)));
+  };
+
+  // AUTH-1 (US-AUTH-1-02) — per-cell duration, local state only; persisted on
+  // save/blur by persistCellChanges, same as every other cell field.
+  const updateCellTimeDuration = (id: string, value: number | null, unit: string | null) => {
+    setCells((currentCells) =>
+      currentCells.map((cell) => (cell.id === id ? {...cell, timeDurationValue: value, timeDurationUnit: unit} : cell)),
+    );
   };
 
   const updateStageLabel = (id: string, label: string) => {
@@ -1651,7 +1882,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     setEditingStageId(stageId);
   };
 
-  const handleStageDetailsSave = async (data: {label: string; primaryActorLens: string | null; stageGoal: string | null; timeDurationValue: number | null; timeDurationUnit: string | null; plannedDuration: number | null; actualDuration: number | null}) => {
+  const handleStageDetailsSave = async (data: {label: string; primaryActorLens: string | null; ownerLensId?: number | null; stageGoal: string | null; timeDurationValue: number | null; timeDurationUnit: string | null; plannedDuration: number | null; actualDuration: number | null}) => {
     if (!editingStageId) return;
     const currentStage = stages.find((s) => s.id === editingStageId);
     if (!currentStage?.xanoId) return;
@@ -1672,8 +1903,14 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         label: data.label,
         stageGoal: data.stageGoal,
         primaryActorLens: data.primaryActorLens,
+        ownerLensId: data.ownerLensId,
       });
-      // Sync back with server values
+      // Sync back with server values. owner_lens_id always reflects the
+      // CURRENT owner per api 211's own contract (re-queried fresh on every
+      // PATCH) — using it here, not data.ownerLensId, means an edit that left
+      // ownership untouched still picks up the real value instead of staying
+      // null forever (journey_stage has no such column; the bundle's plain
+      // stage list never carries it — see AUTH-1's journey_stage_owner fetch).
       setStages((prev) =>
         prev.map((s) =>
           s.id === editingStageId || s.xanoId === updated.id
@@ -1682,6 +1919,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                 label: updated.label,
                 stageGoal: updated.stage_goal ?? undefined,
                 primaryActorLens: updated.primary_actor_lens ?? undefined,
+                ownerLensId: updated.owner_lens_id ?? null,
               }
             : s,
         ),
@@ -1698,8 +1936,14 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         if (targetCell?.journeyCellId) {
           await updateJourneyCell({
             journeyCellId: targetCell.journeyCellId,
-            timeDurationValue: data.timeDurationValue,
-            timeDurationUnit: data.timeDurationUnit,
+            // The backend requires value and unit to arrive paired (both present
+            // or both absent) — the unit <select> always has a value (defaults to
+            // "minutes"), so it must be omitted whenever the value itself is null,
+            // or a plan/actual-only save (e.g. both are 0 from a seeded cell) trips
+            // the pairing precondition (E-TIME-003) even though duration was never touched.
+            ...(data.timeDurationValue != null
+              ? {timeDurationValue: data.timeDurationValue, timeDurationUnit: data.timeDurationUnit}
+              : {}),
             plannedDuration: data.plannedDuration,
             actualDuration: data.actualDuration,
           });
@@ -1921,6 +2165,15 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                 </div>
               )}
 
+              {publishStubMessage && (
+                <div className="border-b border-indigo-200 bg-indigo-50 px-6 py-3 text-xs text-indigo-900 flex items-center justify-between gap-3">
+                  <span>{publishStubMessage}</span>
+                  <button onClick={() => setPublishStubMessage(null)} className="text-indigo-400 hover:text-indigo-700">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
               {isScaffoldFallback && (
                 <div className="border-b border-amber-200 bg-amber-50 px-6 py-3 text-xs text-amber-900">
                   <div className="font-semibold">Backend map loaded without persisted matrix records</div>
@@ -1956,6 +2209,23 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                       {cells.filter(c => c.status === 'open').length} Open
                     </div>
                   </div>
+                  {/* AUTH-1 (US-AUTH-1-04) — map readiness progress line */}
+                  {mapReadiness.total > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setIsChecklistOpen((v) => !v)}
+                      title={mapReadiness.mapReasons.includes('NO_WORK_TYPE_NAME') ? 'Map is missing a title' : undefined}
+                      className={`flex items-center gap-1.5 rounded border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                        mapReadiness.ready
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                          : 'border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100'
+                      }`}
+                    >
+                      {mapReadiness.ready ? <CheckCircle2 className="w-3.5 h-3.5" /> : <CircleDashed className="w-3.5 h-3.5" />}
+                      {mapReadiness.readyCount} of {mapReadiness.total} stages ready
+                      {mapReadiness.mapReasons.includes('NO_WORK_TYPE_NAME') && <span className="text-amber-600">· untitled</span>}
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -2019,6 +2289,33 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     <Settings className="h-3.5 w-3.5" />
                     Settings
                   </button>
+                  {/* AUTH-1 (US-AUTH-1-05) */}
+                  {mapReadiness.total > 0 && (
+                    <button
+                      onClick={() => setIsChecklistOpen((v) => !v)}
+                      title="What's missing"
+                      className={`inline-flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-[11px] font-medium transition-colors ${isChecklistOpen ? 'border-zinc-400 bg-zinc-100 text-zinc-900' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
+                    >
+                      <ListChecks className="h-3.5 w-3.5" />
+                      Checklist
+                    </button>
+                  )}
+                  {/* AUTH-1 (US-AUTH-1-06) shows the state; PUB-1 (US-PUB-1-02) does the publish. */}
+                  {mapReadiness.total > 0 && (
+                    <button
+                      disabled={!mapReadiness.ready || isPublishing || !journeyMapRecord?.id}
+                      onClick={() => void handlePublishVersion()}
+                      title={
+                        mapReadiness.ready
+                          ? 'Freeze this map as a version'
+                          : `${mapReadiness.total - mapReadiness.readyCount} stage${mapReadiness.total - mapReadiness.readyCount === 1 ? '' : 's'} not ready`
+                      }
+                      className="inline-flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-[11px] font-semibold transition-colors border-zinc-900 bg-zinc-900 text-white hover:bg-zinc-700 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400"
+                    >
+                      <Rocket className="h-3.5 w-3.5" />
+                      {isPublishing ? 'Publishing…' : 'Publish Version'}
+                    </button>
+                  )}
                   {/* TL-5: Leakage panel toggle — L3 atomic only */}
                   {journeyMapRecord?.map_level === 'atomic' && (
                     <button
@@ -2048,6 +2345,8 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     linkedCells={cellLinkMap}
                     onEditLens={handleLensEditFromMatrix}
                     onEditStage={handleEditStageOpen}
+                    onTogglePlannedWork={handleTogglePlannedWork}
+                    stageReadiness={stageReadinessMap}
                   />
                 </div>
               </div>
@@ -2247,6 +2546,92 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                 )}
               </AnimatePresence>
 
+              {/* AUTH-1 (US-AUTH-1-05) — Checklist Panel (Left Side) */}
+              <AnimatePresence>
+                {isChecklistOpen && (
+                  <motion.div
+                    initial={{x: '-100%'}}
+                    animate={{x: 0}}
+                    exit={{x: '-100%'}}
+                    transition={{type: 'spring', damping: 25, stiffness: 200}}
+                    className="absolute left-0 top-0 bottom-0 w-96 bg-white border-r border-zinc-200 shadow-2xl z-40 flex flex-col"
+                  >
+                    <div className="h-14 flex items-center justify-between px-4 border-b border-zinc-200 bg-zinc-50 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <ListChecks className="w-4 h-4 text-zinc-400" />
+                        <span className="text-xs font-semibold text-zinc-700 uppercase tracking-tight">Checklist</span>
+                      </div>
+                      <button onClick={() => setIsChecklistOpen(false)} className="p-1.5 hover:bg-zinc-200 rounded text-zinc-400 transition-colors">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                      {/* PUB-1 — when the server refused a publish, its reasons
+                          win: it checked the saved data, not the screen. */}
+                      {serverBlockers && serverBlockers.length > 0 && (
+                        <div className="p-3 rounded border border-rose-200 bg-rose-50 space-y-1.5">
+                          <div className="text-[11px] font-semibold text-rose-900">The server refused this publish</div>
+                          {serverBlockers.map((blocker, index) => (
+                            <div key={`${blocker.code}-${blocker.stage_key ?? 'map'}-${index}`} className="text-[11px] text-rose-700">
+                              {blocker.stage_key ? `${blocker.stage_key}: ` : ''}
+                              {blocker.message}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {mapReadiness.mapReasons.length > 0 && (
+                        <div className="p-3 rounded border border-amber-200 bg-amber-50 text-[11px] text-amber-800 space-y-1">
+                          {mapReadiness.mapReasons.map((reason) => (
+                            <div key={reason}>{READINESS_REASON_COPY[reason] ?? reason}</div>
+                          ))}
+                        </div>
+                      )}
+                      {mapReadiness.perStage.filter((s) => !s.ready).length === 0 ? (
+                        <div className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-3 py-2">
+                          Everything required is filled in.
+                        </div>
+                      ) : (
+                        mapReadiness.perStage
+                          .filter((s) => !s.ready)
+                          .map((stageResult) => {
+                            const stage = stages.find((st) => (st.key ?? st.id) === stageResult.stageKey);
+                            if (!stage) return null;
+                            const needsStageEdit = stageResult.reasons.some((r) =>
+                              ['NO_STAGE_NAME', 'NO_OWNER', 'OWNER_NOT_WORK_ROLE'].includes(r),
+                            );
+                            const ownerLens = stage.ownerLensId != null ? lenses.find((l) => l.xanoId === stage.ownerLensId) : undefined;
+                            const ownerCell = ownerLens ? cells.find((c) => c.stageId === stage.id && c.lensId === ownerLens.id) : undefined;
+                            return (
+                              <button
+                                key={stageResult.stageKey}
+                                type="button"
+                                onClick={() => {
+                                  setIsChecklistOpen(false);
+                                  if (needsStageEdit) {
+                                    handleEditStageOpen(stage.id);
+                                  } else if (ownerCell) {
+                                    handleSelectCell(ownerCell.id);
+                                  }
+                                }}
+                                className="w-full text-left p-3 rounded border border-zinc-200 hover:bg-zinc-50 transition-colors"
+                              >
+                                <div className="text-xs font-semibold text-zinc-900 mb-1">{stage.label || 'Untitled stage'}</div>
+                                <div className="space-y-0.5">
+                                  {stageResult.reasons.map((reason) => (
+                                    <div key={reason} className="text-[11px] text-zinc-500">
+                                      {READINESS_REASON_COPY[reason] ?? reason}
+                                    </div>
+                                  ))}
+                                </div>
+                              </button>
+                            );
+                          })
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* TL-5: Leakage Results Panel (Right Side) */}
               <AnimatePresence>
                 {isLeakagePanelOpen && journeyMapRecord?.map_level === 'atomic' && (() => {
@@ -2258,7 +2643,9 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     if (unit === 'weeks') return val * 40;
                     return val; // default: hours
                   };
-                  const lensMap = new Map(lenses.map((l) => [l.id, l]));
+                  // Annotated explicitly: left to infer, the pair widens to an
+                  // array and every lookup below comes back as `unknown`.
+                  const lensMap = new Map<string, Lens>(lenses.map((l) => [l.id, l]));
                   let totalPerEvent = 0;
                   const incomplete: string[] = [];
                   const byStage = stages.map((stage) => {
@@ -3120,6 +3507,82 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     );
                   })()}
 
+                  {/* AUTH-1 (US-AUTH-1-02) — Task + Duration are required for any
+                      work-doing row; Done when is recommended, not required.
+                      Hidden for customer-type (non-work) rows, which only ever
+                      show the freeform fields below. */}
+                  {selectedCellLens && doesPlannedWork(selectedCellLens.actorType ?? null, selectedCellLens.plannedWorkOverride ?? null) && (
+                    <div className="space-y-3 p-3 bg-indigo-50/40 border border-indigo-100 rounded">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <label className="text-[10px] font-medium text-zinc-600">Task</label>
+                          <span className="text-[9px] font-bold text-rose-600 uppercase tracking-wider">Required</span>
+                        </div>
+                        <input
+                          type="text"
+                          value={(selectedCell.actorFields as Record<string, string | null> | null | undefined)?.task_objective ?? ''}
+                          onChange={(e) => updateCellActorField(selectedCell.id, 'task_objective', e.target.value)}
+                          disabled={selectedCell.isLocked}
+                          placeholder="What does this row do here?"
+                          className="w-full p-2 bg-white border border-zinc-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300 disabled:opacity-50"
+                        />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <label className="text-[10px] font-medium text-zinc-600">Duration</label>
+                          <span className="text-[9px] font-bold text-rose-600 uppercase tracking-wider">Required</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={selectedCell.timeDurationValue ?? ''}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              const num = raw.trim() === '' ? null : Number(raw);
+                              // `|| 'minutes'`, not `??`: a never-touched cell's time_duration_unit
+                              // comes back as "" (empty string, not null) from the backend's enum
+                              // column default — `??` doesn't fall through on "", so the <select>
+                              // below would visually show "minutes" (the browser's fallback for an
+                              // unmatched value) while actually saving "" and silently failing
+                              // readiness's NO_DURATION check.
+                              updateCellTimeDuration(selectedCell.id, num === null || isNaN(num) ? null : num, selectedCell.timeDurationUnit || 'minutes');
+                            }}
+                            disabled={selectedCell.isLocked}
+                            placeholder="e.g. 15"
+                            className="w-20 p-2 bg-white border border-zinc-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300 disabled:opacity-50"
+                          />
+                          <select
+                            value={selectedCell.timeDurationUnit || 'minutes'}
+                            onChange={(e) => updateCellTimeDuration(selectedCell.id, selectedCell.timeDurationValue ?? null, e.target.value)}
+                            disabled={selectedCell.isLocked}
+                            className="flex-1 p-2 bg-white border border-zinc-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300 disabled:opacity-50"
+                          >
+                            <option value="minutes">minutes</option>
+                            <option value="hours">hours</option>
+                            <option value="days">days</option>
+                            <option value="weeks">weeks</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <label className="text-[10px] font-medium text-zinc-600">Done when</label>
+                          <span className="text-[9px] font-medium text-zinc-400 uppercase tracking-wider">Optional</span>
+                        </div>
+                        <input
+                          type="text"
+                          value={(selectedCell.actorFields as Record<string, string | null> | null | undefined)?.success_criteria ?? ''}
+                          onChange={(e) => updateCellActorField(selectedCell.id, 'success_criteria', e.target.value)}
+                          disabled={selectedCell.isLocked}
+                          placeholder="How do you know this is done?"
+                          className="w-full p-2 bg-white border border-zinc-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300 disabled:opacity-50"
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   {/* Metrics cell panel — structured scorecard, replaces generic field list */}
                   {METRICS_ACTOR_ENABLED && selectedCellLens?.actorType === 'metrics' && selectedCell.actorFields && isMetricsActorFields(selectedCell.actorFields) && (() => {
                     const mf = selectedCell.actorFields as MetricsActorFields;
@@ -3260,7 +3723,9 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-2">
                       {(() => {
                         const cellLensForNotes = selectedCell ? lenses.find((l) => l.id === selectedCell.lensId) : null;
-                        return cellLensForNotes?.actorType ? 'Notes' : 'Content';
+                        if (!cellLensForNotes?.actorType) return 'Content';
+                        const isWorkRole = doesPlannedWork(cellLensForNotes.actorType ?? null, cellLensForNotes.plannedWorkOverride ?? null);
+                        return isWorkRole ? 'Notes (optional)' : 'Notes';
                       })()}
                     </label>
                     <div className="relative">

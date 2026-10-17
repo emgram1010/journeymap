@@ -45,10 +45,13 @@ export const formatLensCellMarkup = ({
   label,
   actorType,
   lensId,
+  doesPlannedWork,
 }: {
   label: string;
   actorType?: string;
   lensId?: string;
+  /** STAGE-1 (US-STAGE-1-06) — the resolved does_planned_work value (override or actor_type default). Omitted = don't render the toggle. */
+  doesPlannedWork?: boolean;
 }) => {
   const pill = actorType
     ? `<span class="jm-lens-actor-pill">${escapeHtml(actorType.replace('_', ' '))}</span>`
@@ -56,7 +59,11 @@ export const formatLensCellMarkup = ({
   const editBtn = lensId
     ? `<button class="jm-lens-edit-btn" data-edit-lens-id="${escapeHtml(lensId)}" title="Edit actor role" type="button">✎</button>`
     : '';
-  return `<div class="jm-lens-cell">${editBtn}<div class="jm-lens-cell-body"><span class="jm-lens-label">${escapeHtml(label)}</span>${pill}</div></div>`;
+  const plannedWorkToggle =
+    lensId && doesPlannedWork !== undefined
+      ? `<button class="jm-lens-planned-toggle ${doesPlannedWork ? 'is-on' : 'is-off'}" data-toggle-planned-work-lens-id="${escapeHtml(lensId)}" title="Does this row do planned work? Click to toggle." type="button">${doesPlannedWork ? '✓ Plans work' : 'No planned work'}</button>`
+      : '';
+  return `<div class="jm-lens-cell">${editBtn}<div class="jm-lens-cell-body"><span class="jm-lens-label">${escapeHtml(label)}</span>${pill}${plannedWorkToggle}</div></div>`;
 };
 
 export const formatStageHeaderMarkup = ({
@@ -65,14 +72,22 @@ export const formatStageHeaderMarkup = ({
   primaryActorLens,
   primaryActorLabel,
   stageId,
+  isReady,
 }: {
   label: string;
   stageGoal?: string;
   primaryActorLens?: string;
   primaryActorLabel?: string;
   stageId: string;
+  /** AUTH-1 (US-AUTH-1-04) — from computeStageReadiness. Omitted = don't render a mark (readiness not computed yet). */
+  isReady?: boolean;
 }): string => {
   const editBtn = `<button class="jm-stage-edit-btn" data-edit-stage-id="${escapeHtml(stageId)}" title="Edit stage" type="button">✎</button>`;
+
+  const readyMark =
+    isReady !== undefined
+      ? `<span class="jm-stage-ready-mark ${isReady ? 'is-ready' : 'is-not-ready'}" title="${isReady ? 'Ready' : 'Not ready yet'}">${isReady ? '✓' : '○'}</span>`
+      : '';
 
   const actorPill = primaryActorLens
     ? `<span class="jm-stage-actor-pill is-set">${escapeHtml(primaryActorLabel ?? primaryActorLens)}</span>`
@@ -84,7 +99,7 @@ export const formatStageHeaderMarkup = ({
     ? `<span class="jm-stage-goal">${escapeHtml(goalText)}</span>`
     : `<span class="jm-stage-goal is-empty">\u26a0 No goal set</span>`;
 
-  return `<div class="jm-stage-header">${editBtn}<span class="jm-stage-label">${escapeHtml(label)}</span><div class="jm-stage-meta">${actorPill}${goalEl}</div></div>`;
+  return `<div class="jm-stage-header">${editBtn}${readyMark}<span class="jm-stage-label">${escapeHtml(label)}</span><div class="jm-stage-meta">${actorPill}${goalEl}</div></div>`;
 };
 
 const LINK_TYPE_ICON: Record<string, string> = {

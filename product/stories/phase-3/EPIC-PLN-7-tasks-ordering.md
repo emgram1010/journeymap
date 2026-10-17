@@ -3,7 +3,7 @@
 > **Amended by phase-4 `EPIC-P3A-1` (US-P3A-1-05):** changes to tasks on a published timeline are allowed for the planner and logged in `plan_change_log`.
 
 **Epic ID:** PLN-7
-**Status:** Planning
+**Status:** Partially done — create/list/read/edit/place/reorder live and verified over real HTTP, including the 50-operation ordering invariant; **task delete (US-PLN-7-07) needs the founder's approval** (see Test Results)
 **Depends on:** PLN-6
 **Goal:** CRUD for tasks across backlog and timelines, with a single resequence function that keeps `seq` gapless and a derived start time that is always correct.
 
@@ -136,4 +136,96 @@ Frontend: `handleCreateBacklogTask`, `handleAddTaskToTimeline`, `handleAddBacklo
 
 ## Test Results
 
-_Not yet run._
+**2026-10-14 — Opus 5 build pass. Partially complete: everything except
+the delete.** Six endpoints and three functions live, all exercised
+over **real authenticated HTTP**.
+
+### What shipped
+
+| Thing | Live id | File |
+|---|---|---|
+| `POST planner/workspace/{id}/task` | 542 | `apis/planner/542_workspace_workspace_id_task_POST.xs` |
+| `POST planner/task/{id}/place` | 543 | `apis/planner/543_task_task_id_place_POST.xs` |
+| `POST planner/timeline/{id}/reorder` | 544 | `apis/planner/544_timeline_timeline_id_reorder_POST.xs` |
+| `PATCH planner/task/{id}` | 545 | `apis/planner/545_task_task_id_PATCH.xs` |
+| `GET planner/workspace/{id}/task` | 546 | `apis/planner/546_workspace_workspace_id_task_GET.xs` |
+| `GET planner/task/{id}` | 547 | `apis/planner/547_task_task_id_GET.xs` |
+| `planner/resequence` | fn 115 | `functions/planner/resequence.xs` |
+| `planner/derive_tasks` | fn 116 | `functions/planner/derive_tasks.xs` |
+| `planner/place_task` | fn 117 | `functions/planner/place_task.xs` |
+
+### 🔴 Not done: task delete needs the founder's approval
+
+`DELETE planner/task/{task_id}` and `planner/delete_task` are
+**written but not pushed**. **Blocks FT-PLN-7-16.**
+
+**This is the only planner delete that actually destroys anything.**
+Deleting a plan, an agent or a timeline all keep the tasks; this one
+removes work outright, so it is the one most likely to be regretted
+and the one most worth a confirmation step in the UI.
+
+Its second half is already proven: `planner/resequence` is pushed,
+tested and idempotent, so only the single `db.del` is unverified.
+
+US-PLN-6-06 / FT-PLN-7-18 (create-and-place on an empty cell) was not
+built — it is a convenience wrapper over `place_task`, and its
+all-or-nothing guarantee depends on the same unapproved path.
+
+### Functional cases
+
+| ID | Result |
+|---|---|
+| FT-PLN-7-01 | ✅ Backlog creates append and resequence to 1..n |
+| FT-PLN-7-02 | ✅ Created into a timeline, appended, derived start correct |
+| FT-PLN-7-03 | ✅ Whitespace title → `E-VAL-001`; duration `0` and `1441` → `E-PLN-013` |
+| FT-PLN-7-04 | ✅ Backlog task placed into a timeline at index 1 landed second; **both** containers came back gapless |
+| FT-PLN-7-05 | ✅ Index `99` clamped to the end; index `-1` → `E-PLN-015` |
+| FT-PLN-7-06 | ✅ Moved between containers repeatedly; source and destination both resequenced each time |
+| FT-PLN-7-07 | ✅ Placing a task into **another plan's** timeline → *"Entities must belong to the same workspace"*. Same for creating one there |
+| FT-PLN-7-08 | ✅ A `needs_info` task kept its status and reason in the backlog, and had both cleared the moment it landed in a timeline |
+| FT-PLN-7-09 | ✅ Placed back to the backlog: `planned_start` became `null`, source timeline gapless |
+| FT-PLN-7-10 | ✅ Full reversal of a 7-task day applied; derived starts recomputed down the list |
+| FT-PLN-7-11 | ✅ Missing, extra **and** duplicate ids each → `E-PLN-016`, order unchanged (task count verified afterwards) |
+| FT-PLN-7-12 | ✅ Task 2 of 7 changed 30 → 120 minutes: only that row written, every later start shifted exactly 90 minutes |
+| FT-PLN-7-13 | ✅ `needs_info` with no reason → `E-PLN-014`; with a reason → accepted |
+| FT-PLN-7-14 | ✅ **Exactly the spec's numbers.** From `08:00` with 30/45/60 → `08:00`, `08:30`, `09:15`. Midnight wrap from `23:00` with 45/60/90 → `23:00`, `23:45`, `00:45`, `02:15` |
+| FT-PLN-7-15 | ✅ All four: inherit from the day's agent, explicit override, override cleared back to inherit, and backlog with no override → `{agent_id: 0, name: null}` |
+| FT-PLN-7-16 | ⛔ Blocked |
+| FT-PLN-7-17 | ✅ **50 random place/reorder operations across 3 timelines and the backlog: zero errors, and all four containers exactly 1..n afterwards.** Task count held at 13 throughout — nothing lost or duplicated |
+| FT-PLN-7-18 | ⛔ Not built (see above) |
+| FT-PLN-7-19 | ✅ Cross-account task → `404 Task not found`; all six endpoints `401` unauthenticated |
+
+`npm test`: 213/213.
+
+### The ordering invariant, and how it is kept
+
+`seq` is normalised in exactly one place — `planner/resequence` — and
+every mutation ends by calling it for each container it touched.
+Nothing else invents a sequence number. FT-PLN-7-17 is the evidence
+that this holds under arbitrary interleaving.
+
+**Insertion is done by arithmetic, not control flow**, and that is
+forced by a XanoScript defect rather than chosen. Inserting "at index
+2" would normally mean a loop that counts and branches on reaching the
+target — but a `conditional` inside a `foreach` whose condition reads a
+counter updated in that same iteration **silently discards everything
+the branch writes** (found in PLN-6, documented in CLAUDE.md). So
+`place_task` spaces the other tasks 10 apart, gives the moved task
+`index * 10 + 5` so it falls in exactly one gap, and lets `resequence`
+flatten it to 1..n. No branching inside any loop.
+
+The same defect shaped the reorder validation: rather than looping to
+check membership, it compares two counts — submitted vs. current, and
+`id IN (submitted)` vs. current. That catches missing, extra,
+duplicate **and** foreign ids, which is also why an id from another
+plan cannot be reordered in.
+
+### Deviations
+
+| Change | Why |
+|---|---|
+| `seq` is 1..n, while PLN-1 created the column with default 0 | US-PLN-7-01 specifies 1..n and the frontend's `seq: idx + 1` agrees. `resequence` normalises any legacy 0-based rows on first touch |
+| `planner/derive_tasks` is one function for list, read and hydrate | US-PLN-7-06 requires a single implementation. The single-task read filters that function's output rather than computing anything itself — a task's start depends on every task before it, so it cannot be derived from the row alone |
+| Four new error codes | `E-PLN-013` (duration range), `E-PLN-014` (needs_info without a reason), `E-PLN-015` (negative index), `E-PLN-016` (reorder is not a permutation) |
+| Task writes are blocked on an archived plan | P3A-1 makes an archived plan read-only |
+| US-P3A-1-05 (`plan_change_log` on published timelines) not implemented | `plan_change_log` is LIVE-1's table and does not exist yet, and publishing is on hold for PLN-6/7, so no timeline can currently be published |
