@@ -1,13 +1,11 @@
-// APP-1 (US-APP-1-03, -04) — The performer's screen: today's items, in
-// order, with one-tap actions. Phone-width first; large tap targets.
-//
-// This component is a thin shell. Every decision about WHAT to show
-// and WHAT buttons are available lives in `performerView.ts`'s pure
-// functions; this file only wires fetch results and taps to them.
+// APP-1/APP-2 — The performer's app: Today → Session → Step. A thin
+// shell over three screens. Every decision about what's available and
+// how it's grouped lives in `performerView.ts`/`sessionModel.ts`'s pure
+// functions; this file only wires fetch results, navigation and taps
+// to them.
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {fetchToday, recordEvent, PerformRequestError, type PerformEventType} from './performApi';
 import {
-  availableActions,
   toPerformerItems,
   newClientEventId,
   optimisticReducer,
@@ -17,26 +15,12 @@ import {
   type StatusMap,
   type TaskStatus,
   type PerformerAction,
-  type PerformerSubStep,
 } from './performerView';
+import {toSessions} from './sessionModel';
 import {logEvent} from '../ops/logEvent';
-
-const REASON_LABELS: Record<string, string> = {
-  waiting_on_someone: 'Waiting on someone',
-  missing_information: 'Missing information',
-  something_went_wrong: 'Something went wrong',
-  other: 'Other',
-};
-const REASON_CODES = Object.keys(REASON_LABELS);
-
-const ACTION_LABELS: Record<PerformerAction, string> = {
-  start: 'Start',
-  done: 'Done',
-  blocked: 'Blocked',
-  skip: 'Skip',
-  unblock: 'Unblock',
-  reopen: 'Reopen',
-};
+import TodayScreen from './TodayScreen';
+import SessionScreen from './SessionScreen';
+import StepScreen from './StepScreen';
 
 const EVENT_TYPE_FOR_ACTION: Record<PerformerAction, PerformEventType> = {
   start: 'started',
@@ -57,27 +41,15 @@ const OPTIMISTIC_STATUS: Record<PerformerAction, TaskStatus> = {
   reopen: 'in_progress',
 };
 
-const STATUS_LABELS: Record<TaskStatus, string> = {
-  not_started: 'Not started',
-  in_progress: 'In progress',
-  blocked: 'Blocked',
-  done: 'Done',
-  skipped: 'Skipped',
-};
-
-const STATUS_COLORS: Record<TaskStatus, string> = {
-  not_started: 'bg-zinc-100 text-zinc-600',
-  in_progress: 'bg-blue-100 text-blue-800',
-  blocked: 'bg-red-100 text-red-800',
-  done: 'bg-emerald-100 text-emerald-800',
-  skipped: 'bg-zinc-200 text-zinc-500',
-};
-
 function isOffline(): boolean {
   return typeof navigator !== 'undefined' && navigator.onLine === false;
 }
 
 type LoadPhase = 'loading' | 'ready' | 'error';
+
+type View = {type: 'today'} | {type: 'session'; workItemId: number} | {type: 'step'; workItemId: number; workTaskId: number};
+
+const NOTE_MAX_LENGTH = 1000;
 
 export default function PerformToday() {
   const [phase, setPhase] = useState<LoadPhase>('loading');
@@ -86,7 +58,11 @@ export default function PerformToday() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pendingWorkTaskId, setPendingWorkTaskId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<{workTaskId: number; message: string} | null>(null);
-  const [reasonPickerFor, setReasonPickerFor] = useState<number | null>(null);
+  const [reasonPickerFor, setReasonPickerFor] = useState<{workTaskId: number; action: 'blocked' | 'skip'} | null>(null);
+  const [view, setView] = useState<View>({type: 'today'});
+  const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
+  const [noteErrors, setNoteErrors] = useState<Record<number, string | null>>({});
+  const [savingNoteFor, setSavingNoteFor] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setPhase('loading');
@@ -124,7 +100,22 @@ export default function PerformToday() {
     void load();
   }, [load]);
 
+  // Re-fetches without flipping `phase` — used after a note saves, so
+  // the screen gets the server-stamped note (real author, real time)
+  // without losing the user's place on the Step screen.
+  const refresh = useCallback(async () => {
+    try {
+      const data = await fetchToday();
+      setSnapshot(data.snapshot);
+      setStatuses(data.statuses);
+    } catch {
+      // Best effort: the write already succeeded; a failed refresh just
+      // means the confirmation doesn't show until the next reload.
+    }
+  }, []);
+
   const items = useMemo(() => (snapshot ? toPerformerItems(snapshot, statuses) : []), [snapshot, statuses]);
+  const sessions = useMemo(() => toSessions(items), [items]);
 
   const act = useCallback(
     async (workTaskId: number, action: PerformerAction, reasonCode?: string) => {
@@ -135,7 +126,7 @@ export default function PerformToday() {
         const info = mapActionError({offline: true});
         setActionError({workTaskId, message: info.message});
         void logEvent({
-          feature: 'APP-1',
+          feature: 'APP-2',
           step: 'action_tap',
           outcome: 'failure',
           errorCode: info.code,
@@ -172,7 +163,7 @@ export default function PerformToday() {
         );
         setReasonPickerFor(null);
         void logEvent({
-          feature: 'APP-1',
+          feature: 'APP-2',
           step: 'action_tap',
           outcome: 'success',
           entityType: 'work_task',
@@ -185,7 +176,7 @@ export default function PerformToday() {
         const info = mapActionError({status: perr?.status, serverMessage: perr?.message ?? null, offline: perr?.offline});
         setActionError({workTaskId, message: info.message});
         void logEvent({
-          feature: 'APP-1',
+          feature: 'APP-2',
           step: 'action_tap',
           outcome: 'failure',
           errorCode: info.code,
@@ -203,14 +194,75 @@ export default function PerformToday() {
 
   const onTapAction = useCallback(
     (workTaskId: number, action: PerformerAction) => {
-      if (action === 'blocked') {
-        setReasonPickerFor(workTaskId);
+      if (action === 'blocked' || action === 'skip') {
+        setReasonPickerFor({workTaskId, action});
         return;
       }
       void act(workTaskId, action);
     },
     [act],
   );
+
+  const onSaveNote = useCallback(
+    async (workTaskId: number) => {
+      const draft = (noteDrafts[workTaskId] ?? '').trim();
+      if (draft === '') {
+        setNoteErrors((e) => ({...e, [workTaskId]: 'Write something before saving.'}));
+        return;
+      }
+      if (draft.length > NOTE_MAX_LENGTH) {
+        setNoteErrors((e) => ({...e, [workTaskId]: 'Notes can be up to 1,000 characters.'}));
+        return;
+      }
+      if (savingNoteFor !== null) return;
+      setNoteErrors((e) => ({...e, [workTaskId]: null}));
+      setSavingNoteFor(workTaskId);
+      try {
+        await recordEvent({workTaskId, eventType: 'note', clientEventId: newClientEventId(), note: draft});
+        setNoteDrafts((d) => ({...d, [workTaskId]: ''}));
+        void logEvent({feature: 'APP-2', step: 'note_save', outcome: 'success', entityType: 'work_task', entityId: workTaskId});
+        await refresh();
+      } catch (err) {
+        const perr = err instanceof PerformRequestError ? err : null;
+        const info = mapActionError({status: perr?.status, serverMessage: perr?.message ?? null, offline: perr?.offline ?? isOffline()});
+        setNoteErrors((e) => ({...e, [workTaskId]: info.message})); // the typed draft is left in place — a failed save keeps the text
+        void logEvent({
+          feature: 'APP-2',
+          step: 'note_save',
+          outcome: 'failure',
+          errorCode: info.code,
+          message: info.message,
+          entityType: 'work_task',
+          entityId: workTaskId,
+          correlationId: perr?.reference ?? null,
+        });
+      } finally {
+        setSavingNoteFor(null);
+      }
+    },
+    [noteDrafts, savingNoteFor, refresh],
+  );
+
+  const onOpenSession = useCallback((workItemId: number) => {
+    void logEvent({feature: 'APP-2', step: 'open_session', outcome: 'success', entityType: 'work_item', entityId: workItemId});
+    setView({type: 'session', workItemId});
+  }, []);
+
+  const onStartSession = useCallback(
+    (workItemId: number) => {
+      const session = sessions.find((s) => s.workItemId === workItemId);
+      const firstTask = session?.items[0]?.subSteps[0]?.workTaskId;
+      if (firstTask === undefined) return;
+      void logEvent({feature: 'APP-2', step: 'start_session', outcome: 'success', entityType: 'work_item', entityId: workItemId});
+      void act(firstTask, 'start');
+    },
+    [sessions, act],
+  );
+
+  const onFinishSession = useCallback((workItemId: number) => {
+    void logEvent({feature: 'APP-2', step: 'finish_session', outcome: 'success', entityType: 'work_item', entityId: workItemId});
+    setView({type: 'today'});
+  }, []);
 
   if (phase === 'loading') {
     return (
@@ -233,125 +285,58 @@ export default function PerformToday() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-zinc-50">
-      <header className="sticky top-0 bg-white border-b border-zinc-200 px-4 py-3">
-        <h1 className="text-base font-semibold text-zinc-900">Today</h1>
-        <p className="text-xs text-zinc-400">{snapshot?.date}</p>
-      </header>
+  // Defensive fallback for both branches below: an item is never
+  // actually removed from the frozen snapshot (same guarantee APP-1
+  // already relies on), so `session`/`item`/`sub` should never be
+  // missing in practice — but a merge must degrade to Today rather
+  // than crash if a stale `view` ever outlives its target.
+  const todayFallback = <TodayScreen date={snapshot?.date} sessions={sessions} onOpenSession={onOpenSession} />;
 
-      <main className="px-4 py-4 pb-24">
-        {items.length === 0 ? (
-          <p className="text-sm text-zinc-500 text-center mt-16">Nothing is scheduled for you today.</p>
-        ) : (
-          <ul className="space-y-3">
-            {items.map((item) => (
-              <li key={item.itemRef} className="rounded-xl border border-zinc-200 bg-white p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs text-zinc-400">{item.plannedStartLabel}</p>
-                    <p className="text-sm font-medium text-zinc-900">{item.title || item.subSteps[0]?.stageLabel || item.itemRef}</p>
-                  </div>
-                  <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-medium ${STATUS_COLORS[item.status]}`}>
-                    {STATUS_LABELS[item.status]}
-                  </span>
-                </div>
+  if (view.type === 'session') {
+    const session = sessions.find((s) => s.workItemId === view.workItemId);
+    if (!session) {
+      return todayFallback;
+    }
+    return (
+      <SessionScreen
+        session={session}
+        pending={pendingWorkTaskId !== null}
+        onBack={() => setView({type: 'today'})}
+        onOpenStep={(workTaskId) => setView({type: 'step', workItemId: view.workItemId, workTaskId})}
+        onStartSession={() => onStartSession(view.workItemId)}
+        onFinishSession={() => onFinishSession(view.workItemId)}
+      />
+    );
+  }
 
-                <ul className="mt-3 space-y-3">
-                  {item.subSteps.map((sub) => (
-                    <SubStepRow
-                      key={sub.workTaskId}
-                      sub={sub}
-                      nested={item.subSteps.length > 1}
-                      pending={pendingWorkTaskId === sub.workTaskId}
-                      errorMessage={actionError?.workTaskId === sub.workTaskId ? actionError.message : null}
-                      showReasonPicker={reasonPickerFor === sub.workTaskId}
-                      onTapAction={(action) => onTapAction(sub.workTaskId, action)}
-                      onPickReason={(reasonCode) => void act(sub.workTaskId, 'blocked', reasonCode)}
-                      onCancelReason={() => setReasonPickerFor(null)}
-                    />
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ul>
-        )}
-      </main>
-    </div>
-  );
-}
+  if (view.type === 'step') {
+    const session = sessions.find((s) => s.workItemId === view.workItemId);
+    const item = session?.items.find((i) => i.subSteps.some((s) => s.workTaskId === view.workTaskId));
+    const sub = item?.subSteps.find((s) => s.workTaskId === view.workTaskId);
+    if (!session || !item || !sub) {
+      return todayFallback;
+    }
+    const workTaskId = view.workTaskId;
+    return (
+      <StepScreen
+        sub={sub}
+        expectedMinutes={sub.expectedMinutes ?? item.scheduledMinutes}
+        pending={pendingWorkTaskId === workTaskId}
+        errorMessage={actionError?.workTaskId === workTaskId ? actionError.message : null}
+        reasonPickerFor={reasonPickerFor?.workTaskId === workTaskId ? reasonPickerFor.action : null}
+        noteDraft={noteDrafts[workTaskId] ?? ''}
+        noteSaving={savingNoteFor === workTaskId}
+        noteError={noteErrors[workTaskId] ?? null}
+        onBack={() => setView({type: 'session', workItemId: view.workItemId})}
+        onTapAction={(action) => onTapAction(workTaskId, action)}
+        onPickReason={(reasonCode) => void act(workTaskId, reasonPickerFor!.action, reasonCode)}
+        onSkipWithoutReason={() => void act(workTaskId, 'skip')}
+        onCancelReason={() => setReasonPickerFor(null)}
+        onChangeNoteDraft={(text) => setNoteDrafts((d) => ({...d, [workTaskId]: text}))}
+        onSaveNote={() => void onSaveNote(workTaskId)}
+      />
+    );
+  }
 
-function SubStepRow({
-  sub,
-  nested,
-  pending,
-  errorMessage,
-  showReasonPicker,
-  onTapAction,
-  onPickReason,
-  onCancelReason,
-}: {
-  sub: PerformerSubStep;
-  nested: boolean;
-  pending: boolean;
-  errorMessage: string | null;
-  showReasonPicker: boolean;
-  onTapAction: (action: PerformerAction) => void;
-  onPickReason: (reasonCode: string) => void;
-  onCancelReason: () => void;
-}) {
-  const actions = availableActions(sub.status);
-
-  return (
-    <li className={nested ? 'border-l-2 border-zinc-100 pl-3' : ''}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          {nested && <p className="text-xs font-medium text-zinc-500">{sub.stageLabel ?? sub.stageKey}</p>}
-          {sub.task && <p className="text-sm text-zinc-700">{sub.task}</p>}
-          {sub.doneWhen && <p className="mt-1 text-xs text-zinc-400">Done when: {sub.doneWhen}</p>}
-        </div>
-        {nested && (
-          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_COLORS[sub.status]}`}>{STATUS_LABELS[sub.status]}</span>
-        )}
-      </div>
-
-      {errorMessage && <p className="mt-2 text-xs text-red-600">{errorMessage}</p>}
-
-      {showReasonPicker ? (
-        <div className="mt-2 rounded-lg bg-zinc-50 p-2">
-          <p className="mb-2 text-xs text-zinc-500">Why is this blocked?</p>
-          <div className="grid grid-cols-2 gap-2">
-            {REASON_CODES.map((code) => (
-              <button
-                key={code}
-                type="button"
-                onClick={() => onPickReason(code)}
-                disabled={pending}
-                className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-700 disabled:opacity-50"
-              >
-                {REASON_LABELS[code]}
-              </button>
-            ))}
-          </div>
-          <button type="button" onClick={onCancelReason} className="mt-2 text-xs text-zinc-400">
-            Cancel
-          </button>
-        </div>
-      ) : (
-        <div className="mt-2 flex flex-wrap gap-2">
-          {actions.map((action) => (
-            <button
-              key={action}
-              type="button"
-              onClick={() => onTapAction(action)}
-              disabled={pending}
-              className="min-h-[44px] rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white disabled:opacity-50"
-            >
-              {ACTION_LABELS[action]}
-            </button>
-          ))}
-        </div>
-      )}
-    </li>
-  );
+  return todayFallback;
 }

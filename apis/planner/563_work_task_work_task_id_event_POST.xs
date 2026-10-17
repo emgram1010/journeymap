@@ -263,6 +263,21 @@ query "work_task/{work_task_id}/event" verb=POST {
       }
     }
 
+    // APP-2 (US-APP-2-07, D-3): a skip's reason is OPTIONAL, unlike
+    // blocked's required one above — so there is no "missing reason"
+    // check here, only "if one was sent, it must be a real one."
+    conditional {
+      if ($reject_code == "" && $input.event_type == "skipped" && $input.reason_code != "" && $reason_ok == false) {
+        var.update $reject_code {
+          value = "E-LOG-005"
+        }
+
+        var.update $reject_msg {
+          value = "Pick one of the listed reasons. (E-LOG-005)"
+        }
+      }
+    }
+
     // APP-2 (US-APP-2-02, -06): a note event was always accepted with
     // whatever text came in, including none at all. "The UI helps, the
     // server always re-checks" (CLAUDE.md) — the Step screen's own box

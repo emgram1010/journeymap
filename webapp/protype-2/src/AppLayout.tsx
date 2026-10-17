@@ -1,6 +1,6 @@
-import React from 'react';
+import React, {useState} from 'react';
 import {NavLink, useLocation} from 'react-router-dom';
-import {Sparkles, CalendarRange, PlayCircle} from 'lucide-react';
+import {Sparkles, CalendarRange, PlayCircle, Menu, X} from 'lucide-react';
 
 /**
  * Persistent app chrome for every signed-in route.
@@ -42,15 +42,17 @@ const NAV_ITEMS = [
 
 export default function AppLayout({children}: {children: React.ReactNode}) {
   const {pathname} = useLocation();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
-    <div className="h-screen flex overflow-hidden bg-zinc-50 font-sans">
+    <div className="h-screen flex flex-col md:flex-row overflow-hidden bg-zinc-50 font-sans">
       <nav
         id="app-sidebar"
         aria-label="Main"
         /* Hidden below `md`: /perform is phone-first (APP-1) and now renders
            inside this layout, so on a phone the performer gets the full
-           width and none of the desktop authoring chrome. */
+           width and none of the desktop authoring chrome. The mobile top
+           bar below replaces it so the other layers stay reachable. */
         className="hidden md:flex w-52 shrink-0 border-r border-zinc-200 bg-white px-3 py-4 flex-col gap-1"
       >
         {NAV_ITEMS.map(({id, label, icon: Icon, to, matches}) => {
@@ -74,8 +76,54 @@ export default function AppLayout({children}: {children: React.ReactNode}) {
         })}
       </nav>
 
+      {/* Mobile top bar (US-APP-2-09): the sidebar above is hidden below
+          `md`, so this hamburger is the only way to reach the other two
+          layers from a phone. One tap opens the menu, one tap picks a
+          layer — two taps total from anywhere. */}
+      <div className="md:hidden flex items-center justify-between h-12 shrink-0 border-b border-zinc-200 bg-white px-3">
+        <span className="text-sm font-semibold text-zinc-900">Emgram</span>
+        <button
+          type="button"
+          aria-label={mobileNavOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={mobileNavOpen}
+          onClick={() => setMobileNavOpen((open) => !open)}
+          className="w-11 h-11 flex items-center justify-center -mr-1 text-zinc-700"
+        >
+          {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
+      </div>
+
+      {mobileNavOpen && (
+        <div
+          className="md:hidden fixed inset-0 top-12 z-40 bg-white flex flex-col gap-1 p-3 overflow-auto"
+          role="dialog"
+          aria-label="Navigation"
+        >
+          {NAV_ITEMS.map(({id, label, icon: Icon, to, matches}) => {
+            const isActive = matches(pathname);
+            return (
+              <NavLink
+                key={id}
+                id={`${id}-mobile`}
+                to={to}
+                onClick={() => setMobileNavOpen(false)}
+                aria-current={isActive ? 'page' : undefined}
+                className={`w-full flex items-center gap-3 rounded-lg px-3 py-3 min-h-[44px] text-base font-medium ${
+                  isActive
+                    ? 'bg-zinc-900 text-white'
+                    : 'text-zinc-700 hover:bg-zinc-100'
+                }`}
+              >
+                <Icon className="w-5 h-5 shrink-0" />
+                <span>{label}</span>
+              </NavLink>
+            );
+          })}
+        </div>
+      )}
+
       {/* Right pane — owns its own scrolling so the sidebar never moves */}
-      <div id="app-content" className="flex-1 min-w-0 h-full overflow-auto">
+      <div id="app-content" className="flex-1 min-w-0 min-h-0 overflow-auto">
         {children}
       </div>
     </div>

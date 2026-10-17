@@ -207,4 +207,38 @@ New error codes go in the catalog with the `E-APP` prefix; existing APP-1 codes 
 
 ## Test Results
 
-*(empty — to be filled when built)*
+**Status: all 9 stories built. Completion gate passed** (unit suite green, mobile layout/nav automated, full session worked end to end against live data by hand) — see gaps noted below before calling it fully closed.
+
+### Backend (pushed to Xano workspace 1, live)
+
+| Story | What changed | Verified |
+|---|---|---|
+| US-APP-2-01 | `functions/perform/hydrate_statuses.xs` adds `session` to every status entry | Real HTTP `perform/today`: two jobs on the same flow (Garcia party, Nguyen wedding) return distinct `session.work_item_id`/`title`/`plan_name` |
+| US-APP-2-02 | Same file adds `notes: [...]`; `apis/planner/563_..._event_POST.xs` validates empty/over-long notes (E-LOG-006/007) | Real HTTP: empty note rejected, 1001-char note rejected, valid note saved and read back with real author + server time |
+| D-3 (skip reason, optional) | `563_..._event_POST.xs`: new conditional allows `skipped` + an optional `reason_code`, valid-value-only (no required-reason check, unlike `blocked`) | Real HTTP against a non-mutating case (task already `done`, so the call rejects before the transaction either way): bad code → E-LOG-005; no code → passes the reason gate; valid code → passes the reason gate. Diffed live vs. workspace before push (no drift) |
+
+### Frontend (`webapp/protype-2`)
+
+- `sessionModel.ts` + 19 unit tests (`toSessions`, `nextItemToWork`, `canFinishSession`) — written before the UI, per protocol.
+- `TodayScreen.tsx`, `SessionScreen.tsx`, `StepScreen.tsx` — new; `PerformToday.tsx` rewritten as the Today/Session/Step orchestrator (routing, the `act()`/optimistic-update pipeline carried over unchanged from APP-1, plus note-saving and the Skip/Blocked reason flows).
+- `AppLayout.tsx` — mobile hamburger + full-screen nav drawer, `md:hidden`/`hidden md:flex`, for US-APP-2-09.
+- Two bugs caught and fixed during live verification (not in any unit test, since both are rendering-only):
+  - Today screen's "Next up" line showed blank for job-derived steps with no title (same root cause as the Planner's known blank-titles bug — fixed in this screen with the same fallback `SessionScreen` already used).
+  - Step screen printed a literal `0` under "Expected: 25 min" for any not-yet-started step — `{sub.startedAt && <...>}` renders `0` (a falsy *number*) instead of nothing; fixed with `Boolean(sub.startedAt)`.
+- `npm run lint` (tsc --noEmit): clean. `npm test`: **340/340 passing** (19 new).
+
+### UI / Playwright (`e2e/perform-sessions-mobile.spec.ts`, new)
+
+Covers US-APP-2-08 (375×812 and 390×844: no horizontal scroll, hamburger ≥44×44px) and US-APP-2-09 (same two phone widths reach every layer in two taps; desktop ≥768px keeps the unchanged sidebar, no hamburger). **3/3 passing.**
+
+Found along the way: the repo's shared `TEST_EMAIL`/`TEST_PASSWORD` UI-login fixture (`health-page.spec.ts` uses the same one) is currently broken in this environment — confirmed by re-running `health-page.spec.ts` unmodified and seeing the identical login timeout, so this predates APP-2 and isn't something this epic broke. Worked around it for this spec by injecting a real bearer token into `localStorage` (via `PERFORM_TEST_AUTH_TOKEN`), the same magic-link technique CLAUDE.md documents for backend testing; the spec skips cleanly when that token isn't supplied.
+
+### Not automated — verified once, by hand, instead
+
+The interactive Today → Session → Step flow against real published jobs (session grouping, Start/Done/Blocked/Skip, the two reason pickers, notes save + read-back) was walked end to end in a real browser against the founder's own live test data (map 205, job 9 "Quote for the Nguyen wedding"): opened a session, started a step, saved a note (showed up with real author/timestamp on reload), confirmed Blocked's reason picker has no bypass while Skip's does ("Skip without a reason"), and confirmed the over-long-note message with the typed text retained. This was not captured as a repeatable Playwright spec — doing so needs either the broken shared login fixture fixed, or a documented convention for injecting a test token with real seeded session data, which is a decision for the founder (reuse a disposable test fixture job, or accept hand-verification for this kind of flow).
+
+**Not done:** `workflow_tests/1–12` regression pass (not re-run this session — nothing in this epic touches planner scheduling/publish, so low risk, but not confirmed); double-tap idempotency for the new Skip/Blocked paths specifically (APP-1's dedup logic is unchanged and was already proven for `blocked`/`done`, but not re-exercised here for `skipped` with a reason).
+
+### Known gap carried forward
+
+Elapsed time on the Step screen is computed once per render, not a live ticking timer — acceptable at MVP (the epic only asks for "actual elapsed time once started"), but worth a line if the founder expects it to visibly count up while the screen is open.
