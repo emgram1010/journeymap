@@ -21,7 +21,7 @@
 // head: start a job from a map, see the jobs in this plan, and put
 // their steps on someone's day.
 import {useCallback, useEffect, useState} from 'react';
-import {X, Briefcase, Plus, CalendarPlus, CalendarX, Ban, AlertTriangle, Lock} from 'lucide-react';
+import {X, Briefcase, Plus, CalendarPlus, CalendarX, Ban, AlertTriangle, Lock, ChevronRight, ChevronDown, TrendingUp} from 'lucide-react';
 import type {Agent, Task, Timeline} from '../types';
 import {
   listWorkspaceMaps,
@@ -31,11 +31,16 @@ import {
   cancelWorkItem,
   scheduleWorkTask,
   unscheduleWorkTask,
+  getWorkItemVariance,
+  getWorkItemActivity,
+  type ActivityEvent,
   type LinkedStep,
+  type TaskVarianceRow,
   type RawWorkspaceMap,
   type WorkItemListEntry,
   type BacklogWorkRow,
 } from '../plannerApi';
+import {formatMinutes, formatGap, gapTone, summariseJob, reasonLabel, eventLabel} from '../varianceDisplay';
 
 interface JobsModalProps {
   isOpen: boolean;
@@ -103,6 +108,15 @@ export function JobsModal({
   const [scheduleDate, setScheduleDate] = useState<string>('');
   const [isScheduling, setIsScheduling] = useState(false);
   const [unschedulingId, setUnschedulingId] = useState<number | null>(null);
+  // W3 — what came back from Execution, fetched per job only when the
+  // planner opens it. Two reads that nothing in this app had ever
+  // called: the variance report (568) and the activity log (577).
+  const [openJobId, setOpenJobId] = useState<number | null>(null);
+  const [reportFor, setReportFor] = useState<number | null>(null);
+  const [variance, setVariance] = useState<TaskVarianceRow[]>([]);
+  const [activity, setActivity] = useState<ActivityEvent[]>([]);
+  const [isLoadingReport, setIsLoadingReport] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
   const [confirmCancelId, setConfirmCancelId] = useState<number | null>(null);
 
   const load = useCallback(async (wsId: string, isPlanChange = false) => {
@@ -261,6 +275,30 @@ export function JobsModal({
     }
   };
 
+  // W3 — loaded on demand, not with the list: a plan with twenty jobs
+  // should not fetch twenty reports nobody asked for.
+  const openReport = async (workItemId: number) => {
+    if (openJobId === workItemId) {
+      setOpenJobId(null);
+      return;
+    }
+    setOpenJobId(workItemId);
+    setIsLoadingReport(true);
+    setReportError(null);
+    setVariance([]);
+    setActivity([]);
+    try {
+      const [v, a] = await Promise.all([getWorkItemVariance(workItemId), getWorkItemActivity(workItemId)]);
+      setReportFor(workItemId);
+      setVariance(v.tasks);
+      setActivity(a.events);
+    } catch (err) {
+      setReportError(err instanceof Error ? err.message : "Couldn't load what came back for this job.");
+    } finally {
+      setIsLoadingReport(false);
+    }
+  };
+
   const handleCancel = async (workItemId: number) => {
     setError(null);
     setNotice(null);
@@ -383,15 +421,31 @@ export function JobsModal({
             ) : (
               <ul className="divide-y divide-neutral-100 border border-neutral-200 rounded-md">
                 {jobs.map(({work_item: job, task_count, finished_count, has_blocked}) => (
-                  <li key={job.id} className="px-3 py-2 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-neutral-900 truncate">{job.title}</p>
-                      <p className="text-[10px] text-neutral-500">
-                        {JOB_STATUS_LABELS[job.status] ?? job.status} · {finished_count} of {task_count} step
-                        {task_count === 1 ? '' : 's'} done
-                        {has_blocked && <span className="text-red-600"> · blocked</span>}
-                      </p>
-                    </div>
+                  <li key={job.id} className="px-3 py-2 flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-3">
+                    {/* W3 — the whole row opens the report. Everything the
+                        performer reported was already in the database and
+                        had no screen; this is the screen. */}
+                    <button
+                      type="button"
+                      onClick={() => void openReport(job.id)}
+                      className="min-w-0 flex items-start gap-1.5 text-left flex-1"
+                      aria-expanded={openJobId === job.id}
+                    >
+                      {openJobId === job.id ? (
+                        <ChevronDown className="w-3.5 h-3.5 mt-0.5 shrink-0 text-neutral-400" />
+                      ) : (
+                        <ChevronRight className="w-3.5 h-3.5 mt-0.5 shrink-0 text-neutral-400" />
+                      )}
+                      <span className="min-w-0">
+                        <span className="block text-xs font-medium text-neutral-900 truncate">{job.title}</span>
+                        <span className="block text-[10px] text-neutral-500">
+                          {JOB_STATUS_LABELS[job.status] ?? job.status} · {finished_count} of {task_count} step
+                          {task_count === 1 ? '' : 's'} done
+                          {has_blocked && <span className="text-red-600"> · blocked</span>}
+                        </span>
+                      </span>
+                    </button>
                     {job.status !== 'cancelled' && (
                       confirmCancelId === job.id ? (
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -422,6 +476,83 @@ export function JobsModal({
                         </button>
                       )
                     )}
+                  </div>
+
+                  {/* ── W3: what came back ──────────────────────────── */}
+                  {openJobId === job.id && (
+                    <div className="rounded-md border border-neutral-200 bg-neutral-50/60 p-2.5 flex flex-col gap-3">
+                      {isLoadingReport && reportFor !== job.id ? (
+                        <p className="text-[11px] text-neutral-400">Loading…</p>
+                      ) : reportError ? (
+                        <p className="text-[11px] text-red-600">{reportError}</p>
+                      ) : (
+                        <>
+                          <div>
+                            <p className="text-[11px] font-semibold text-neutral-800 flex items-center gap-1">
+                              <TrendingUp className="w-3 h-3 text-neutral-500" />
+                              Planned vs actual
+                            </p>
+                            <p className="text-[10px] text-neutral-500 mb-1.5">{summariseJob(variance)}</p>
+                            {variance.length === 0 ? (
+                              <p className="text-[10px] text-neutral-500">No steps to compare yet.</p>
+                            ) : (
+                              <ul className="flex flex-col gap-1">
+                                {variance.map((row) => {
+                                  const tone = gapTone(row.expected_gap_minutes, row.expected_gap_pct);
+                                  const toneClass =
+                                    tone === 'over'
+                                      ? 'text-amber-700'
+                                      : tone === 'under'
+                                        ? 'text-sky-700'
+                                        : tone === 'on_track'
+                                          ? 'text-emerald-700'
+                                          : 'text-neutral-400';
+                                  return (
+                                    <li
+                                      key={row.work_task_id}
+                                      className="flex items-center justify-between gap-2 text-[10px] bg-white border border-neutral-200 rounded px-2 py-1"
+                                    >
+                                      <span className="text-neutral-700 truncate">{row.stage_key}</span>
+                                      <span className="text-neutral-500 shrink-0 font-mono">
+                                        {formatMinutes(row.expected_minutes)} → {formatMinutes(row.actual_minutes)}
+                                      </span>
+                                      <span className={`shrink-0 font-medium ${toneClass}`}>
+                                        {formatGap(row.expected_gap_minutes, row.expected_gap_pct)}
+                                        {row.is_outlier && ' ⚠'}
+                                      </span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            )}
+                          </div>
+
+                          <div>
+                            <p className="text-[11px] font-semibold text-neutral-800">What the performer reported</p>
+                            {activity.length === 0 ? (
+                              <p className="text-[10px] text-neutral-500 mt-1">
+                                Nothing recorded yet — this job hasn't been worked on.
+                              </p>
+                            ) : (
+                              <ul className="mt-1 flex flex-col gap-1">
+                                {activity.map((e) => (
+                                  <li key={e.id} className="text-[10px] bg-white border border-neutral-200 rounded px-2 py-1">
+                                    <span className="font-medium text-neutral-800">{eventLabel(e.event_type)}</span>
+                                    {e.step_title && <span className="text-neutral-500"> · {e.step_title}</span>}
+                                    {e.performer_name && <span className="text-neutral-400"> · {e.performer_name}</span>}
+                                    {e.event_type === 'blocked' && reasonLabel(e.reason_code) && (
+                                      <span className="text-red-700"> · {reasonLabel(e.reason_code)}</span>
+                                    )}
+                                    {e.note && <span className="block text-neutral-700 mt-0.5">“{e.note}”</span>}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
                   </li>
                 ))}
               </ul>

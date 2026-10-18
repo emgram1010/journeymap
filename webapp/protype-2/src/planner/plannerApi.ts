@@ -567,3 +567,64 @@ export interface LinkedStep {
   done_when: string | null;
   expected_minutes: number | null;
 }
+
+// ── What came back from Execution (W3) ─────────────────────────────────────
+//
+// THE LOOP WAS ONE-WAY. Everything below already existed server-side and
+// had never been called from anywhere: `variance.ts` (pure, tested),
+// endpoint 568, and an `activity_log` table that nothing read back. A
+// performer could be blocked twice and leave a note saying exactly why,
+// and no screen could show it.
+
+export interface TaskVarianceRow {
+  work_task_id: number;
+  stage_key: string;
+  lens_key: string;
+  status: string;
+  expected_minutes: number | null;
+  scheduled_minutes: number | null;
+  actual_minutes: number | null;
+  blocked_minutes: number | null;
+  expected_gap_minutes: number | null;
+  expected_gap_pct: number | null;
+  scheduled_gap_minutes: number | null;
+  scheduled_gap_pct: number | null;
+  start_lateness_minutes: number | null;
+  is_outlier: boolean;
+  warnings: string[];
+}
+
+/** Planned vs actual for one job. Computed on the fly from the log — nothing is stored, and nobody reports variance by hand (VAR-1). */
+export const getWorkItemVariance = (workItemId: number) =>
+  performRequest<{
+    work_item_id: number;
+    task_count: number;
+    outlier_count: number;
+    warning_count: number;
+    tasks: TaskVarianceRow[];
+  }>(`/variance/work_item/${workItemId}`);
+
+export interface ActivityEvent {
+  id: number;
+  work_task_id: number;
+  step_title: string | null;
+  stage_key: string | null;
+  event_type: 'started' | 'completed' | 'blocked' | 'unblocked' | 'skipped' | 'reopened' | 'note';
+  reason_code: string | null;
+  note: string | null;
+  occurred_at: number | null;
+  performer_name: string | null;
+  source: string;
+}
+
+/** The human half: what was said, by whom, when. Step wording comes from the job's pinned version, so a note reads against the text the person actually saw. */
+export const getWorkItemActivity = (workItemId: number) =>
+  performRequest<{
+    work_item_id: number;
+    job_title: string;
+    event_count: number;
+    note_count: number;
+    blocked_count: number;
+    skipped_count: number;
+    events: ActivityEvent[];
+  }>(`/work_item/${workItemId}/activity`);
