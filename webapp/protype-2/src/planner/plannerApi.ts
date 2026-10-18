@@ -262,27 +262,34 @@ export const addWorkspaceMaps = (workspaceId: number, mapIds: number[]) =>
   });
 
 /**
- * Candidate maps for the "add a map" picker — the journey-map group, not
- * the planner group. Only a hint for the picker; `addWorkspaceMaps` above
+ * Candidate maps for the "add a map" picker — the journey-map group,
+ * not the planner group. Only a hint for the picker; `addWorkspaceMaps`
  * is what actually re-validates "published" server-side.
  *
- * ⚠️ NOT `GET journey_map/search` (endpoint 210, the account-scoped,
- * published-only search that would have been the right fit) — confirmed
- * live that it 400s with "journey_map_id... not a valid integer" on
- * EVERY call, because `journey_map/{journey_map_id}` (endpoint 23,
- * built earlier) shadows it: Xano's router matches the dynamic path
- * for any `journey_map/<anything>` GET, so the literal segment "search"
- * is parsed as an attempted `journey_map_id` and fails int validation.
- * Endpoint 210 is dead code as a result — a routing collision worth
- * knowing before adding a static path next to an existing dynamic one
- * in the same group (see CLAUDE.md).
+ * ACCOUNT-SCOPED SINCE O8 (2026-10-17). This used to read the plain
+ * `GET journey_map` (endpoint 18), which filters `owner_user ==
+ * auth.id` — so a map drawn by a teammate never appeared in any
+ * picker, even though attaching it would have been accepted. Invisible
+ * on a one-person account, and indistinguishable from "the map
+ * vanished" the moment there are two. Confirmed against real data:
+ * the owner-scoped list returned 14 maps where the account has 17.
  *
- * Falls back to the plain `GET journey_map` (endpoint 18) instead,
- * filtered to `status === 'active'` client-side. Known gap: that
- * endpoint is OWNER-scoped (`owner_user == auth.id`), not account-
- * scoped, so a map owned by a different user in the same account won't
- * appear here even though `addWorkspaceMaps` would accept it. Revisit
- * once the routing collision above is fixed and 210 is reachable.
+ * ⚠️ NOT `GET journey_map/search` (endpoint 210, built for exactly
+ * this and account-scoped) — confirmed live that it 400s with
+ * "journey_map_id... not a valid integer" on EVERY call, because
+ * `journey_map/{journey_map_id}` (endpoint 23, built earlier) shadows
+ * it: Xano's router matches the dynamic path for any
+ * `journey_map/<anything>` GET, so the literal segment "search" is
+ * parsed as an attempted id and fails int validation. The endpoint
+ * here uses a DIFFERENT STATIC PREFIX so no collision is possible —
+ * the workaround CLAUDE.md recommends for this shape. 210 is still
+ * dead code, and still carries the `status == "active"` filter that
+ * hid every draft map plus a telemetry write on every call.
+ *
+ * Unpublished maps are RETURNED, NOT FILTERED OUT. A planner looking
+ * for the map they just drew needs to see it and be told "publish it
+ * first" — a map silently missing from the list is the same dead end,
+ * one step earlier. The caller disables them.
  */
 export interface JourneyMapSearchResult {
   map_id: number;
@@ -292,34 +299,23 @@ export interface JourneyMapSearchResult {
    * GAP-FIX W7 — the map's latest published version, or null if it has
    * never been published. Attaching a map REQUIRES one (E-PLAN-004),
    * so a picker that doesn't know this offers maps the server will
-   * then refuse. Added to `GET /journey_map` itself (endpoint 18)
-   * rather than fetched per map.
+   * then refuse.
    */
   publishedVersionNo: number | null;
 }
 
-/**
- * Unpublished maps are RETURNED, NOT FILTERED OUT. A planner looking
- * for the map they just drew needs to see it and be told "publish it
- * first" — a map silently missing from the list is the same dead end
- * W7 is about, just one step earlier. The caller disables them.
- *
- * THE `status === 'active'` FILTER THAT USED TO BE HERE WAS THE REAL
- * BUG, and it was invisible until the fixed picker was opened against
- * real data: a map becomes `active` when it is first published, so
- * "only active maps" and "only published maps" were the same set, and
- * all 12 of this account's draft maps — every map anyone is likely to
- * be looking for — were silently absent with no explanation anywhere.
- * Now only ARCHIVED maps are dropped (they are retired on purpose),
- * and "not published yet" is shown and explained rather than hidden.
- */
 export const searchJourneyMaps = () =>
-  performRequest<Array<{id: number; title: string; status: string; published_version_no: number | null}>>('/journey_map', {
-    baseUrl: getJourneyMapBaseUrl(),
-  }).then((maps) => ({
-    results: maps
-      .filter(m => m.status !== 'archived')
-      .map(m => ({map_id: m.id, title: m.title, status: m.status, publishedVersionNo: m.published_version_no ?? null})),
+  performRequest<{
+    account_id: number;
+    count: number;
+    maps: Array<{map_id: number; title: string; status: string; published_version_no: number | null}>;
+  }>('/journey_map_attachable', {baseUrl: getJourneyMapBaseUrl()}).then((data) => ({
+    results: data.maps.map((m) => ({
+      map_id: m.map_id,
+      title: m.title,
+      status: m.status,
+      publishedVersionNo: m.published_version_no ?? null,
+    })),
   }));
 
 // ── Plan templates (US-PLN-9-07, PLAN-3 US-PLAN-3-04) ──────────────────────

@@ -428,18 +428,19 @@ Ranked by what each one actually costs, not by size. Status column is live — u
 
 | Rank | # | Task | Why here | Effort | Status |
 |---|---|---|---|---|---|
-| **1** | **W3** | **Make Execution report back** | The loop is still one-way. Work gets done and the information dies: no start/done times, no blocked reasons, no notes, no variance reach the planner. This is what the product is *for*. | M–L | To-do |
+| **1** | **W3** | **Make Execution report back** | The loop is still one-way. Work gets done and the information dies: no start/done times, no blocked reasons, no notes, no variance reach the planner. This is what the product is *for*. | M–L | ✅ **Done 2026-10-17** |
 | **2** | **O4** | **Let a job step be unscheduled** | W1 built a one-way door: a step can be placed on a day and then only *moved*, never taken off. The first misclick is permanent. | S | ✅ **Done 2026-10-17** |
-| **3** | **O14** | **Fix the broken login fixture** | 26 Playwright specs have been dead for some time and every new spec works around it. No safety net is *why* this review was needed at all — highest leverage on the list. | S–M | To-do |
-| 4 | O8 | Map picker is owner-scoped | A teammate's map never appears in any picker. Invisible on a one-person account; looks like the map vanished the day someone else draws one. | S | To-do |
+| **3** | **O14** | **Fix the broken login fixture** | 26 Playwright specs have been dead for some time and every new spec works around it. No safety net is *why* this review was needed at all — highest leverage on the list. | S–M | ✅ **Done 2026-10-17** — but see O15 |
+| 4 | O8 | Map picker is owner-scoped | A teammate's map never appears in any picker. Invisible on a one-person account; looks like the map vanished the day someone else draws one. | S | ✅ **Done 2026-10-17** |
 | 5 | O6 | One backlog, not two | Job steps live in the Jobs screen, free-text tasks in the backlog drawer. Two places meaning "work waiting". | M | To-do |
 | 6 | O5 | Drag job steps onto the board | Placement works, but only through the Jobs screen form. | M | To-do |
 | 7 | O10 | Remove a map from a plan | Add-only today. Pre-existing, not from this build. | S | To-do |
 | **8** | **O2** | **Store a timezone** (account, then user) | ⏸ **Needs founder OK — schema change.** The browser-supplied zone covers the app; an API caller or a future notification job still gets UTC. | S | Blocked |
 | **9** | **O1** | **AI model on the agent profile** | ⏸ **Needs founder OK — schema change (side table).** Today an AI agent needs its model re-picked in every plan. | S | Blocked |
 | **10** | **O3** | **Delete scratch fn 166 from Xano** | ⏸ **Needs founder OK — every delete does.** Ten seconds of work. | XS | Blocked |
+| **11** | **O15** | **24 specs still fail — on their own assumptions, not on auth** | *(New, uncovered by fixing O14.)* They call `goto('/')` and wait for map-editor controls, but `/` has been `/architectures` since the routing changed; several also need live AI. Each needs pointing at a real map. | M | To-do |
 | 11 | O7 | 546/547 don't hydrate a job step's title | Harmless now (the UI loads the board); a trap for whoever wires those up next. | XS | To-do |
-| 12 | O9 | Endpoint 210 is dead code | Fixing the route collision would solve O8 properly. | M | To-do |
+| 12 | O9 | Endpoint 210 is dead code | Was going to be the proper fix for O8; sidestepped instead with a non-colliding prefix. 210 is still dead and still has its own problems — a candidate for deletion (needs your OK). | M | ⏸ Moot for now |
 | 13 | O13 | "Reopen a published day" refuses | By design (no unpublish, LIVE-1). The button says so honestly. | — | Won't fix for now |
 | 14 | O11 | `perform/today` can echo a zone it didn't use | Only reachable with a malformed zone; the browser never sends one. | XS | To-do |
 | 15 | O12 | `published_dates_for` scans all publications | Fine at this volume. Revisit at thousands of published days. | — | Defer |
@@ -493,6 +494,45 @@ Two refusals, both verified live:
 | **O12** | `perform/published_dates_for` scans the account's publications on every Today load. | Fine at MVP volumes (one query set, ~6 rows here). Revisit with a date-indexed lookup before an account carries thousands of published days. |
 | **O13** | "Reopen a published day" still refuses. | Pre-existing: there is no unpublish on the backend by design (LIVE-1). The button exists and says so rather than lying. |
 | **O14** | 26 Playwright specs can't run at all. | All of them die on the sign-in page — the shared `TEST_EMAIL` login fixture is broken. Every spec written since (mobile, roster, this one) works around it with token injection. Nobody has fixed the fixture itself, so those 26 specs have been dead weight for some time. |
+
+### What got built from this list (2026-10-17)
+
+Executed in the recommended order: O4 and O14 first, then W3, then O8.
+
+#### W3 — the loop closes ✅
+
+`activity_log` had recorded every start, finish, block, skip and note since LOG-1 and **nothing read any of it back**. `variance.ts` and endpoint 568 were both built, both tested, both unused.
+
+- **New `GET work_item/{id}/activity` (api 577)** — the human half: what was said, by whom, when, with each step's wording read from the job's **pinned** version so a note reads against the text the person actually saw.
+- **The Jobs screen's rows now expand into a report**, loaded on demand: planned vs actual per step with the gap and outliers flagged, then the performer's own words.
+- Display logic is pure and tested on its own (`varianceDisplay.ts`, **15 tests**) — including that **null is not zero** (a step nobody started is "not recorded", not "took no time") and that "on track" is a *band*, because a report that flags every job as off-plan tells you nothing.
+
+**Verified live on data that had been invisible.** "Quote for the Nguyen wedding" reads **2 hr 34 min actual vs 45 min planned**, one step 517% over and flagged ⚠, and two notes that had been sitting unread in the database — *"Customer wants delivery before 2pm."*
+
+Deliberately not built: leakage maths, and anything that writes variance down. Nobody reports variance; every figure is derived on read (VAR-1).
+
+#### O14 — the e2e suite can sign in ✅ *(with a caveat — see O15)*
+
+The cause was not one broken fixture. There was **no fixture at all**: most specs assumed the app had no auth, one grew its own form login with a hardcoded password, and the three newest each hand-rolled token injection.
+
+- **`e2e/global-setup.ts`** builds one `storageState` before anything runs; the config applies it to every page. **No password anywhere** — the token comes from the magic-link route, documented in the file's own header. Without a token it writes an empty state and prints how to get one, so the suite stays honestly red rather than silently green.
+- **`workers: 1`.** `fullyParallel: false` only serialises tests *within* a file; once the fixture let all 35 specs actually boot, separate files overwhelmed one dev server and one live workspace.
+
+**And a real app bug, which Playwright reproduced every time.** `AuthContext` cleared the stored token on **any** `getAuthMe()` rejection — including a request aborted by navigating away before it returned. Open a page, navigate again immediately, and the in-flight check logs you out mid-navigation. A person clicking quickly on a slow connection hits exactly this and just gets bounced to the sign-in page for no visible reason. Now only 401/403 clears the token; anything else means *we could not find out*, which is a different answer.
+
+**Honest result: 10 passing, 25 failing (was 9 / 26).** `health-page` passes for the first time, and all ten planner / performer / mobile specs are green. The other 24 no longer fail on auth — they fail on their own assumptions, which is **O15** above. Fixing the fixture was the task; making every spec pass is a separate job.
+
+#### O8 — the map picker sees the whole account ✅
+
+**New `GET journey_map_attachable` (api 578)**, account-scoped, archived maps dropped, each row carrying `published_version_no`.
+
+Endpoint 18 is deliberately **left alone**: it feeds the map list on every other screen, and "should you see your teammates' maps everywhere?" is a product decision for you, not a side effect of fixing a picker. **That question is still open** — the map list itself remains owner-scoped.
+
+Confirmed with real data: the owner-scoped list returns **14** maps where this account has **17**. Three maps were invisible to every picker.
+
+O9 is sidestepped rather than fixed — a different static prefix means no collision is possible, which is what CLAUDE.md recommends for this shape. 210 is still dead code and still carries the `status == "active"` filter plus a telemetry write per call.
+
+---
 
 ### Housekeeping
 
