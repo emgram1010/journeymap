@@ -422,6 +422,30 @@ All three are the same kind of miss: correct in the code, wrong on the screen.
 
 Everything this review left behind, in one place, so none of it has to be rediscovered by walking the loop again. Scattered mentions above are the detail; this is the list.
 
+### Priority order (agreed 2026-10-17)
+
+Ranked by what each one actually costs, not by size. Status column is live — update it as things land.
+
+| Rank | # | Task | Why here | Effort | Status |
+|---|---|---|---|---|---|
+| **1** | **W3** | **Make Execution report back** | The loop is still one-way. Work gets done and the information dies: no start/done times, no blocked reasons, no notes, no variance reach the planner. This is what the product is *for*. | M–L | To-do |
+| **2** | **O4** | **Let a job step be unscheduled** | W1 built a one-way door: a step can be placed on a day and then only *moved*, never taken off. The first misclick is permanent. | S | To-do |
+| **3** | **O14** | **Fix the broken login fixture** | 26 Playwright specs have been dead for some time and every new spec works around it. No safety net is *why* this review was needed at all — highest leverage on the list. | S–M | To-do |
+| 4 | O8 | Map picker is owner-scoped | A teammate's map never appears in any picker. Invisible on a one-person account; looks like the map vanished the day someone else draws one. | S | To-do |
+| 5 | O6 | One backlog, not two | Job steps live in the Jobs screen, free-text tasks in the backlog drawer. Two places meaning "work waiting". | M | To-do |
+| 6 | O5 | Drag job steps onto the board | Placement works, but only through the Jobs screen form. | M | To-do |
+| 7 | O10 | Remove a map from a plan | Add-only today. Pre-existing, not from this build. | S | To-do |
+| **8** | **O2** | **Store a timezone** (account, then user) | ⏸ **Needs founder OK — schema change.** The browser-supplied zone covers the app; an API caller or a future notification job still gets UTC. | S | Blocked |
+| **9** | **O1** | **AI model on the agent profile** | ⏸ **Needs founder OK — schema change (side table).** Today an AI agent needs its model re-picked in every plan. | S | Blocked |
+| **10** | **O3** | **Delete scratch fn 166 from Xano** | ⏸ **Needs founder OK — every delete does.** Ten seconds of work. | XS | Blocked |
+| 11 | O7 | 546/547 don't hydrate a job step's title | Harmless now (the UI loads the board); a trap for whoever wires those up next. | XS | To-do |
+| 12 | O9 | Endpoint 210 is dead code | Fixing the route collision would solve O8 properly. | M | To-do |
+| 13 | O13 | "Reopen a published day" refuses | By design (no unpublish, LIVE-1). The button says so honestly. | — | Won't fix for now |
+| 14 | O11 | `perform/today` can echo a zone it didn't use | Only reachable with a malformed zone; the browser never sends one. | XS | To-do |
+| 15 | O12 | `published_dates_for` scans all publications | Fine at this volume. Revisit at thousands of published days. | — | Defer |
+
+**Recommended order of execution: 2 and 3 before 1.** W3 is the valuable one, but O4 is a trap sitting in code that will be used this week, and O14 is what stops the next review finding another nine of these. Both are small; then W3 gets a clean run.
+
 ### Needs your approval before anyone can build it
 
 | # | What | Why it's blocked |
