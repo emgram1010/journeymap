@@ -531,6 +531,26 @@ export const scheduleWorkTask = (
   }>(`/work_task/${workTaskId}/schedule`, {method: 'POST', body});
 
 /**
+ * O4 — take a job step back off the schedule.
+ *
+ * The other half of `scheduleWorkTask`, which shipped without one. The
+ * step itself survives: it returns to "waiting for a day" and keeps
+ * reading its text from its job's pinned version. Only the slot and
+ * the link go.
+ *
+ * Refuses on a published day (E-SCHED-006) or once anything has been
+ * recorded against the step (E-SCHED-007). Calling it on a step that
+ * isn't scheduled is NOT an error — `already_unscheduled` says so.
+ */
+export const unscheduleWorkTask = (workTaskId: number) =>
+  performRequest<{
+    work_task_id: number;
+    already_unscheduled: boolean;
+    removed_slot_id: number;
+    container: number;
+  }>(`/work_task/${workTaskId}/schedule`, {method: 'DELETE'});
+
+/**
  * GAP-FIX W1 — what a scheduled job step actually says, for every slot
  * in the plan. Returned by the board; see `planner/job_step_hydration`.
  */

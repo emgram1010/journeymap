@@ -8,7 +8,7 @@ import {
   createTimeline, updateTimeline, publishTimeline as publishTimelineApi, reorderTimeline,
   createTask, updateTask, placeTask, deleteAgent, deleteTimeline,
   listTemplates, createWorkspaceFromTemplate, createWorkspace, TemplateListEntry, SkippedAgent,
-  updateWorkspace,
+  updateWorkspace, LinkedStep,
 } from './plannerApi';
 import { adaptWorkspace, adaptBoard } from './plannerAdapter';
 import { windowEnd } from '../planTemplate';
@@ -33,6 +33,9 @@ export default function PlannerApp() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [timelines, setTimelines] = useState<Timeline[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  // O4 — which job steps already have a slot, so the Jobs screen can
+  // offer to take one back off. The board already computes this.
+  const [linkedSteps, setLinkedSteps] = useState<LinkedStep[]>([]);
 
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>('');
   const [activeTimelineId, setActiveTimelineId] = useState<string | null>(null);
@@ -118,11 +121,12 @@ export default function PlannerApp() {
     setLoadError(null);
     return getBoard(Number(workspaceId))
       .then((board) => {
-        const { agents: a, timelines: tl, tasks: tk, settings: s } = adaptBoard(board);
+        const { agents: a, timelines: tl, tasks: tk, settings: s, linkedSteps: ls } = adaptBoard(board);
         setAgents(a);
         setTimelines(tl);
         setTasks(tk);
         setSettings(s);
+        setLinkedSteps(ls);
 
         const firstTl = tl[0];
         if (firstTl) {
@@ -1252,6 +1256,8 @@ export default function PlannerApp() {
         workspaceName={activeWorkspace?.name ?? ''}
         agents={agentsInActiveWs}
         timelines={timelinesInActiveWs}
+        tasks={tasks}
+        linkedSteps={linkedSteps}
         planningWindowStart={activeWorkspace?.planningWindowStart ?? ''}
         onClose={() => setIsJobsOpen(false)}
         onEnsureTimeline={handleEnsureTimeline}

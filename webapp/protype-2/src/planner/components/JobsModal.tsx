@@ -21,8 +21,8 @@
 // head: start a job from a map, see the jobs in this plan, and put
 // their steps on someone's day.
 import {useCallback, useEffect, useState} from 'react';
-import {X, Briefcase, Plus, CalendarPlus, Ban, AlertTriangle} from 'lucide-react';
-import type {Agent, Timeline} from '../types';
+import {X, Briefcase, Plus, CalendarPlus, CalendarX, Ban, AlertTriangle, Lock} from 'lucide-react';
+import type {Agent, Task, Timeline} from '../types';
 import {
   listWorkspaceMaps,
   listWorkItems,
@@ -30,6 +30,8 @@ import {
   createWorkItem,
   cancelWorkItem,
   scheduleWorkTask,
+  unscheduleWorkTask,
+  type LinkedStep,
   type RawWorkspaceMap,
   type WorkItemListEntry,
   type BacklogWorkRow,
@@ -41,6 +43,14 @@ interface JobsModalProps {
   workspaceName: string;
   agents: Agent[];
   timelines: Timeline[];
+  /** The plan's slots. O4 needs them to find which day a scheduled step landed on. */
+  tasks: Task[];
+  /**
+   * O4 — the job steps that already have a slot, from the board. The
+   * backlog answers "what still needs a day"; this answers "what has
+   * one", which is what an Unschedule control needs.
+   */
+  linkedSteps: LinkedStep[];
   planningWindowStart: string;
   onClose: () => void;
   /**
@@ -68,6 +78,8 @@ export function JobsModal({
   workspaceName,
   agents,
   timelines,
+  tasks,
+  linkedSteps,
   planningWindowStart,
   onClose,
   onEnsureTimeline,
@@ -90,6 +102,7 @@ export function JobsModal({
   const [scheduleAgentId, setScheduleAgentId] = useState<string>('');
   const [scheduleDate, setScheduleDate] = useState<string>('');
   const [isScheduling, setIsScheduling] = useState(false);
+  const [unschedulingId, setUnschedulingId] = useState<number | null>(null);
   const [confirmCancelId, setConfirmCancelId] = useState<number | null>(null);
 
   const load = useCallback(async (wsId: string, isPlanChange = false) => {
@@ -224,6 +237,30 @@ export function JobsModal({
     }
   };
 
+  // O4 — put a step back in "waiting for a day". The server refuses on
+  // a published day (E-SCHED-006) or once anything has been recorded
+  // against the step (E-SCHED-007); both messages already say why, so
+  // they are shown as-is rather than re-worded here.
+  const handleUnschedule = async (workTaskId: number) => {
+    setUnschedulingId(workTaskId);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await unscheduleWorkTask(workTaskId);
+      setNotice(
+        result.already_unscheduled
+          ? 'That step was already waiting for a day.'
+          : "Back in “Steps waiting for a day”. Nothing about the work itself changed.",
+      );
+      if (workspaceId) await load(workspaceId);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't take that step off the schedule.");
+    } finally {
+      setUnschedulingId(null);
+    }
+  };
+
   const handleCancel = async (workItemId: number) => {
     setError(null);
     setNotice(null);
@@ -241,6 +278,24 @@ export function JobsModal({
   const agentName = (id: string) => agents.find((a) => a.id === id)?.name ?? '';
   const dayHasTimeline = (agentId: string, date: string) =>
     timelines.some((t) => t.agentId === agentId && t.plannedDate === date);
+
+  // O4 — where each scheduled step landed, and whether it can still be
+  // taken off. The chain is step → its slot (`planner_task`) → the
+  // slot's day (`timeline`); a published day is frozen, so the row says
+  // so rather than offering a button the server will refuse.
+  const taskById = new Map(tasks.map((t) => [t.id, t]));
+  const timelineById = new Map(timelines.map((tl) => [tl.id, tl]));
+  const scheduled = linkedSteps.map((step) => {
+    const slot = taskById.get(String(step.planner_task_id));
+    const timeline = slot?.timelineId ? timelineById.get(slot.timelineId) : undefined;
+    return {
+      step,
+      date: timeline?.plannedDate ?? null,
+      who: timeline ? agentName(timeline.agentId) : null,
+      isPublished: timeline?.status === 'published',
+      plannedStart: slot?.planned_start ?? null,
+    };
+  });
 
   return (
     <div
@@ -451,6 +506,55 @@ export function JobsModal({
                           </span>
                         )}
                       </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {/* ── Steps already on a day (O4) ─────────────────────────── */}
+          <section>
+            <h3 className="text-xs font-semibold text-neutral-900 mb-1">Steps already on a day</h3>
+            <p className="text-[11px] text-neutral-500 mb-2">
+              Taking one off puts it back in the list above. The work itself doesn't change — only the claim on
+              someone's day. A day that's already published is frozen and can't be changed.
+            </p>
+            {scheduled.length === 0 ? (
+              <p className="text-[11px] text-neutral-500">Nothing scheduled yet.</p>
+            ) : (
+              <ul className="divide-y divide-neutral-100 border border-neutral-200 rounded-md">
+                {scheduled.map(({step, date, who, isPublished, plannedStart}) => (
+                  <li key={step.work_task_id} className="px-3 py-2 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs text-neutral-900 truncate">
+                        {step.step_title ?? `${step.job_title ?? 'Job'} — ${step.stage_key}`}
+                      </p>
+                      <p className="text-[10px] text-neutral-500 truncate">
+                        {step.job_title}
+                        {date && ` · ${date}`}
+                        {plannedStart && ` ${plannedStart}`}
+                        {who && ` · ${who}`}
+                      </p>
+                    </div>
+                    {isPublished ? (
+                      <span
+                        className="shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] text-neutral-400"
+                        title="This day is live — its contents are frozen"
+                      >
+                        <Lock className="w-3 h-3" />
+                        Live
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void handleUnschedule(step.work_task_id)}
+                        disabled={unschedulingId === step.work_task_id}
+                        className="shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-50 hover:text-neutral-900 disabled:opacity-50"
+                      >
+                        <CalendarX className="w-3 h-3" />
+                        {unschedulingId === step.work_task_id ? 'Removing…' : 'Unschedule'}
+                      </button>
                     )}
                   </li>
                 ))}

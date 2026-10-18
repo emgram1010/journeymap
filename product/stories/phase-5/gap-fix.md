@@ -429,7 +429,7 @@ Ranked by what each one actually costs, not by size. Status column is live — u
 | Rank | # | Task | Why here | Effort | Status |
 |---|---|---|---|---|---|
 | **1** | **W3** | **Make Execution report back** | The loop is still one-way. Work gets done and the information dies: no start/done times, no blocked reasons, no notes, no variance reach the planner. This is what the product is *for*. | M–L | To-do |
-| **2** | **O4** | **Let a job step be unscheduled** | W1 built a one-way door: a step can be placed on a day and then only *moved*, never taken off. The first misclick is permanent. | S | To-do |
+| **2** | **O4** | **Let a job step be unscheduled** | W1 built a one-way door: a step can be placed on a day and then only *moved*, never taken off. The first misclick is permanent. | S | ✅ **Done 2026-10-17** |
 | **3** | **O14** | **Fix the broken login fixture** | 26 Playwright specs have been dead for some time and every new spec works around it. No safety net is *why* this review was needed at all — highest leverage on the list. | S–M | To-do |
 | 4 | O8 | Map picker is owner-scoped | A teammate's map never appears in any picker. Invisible on a one-person account; looks like the map vanished the day someone else draws one. | S | To-do |
 | 5 | O6 | One backlog, not two | Job steps live in the Jobs screen, free-text tasks in the backlog drawer. Two places meaning "work waiting". | M | To-do |
@@ -454,7 +454,25 @@ Ranked by what each one actually costs, not by size. Status column is live — u
 | **O2** | **W8 phase 2 — a stored timezone.** The rule is performer's → account's → UTC; the first and last are built, the middle one has nowhere to live. Today the zone comes from the browser on each request, so a performer with no browser (an API caller, a future notification job) still gets UTC. | Schema change: a timezone column on `account`, and later `user`. It slots into `perform/today_for` and nothing else moves. |
 | **O3** | **Delete `scratch/set_on_row` (fn 166)** from Xano — a throwaway function used to verify W6's hash comparison and W8's timezone behaviour before trusting them in real code. | Every delete needs your approval (CLAUDE.md). Harmless where it is; it just shouldn't live there. |
 
-### Built a door with no way back — worth fixing before this gets used much
+### Built a door with no way back — ✅ fixed 2026-10-17
+
+**O4 is done.** New `DELETE work_task/{work_task_id}/schedule` (api 576) and `planner/unschedule_work_task` (fn 169): the link and the empty slot go, the container resequences, and the step returns to "Steps waiting for a day". The job, the step and the agreed minutes are all untouched — only the claim on somebody's day is released.
+
+Two refusals, both verified live:
+
+| Case | Result |
+|---|---|
+| Step on a **published** day | ✅ `E-SCHED-006` "That day is already live…" |
+| Step with a **note** on it (status still `not_started`) | ✅ `E-SCHED-007` — and this is why the check looks at `activity_log` as well as status; the status check alone would have let it through |
+| A step from **another account** | ✅ `Step not found` (same answer as a nonexistent id) |
+| Happy path, draft day | ✅ slot removed, step back in the backlog, gone from the board |
+| Same call again | ✅ `already_unscheduled: true`, no error |
+
+**Error-code collision caught before it shipped:** the first draft used `E-SCHED-002`/`003`, which already mean "bad duration" and "someone else changed this". Renumbered to 006/007 by grepping the catalog, not by anything failing. Worth remembering — nothing in the build would have flagged it.
+
+**UI:** a new "Steps already on a day" section in the Jobs screen, showing where each scheduled step landed and an **Unschedule** button — or a greyed "Live" lock on a published day, so the refusal is visible before it is clicked. Covered by **E2E-O4-01**, which now drives the full round trip.
+
+### The original note on this gap
 
 | # | What | Detail |
 |---|---|---|

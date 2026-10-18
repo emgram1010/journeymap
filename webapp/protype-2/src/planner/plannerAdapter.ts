@@ -89,6 +89,10 @@ export function adaptBoard(board: BoardResponse) {
     timelines: board.timelines.map(adaptTimeline),
     tasks: board.tasks.map((t) => adaptTask(t, stepsByTask.get(t.id))),
     settings: adaptSettings(board),
+    // O4 — passed through raw. The Jobs screen needs to list what is
+    // ALREADY scheduled (to offer "Unschedule"), and that is a
+    // different question from what each board card says.
+    linkedSteps: board.linked_steps ?? [],
   };
 }
 

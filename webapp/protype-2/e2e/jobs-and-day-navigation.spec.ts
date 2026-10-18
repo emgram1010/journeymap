@@ -37,7 +37,7 @@ async function signIn(page: Page): Promise<boolean> {
   return true;
 }
 
-test('E2E-W1-01: create a job from a map and schedule one of its steps', async ({page}) => {
+test('E2E-W1-01 / E2E-O4-01: create a job from a map, schedule a step, and take it back off', async ({page}) => {
   test.skip(!(await signIn(page)), 'No auth token — see file header.');
   const title = `E2E job ${Date.now()}`;
 
@@ -103,6 +103,19 @@ test('E2E-W1-01: create a job from a map and schedule one of its steps', async (
   await stepRow.getByRole('button', {name: 'Place'}).click();
 
   await expect(modal.getByText(/Publish the day to send it to Execution/)).toBeVisible();
+
+  // O4 — and back off again. Scheduling used to be a one-way door:
+  // a step could be moved to another day but never returned to
+  // "waiting for a day". The round trip is the test, not the placement.
+  await page.waitForLoadState('networkidle');
+  const scheduledRow = modal
+    .locator('li')
+    .filter({hasText: title})
+    .filter({has: page.getByRole('button', {name: 'Unschedule'})})
+    .first();
+  await expect(scheduledRow).toBeVisible();
+  await scheduledRow.getByRole('button', {name: 'Unschedule'}).click();
+  await expect(modal.getByText(/Back in .Steps waiting for a day./)).toBeVisible();
 });
 
 test('E2E-W4-01: the performer can move off today and back', async ({page}) => {

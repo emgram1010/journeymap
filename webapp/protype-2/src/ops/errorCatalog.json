@@ -659,6 +659,26 @@
     "severity": "info",
     "fix_hint": "Reasons point at one of the job's recorded details so the change can be explained later. If none fits, choose Other. Giving no reason at all is also fine."
   },
+  "E-SCHED-006": {
+    "code": "E-SCHED-006",
+    "feature": "SCHED-1",
+    "user_message": "That day is already live, so this step can't be taken off it.",
+    "what_happened": "A job step was unscheduled from a day that has already been published.",
+    "likely_cause": "The day was published after the step was placed on it, and the planner changed their mind afterwards.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Publishing freezes a day and hands it to the person doing the work, so its contents can't be pulled back out. Nothing is lost: the step is still there, and the performer can skip it with a reason if it shouldn't be done."
+  },
+  "E-SCHED-007": {
+    "code": "E-SCHED-007",
+    "feature": "SCHED-1",
+    "user_message": "Work has already been recorded on this step, so it can't be unscheduled.",
+    "what_happened": "A job step was unscheduled after it had been started, finished, blocked, skipped, or had a note left on it.",
+    "likely_cause": "Someone began the work between the step being scheduled and the planner changing their mind.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Removing the slot would orphan what was already recorded against it. The step can still be moved to a different day, and the person doing it can skip it with a reason."
+  },
   "E-LIVE-001": {
     "code": "E-LIVE-001",
     "feature": "LIVE-1",
