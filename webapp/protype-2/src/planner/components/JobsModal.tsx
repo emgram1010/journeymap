@@ -141,6 +141,27 @@ export function JobsModal({
     if (isOpen && workspaceId) void load(workspaceId, true);
   }, [isOpen, workspaceId, load]);
 
+  // RESET ON OPEN, BUT FILL IN THE DEFAULT WHEN THE DATA LANDS.
+  //
+  // The reset above is the rule gap-fix Part 1 #7 established — never
+  // reset on every prop change, or you erase what the user typed. But
+  // the agents and the plan's window arrive AFTER the modal opens
+  // (switching plans refetches the board), so a reset-only default
+  // leaves "Who" empty forever and Place refuses with "Pick who does
+  // it and which day." That is exactly how it failed: an E2E run that
+  // switched plans first. The fix is the same shape CreateWorkspaceModal
+  // uses — keep the planner's choice if it is still valid, otherwise
+  // fall back to the first.
+  useEffect(() => {
+    if (!isOpen) return;
+    setScheduleAgentId(prev => (prev !== '' && agents.some(a => a.id === prev) ? prev : agents[0]?.id ?? ''));
+  }, [isOpen, agents]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setScheduleDate(prev => prev || planningWindowStart || new Date().toISOString().slice(0, 10));
+  }, [isOpen, planningWindowStart]);
+
   if (!isOpen) return null;
 
   const handleCreate = async () => {

@@ -93,10 +93,14 @@ export default function MapVersionBadge({
         {label}
       </button>
 
+      {/* Opens to the RIGHT, not the left. The badge sits in a toolbar
+          inside an `overflow-hidden` section; a right-anchored popover
+          runs off the left edge and gets clipped mid-word — found by
+          looking at it in the browser, not in the code. */}
       {isOpen && info && (
         <div
           id="map-version-popover"
-          className="absolute right-0 top-full z-50 mt-1.5 w-80 rounded-lg border border-zinc-200 bg-white p-3 text-[11px] shadow-xl"
+          className="absolute left-0 top-full z-50 mt-1.5 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-zinc-200 bg-white p-3 text-[11px] shadow-xl"
         >
           {drifted ? (
             <p className="mb-2 flex items-start gap-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-amber-900">

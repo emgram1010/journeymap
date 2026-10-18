@@ -365,6 +365,31 @@ The screen now knows the signed-in user's role (from the `/auth/me` the session 
 1. The Jobs screen kept the *previous* plan's jobs and maps on screen while the newly-selected plan loaded — one plan's work under another plan's name. Fixed by clearing on a plan change. (An E2E run picked up that stale list and believed it, which is how it surfaced.)
 2. The first version of E2E-W5-01 raced the reload and read the loading spinner as "not empty", skipping silently every run. Fixed in the test — worth recording because a test that skips itself is indistinguishable from a test that passes in a summary line.
 
+## Then I opened it in a browser, which found two more
+
+Green tests are not the same as a working screen — that is the whole lesson of this review, so every fix was also clicked through by hand afterwards. Two things only showed up there:
+
+**3. The map picker was still hiding the maps you'd be looking for.** W7 was built to grey out unpublished maps instead of refusing them later — and against real data the greyed-out state never appeared, because `searchJourneyMaps` also filtered to `status === 'active'`, and **a map only becomes "active" when it is first published.** "Only active" and "only published" were the same set, so all 12 of your draft maps were absent from the picker with no explanation anywhere. That is W7's own dead end, one step earlier than where the review found it. Now only *archived* maps are dropped, and a draft shows as "— publish it first".
+
+**4. The version badge's popover opened off the left edge** and was clipped mid-word by the editor's `overflow-hidden` section. Anchored the other way.
+
+**5. "Place" refused with "Pick who does it and which day" if you switched plans first** — caught on the re-run, not the first run. The Jobs screen picked its default agent when it opened, but the agents arrive *after* that (switching plans refetches the board), so "Who" stayed empty forever. Same shape as Part 1 #7 and fixed the same way: reset on open, then fill the default in when the data lands, keeping the planner's choice if it's still valid.
+
+All three are the same kind of miss: correct in the code, wrong on the screen.
+
+**Confirmed by eye, on real data:**
+
+| | What I saw |
+|---|---|
+| W1 | A job step scheduled onto Tue 20 Oct renders as **"Log the request in the sheet"** on the board — the slot stores no title at all |
+| W1 | The Jobs screen: new-job form, three jobs with step counts, and steps carrying "25 min" and "Done when: Every line item has a price…" |
+| W2 | "Javier ⚠" in the roster, with "Agents marked ⚠ have no login. Their published days reach nobody" |
+| W2 | The scheduler warns before you place work on him |
+| W4/W5 | "Sun 18 Oct → Nothing scheduled for Sun 18 Oct. Next work: Mon 19 Oct." with a **Go to Mon 19 Oct** button |
+| W6 | "v3 · Oct 17" → "✓ What's on screen matches the published v3", v3/v2/v1 listed with dates |
+| W7 | 12 maps listed as "— publish it first" (disabled), "test 123 (v1)" selectable |
+| W8 | Execution opened on **2026-10-17** with the day's session showing. In UTC it was already the 18th and the screen would have been empty. |
+
 ## Backend changes pushed live
 
 | What | Where | Change |

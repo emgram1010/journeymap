@@ -303,13 +303,22 @@ export interface JourneyMapSearchResult {
  * for the map they just drew needs to see it and be told "publish it
  * first" — a map silently missing from the list is the same dead end
  * W7 is about, just one step earlier. The caller disables them.
+ *
+ * THE `status === 'active'` FILTER THAT USED TO BE HERE WAS THE REAL
+ * BUG, and it was invisible until the fixed picker was opened against
+ * real data: a map becomes `active` when it is first published, so
+ * "only active maps" and "only published maps" were the same set, and
+ * all 12 of this account's draft maps — every map anyone is likely to
+ * be looking for — were silently absent with no explanation anywhere.
+ * Now only ARCHIVED maps are dropped (they are retired on purpose),
+ * and "not published yet" is shown and explained rather than hidden.
  */
 export const searchJourneyMaps = () =>
   performRequest<Array<{id: number; title: string; status: string; published_version_no: number | null}>>('/journey_map', {
     baseUrl: getJourneyMapBaseUrl(),
   }).then((maps) => ({
     results: maps
-      .filter(m => m.status === 'active')
+      .filter(m => m.status !== 'archived')
       .map(m => ({map_id: m.id, title: m.title, status: m.status, publishedVersionNo: m.published_version_no ?? null})),
   }));
 
