@@ -162,6 +162,7 @@ Built a new template ("Weekly Ops UI Test") entirely through the new Templates m
 
 ## Notes
 
+- **Opus review follow-up (2026-10-17), see `gap-fix.md`:** duplicate agent names are now refused on the template (E-PLAN-012), and skipped at plan creation with `reason: "duplicate_name"` instead of failing. Every skipped agent now carries a reason. Roster events log as `PLAN-3`, with a warn event for skips. A Playwright spec (E2E-PLAN-3-01) now covers the full loop, and it caught and fixed a form bug that erased typing.
 - This epic is a direct extension of PLAN-2: `plan_template_agent` points at `agent_profile` (the durable identity), never at a live `planner_agent` row — the same reasoning that made PLAN-2 necessary in the first place.
 - The founder's original concern (recurring templates needing to "remember" agents without re-adding them each time) is now fully addressed for the *manual* instance-creation case. Auto-recurrence (creating the next period's instance on a schedule, without a click) remains explicitly out of scope — a future epic, per the original discussion.
 - Both PLAN-2 and PLAN-3 together are a clean worked example of "template is the record of truth, instance is an isolated copy" applied to a second asset type (agents) using the exact same shape already proven for maps — no new architecture, no new decisions about data integrity needed beyond what D-31/PLAN-1 already settled.

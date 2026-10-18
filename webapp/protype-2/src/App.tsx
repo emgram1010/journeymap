@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import MapVersionBadge from './MapVersionBadge';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Send,
@@ -101,6 +102,8 @@ import {
   listJourneyStageOwners,
   publishMapVersion,
   getMapReadiness,
+  listMapVersions,
+  type MapVersionsResponse,
   type GateFailure,
 } from './xano';
 import {doesPlannedWork} from './stageOwnerModel';
@@ -578,6 +581,10 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const [publishStubMessage, setPublishStubMessage] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
   const [serverBlockers, setServerBlockers] = useState<GateFailure[] | null>(null);
+  // ── GAP-FIX W6: what's live, and has it changed since? ──
+  const [versionInfo, setVersionInfo] = useState<MapVersionsResponse | null>(null);
+  const [isLoadingVersions, setIsLoadingVersions] = useState(false);
+  const versionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // ── Scorecard / Health Widget (US-MET-12/14) ──
   const [scorecard, setScorecard] = useState<ScorecardResult | null>(null);
   const [scorecardBaseline, setScorecardBaseline] = useState<ScorecardResult | null>(null);
@@ -747,6 +754,29 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     };
   }, [journeyMapRecord?.id]);
 
+  // ── GAP-FIX W6 ────────────────────────────────────────────────────────────
+  // The badge's whole job is to be TRUE, so a failure here shows nothing
+  // rather than a stale answer: a version badge that quietly keeps saying
+  // "in sync" after the check stopped working would be worse than no badge.
+  const refreshVersionInfo = useCallback(async (mapId: number) => {
+    setIsLoadingVersions(true);
+    try {
+      setVersionInfo(await listMapVersions(mapId));
+    } catch {
+      setVersionInfo(null);
+    } finally {
+      setIsLoadingVersions(false);
+    }
+  }, []);
+
+  // Each call rebuilds the map's snapshot and re-hashes it server-side, so
+  // it is debounced well past the scorecard's 2s — "have I published this?"
+  // is a question about the last few minutes, not the last keystroke.
+  const debouncedRefreshVersionInfo = useCallback((mapId: number) => {
+    if (versionDebounceRef.current) clearTimeout(versionDebounceRef.current);
+    versionDebounceRef.current = setTimeout(() => { void refreshVersionInfo(mapId); }, 5000);
+  }, [refreshVersionInfo]);
+
   // PUB-1 (US-PUB-1-02/06) — Publish version. The button is already disabled
   // while the browser's own readiness says no, but the server checks again
   // and is the one that decides: if it refuses, its reasons replace the
@@ -766,6 +796,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
           : 'Published. (The publish gate is off for this account, so no version was frozen.)',
       );
       setJourneyMapRecord((current) => (current ? {...current, status: 'active'} : current));
+      void refreshVersionInfo(journeyMapRecord.id); // GAP-FIX W6: the badge has to move the moment the version does
     } catch (error) {
       // A gate refusal is a 400 with E-PUB-001; re-read the server's own
       // reasons so the checklist shows exactly what IT objected to.
@@ -782,7 +813,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     } finally {
       setIsPublishing(false);
     }
-  }, [journeyMapRecord?.id]);
+  }, [journeyMapRecord?.id, refreshVersionInfo]);
 
   const handleTogglePlannedWork = useCallback(
     (lensId: string) => {
@@ -813,6 +844,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     if (scorecardDebounceRef.current) clearTimeout(scorecardDebounceRef.current);
     scorecardDebounceRef.current = setTimeout(() => { void refreshScorecard(mapId); }, 2000);
   }, [refreshScorecard]);
+
 
   const syncLatestJourneyMap = useCallback(async () => {
     setIsXanoSyncing(true);
@@ -858,6 +890,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
           applyJourneyMapBundle(bundle);
           setInitialLoadState('ready');
           void refreshScorecard(journeyMapId, true);
+          void refreshVersionInfo(journeyMapId);
         })
         .catch((err) => {
           applyJourneyMapBundle(null);
@@ -1585,6 +1618,8 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
 
         // Debounced scorecard refresh after cell save (SE-D1)
         if (persistedCell.journey_map) debouncedRefreshScorecard(persistedCell.journey_map);
+        // GAP-FIX W6: editing a cell is exactly what makes a published map stale.
+        if (persistedCell.journey_map) debouncedRefreshVersionInfo(persistedCell.journey_map);
 
         return true;
       } catch (error) {
@@ -1602,7 +1637,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         setIsXanoSyncing(false);
       }
     },
-    [selectedCellId, selectedCellSnapshot, debouncedRefreshScorecard],
+    [selectedCellId, selectedCellSnapshot, debouncedRefreshScorecard, debouncedRefreshVersionInfo],
   );
 
   const handleSelectCell = useCallback(
@@ -2300,6 +2335,12 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                       Checklist
                     </button>
                   )}
+                  {/* GAP-FIX W6 — what's live, when, and whether it's drifted. */}
+                  <MapVersionBadge
+                    info={versionInfo}
+                    isLoading={isLoadingVersions}
+                    onRefresh={() => { if (journeyMapRecord?.id) void refreshVersionInfo(journeyMapRecord.id); }}
+                  />
                   {/* AUTH-1 (US-AUTH-1-06) shows the state; PUB-1 (US-PUB-1-02) does the publish. */}
                   {mapReadiness.total > 0 && (
                     <button

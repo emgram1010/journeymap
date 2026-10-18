@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Users, Search, Eye, EyeOff, Pencil, Plus } from 'lucide-react';
+import { ChevronDown, Users, Search, Eye, EyeOff, Pencil, Plus, AlertTriangle } from 'lucide-react';
 import { Agent } from '../types';
 
 interface AgentsPopoverProps {
@@ -16,6 +16,12 @@ interface AgentsPopoverProps {
 /**
  * On-demand roster controls (visibility, search, edit, add) shared by the
  * Plan and Schedule views, in place of a permanently pinned roster rail.
+ *
+ * GAP-FIX W2 — a person with no login linked is flagged here. This is
+ * the one place the whole roster is visible at once, so it is where a
+ * planner can see at a glance that a day they are about to fill would
+ * reach nobody. AI agents are never flagged: they have no login by
+ * definition and are not performed through the Execution app.
  */
 export function AgentsPopover({
   agents,
@@ -116,6 +122,14 @@ export function AgentsPopover({
                     ) : (
                       <span className="text-[9px] text-neutral-400 font-bold shrink-0">●</span>
                     )}
+                    {agent.kind === 'person' && !agent.userId && (
+                      <span
+                        className="shrink-0 text-amber-600"
+                        title="No login linked — nobody will see this agent's work in Execution"
+                      >
+                        <AlertTriangle className="w-3 h-3" />
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-0.5 shrink-0">
                     <button
@@ -141,6 +155,13 @@ export function AgentsPopover({
               ))
             )}
           </div>
+
+          {filtered.some(a => a.kind === 'person' && !a.userId) && (
+            <div className="border-t border-neutral-100 px-2.5 py-1.5 flex items-start gap-1.5 text-[10px] text-amber-700 bg-amber-50/60">
+              <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+              <span>Agents marked ⚠ have no login. Their published days reach nobody — open the agent to link one.</span>
+            </div>
+          )}
 
           <div className="border-t border-neutral-100 p-1.5">
             <button

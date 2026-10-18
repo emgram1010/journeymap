@@ -27,6 +27,14 @@
 //
 // Backlog tasks are included in `tasks[]` with `timeline_id: 0` (the
 // local spelling of "no timeline") and `planned_start: null`.
+//
+// GAP-FIX W1 (2026-10-17) — `linked_steps[]` says what each SCHEDULED
+// JOB STEP actually is. A slot created by SCHED-1 carries no title on
+// purpose (the real text lives in the job's pinned version and is read
+// through the link), and nothing had ever read it back, so every job
+// step placed on the board rendered as a blank card. One extra
+// function call for the whole plan — see planner/job_step_hydration
+// for why the join lives there rather than inline here.
 query "workspace/{workspace_id}/board" verb=GET {
   api_group = "planner"
   auth = "user"
@@ -170,18 +178,23 @@ query "workspace/{workspace_id}/board" verb=GET {
         }
       }
     }
+
+    function.run "planner/job_step_hydration" {
+      input = {workspace_id: $input.workspace_id}
+    } as $hydration
   }
 
   response = {
-    workspace: $workspace
-    agents   : $agents
-    timelines: $timeline_views
-    tasks    : $tasks
-    settings : {
+    workspace   : $workspace
+    agents      : $agents
+    timelines   : $timeline_views
+    tasks       : $tasks
+    linked_steps: $hydration.steps
+    settings    : {
       currency_symbol  : $settings.currency_symbol
       human_hourly_rate: $settings.human_hourly_rate
     }
 
-    models   : $models
+    models      : $models
   }
 }

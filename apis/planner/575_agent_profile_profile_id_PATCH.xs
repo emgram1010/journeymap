@@ -1,6 +1,10 @@
 // PLAN-2 (US-PLAN-2-02) — Update an agent profile's defaults, or
 // toggle eligibility.
 //
+// WHO MAY DO THIS (gap-fix #2, decision D-2): anyone may change their
+// OWN profile; only an account admin may change someone else's or an
+// AI profile — including toggling eligibility off.
+//
 // TOGGLING OFF IS NOT A DELETE. Same rule `planner_agent.is_active`
 // and `plan_template.is_active` already follow: history on any plan
 // this person is already part of stays intact; they just stop
@@ -84,6 +88,10 @@ query "agent-profile/{profile_id}" verb=PATCH {
       }
     }
 
+    var $needs_admin {
+      value = ($existing.user_id == 0 || $existing.user_id != $actor.user_id)
+    }
+
     var $reject_code {
       value = ""
     }
@@ -93,7 +101,19 @@ query "agent-profile/{profile_id}" verb=PATCH {
     }
 
     conditional {
-      if ($existing.user_id == 0 && ($next_name == null || $next_name == "")) {
+      if ($needs_admin == true && $actor.role != "admin") {
+        var.update $reject_code {
+          value = "E-PLAN-013"
+        }
+
+        var.update $reject_msg {
+          value = "Only an account admin can change someone else's agent settings or an AI agent. (E-PLAN-013)"
+        }
+      }
+    }
+
+    conditional {
+      if ($reject_code == "" && $existing.user_id == 0 && ($next_name == null || $next_name == "")) {
         var.update $reject_code {
           value = "E-PLAN-007"
         }

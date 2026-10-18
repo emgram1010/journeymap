@@ -256,6 +256,7 @@ query "template/{template_id}/instance" verb=POST {
 
             var.update $profiles_by_id {
               value = $profiles_by_id|set:$rkey:{
+                profile_id : $p.id
                 user_id    : $p.user_id
                 kind       : $p.kind
                 name       : $resolved_name
@@ -314,7 +315,7 @@ query "template/{template_id}/instance" verb=POST {
         conditional {
           if ($c.info == null) {
             array.push $skipped_agents {
-              value = {profile_id: $c.profile_id, name: null}
+              value = {profile_id: $c.profile_id, name: null, reason: "not_found"}
             }
           }
         }
@@ -322,7 +323,103 @@ query "template/{template_id}/instance" verb=POST {
         conditional {
           if ($c.info != null && $c.info.is_eligible == false) {
             array.push $skipped_agents {
-              value = {profile_id: $c.profile_id, name: $c.info.name}
+              value = {profile_id: $c.profile_id, name: $c.info.name, reason: "not_eligible"}
+            }
+          }
+        }
+      }
+    }
+
+    // Gap-fix #1, last line of defence: names are checked when an
+    // agent is added to the template, but a person or AI agent can be
+    // renamed afterwards. Two agents with the same name in one plan
+    // would hit planner_agent's (workspace, name) unique index and
+    // fail the whole plan with a raw database error. Skip every agent
+    // whose name is shared, and say why, instead.
+    // Same seed → increment → read-back → branch-on-loop-item shape as
+    // planner/assert_roster_names_unique.
+    var $name_counts {
+      value = {}
+    }
+
+    var $nk {
+      value = ""
+    }
+
+    foreach ($agents_to_copy) {
+      each as $ag {
+        var.update $nk {
+          value = "n:" ~ ($ag.name|trim|lower)
+        }
+
+        var.update $name_counts {
+          value = $name_counts|set:$nk:0
+        }
+      }
+    }
+
+    var $nprev {
+      value = 0
+    }
+
+    var $nnext {
+      value = 0
+    }
+
+    foreach ($agents_to_copy) {
+      each as $ag {
+        var.update $nk {
+          value = "n:" ~ ($ag.name|trim|lower)
+        }
+
+        var.update $nprev {
+          value = $name_counts|get:$nk:0
+        }
+
+        var.update $nnext {
+          value = $nprev + 1
+        }
+
+        var.update $name_counts {
+          value = $name_counts|set:$nk:$nnext
+        }
+      }
+    }
+
+    var $copy_checks {
+      value = []
+    }
+
+    foreach ($agents_to_copy) {
+      each as $ag {
+        var.update $nk {
+          value = "n:" ~ ($ag.name|trim|lower)
+        }
+
+        array.push $copy_checks {
+          value = {info: $ag, count: ($name_counts|get:$nk:0)}
+        }
+      }
+    }
+
+    var $final_copy {
+      value = []
+    }
+
+    foreach ($copy_checks) {
+      each as $cc {
+        conditional {
+          if ($cc.count <= 1) {
+            array.push $final_copy {
+              value = $cc.info
+            }
+          }
+        }
+
+        conditional {
+          if ($cc.count > 1) {
+            array.push $skipped_agents {
+              value = {profile_id: $cc.info.profile_id, name: $cc.info.name, reason: "duplicate_name"}
             }
           }
         }
@@ -353,7 +450,7 @@ query "template/{template_id}/instance" verb=POST {
           }
         }
 
-        foreach ($agents_to_copy) {
+        foreach ($final_copy) {
           each as $ag {
             db.add planner_agent {
               data = {
@@ -389,8 +486,31 @@ query "template/{template_id}/instance" verb=POST {
           window_start       : $input.start_date
           window_end         : $window_end
           map_count          : ($template_maps|count)
-          agent_count        : ($agents_to_copy|count)
+          agent_count        : ($final_copy|count)
           skipped_agent_count: ($skipped_agents|count)
+        }
+      }
+    }
+
+    // Gap-fix #6: a skipped agent means a plan started short-staffed.
+    // That's something support should be able to see on the Health
+    // page, not only the person who clicked "Create plan".
+    conditional {
+      if (($skipped_agents|count) > 0) {
+        function.run "ops/log_event" {
+          input = {
+            feature       : "PLAN-3"
+            step          : "skip_roster_agent"
+            outcome       : "success"
+            severity      : "warn"
+            user_id       : $actor.user_id
+            account_id    : $actor.account_id
+            entity_type   : "planner_workspace"
+            entity_id     : $workspace.id
+            correlation_id: $input.correlation_id
+            message       : "Plan created from a template, but some roster agents were left off."
+            metadata      : {template_id: $input.template_id, skipped: $skipped_agents}
+          }
         }
       }
     }
@@ -402,7 +522,7 @@ query "template/{template_id}/instance" verb=POST {
     default_start_time: $template.default_start_time
     window_days       : $template.window_days
     accepted_map_count: ($template_maps|count)
-    agent_count       : ($agents_to_copy|count)
+    agent_count       : ($final_copy|count)
     skipped_agents    : $skipped_agents
   }
 }

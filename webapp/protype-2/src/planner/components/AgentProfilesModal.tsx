@@ -1,8 +1,18 @@
 // PLAN-2 (US-PLAN-2-03) — Minimal UI: tag a teammate as an agent, or
 // add an AI agent with no login. Account-scoped (no workspace id
 // anywhere here) — same shell styling as SettingsModal for consistency.
+//
+// GAP-FIX W9 (2026-10-17) — this screen now knows who is signed in.
+// D-2's rule (gap-fix Part 1 #2) is enforced server-side: anyone may
+// manage their OWN profile, only an admin may manage someone else's
+// or an AI agent. Until now the screen offered every action to
+// everyone and let the server refuse, so a member's only way to learn
+// the rule was to be told no. The role comes from the same `/auth/me`
+// the session already holds — no new request, and the server still
+// re-checks every call regardless of what this component renders.
 import {useEffect, useState} from 'react';
-import {X, Users, Plus} from 'lucide-react';
+import {X, Users, Plus, Lock} from 'lucide-react';
+import {useAuth} from '../../AuthContext';
 import {
   listAgentProfiles,
   createAgentProfile,
@@ -18,6 +28,9 @@ interface AgentProfilesModalProps {
 }
 
 export function AgentProfilesModal({isOpen, onClose}: AgentProfilesModalProps) {
+  const {user} = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const myUserId = user?.id ?? 0;
   const [profiles, setProfiles] = useState<AgentProfileListEntry[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(false);
@@ -46,7 +59,15 @@ export function AgentProfilesModal({isOpen, onClose}: AgentProfilesModalProps) {
   if (!isOpen) return null;
 
   const profiledUserIds = new Set(profiles.map((p) => p.profile.user_id).filter((id) => id !== 0));
-  const candidateMembers = teamMembers.filter((m) => !profiledUserIds.has(m.id));
+  // A member may only ever tag themselves (D-2). Showing them the whole
+  // team and refusing the click is how this screen behaved before W9.
+  const candidateMembers = teamMembers
+    .filter((m) => !profiledUserIds.has(m.id))
+    .filter((m) => isAdmin || m.id === myUserId);
+
+  /** Own profile, or admin — mirrors the server's own check in 575. */
+  const canManage = (profileUserId: number, kind: 'person' | 'ai') =>
+    isAdmin || (kind === 'person' && profileUserId === myUserId && profileUserId !== 0);
 
   const handleTagMember = async (userId: number) => {
     setBusyUserId(userId);
@@ -129,10 +150,16 @@ export function AgentProfilesModal({isOpen, onClose}: AgentProfilesModalProps) {
                         <p className="text-xs font-medium text-neutral-900 truncate">{displayName || '(unnamed)'}</p>
                         <p className="text-[10px] text-neutral-400">{profile.kind === 'ai' ? 'AI agent' : 'Person'}</p>
                       </div>
-                      <label className="flex items-center gap-1.5 text-[11px] text-neutral-600 shrink-0">
+                      <label
+                        className={`flex items-center gap-1.5 text-[11px] shrink-0 ${
+                          canManage(profile.user_id, profile.kind) ? 'text-neutral-600' : 'text-neutral-300'
+                        }`}
+                        title={canManage(profile.user_id, profile.kind) ? undefined : 'Only an admin can change this agent.'}
+                      >
                         <input
                           type="checkbox"
                           checked={profile.is_eligible}
+                          disabled={!canManage(profile.user_id, profile.kind)}
                           onChange={(e) => void handleToggleEligible(profile.id, e.target.checked)}
                         />
                         Eligible
@@ -145,9 +172,17 @@ export function AgentProfilesModal({isOpen, onClose}: AgentProfilesModalProps) {
           )}
 
           <section>
-            <h3 className="text-xs font-semibold text-neutral-900 mb-2">Tag a teammate</h3>
+            <h3 className="text-xs font-semibold text-neutral-900 mb-2">{isAdmin ? 'Tag a teammate' : 'Tag yourself'}</h3>
+            {!isAdmin && (
+              <p className="text-[11px] text-neutral-500 mb-2 flex items-start gap-1">
+                <Lock className="w-3 h-3 mt-0.5 shrink-0 text-neutral-400" />
+                You can tag yourself. Only an admin can tag someone else or add an AI agent.
+              </p>
+            )}
             {candidateMembers.length === 0 ? (
-              <p className="text-xs text-neutral-400">Everyone on this account is already tagged.</p>
+              <p className="text-xs text-neutral-400">
+                {isAdmin ? 'Everyone on this account is already tagged.' : 'You are already tagged as an agent.'}
+              </p>
             ) : (
               <ul className="divide-y divide-neutral-100 border border-neutral-200 rounded-md">
                 {candidateMembers.map((m) => (
@@ -168,6 +203,7 @@ export function AgentProfilesModal({isOpen, onClose}: AgentProfilesModalProps) {
             )}
           </section>
 
+          {isAdmin && (
           <section>
             <h3 className="text-xs font-semibold text-neutral-900 mb-2">Add an AI agent</h3>
             <div className="flex items-center gap-2">
@@ -188,6 +224,7 @@ export function AgentProfilesModal({isOpen, onClose}: AgentProfilesModalProps) {
               </button>
             </div>
           </section>
+          )}
         </div>
       </div>
     </div>

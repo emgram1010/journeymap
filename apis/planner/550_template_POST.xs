@@ -99,6 +99,13 @@ query "template" verb=POST {
       input = {account_id: $actor.account_id, profile_ids: $agent_profile_ids}
     } as $agents_check
 
+    // Gap-fix #1: two roster agents with the same name would make every
+    // plan created from this template fail (planner_agent is unique by
+    // plan + name). Refuse it here, where it can be explained.
+    function.run "planner/assert_roster_names_unique" {
+      input = {existing_profile_ids: [], add_profile_ids: $agent_profile_ids}
+    } as $names_check
+
     var $reject_code {
       value = ""
     }
@@ -192,6 +199,18 @@ query "template" verb=POST {
     }
 
     conditional {
+      if ($reject_code == "" && $names_check.ok == false) {
+        var.update $reject_code {
+          value = "E-PLAN-012"
+        }
+
+        var.update $reject_msg {
+          value = "Two agents on this template would both be called '" ~ $names_check.duplicate_name ~ "'. Rename one, or leave one off. (E-PLAN-012)"
+        }
+      }
+    }
+
+    conditional {
       if ($reject_code != "") {
         function.run "ops/log_event" {
           input = {
@@ -258,6 +277,28 @@ query "template" verb=POST {
         correlation_id: $input.correlation_id
         message       : "Plan template created."
         metadata      : {map_count: ($map_ids|count), agent_count: ($agent_profile_ids|count)}
+      }
+    }
+
+    // Gap-fix #6: roster changes are PLAN-3's, so the Health page can
+    // tell them apart from PLAN-1's template events.
+    conditional {
+      if (($agent_profile_ids|count) > 0) {
+        function.run "ops/log_event" {
+          input = {
+            feature       : "PLAN-3"
+            step          : "add_template_agent"
+            outcome       : "success"
+            severity      : "info"
+            user_id       : $actor.user_id
+            account_id    : $actor.account_id
+            entity_type   : "plan_template"
+            entity_id     : $template.id
+            correlation_id: $input.correlation_id
+            message       : "Agents added to a template roster."
+            metadata      : {agent_count: ($agent_profile_ids|count)}
+          }
+        }
       }
     }
   }

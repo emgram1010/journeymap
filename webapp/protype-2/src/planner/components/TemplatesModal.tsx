@@ -252,9 +252,14 @@ export function TemplatesModal({isOpen, onClose, onTemplatesChanged}: TemplatesM
                                   className="flex-1 text-[11px] px-2 py-1 border border-neutral-200 rounded-md bg-white"
                                 >
                                   <option value="">Add a map…</option>
+                                  {/* GAP-FIX W7 — same rule as the plan's own map
+                                      picker: a map with no published version is
+                                      shown so it can be found, and disabled so it
+                                      can't be chosen and then refused. */}
                                   {addableMaps.map((m) => (
-                                    <option key={m.map_id} value={m.map_id}>
+                                    <option key={m.map_id} value={m.map_id} disabled={m.publishedVersionNo === null}>
                                       {m.title}
+                                      {m.publishedVersionNo === null ? ' — publish it first' : ` (v${m.publishedVersionNo})`}
                                     </option>
                                   ))}
                                 </select>

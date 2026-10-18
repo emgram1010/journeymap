@@ -75,7 +75,13 @@ export function WorkspaceSettingsModal({
       .finally(() => setIsAddingMap(false));
   };
 
+  // GAP-FIX W7 — an unpublished map is still LISTED (so the planner
+  // can see the map they just drew and learn why it can't be added)
+  // but is not selectable. Attaching requires a published version;
+  // offering one and letting the server refuse with E-PLAN-004 was
+  // an avoidable error.
   const addableMaps = candidateMaps.filter(m => !currentMaps.some(cm => cm.map_id === m.map_id));
+  const unpublishedCount = addableMaps.filter(m => m.publishedVersionNo === null).length;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -242,6 +248,14 @@ export function WorkspaceSettingsModal({
 
             {mapsError && <p className="text-[11px] text-red-600 mb-2">{mapsError}</p>}
 
+            {unpublishedCount > 0 && (
+              <p className="text-[11px] text-neutral-500 mb-1.5">
+                {unpublishedCount} map{unpublishedCount === 1 ? ' is' : 's are'} greyed out below because
+                {unpublishedCount === 1 ? ' it has' : ' they have'} never been published. Open the map and
+                use <span className="font-medium">Publish version</span> first.
+              </p>
+            )}
+
             {addableMaps.length > 0 && (
               <div className="flex items-center gap-2">
                 <select
@@ -252,7 +266,10 @@ export function WorkspaceSettingsModal({
                 >
                   <option value="">Choose a map to add…</option>
                   {addableMaps.map(m => (
-                    <option key={m.map_id} value={m.map_id}>{m.title}</option>
+                    <option key={m.map_id} value={m.map_id} disabled={m.publishedVersionNo === null}>
+                      {m.title}
+                      {m.publishedVersionNo === null ? ' — publish it first' : ` (v${m.publishedVersionNo})`}
+                    </option>
                   ))}
                 </select>
                 <button

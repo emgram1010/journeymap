@@ -138,6 +138,29 @@ query "template/{template_id}" verb=PATCH {
       input = {account_id: $actor.account_id, profile_ids: $add_agents}
     } as $agents_check
 
+    // Gap-fix #1: the new agents must not share a name with each other
+    // or with anyone already on this roster.
+    db.query plan_template_agent {
+      where = $db.plan_template_agent.plan_template_id == $input.template_id
+      return = {type: "list"}
+    } as $roster_before
+
+    var $existing_agent_ids {
+      value = []
+    }
+
+    foreach ($roster_before) {
+      each as $rb {
+        array.push $existing_agent_ids {
+          value = $rb.agent_profile_id
+        }
+      }
+    }
+
+    function.run "planner/assert_roster_names_unique" {
+      input = {existing_profile_ids: $existing_agent_ids, add_profile_ids: $add_agents}
+    } as $names_check
+
     var $reject_code {
       value = ""
     }
@@ -226,6 +249,18 @@ query "template/{template_id}" verb=PATCH {
 
         var.update $reject_msg {
           value = "One of those agents isn't available to this account. (E-PLAN-010)"
+        }
+      }
+    }
+
+    conditional {
+      if ($reject_code == "" && $names_check.ok == false) {
+        var.update $reject_code {
+          value = "E-PLAN-012"
+        }
+
+        var.update $reject_msg {
+          value = "Two agents on this template would both be called '" ~ $names_check.duplicate_name ~ "'. Rename one, or leave one off. (E-PLAN-012)"
         }
       }
     }
@@ -427,6 +462,27 @@ query "template/{template_id}" verb=PATCH {
         entity_id     : $input.template_id
         correlation_id: $input.correlation_id
         message       : "Plan template updated."
+      }
+    }
+
+    // Gap-fix #6: roster changes are PLAN-3's.
+    conditional {
+      if (($add_agents|count) > 0) {
+        function.run "ops/log_event" {
+          input = {
+            feature       : "PLAN-3"
+            step          : "add_template_agent"
+            outcome       : "success"
+            severity      : "info"
+            user_id       : $actor.user_id
+            account_id    : $actor.account_id
+            entity_type   : "plan_template"
+            entity_id     : $input.template_id
+            correlation_id: $input.correlation_id
+            message       : "Agents added to a template roster."
+            metadata      : {requested_count: ($add_agents|count), roster_count: ($agent_profile_ids|count)}
+          }
+        }
       }
     }
   }

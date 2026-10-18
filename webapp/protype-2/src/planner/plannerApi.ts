@@ -27,6 +27,17 @@ export interface WorkspaceListEntry {
 export const listWorkspaces = () => performRequest<{workspaces: WorkspaceListEntry[]}>('/workspace');
 
 /**
+ * Phase-3's plain create, no template — reinstated in the UI on the
+ * founder's request (2026-10-17) as an explicit "start from scratch"
+ * option, alongside "New Plan from Template". The endpoint never
+ * stopped existing or working (FT-PLAN-1-09 confirms it); only the
+ * frontend path to it had been removed when PLN-9 wired templates in.
+ * No maps, no agents, no template — add those by hand once inside it.
+ */
+export const createWorkspace = (body: {name: string; planning_window_start: string; planning_window_end: string}) =>
+  performRequest<{workspace: RawWorkspace; counts: WorkspaceListEntry['counts']}>('/workspace', {method: 'POST', body});
+
+/**
  * PLN-3 — rename a plan, move its planning window, or change its token
  * throughput. Wired during PLN-9's Opus review pass: the Workspace
  * Settings modal had a literal "Save settings" button that only ever
@@ -219,6 +230,8 @@ export interface BoardResponse {
   agents: RawAgent[];
   timelines: RawTimeline[];
   tasks: RawTask[];
+  /** GAP-FIX W1 — the real text behind each scheduled job step. Optional so an older server still parses. */
+  linked_steps?: LinkedStep[];
   settings: RawPlannerSettings;
   models: RawModel[];
 }
@@ -275,12 +288,30 @@ export interface JourneyMapSearchResult {
   map_id: number;
   title: string;
   status: string;
+  /**
+   * GAP-FIX W7 — the map's latest published version, or null if it has
+   * never been published. Attaching a map REQUIRES one (E-PLAN-004),
+   * so a picker that doesn't know this offers maps the server will
+   * then refuse. Added to `GET /journey_map` itself (endpoint 18)
+   * rather than fetched per map.
+   */
+  publishedVersionNo: number | null;
 }
 
+/**
+ * Unpublished maps are RETURNED, NOT FILTERED OUT. A planner looking
+ * for the map they just drew needs to see it and be told "publish it
+ * first" — a map silently missing from the list is the same dead end
+ * W7 is about, just one step earlier. The caller disables them.
+ */
 export const searchJourneyMaps = () =>
-  performRequest<Array<{id: number; title: string; status: string}>>('/journey_map', {baseUrl: getJourneyMapBaseUrl()}).then(
-    (maps) => ({results: maps.filter(m => m.status === 'active').map(m => ({map_id: m.id, title: m.title, status: m.status}))}),
-  );
+  performRequest<Array<{id: number; title: string; status: string; published_version_no: number | null}>>('/journey_map', {
+    baseUrl: getJourneyMapBaseUrl(),
+  }).then((maps) => ({
+    results: maps
+      .filter(m => m.status === 'active')
+      .map(m => ({map_id: m.id, title: m.title, status: m.status, publishedVersionNo: m.published_version_no ?? null})),
+  }));
 
 // ── Plan templates (US-PLN-9-07, PLAN-3 US-PLAN-3-04) ──────────────────────
 //
@@ -326,8 +357,15 @@ export const createWorkspaceFromTemplate = (templateId: number, body: {name: str
     window_days: number;
     accepted_map_count: number;
     agent_count: number;
-    skipped_agents: Array<{profile_id: number; name: string | null}>;
+    skipped_agents: SkippedAgent[];
   }>(`/template/${templateId}/instance`, {method: 'POST', body});
+
+/** Why a roster agent was left off a new plan (gap-fix #1). */
+export interface SkippedAgent {
+  profile_id: number;
+  name: string | null;
+  reason: 'not_eligible' | 'not_found' | 'duplicate_name';
+}
 
 // ── Agent profiles (PLAN-2, US-PLAN-2-02) ──────────────────────────────────
 //
@@ -375,3 +413,128 @@ export interface TeamMember {
 }
 
 export const listTeamMembers = () => performRequest<TeamMember[]>('/account/my_team_members', {baseUrl: getAccountsBaseUrl()});
+
+// ── Jobs (GAP-FIX W1, over JOB-1 / SCHED-1) ────────────────────────────────
+//
+// THE BACKEND FOR ALL OF THIS WAS ALREADY BUILT AND TESTED. JOB-1 and
+// SCHED-1 shipped `work_item` (a real instance of the work, whose steps
+// come from a map's frozen version) and the scheduling link that puts
+// one of those steps on somebody's day — and nothing in the planner UI
+// ever called any of it. There were zero references to `work_item`,
+// `job_id` or `createJob` anywhere under `planner/`. "Add task" made a
+// plain `planner_task`: a title, a duration and a slot, with no
+// connection to any map. So attaching a map to a plan changed nothing a
+// user could see, and Execution showed steps with no instructions and
+// no done-when — the exact things the map exists to carry.
+//
+// These are the calls that were missing, not new capability.
+
+export interface RawWorkItem {
+  id: number;
+  account_id: number;
+  workspace_id: number;
+  journey_map_version_id: number;
+  title: string;
+  status: 'open' | 'in_progress' | 'blocked' | 'completed' | 'cancelled';
+  attributes: Record<string, unknown>;
+  parent_work_item_id: number;
+  created_by: number;
+  started_at: number;
+  finished_at: number;
+}
+
+export interface WorkItemListEntry {
+  work_item: RawWorkItem;
+  task_count: number;
+  finished_count: number;
+  has_blocked: boolean;
+  has_progress: boolean;
+}
+
+/**
+ * Create a job from one of the plan's accepted maps.
+ *
+ * THE JOB IS PINNED TO THAT MAP'S LATEST PUBLISHED VERSION AT THIS
+ * MOMENT, and the pin never moves — later edits or republishes cannot
+ * change a job already underway. Refuses with a friendly message if
+ * the plan doesn't accept the map (E-JOB-002) or the map has never
+ * been published (E-JOB-003).
+ */
+export const createWorkItem = (body: {workspace_id: number; journey_map_id: number; title: string}) =>
+  performRequest<{
+    work_item: RawWorkItem;
+    pinned_version: {id: number; version_no: number};
+    task_count: number;
+    skipped_stages: unknown[];
+  }>('/work_item', {method: 'POST', body});
+
+/** Cancelled jobs are excluded unless asked for — they're history, not work waiting to happen. */
+export const listWorkItems = (workspaceId: number, includeCancelled = false) =>
+  performRequest<{work_items: WorkItemListEntry[]}>(
+    `/workspace/${workspaceId}/work_item${includeCancelled ? '?include_cancelled=true' : ''}`,
+  );
+
+/** US-JOB-1-05 — a cancelled job's steps leave the backlog but stay as history. */
+export const cancelWorkItem = (workItemId: number) =>
+  performRequest<{work_item: RawWorkItem; was_already_cancelled: boolean; message: string}>(
+    `/work_item/${workItemId}/cancel`,
+    {method: 'POST', body: {}},
+  );
+
+/**
+ * Every job step in this plan with no slot on the schedule yet, with
+ * its text and expected minutes read from its job's PINNED version —
+ * what was agreed, not what the live map says today.
+ */
+export interface BacklogWorkRow {
+  work_task_id: number;
+  work_item_id: number;
+  job_title: string | null;
+  stage_key: string;
+  lens_key: string;
+  status: string;
+  task: string | null;
+  done_when: string | null;
+  expected_minutes: number | null;
+}
+
+export const listBacklogWork = (workspaceId: number) =>
+  performRequest<{workspace_id: number; count: number; backlog: BacklogWorkRow[]}>(
+    `/workspace/${workspaceId}/backlog_work`,
+  );
+
+/**
+ * Put a job step on a day. The slot's duration defaults to the step's
+ * expected minutes from the pinned version, so scheduling changes
+ * nothing about what was agreed. Scheduling the same step twice is
+ * impossible (unique index), not merely checked.
+ */
+export const scheduleWorkTask = (
+  workTaskId: number,
+  body: {timeline_id: number; duration_minutes?: number; assignee_agent_id?: number},
+) =>
+  performRequest<{
+    planner_task: RawTask;
+    work_task_id: number;
+    expected_minutes: number | null;
+    scheduled_minutes: number;
+    is_tweaked: boolean;
+  }>(`/work_task/${workTaskId}/schedule`, {method: 'POST', body});
+
+/**
+ * GAP-FIX W1 — what a scheduled job step actually says, for every slot
+ * in the plan. Returned by the board; see `planner/job_step_hydration`.
+ */
+export interface LinkedStep {
+  planner_task_id: number;
+  work_task_id: number;
+  work_item_id: number;
+  job_title: string | null;
+  job_status: string;
+  stage_key: string;
+  lens_key: string;
+  step_status: string;
+  step_title: string | null;
+  done_when: string | null;
+  expected_minutes: number | null;
+}

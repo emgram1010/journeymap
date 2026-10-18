@@ -122,7 +122,7 @@ This is the foundation PLAN-3 builds on (a plan template's agent roster points a
 | `isValidColorHex`/`isValidCapacityHours`/`isValidProfileName` | — | `webapp/protype-2/src/agentProfile.ts` |
 | Agents modal | — | `webapp/protype-2/src/planner/components/AgentProfilesModal.tsx`, wired into `Header.tsx`/`PlannerApp.tsx` |
 
-Decisions D-1 and D-2 both taken as recommended: AI profiles carry their own `account_id`; profile management is not role-gated beyond ordinary auth for MVP.
+D-1 taken as recommended (AI profiles carry their own `account_id`). **D-2 correction (Opus review, 2026-10-17):** this line originally said D-2 was "taken as recommended" with no role check. That was wrong; the recommendation was admin-only for managing *other* people. It's now built as recommended: anyone can manage their own profile, and only an admin can manage someone else's or an AI profile (E-PLAN-013). See `gap-fix.md` #2.
 
 ### Unit tests
 `npm test`: 347/347 (7 new — UT-PLAN-2-01/02 plus the profile-name helper).

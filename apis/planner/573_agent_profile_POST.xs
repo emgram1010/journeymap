@@ -1,6 +1,11 @@
 // PLAN-2 (US-PLAN-2-02) — Tag a user as an agent, or create an AI
 // profile with no login.
 //
+// WHO MAY DO THIS (gap-fix #2, decision D-2): anyone may tag
+// THEMSELVES; only an account admin may tag someone else or create an
+// AI profile. Without this, any member could set up — or, via the
+// PATCH endpoint, untag — a teammate.
+//
 // AT MOST ONE PROFILE PER REAL USER, enforced by a count check here,
 // not a DB-level unique index — same reason `plan_template`'s unique
 // name isn't a DB constraint either: an int column can't hold a real
@@ -96,6 +101,10 @@ query "agent-profile" verb=POST {
       }
     }
 
+    var $needs_admin {
+      value = ($target_user_id == 0 || $target_user_id != $actor.user_id)
+    }
+
     var $reject_code {
       value = ""
     }
@@ -112,6 +121,18 @@ query "agent-profile" verb=POST {
 
         var.update $reject_msg {
           value = "That user isn't on this account. (E-PLAN-011)"
+        }
+      }
+    }
+
+    conditional {
+      if ($reject_code == "" && $needs_admin == true && $actor.role != "admin") {
+        var.update $reject_code {
+          value = "E-PLAN-013"
+        }
+
+        var.update $reject_msg {
+          value = "Only an account admin can set up agents for other people or add an AI agent. You can tag yourself. (E-PLAN-013)"
         }
       }
     }

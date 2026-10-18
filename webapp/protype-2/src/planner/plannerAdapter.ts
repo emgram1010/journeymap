@@ -16,7 +16,7 @@
 // CLAUDE.md), so it uses `0`; the frontend was written assuming a
 // real optional/null. This boundary is where that gets reconciled.
 import type {Agent, AppSettings, ModelPricing, Task, Timeline, Workspace} from './types';
-import type {BoardResponse, RawAgent, RawModel, RawTask, RawTimeline, RawWorkspace, WorkspaceListEntry} from './plannerApi';
+import type {BoardResponse, LinkedStep, RawAgent, RawModel, RawTask, RawTimeline, RawWorkspace, WorkspaceListEntry} from './plannerApi';
 
 export function adaptWorkspace(entry: WorkspaceListEntry): Workspace {
   const w: RawWorkspace = entry.workspace;
@@ -41,6 +41,7 @@ export function adaptAgent(raw: RawAgent): Agent {
     dailyCapacityHours: raw.daily_capacity_hours,
     isVisible: raw.is_visible,
     modelId: raw.model_id !== 0 ? String(raw.model_id) : undefined,
+    userId: raw.user_id !== 0 ? String(raw.user_id) : undefined,
   };
 }
 
@@ -78,20 +79,29 @@ export function adaptSettings(board: BoardResponse): AppSettings {
 
 /** Everything one workspace's board needs, already converted to this app's own types. */
 export function adaptBoard(board: BoardResponse) {
+  // GAP-FIX W1 — keyed by planner_task id so a linked slot can be given
+  // the text it was always meant to show.
+  const stepsByTask = new Map<number, LinkedStep>();
+  for (const step of board.linked_steps ?? []) stepsByTask.set(step.planner_task_id, step);
+
   return {
     agents: board.agents.map(adaptAgent),
     timelines: board.timelines.map(adaptTimeline),
-    tasks: board.tasks.map(adaptTask),
+    tasks: board.tasks.map((t) => adaptTask(t, stepsByTask.get(t.id))),
     settings: adaptSettings(board),
   };
 }
 
-export function adaptTask(raw: RawTask): Task {
+export function adaptTask(raw: RawTask, step?: LinkedStep): Task {
+  // A linked slot stores no title of its own (see Task.jobStepTitle).
+  // The fallback chain ends at the stage key so a card is never blank,
+  // even if a version somehow has no text for that cell.
+  const linkedTitle = step ? step.step_title || `${step.job_title ?? 'Job'} — ${step.stage_key}` : null;
   return {
     id: String(raw.id),
     workspaceId: String(raw.workspace_id),
     timelineId: raw.timeline_id !== 0 ? String(raw.timeline_id) : null,
-    title: raw.title ?? '',
+    title: raw.title || linkedTitle || '',
     seq: raw.seq,
     planned_start: raw.planned_start ?? '',
     duration: raw.duration_minutes,
@@ -99,5 +109,14 @@ export function adaptTask(raw: RawTask): Task {
     notes: raw.notes,
     status: raw.status,
     needsInfoReason: raw.needs_info_reason || undefined,
+    ...(step
+      ? {
+          jobTitle: step.job_title ?? undefined,
+          jobStepTitle: step.step_title ?? undefined,
+          jobDoneWhen: step.done_when ?? undefined,
+          workTaskId: String(step.work_task_id),
+          workItemId: String(step.work_item_id),
+        }
+      : {}),
   };
 }

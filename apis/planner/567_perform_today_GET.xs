@@ -16,17 +16,29 @@
 // sides.
 //
 // `date` is optional and defaults to today AS THE SERVER SEES IT
-// (`perform/today_for` — the timezone seam, learning-fixes.md flag
-// #4). The device's own clock is never trusted for "what day is it".
+// (`perform/today_for`). The device's own CLOCK is still never
+// trusted; GAP-FIX W8 adds `tz`, an IANA zone name the client knows
+// about itself, which that function reads the server's clock in. A
+// junk or missing zone falls back to UTC.
 //
 // NOTHING IS SCHEDULED is not an error: an empty `items` array with a
 // 200 is the correct, ordinary answer for a quiet day.
+//
+// GAP-FIX W4/W5 — `my_dates` lists every date this performer has
+// published work on. One sentence ("Nothing is scheduled for you
+// today.") used to cover four unrelated causes, and the screen had no
+// data to tell them apart; `agent_ids` already distinguished "no
+// login linked", and this distinguishes "nothing published at all"
+// from "work exists, on another day". The same list is what day
+// navigation steps through, so "next day with work" is a real jump
+// and not a guess.
 query "perform/today" verb=GET {
   api_group = "planner"
   auth = "user"
 
   input {
     text date? filters=trim
+    text tz? filters=trim
   }
 
   stack {
@@ -34,16 +46,16 @@ query "perform/today" verb=GET {
       input = {user_id: $auth.id}
     } as $actor
 
+    function.run "perform/today_for" {
+      input = {user_id: $actor.user_id, tz: $input.tz}
+    } as $today
+
     var $date {
       value = $input.date
     }
 
     conditional {
       if ($date == "") {
-        function.run "perform/today_for" {
-          input = {user_id: $actor.user_id}
-        } as $today
-
         var.update $date {
           value = $today.date
         }
@@ -57,6 +69,10 @@ query "perform/today" verb=GET {
     function.run "perform/collect_published_items" {
       input = {account_id: $actor.account_id, date: $date, agent_ids: $resolved.agent_ids}
     } as $collected
+
+    function.run "perform/published_dates_for" {
+      input = {account_id: $actor.account_id, agent_ids: $resolved.agent_ids}
+    } as $calendar
 
     var $wt_ids {
       value = []
@@ -81,7 +97,10 @@ query "perform/today" verb=GET {
 
   response = {
     date      : $date
+    today     : $today.date
+    zone      : $today.zone
     agent_ids : $resolved.agent_ids
+    my_dates  : $calendar.dates
     snapshot  : {date: $date, items: $collected.items}
     statuses  : $hydrated.statuses
   }

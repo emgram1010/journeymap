@@ -74,6 +74,14 @@ export interface XanoJourneyMap extends JourneySettings {
   intent?: string | null;
   // FK to parent L1/L2 map (TL-3)
   parent_map_id?: number | null;
+  /**
+   * GAP-FIX W7 — the map's latest published version number, or null if
+   * it has never been published. Added to `GET /journey_map` itself so
+   * a picker can tell which maps a plan will actually accept, instead
+   * of offering all of them and letting the server refuse.
+   */
+  published_version_no?: number | null;
+  last_published_at?: number | string | null;
 }
 
 // Lightweight scenario record returned by GET /journey_architecture/{id}/scenarios.
@@ -1157,11 +1165,28 @@ export interface PublishResult {
 export const getMapReadiness = (journeyMapId: number) =>
   xanoRequest<MapReadinessResponse>(`/journey_map/${journeyMapId}/readiness`);
 
-/** Frozen version history for a map, newest first. */
+/**
+ * Frozen version history for a map, newest first — plus, since GAP-FIX
+ * W6, what is LIVE and whether the map has been edited since.
+ *
+ * `has_unpublished_changes` is the server's own comparison: it rebuilds
+ * the live definition through the same two functions the publish
+ * endpoint uses and compares the hashes. False for a map that has never
+ * been published (nothing to have drifted from).
+ */
+export interface MapVersionsResponse {
+  journey_map_id: number;
+  count: number;
+  latest_hash: string | null;
+  latest_version_no: number | null;
+  latest_published_at: number | string | null;
+  live_hash: string | null;
+  has_unpublished_changes: boolean;
+  versions: PublishedVersion[];
+}
+
 export const listMapVersions = (journeyMapId: number) =>
-  xanoRequest<{journey_map_id: number; count: number; latest_hash: string | null; versions: PublishedVersion[]}>(
-    `/journey_map/${journeyMapId}/versions`,
-  );
+  xanoRequest<MapVersionsResponse>(`/journey_map/${journeyMapId}/versions`);
 
 /**
  * Publish version. Rejects with a 400 carrying E-PUB-001 when the gate is on

@@ -539,6 +539,26 @@
     "severity": "info",
     "fix_hint": "Re-enable the agent's profile first, or pick someone else."
   },
+  "E-PLAN-012": {
+    "code": "E-PLAN-012",
+    "feature": "PLAN-3",
+    "user_message": "Two agents on this template would both be called the same name. Rename one, or leave one off.",
+    "what_happened": "An agent was added to a template roster whose display name matches another agent already on it (ignoring capitals and spaces).",
+    "likely_cause": "An AI agent named like a person, or two people with the same name.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "A plan can't hold two agents with the same name, so every plan made from this template would fail. Rename one in the Agents screen, then add it again."
+  },
+  "E-PLAN-013": {
+    "code": "E-PLAN-013",
+    "feature": "PLAN-2",
+    "user_message": "Only an account admin can set up or change agents for other people, or AI agents.",
+    "what_happened": "A non-admin tried to tag, untag or edit someone else's agent profile, or an AI agent's.",
+    "likely_cause": "A member trying to manage the team's agent list.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Members can manage their own profile only. Ask an account admin to make the change."
+  },
   "E-PLAN-011": {
     "code": "E-PLAN-011",
     "feature": "PLAN-2",

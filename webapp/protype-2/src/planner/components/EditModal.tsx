@@ -20,6 +20,7 @@ import { isDateOutOfWindow, formatShortDate } from '../utils/dateUtils';
 import { formatMinutesToTime, parseTimeToMinutes } from '../utils/planningLogic';
 import { AGENT_PALETTE } from '../data/initialData';
 import { getNextAgentColor } from '../utils/agentUtils';
+import { listTeamMembers, type TeamMember } from '../plannerApi';
 
 interface EditModalProps {
   isOpen: boolean;
@@ -36,7 +37,10 @@ interface EditModalProps {
   onSaveTimeline: (timelineId: string, updates: Partial<Timeline>) => boolean | void | Promise<boolean | void>;
   settings: AppSettings;
   onDeleteAgent?: (agentId: string) => void;
-  onSaveAgent?: (agentId: string | null, updates: { name: string; kind: AgentKind; color: string; dailyCapacityHours: number; modelId?: string }) => boolean | void | Promise<boolean | void>;
+  // GAP-FIX W2: `userId` joins the save payload — '' means "no login".
+  // It is deliberately NOT optional-by-omission: the planner clearing a
+  // link has to be distinguishable from a caller that never asked.
+  onSaveAgent?: (agentId: string | null, updates: { name: string; kind: AgentKind; color: string; dailyCapacityHours: number; modelId?: string; userId: string }) => boolean | void | Promise<boolean | void>;
   // PLN-6 (US-PLN-6-05), wired 2026-10-16. Optional for the same
   // reason as onDeleteAgent: when it isn't passed, no delete control
   // renders at all, rather than offering one that can't work.
@@ -93,6 +97,13 @@ export function EditModal({
   const [agentColor, setAgentColor] = useState(AGENT_PALETTE[0].hex);
   const [agentCapacity, setAgentCapacity] = useState<number>(8);
   const [agentModelId, setAgentModelId] = useState<string>('');
+  // GAP-FIX W2 — "Who does this work?" The team list is loaded by this
+  // modal rather than threaded through PlannerApp: nothing else in the
+  // planner reads account members, same reasoning as the map picker in
+  // WorkspaceSettingsModal.
+  const [agentUserId, setAgentUserId] = useState<string>('');
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamError, setTeamError] = useState(false);
   const [confirmRemoveAgent, setConfirmRemoveAgent] = useState(false);
   const [confirmDeleteTimeline, setConfirmDeleteTimeline] = useState(false);
 
@@ -129,6 +140,7 @@ export function EditModal({
         setAgentColor(entity.agent.color);
         setAgentCapacity(entity.agent.dailyCapacityHours || 8);
         setAgentModelId(entity.agent.modelId || '');
+        setAgentUserId(entity.agent.userId || '');
         setConfirmRemoveAgent(false);
       } else {
         setAgentName('');
@@ -136,9 +148,23 @@ export function EditModal({
         setAgentColor(AGENT_PALETTE[0].hex);
         setAgentCapacity(8);
         setAgentModelId('');
+        setAgentUserId('');
       }
     }
   }, [entity]);
+
+  // GAP-FIX W2 — the account's logins, for the "Who does this work?"
+  // picker. A failure here is not fatal: the picker degrades to a
+  // plain explanation rather than blocking the whole agent form.
+  useEffect(() => {
+    if (!isOpen || entity?.type !== 'agent') return;
+    let cancelled = false;
+    setTeamError(false);
+    listTeamMembers()
+      .then((members) => { if (!cancelled) setTeamMembers(members); })
+      .catch(() => { if (!cancelled) setTeamError(true); });
+    return () => { cancelled = true; };
+  }, [isOpen, entity?.type]);
 
   // Focus initial field on open
   useEffect(() => {
@@ -201,6 +227,7 @@ export function EditModal({
     if (field === 'color') setAgentColor(value);
     if (field === 'capacity') setAgentCapacity(Number(value) || 8);
     if (field === 'modelId') setAgentModelId(value);
+    if (field === 'userId') setAgentUserId(value);
   };
 
   // Track changes for Task
@@ -294,6 +321,8 @@ export function EditModal({
         color: agentColor,
         dailyCapacityHours: agentCapacity,
         modelId: agentKind === 'ai' ? (agentModelId || undefined) : undefined,
+        // An AI agent has no login to perform as, by definition.
+        userId: agentKind === 'person' ? agentUserId : '',
       });
       setIsSaving(false);
       if (result !== false) onClose();
@@ -380,10 +409,19 @@ export function EditModal({
             <h2 className="text-sm font-bold text-neutral-900">Publish Timeline?</h2>
           </div>
 
-          <div className="p-6">
+          <div className="p-6 flex flex-col gap-3">
             <p className="text-sm text-neutral-800">
               Publishing sends this plan to <strong>{entity.agentName}</strong> for execution.
             </p>
+            {!entity.agentHasLogin && (
+              <p id="publish-no-login-warning" className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 flex items-start gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                <span>
+                  <strong>{entity.agentName}</strong> has no login linked, so nobody will see this day in
+                  Execution. Link one on the agent first, or publish anyway and link it later.
+                </span>
+              </p>
+            )}
           </div>
 
           <div className="h-14 px-6 border-t border-neutral-200 flex items-center justify-end gap-3 bg-neutral-50 shrink-0">
@@ -616,6 +654,45 @@ export function EditModal({
               </div>
             </div>
 
+            {/* GAP-FIX W2 — "Who does this work?" Without a login behind
+                a person, their published day reaches nobody: the
+                performer app finds "my agents" by this exact field.
+                The warning is shown rather than the save blocked —
+                planning ahead of a hire is legitimate, planning into
+                silence without being told is not. */}
+            {agentKind === 'person' && (
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  Who does this work?
+                </label>
+                {teamError ? (
+                  <p className="text-[11px] text-amber-700">
+                    Couldn't load this account's logins. You can still save; link the login later.
+                  </p>
+                ) : (
+                  <select
+                    id="agent-user-select"
+                    value={agentUserId}
+                    onChange={(e) => handleAgentFieldChange('userId', e.target.value)}
+                    className="w-full text-xs px-3 py-2 border border-neutral-200 rounded-md focus:outline-none focus:border-neutral-900 bg-white"
+                  >
+                    <option value="">Nobody yet — this work won't appear in Execution</option>
+                    {teamMembers.map((m) => (
+                      <option key={m.id} value={String(m.id)}>
+                        {m.name} ({m.email})
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {!teamError && agentUserId === '' && (
+                  <p id="agent-no-login-warning" className="text-[11px] text-amber-700 mt-1 flex items-start gap-1">
+                    <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+                    Nobody will see this agent's work in Execution until a login is linked.
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Model assignment — AI agents only; drives token-based cost */}
             {agentKind === 'ai' && (
               <div>
@@ -795,6 +872,25 @@ export function EditModal({
         <div className="p-6 overflow-y-auto flex-1 flex flex-col gap-4">
           {entity.type === 'task' ? (
             <>
+              {/* GAP-FIX W1 — provenance for a slot that is a job step.
+                  Its text is READ from the job's pinned map version, not
+                  stored here, so the planner needs to know that before
+                  they treat this like a free-text task: typing over the
+                  title makes a local copy that no longer tracks the map,
+                  which is the "reference, do not copy" rule breaking in
+                  the one place it is easiest to break it. */}
+              {entity.task.workTaskId && (
+                <div className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-[11px] text-indigo-900">
+                  <p className="font-semibold">Step of "{entity.task.jobTitle ?? 'a job'}"</p>
+                  <p className="mt-0.5">
+                    The wording comes from that job's published map version. Changing the title here only renames this
+                    slot — it doesn't change the map, and the person doing the work still sees the map's own
+                    instructions.
+                  </p>
+                  {entity.task.jobDoneWhen && <p className="mt-1">Done when: {entity.task.jobDoneWhen}</p>}
+                </div>
+              )}
+
               {/* Title */}
               <div>
                 <label className="block text-xs font-semibold text-neutral-700 mb-1">
