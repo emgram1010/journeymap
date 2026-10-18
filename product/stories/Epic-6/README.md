@@ -10,11 +10,15 @@ The answer was yes, and it had already happened: 583 orphaned cells, 78 lenses, 
 
 | Epic | What it enables | Status |
 |---|---|---|
-| [DEL-1 — Map & Architecture Delete Safety](EPIC-DEL-1-map-and-architecture-delete-safety.md) | A map in use can't be deleted; a deleted map takes its own content with it; its frozen versions never go, so live work keeps its instructions | To-do |
+| [DEL-1 — Map & Architecture Delete Safety](EPIC-DEL-1-map-and-architecture-delete-safety.md) | A map in use can't be deleted; a deleted map takes its own content with it; its frozen versions never go, so live work keeps its instructions | **01, 02, 05 done** · 03, 04 need your decision |
 
 ## Build order
 
-`US-DEL-1-01` → `US-DEL-1-02` → `US-DEL-1-05` → `US-DEL-1-03` → `US-DEL-1-04`
+~~`US-DEL-1-01`~~ → ~~`US-DEL-1-02`~~ → ~~`US-DEL-1-05`~~ → `US-DEL-1-03` → `US-DEL-1-04`
+
+The first three shipped on 2026-10-18 and are verified live. **A map in use can no longer be deleted, from either the map delete or the architecture cascade.**
+
+⚠️ **It came too late for one map.** "Quote Request Handling (test)" was deleted from the app at 03:29 UTC that morning, hours before the guard existed. Its 3 frozen versions survived, so the 3 jobs running from it still have their full instructions — which is exactly the argument US-DEL-1-02 makes. Details in the epic's Test Results.
 
 Story 01 ships before 03, deliberately: once a map in use cannot be deleted at all, the only maps that can reach a cascade are ones nothing references.
 

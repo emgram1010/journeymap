@@ -20,6 +20,7 @@ import {
   type JourneyArchitectureStatus,
   type JourneyMapStatus,
   type JourneyLinkType,
+  friendlyError,
 } from './xano';
 import ScenariosTab from './ScenariosTab';
 import CompareHealthView from './CompareHealthView';
@@ -320,7 +321,9 @@ export default function ArchitectureDetail() {
 
   const handleDeleteArch = async () => {
     try { await deleteJourneyArchitecture(archId); navigate('/architectures'); }
-    catch { setError('Unable to delete architecture.'); }
+    // US-DEL-1-01 — the server names which map is in use and what is
+    // using it; a flat "Unable to delete architecture" threw that away.
+    catch (err) { setError(friendlyError(err, 'Unable to delete architecture.')); }
   };
 
   const openCreateDialog = () => {
@@ -392,13 +395,25 @@ export default function ArchitectureDetail() {
     }
   };
 
+  // US-DEL-1-01 — a refused delete has to SAY SO. The optimistic
+  // removal used to be rolled back in silence, so a map the server
+  // refused to delete simply reappeared with no explanation. The
+  // server's message already names the plan or template using it
+  // (E-DEL-001) or says who may delete it (E-DEL-002), so it is shown
+  // as-is rather than replaced with a generic sentence.
   const handleDeleteMap = async (mapId: number) => {
     const prev = maps.find((m) => m.id === mapId);
+    const prevLinks = links;
     setMaps((ms) => ms.filter((m) => m.id !== mapId));
     // Also remove any links involving this map from local state
     setLinks((ls) => ls.filter((l) => l.source_map !== mapId && l.target_map !== mapId));
+    setError(null);
     try { await deleteJourneyMap(mapId); }
-    catch { if (prev) setMaps((ms) => [prev, ...ms]); }
+    catch (err) {
+      if (prev) setMaps((ms) => [prev, ...ms]);
+      setLinks(prevLinks);
+      setError(friendlyError(err, 'Unable to delete this map.'));
+    }
   };
 
   const handleRemoveLink = async (linkId: number) => {

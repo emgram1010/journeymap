@@ -49,6 +49,28 @@
     "severity": "error",
     "fix_hint": "Quote the Reference on the Health page to find the exact event. The screen recovers to a safe empty state rather than staying crashed."
   },
+  "E-DEL-001": {
+    "code": "E-DEL-001",
+    "feature": "DEL-1",
+    "user_message": "Something is using this map, so it can’t be deleted.",
+    "what_happened": "A journey map was deleted while a plan, a template or a job still depended on it.",
+    "likely_cause": "The map was attached to a plan or template earlier, or work was already created from it.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "The message names what is using it. Remove the map there first, or leave it in place — an unused map can always be deleted later. Deleting it anyway would leave that plan pointing at a map that no longer exists.",
+    "message_varies": true,
+    "message_varies_why": "The sentence names the plan or template that is using the map."
+  },
+  "E-DEL-002": {
+    "code": "E-DEL-002",
+    "feature": "DEL-1",
+    "user_message": "Only the person who created this map, or an account admin, can delete it.",
+    "what_happened": "Someone tried to delete a map they do not own and is not an admin for.",
+    "likely_cause": "Maps belonging to the whole account became visible to everyone on 2026-10-17, so a teammate’s map now appears in your list.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Ask the person who created it, or an account admin. You can still open and read the map — only deleting it is restricted."
+  },
   "E-GOV-001": {
     "code": "E-GOV-001",
     "feature": "GOV-1",

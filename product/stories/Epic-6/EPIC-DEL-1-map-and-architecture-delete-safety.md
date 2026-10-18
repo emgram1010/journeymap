@@ -2,7 +2,7 @@
 
 **Epic ID:** DEL-1
 **Feature:** Deleting a journey map or an architecture no longer leaves orphaned content behind, and never breaks a plan or a job that depends on it.
-**Status:** To-do *(to-do / in-progress / done)*
+**Status:** **01, 02 and 05 done** (2026-10-18, verified live). **03 and 04 not started** — both need a founder decision. *(to-do / in-progress / done)*
 **Depends on:** — (all tables and endpoints involved already exist)
 **Raised by:** founder question, 2026-10-18 — *"if I delete an architecture or journey map will it cause any issues, including orphan records?"*
 **Goal:** Make the two delete buttons that already exist in the UI safe to press: refuse when something depends on the map, take the map's own content with it when it goes, and never touch the frozen versions that live work reads from.
@@ -57,7 +57,7 @@ Same shape as the rule P3A-1 already applies to plans, agents and timelines: *de
 
 ## Stories
 
-### US-DEL-1-01 — A map in use can't be deleted
+### US-DEL-1-01 — A map in use can't be deleted ✅ **Done 2026-10-18**
 
 > **As a** planner,
 > **I want** the system to stop me deleting a map that a plan or template is using,
@@ -114,7 +114,7 @@ Feature: Refuse to delete a map that something depends on
 
 ---
 
-### US-DEL-1-02 — A map's frozen versions are never deleted
+### US-DEL-1-02 — A map's frozen versions are never deleted ✅ **Done 2026-10-18**
 
 > **As the person who has to trust what Execution shows,
 > I want** a map's published versions to survive the map itself,
@@ -159,7 +159,7 @@ Feature: Frozen versions outlive the map
 
 ---
 
-### US-DEL-1-03 — Deleting a map takes its own content with it
+### US-DEL-1-03 — Deleting a map takes its own content with it ⏸ **Needs your decision**
 
 > **As a** founder keeping the database honest,
 > **I want** a deleted map's stages, lenses and cells to go with it,
@@ -220,7 +220,7 @@ Feature: A deleted map takes its content with it
 
 ---
 
-### US-DEL-1-04 — Clean up the orphans that already exist
+### US-DEL-1-04 — Clean up the orphans that already exist ⏸ **Needs your approval**
 
 > **As the only support person,
 > I want** the ~719 rows belonging to maps nobody can see cleared out,
@@ -266,7 +266,7 @@ Feature: One-off orphan cleanup
 
 ---
 
-### US-DEL-1-05 — Delete permission matches who can see the map
+### US-DEL-1-05 — Delete permission matches who can see the map ✅ **Done 2026-10-18** *(backend; UI still shows the control)*
 
 > **As a** teammate on a shared account,
 > **I want** the Delete control to appear only when I can actually delete,
@@ -351,4 +351,56 @@ Feature: Delete is offered only where it is allowed
 
 ## Test Results
 
-*(to be filled in as stories are built)*
+**Built 2026-10-18: US-DEL-1-01, US-DEL-1-02, US-DEL-1-05.** Verified against the live workspace and through the real UI, not only typechecked.
+
+### A real loss, during this epic
+
+**Map 205, "Quote Request Handling (test)", was deleted on 2026-10-18 at 03:29:43 UTC** — from the app in a browser, hours before the guard below existed. API request history `41662`, status 200. It is the exact failure this epic describes, and it happened to the map being used as the test fixture for it.
+
+What it cost, and what the architecture saved:
+
+| | |
+|---|---|
+| The map row | ❌ gone |
+| Its 3 frozen versions | ✅ intact |
+| The 3 jobs in "Quotes week of Oct 19" | ✅ **still work, with full instructions** |
+| 3 stages, 6 cells | orphaned |
+| 1 plan link + 2 template links | still pointing at the dead map |
+
+The map's full definition survives inside version 3's snapshot, so it is recoverable if the founder wants it back. **This is US-DEL-1-02's whole argument, demonstrated by accident:** the only reason the loss was survivable is that versions were never cleaned up.
+
+### What was built
+
+| Story | What shipped |
+|---|---|
+| **01** | New `journey/assert_map_unused` (fn 170) — the single rule, called by both deletes. Wired into `DELETE journey_map` (api 22) and the architecture cascade (api 69), with `E-DEL-001` and a `rejected` event carrying the reason and counts. |
+| **02** | `historyTables.ts` + guard test: no `db.del` against `journey_map_version`, `plan_publication`, `activity_log`, `plan_change_log` or `event_log` anywhere in `apis/`, `functions/` or `tasks/`. The rule is also stated at the top of `112_journey_map_version.xs`. |
+| **05** | Owner **or account admin** may delete, with `E-DEL-002` naming who can. Replaces the bare "Access denied" that a teammate's map produced after O8 made maps account-visible. |
+| — | `XanoHttpError` now carries `serverMessage`, and `friendlyError()` prefers it. The journey-map client used to throw the whole technical blob away into a vague fallback; the planner client has parsed the body since APP-1, so this is that side catching up. |
+
+### Verified live
+
+| Case | Result |
+|---|---|
+| Delete map 206, used by plan "Test QA" | ✅ `E-DEL-001` — *"The plan 'Test QA' uses this map. Remove it there first."* |
+| Delete architecture 41, which contains map 206 | ✅ refused, naming **both** the map and the plan; nothing deleted |
+| Map and architecture still present afterwards | ✅ 16 maps before and after |
+| `assert_map_unused` on map 205 (before it was confirmed gone) | ✅ named the plan, counted 1 plan / 2 templates / 3 jobs |
+| `assert_map_unused` on an unused map (179) | ✅ `ok: true` |
+| **Through the real UI** — Architecture page → map menu → Delete → Confirm | ✅ the refusal is shown on screen and the card stays. Screenshot taken. |
+
+### One real bug found while building this
+
+The guard flagged `tasks/11_prune_event_log.xs`, which deletes from `event_log`. That is a **legitimate** governed retention prune (window and per-run cap come from the `retention_policy` table). Rather than weaken the guard by dropping `event_log` from the list, the exception is named file-by-file in `ALLOWED_DELETES` with its reason — so the same statement anywhere else still fails the build.
+
+### Regression
+
+`npm test`: **399/399** (was 391; +8 for the history guard). `tsc --noEmit`: clean. `vite build`: clean.
+
+### Still open in this epic
+
+- **US-DEL-1-03** — needs the cascade-vs-soft-delete decision. Until it is built, a successful delete still orphans the map's stages, lenses and cells.
+- **US-DEL-1-04** — needs explicit approval. The orphan count is now ~719 plus map 205's 9 rows.
+- **US-DEL-1-05, UI half** — the server refuses correctly and says who can, but the Delete control is still *shown* on a teammate's map. Hiding it needs the card to know the signed-in user's id and role, the same way the Agents screen now does (W9).
+- **O10 (remove a map from a plan)** is now a real dependency: `E-DEL-001` tells the planner to "remove it there first", and there is still no way to do that.
+

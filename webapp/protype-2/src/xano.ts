@@ -645,6 +645,31 @@ type RequestOptions = {
   baseUrl?: string;
 };
 
+/**
+ * The clean sentence out of a Xano error body, if there is one.
+ * Mirrors `performApi.ts`'s own extractor — the planner client has
+ * done this since APP-1; this is the journey-map side catching up.
+ */
+function extractServerMessage(responseText: string): string | null {
+  if (!responseText) return null;
+  try {
+    const parsed = JSON.parse(responseText) as {message?: unknown};
+    return typeof parsed.message === 'string' && parsed.message.trim() !== '' ? parsed.message : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What to show a person when a request fails: the server's own words
+ * if it gave any, otherwise the caller's fallback. Never the raw
+ * technical string.
+ */
+export function friendlyError(error: unknown, fallback: string): string {
+  if (error instanceof XanoHttpError && error.serverMessage) return error.serverMessage;
+  return fallback;
+}
+
 export class XanoHttpError extends Error {
   status: number;
   /**
@@ -656,8 +681,25 @@ export class XanoHttpError extends Error {
    */
   reference: string;
 
-  constructor(status: number, message: string, reference: string) {
+  /**
+   * The server's OWN sentence, pulled out of the JSON body.
+   *
+   * `message` stays the full technical string (`Xano DELETE /x failed
+   * (400): {...}`) because existing callers log it and a diagnostic
+   * needs the method, path and status. But that string is useless to
+   * a person, and the endpoints in this project already write a
+   * friendly, actionable sentence into the body — "The plan 'Test QA'
+   * uses this map. Remove it there first. (E-DEL-001)". Until now the
+   * journey-map client threw that away, so every caller either showed
+   * the blob or replaced it with a vague fallback of its own.
+   *
+   * Null when the body is not JSON or carries no `message`.
+   */
+  serverMessage: string | null;
+
+  constructor(status: number, message: string, reference: string, serverMessage: string | null = null) {
     super(message);
+    this.serverMessage = serverMessage;
     this.status = status;
     this.reference = reference;
     this.name = 'XanoHttpError';
@@ -691,6 +733,7 @@ export async function xanoRequest<T>(path: string, options: RequestOptions = {})
       response.status,
       `Xano ${method} ${path} failed (${response.status}): ${responseText || response.statusText}`,
       correlationId,
+      extractServerMessage(responseText),
     );
   }
 
@@ -721,6 +764,7 @@ async function authXanoRequest<T>(path: string, options: RequestOptions = {}): P
       response.status,
       `Auth ${method} ${path} failed (${response.status}): ${responseText || response.statusText}`,
       correlationId,
+      extractServerMessage(responseText),
     );
   }
 
