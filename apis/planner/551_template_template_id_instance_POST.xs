@@ -95,11 +95,11 @@ query "template/{template_id}/instance" verb=POST {
     conditional {
       if ($reject_code == "" && $template.is_active == false) {
         var.update $reject_code {
-          value = "E-PLAN-001"
+          value = "E-PLAN-014"
         }
 
         var.update $reject_msg {
-          value = "That template is archived, so new plans can't be made from it. (E-PLAN-001)"
+          value = "That template is archived, so new plans can't be made from it. (E-PLAN-014)"
         }
       }
     }

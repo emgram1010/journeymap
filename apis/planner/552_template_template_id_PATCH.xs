@@ -220,11 +220,11 @@ query "template/{template_id}" verb=PATCH {
     conditional {
       if ($reject_code == "" && $maps_check.ok == false) {
         var.update $reject_code {
-          value = "E-PLAN-004"
+          value = "E-PLAN-015"
         }
 
         var.update $reject_msg {
-          value = "One of those maps isn't available to this account. (E-PLAN-004)"
+          value = "One of those maps isn't available to this account. (E-PLAN-015)"
         }
       }
     }
@@ -244,11 +244,11 @@ query "template/{template_id}" verb=PATCH {
     conditional {
       if ($reject_code == "" && $agents_check.ok == false) {
         var.update $reject_code {
-          value = "E-PLAN-010"
+          value = "E-PLAN-016"
         }
 
         var.update $reject_msg {
-          value = "One of those agents isn't available to this account. (E-PLAN-010)"
+          value = "One of those agents isn't available to this account. (E-PLAN-016)"
         }
       }
     }

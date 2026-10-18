@@ -10,9 +10,11 @@
 // version and is read through the link. Copying it here would create
 // a second copy that drifts the moment anything is republished, and
 // "reference, do not copy" is an architecture rule, not a preference.
-// ⚠️ Known gap: PLN-7's task list does not yet hydrate linked slots,
-// so a scheduled job step currently reads with a blank title there.
-// That hydration belongs with the planner UI work (PLN-9).
+// The READING half was missing for a long time, so every scheduled
+// job step rendered as a blank card; GAP-FIX W1 built
+// `planner/job_step_hydration`, which the board (548) now returns as
+// `linked_steps[]`. Still outstanding: the narrower task endpoints
+// (546, 547) do not hydrate, so a linked slot reads blank there.
 //
 // ⚠️ A SUPPLIED DURATION IS VALIDATED; ONLY AN ABSENT ONE FALLS BACK.
 // The first version of this endpoint clamped anything under a minute
@@ -27,6 +29,15 @@
 // `planner_task_work_task.work_task_id` is unique. The check below
 // exists to turn that into a sentence instead of a database error,
 // and the index is what makes it true under a race.
+//
+// UNDOING THIS is `DELETE work_task/{id}/schedule` (api 576, O4).
+// This endpoint shipped without one, which turned the Jobs screen's
+// Schedule button into a one-way door.
+//
+// 2026-10-18 — the "job is cancelled" branch was sharing E-SCHED-001
+// with "already on the schedule", two different failures under one
+// code. Renumbered to E-SCHED-008; found by the error-code registry
+// guard, which now fails the build on a reused code.
 query "work_task/{work_task_id}/schedule" verb=POST {
   api_group = "planner"
   auth = "user"
@@ -199,11 +210,11 @@ query "work_task/{work_task_id}/schedule" verb=POST {
     conditional {
       if ($reject_code == "" && $job.status == "cancelled") {
         var.update $reject_code {
-          value = "E-SCHED-001"
+          value = "E-SCHED-008"
         }
 
         var.update $reject_msg {
-          value = "That job is cancelled, so its steps can't be scheduled. (E-SCHED-001)"
+          value = "That job is cancelled, so its steps can't be scheduled. (E-SCHED-008)"
         }
       }
     }
