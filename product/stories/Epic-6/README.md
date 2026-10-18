@@ -10,11 +10,11 @@ The answer was yes, and it had already happened: 583 orphaned cells, 78 lenses, 
 
 | Epic | What it enables | Status |
 |---|---|---|
-| [DEL-1 — Map & Architecture Delete Safety](EPIC-DEL-1-map-and-architecture-delete-safety.md) | A map in use can't be deleted; a deleted map takes its own content with it; its frozen versions never go, so live work keeps its instructions | **01, 02, 05 done** · 03, 04 need your decision |
+| [DEL-1 — Map & Architecture Delete Safety](EPIC-DEL-1-map-and-architecture-delete-safety.md) | A map in use can't be deleted; a deleted map takes its own content with it; its frozen versions never go, so live work keeps its instructions | **01, 02, 03, 05 done** · 04 is a dry run; deleting the rows needs your go |
 
 ## Build order
 
-~~`US-DEL-1-01`~~ → ~~`US-DEL-1-02`~~ → ~~`US-DEL-1-05`~~ → `US-DEL-1-03` → `US-DEL-1-04`
+~~`US-DEL-1-01`~~ → ~~`US-DEL-1-02`~~ → ~~`US-DEL-1-05`~~ → ~~`US-DEL-1-03`~~ → `US-DEL-1-04` *(dry run done)*
 
 The first three shipped on 2026-10-18 and are verified live. **A map in use can no longer be deleted, from either the map delete or the architecture cascade.**
 
@@ -26,8 +26,8 @@ Story 01 ships before 03, deliberately: once a map in use cannot be deleted at a
 
 | | Decision |
 |---|---|
-| **US-DEL-1-03** | Cascade (destroy the map's content with it) or soft-delete (hide, keep)? Recommendation and trade-offs are in the story. |
-| **US-DEL-1-04** | Explicit approval to delete the ~719 existing orphan rows. Dry-run report first, on a clone. |
+| ~~**US-DEL-1-03**~~ | ✅ Answered 2026-10-18: **cascade**. Built and verified. |
+| **US-DEL-1-04** | The dry-run report is in the epic. Deleting the 719 rows is the one step still waiting on a go. All three dead links point at map 205 — recoverable from its frozen version if you want it back first. |
 
 ## The one thing not to break
 

@@ -2,7 +2,7 @@
 
 **Epic ID:** DEL-1
 **Feature:** Deleting a journey map or an architecture no longer leaves orphaned content behind, and never breaks a plan or a job that depends on it.
-**Status:** **01, 02 and 05 done** (2026-10-18, verified live). **03 and 04 not started** — both need a founder decision. *(to-do / in-progress / done)*
+**Status:** **01, 02, 03 and 05 done** (2026-10-18, verified live). **04 is a dry run only** — the report is below; deleting the rows still needs a separate go. *(to-do / in-progress / done)*
 **Depends on:** — (all tables and endpoints involved already exist)
 **Raised by:** founder question, 2026-10-18 — *"if I delete an architecture or journey map will it cause any issues, including orphan records?"*
 **Goal:** Make the two delete buttons that already exist in the UI safe to press: refuse when something depends on the map, take the map's own content with it when it goes, and never touch the frozen versions that live work reads from.
@@ -159,7 +159,7 @@ Feature: Frozen versions outlive the map
 
 ---
 
-### US-DEL-1-03 — Deleting a map takes its own content with it ⏸ **Needs your decision**
+### US-DEL-1-03 — Deleting a map takes its own content with it ✅ **Done 2026-10-18 — Option A, cascade** (founder's decision)
 
 > **As a** founder keeping the database honest,
 > **I want** a deleted map's stages, lenses and cells to go with it,
@@ -220,7 +220,7 @@ Feature: A deleted map takes its content with it
 
 ---
 
-### US-DEL-1-04 — Clean up the orphans that already exist ⏸ **Needs your approval**
+### US-DEL-1-04 — Clean up the orphans that already exist ⏸ **Dry run done; deletion still needs your go**
 
 > **As the only support person,
 > I want** the ~719 rows belonging to maps nobody can see cleared out,
@@ -399,8 +399,9 @@ The guard flagged `tasks/11_prune_event_log.xs`, which deletes from `event_log`.
 
 ### Still open in this epic
 
-- **US-DEL-1-03** — needs the cascade-vs-soft-delete decision. Until it is built, a successful delete still orphans the map's stages, lenses and cells.
-- **US-DEL-1-04** — needs explicit approval. The orphan count is now ~719 plus map 205's 9 rows.
+- **US-DEL-1-04, the deletion itself** — the dry run is done and reviewed; removing the 719 rows needs a separate go.
 - **US-DEL-1-05, UI half** — the server refuses correctly and says who can, but the Delete control is still *shown* on a teammate's map. Hiding it needs the card to know the signed-in user's id and role, the same way the Agents screen now does (W9).
 - **O10 (remove a map from a plan)** is now a real dependency: `E-DEL-001` tells the planner to "remove it there first", and there is still no way to do that.
+- **Maps created by the MCP tool have no owner** (`owner_user: 0`), so nobody can delete them through the UI. Pre-existing, surfaced by this work.
+- **The delete confirmation still doesn't say what will be lost.** The cascade now returns exact counts, so the dialog could say "6 stages, 4 lenses and 24 cells" before you commit — the story asks for this and it is not built.
 

@@ -1,4 +1,4 @@
-// Delete a journey map.
+// Delete a journey map, and everything that only exists because of it.
 //
 // US-DEL-1-01 (2026-10-18) — A MAP IN USE CANNOT BE DELETED.
 //
@@ -23,17 +23,18 @@
 // else only their own, and the refusal says who can (E-DEL-002).
 // The dependency check above still applies to admins.
 //
-// US-DEL-1-02 — `journey_map_version` IS DELIBERATELY NOT TOUCHED,
-// here or anywhere. A job reads its instructions from that frozen
-// snapshot rather than from the live map, which is the only reason
-// deleting a map cannot break work already in flight. Deleting a
-// version WOULD break it, silently. `historyTables.ts` guards this
-// with a test that fails the build on any `db.del` against it.
+// US-DEL-1-03 — THE MAP'S CONTENT GOES WITH IT, via
+// `journey/delete_map_cascade` (also shared with api 69). Deleting
+// the map row alone is what produced 583 orphaned cells, 78 lenses
+// and 55 stages. Cascading is safe here ONLY because the check above
+// runs first: the only maps that reach it are ones nothing
+// references.
 //
-// ⚠️ STILL OUTSTANDING (US-DEL-1-03): this does not delete the map's
-// own stages, lenses or cells, so a successful delete still leaves
-// them orphaned. That is the next story, and it is safe to do only
-// because the check above now means an in-use map never reaches it.
+// US-DEL-1-02 — `journey_map_version` IS NOT TOUCHED, here or in the
+// cascade. A job reads its instructions from that frozen snapshot
+// rather than from the live map, which is the only reason deleting a
+// map cannot break work already in flight. `historyTables.ts` fails
+// the build on any `db.del` against it.
 query "journey_map/{journey_map_id}" verb=DELETE {
   api_group = "journey-map"
   auth = "user"
@@ -142,25 +143,9 @@ query "journey_map/{journey_map_id}" verb=DELETE {
       error = $reject_msg
     }
 
-    // Links where this map is either end go with it.
-    db.query journey_link {
-      where = $db.journey_link.source_map == $input.journey_map_id || $db.journey_link.target_map == $input.journey_map_id
-      return = {type: "list"}
-    } as $links
-
-    foreach ($links) {
-      each as $link {
-        db.del journey_link {
-          field_name = "id"
-          field_value = $link.id
-        }
-      }
-    }
-
-    db.del journey_map {
-      field_name = "id"
-      field_value = $input.journey_map_id
-    }
+    function.run "journey/delete_map_cascade" {
+      input = {journey_map_id: $input.journey_map_id}
+    } as $removed
 
     function.run "ops/log_event" {
       input = {
@@ -173,15 +158,15 @@ query "journey_map/{journey_map_id}" verb=DELETE {
         entity_type   : "journey_map"
         entity_id     : $input.journey_map_id
         correlation_id: $input.correlation_id
-        message       : "Journey map deleted."
+        message       : "Journey map deleted with its content."
         metadata      : {
-          title        : $existing.title
-          links_removed: ($links|count)
-          by_admin     : ($is_owner == false)
+          title   : $existing.title
+          by_admin: ($is_owner == false)
+          removed : $removed
         }
       }
     }
   }
 
-  response = null
+  response = {deleted: true, id: $input.journey_map_id, removed: $removed}
 }
