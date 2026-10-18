@@ -4,6 +4,7 @@ Two reviews, in order:
 
 - **[Part 1 — PLAN-2 / PLAN-3 epic review](#part-1--opus-review-of-plan-2-and-plan-3)** — each epic against its own spec. 7 findings, all fixed but one.
 - **[Part 2 — full-loop walkthrough](#part-2--full-loop-walkthrough-review)** — the whole user journey, map to Execution, checked against the real screens. 9 findings. **8 built and verified live (2026-10-17); W3 deliberately left for later on the founder's call.**
+- **[Still open — for future development](#still-open--for-future-development)** — everything this review left behind, in one list, including three items that need your approval and one door W1 opened with no way back (**O4**). Start here if you're picking this up cold.
 
 ---
 
@@ -414,6 +415,47 @@ All three are the same kind of miss: correct in the code, wrong on the screen.
 - Job 10, "W1 smoke test job", in plan 14, pinned to map 205 v3, with 3 steps. One of them (work_task 25) is scheduled on a new timeline (29) for Rochelle on 2026-10-20.
 - Each E2E-W1-01 run leaves one job named "E2E job &lt;timestamp&gt;" in the first plan that has a map.
 - Nothing was deleted (every delete needs your approval).
+
+---
+
+## Still open — for future development
+
+Everything this review left behind, in one place, so none of it has to be rediscovered by walking the loop again. Scattered mentions above are the detail; this is the list.
+
+### Needs your approval before anyone can build it
+
+| # | What | Why it's blocked |
+|---|---|---|
+| **O1** | **AI model on the agent profile** (Part 1 #3). An AI agent copied into a plan has to have its model picked again every time. | Schema change. House pattern applies: a new 1:1 side table `agent_profile_model`, because `updateTableSchema` silently drops the text validators `agent_profile` already has. |
+| **O2** | **W8 phase 2 — a stored timezone.** The rule is performer's → account's → UTC; the first and last are built, the middle one has nowhere to live. Today the zone comes from the browser on each request, so a performer with no browser (an API caller, a future notification job) still gets UTC. | Schema change: a timezone column on `account`, and later `user`. It slots into `perform/today_for` and nothing else moves. |
+| **O3** | **Delete `scratch/set_on_row` (fn 166)** from Xano — a throwaway function used to verify W6's hash comparison and W8's timezone behaviour before trusting them in real code. | Every delete needs your approval (CLAUDE.md). Harmless where it is; it just shouldn't live there. |
+
+### Built a door with no way back — worth fixing before this gets used much
+
+| # | What | Detail |
+|---|---|---|
+| **O4** | **A scheduled job step cannot be unscheduled.** *(Found while writing this list, not during the build.)* W1 added the UI to place a step on a day; there is no matching "take it off". `planner_task_work_task.work_task_id` is unique and there is no endpoint that deletes a link — the only ones that touch that table are schedule (560), tweak (561), the backlog read (559) and the event recorder (563). A step placed on the wrong day can be **moved** to another day, but it can never return to "waiting for a day", and there is no delete-task endpoint either (the UI still answers "Deleting a task isn't available yet — ask the founder"). | Needs a small `DELETE work_task/{id}/schedule` that removes the link and the slot, refusing once the step has recorded activity — the same shape as the agent and day deletes you already approved. **This is the one I'd fix next after W3.** |
+
+### Not built, no approval needed
+
+| # | What | Detail |
+|---|---|---|
+| **W3** | **Nothing comes back from Execution.** | The big one, and the reason the loop is still one-way. See W3's own section above. |
+| **O5** | Job steps can't be dragged onto the board. | Placement is only from the Jobs screen (pick who, pick a day). The board's drag-and-drop still handles free-text tasks only. |
+| **O6** | The backlog drawer doesn't show job steps. | It lists `planner_task` rows only, so unscheduled job work lives in the Jobs screen and nowhere else. The two backlogs should probably become one. |
+| **O7** | Only the board hydrates a linked slot. | `planner/job_step_hydration` is wired into `workspace/{id}/board` (548). The narrower task endpoints (546 list, 547 single) still return a job step's blank stored title. Harmless today because the UI loads the board, and a trap for whoever wires those up next. |
+| **O8** | **The map picker is owner-scoped, not account-scoped.** | `GET /journey_map` filters `owner_user == auth.id`, so a map drawn by a teammate never appears in a plan's or a template's map picker, even though `addWorkspaceMaps` would happily accept it. On a single-person account this is invisible; the day a second person draws a map it looks like the map vanished. |
+| **O9** | Endpoint 210 is still dead code. | `GET journey_map/search` — the account-scoped, published-only search that would fix O8 properly — is permanently shadowed by `journey_map/{journey_map_id}` and 400s on every call. W7 worked around it; nobody has fixed it. |
+| **O10** | A map can't be removed from a plan. | Pre-existing (US-PLN-9-06 says so in its own header). Same "deletes are held" reasoning as agents and days. |
+| **O11** | `perform/today` echoes back a zone it may not have used. | An unrecognised IANA name silently falls back to UTC inside `format_timestamp`, but the response still reports the zone that was *asked* for. The date is right; the `zone` field can lie. Only reachable with a malformed zone, which the browser never sends. |
+| **O12** | `perform/published_dates_for` scans the account's publications on every Today load. | Fine at MVP volumes (one query set, ~6 rows here). Revisit with a date-indexed lookup before an account carries thousands of published days. |
+| **O13** | "Reopen a published day" still refuses. | Pre-existing: there is no unpublish on the backend by design (LIVE-1). The button exists and says so rather than lying. |
+| **O14** | 26 Playwright specs can't run at all. | All of them die on the sign-in page — the shared `TEST_EMAIL` login fixture is broken. Every spec written since (mobile, roster, this one) works around it with token injection. Nobody has fixed the fixture itself, so those 26 specs have been dead weight for some time. |
+
+### Housekeeping
+
+- **Test data left in your account** by this build: job 10 "W1 smoke test job" in plan 14 (3 steps, one scheduled to Rochelle on 2026-10-20, timeline 29), plus one "E2E job &lt;timestamp&gt;" per run of E2E-W1-01. Nothing was deleted.
+- **Two live findings worth adding to CLAUDE.md** are listed in their own section above; the file itself was not edited.
 
 ---
 
