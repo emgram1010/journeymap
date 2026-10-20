@@ -1,25 +1,58 @@
 // Applies a complete structural blueprint to a journey map in one call.
 // Supports bulk rename, add, and remove operations for both stages and lenses.
 // Replaces 6-8 individual mutate_structure calls at session start.
+//
+// ORD-2 (US-ORD-2-05). Rewritten, not patched. Three of this tool's six
+// operation blocks called api.call with an empty path in an empty API group,
+// so stage add, stage remove and lens remove reported success and did nothing.
+//
+// Fixing that call alone would NOT have been enough. Every block was built as
+//
+//     foreach (ops) { if (op.action == X) { query -> as $t
+//                                           if ($t != null) { WRITE } } }
+//
+// and the inner condition reads a variable written earlier in the SAME
+// iteration — the shape CLAUDE.md proves silently discards every write in the
+// branch. The renames, which do run real db.edit calls, were sitting in that
+// same shape. So each block is now two passes:
+//
+//   Pass A  resolve each operation to a plain row of facts (its id, its label,
+//           whether an optional field was supplied). Only the loop item is
+//           ever tested.
+//   Pass B  act on that resolved list. Every condition reads a field of the
+//           LOOP ITEM, which is the pattern proven to work.
+//
+// The ~300 lines of per-actor-type role prompts and actor_fields scaffolds
+// that used to live in the lens-add block are gone: journey/insert_lens gets
+// them from journey/actor_template, the one copy.
 tool scaffold_structure {
   instructions = """
       Use this tool at the START of a build session to reshape the entire map structure in one call.
       Instead of calling mutate_structure 6-8 times for individual renames/adds/removes, collect
       ALL structural changes and apply them here.
-    
+
       Input:
       - journey_map_id: The ID of the journey map
-      - stage_operations: JSON array of { action, key?, label, stage_goal?, primary_actor_lens?, position? }
+      - stage_operations: JSON array of { action, key?, label, stage_goal?, primary_actor_lens? }
         - action: 'rename' (requires key + label), 'add' (requires label), 'remove' (requires key)
         - stage_goal (rename/add, optional): one-sentence exit condition / definition of done for the stage.
         - primary_actor_lens (rename/add, optional): lens key of the actor accountable for this stage's outcome (e.g. "lens-3").
+        - On a rename, an optional field you LEAVE OUT is left alone. It is no longer overwritten or an error.
       - lens_operations: JSON array of { action, key?, label, actor_type? }
         - action: 'rename' (requires key + label), 'add' (requires label), 'remove' (requires key)
-        - actor_type (add only, optional): one of customer, internal, engineering, ai_agent, handoff, vendor, financial, metrics. When provided the lens is created with the matching template_key, role_prompt, and cells are pre-scaffolded with actor_fields.
-    
+        - actor_type (add only, optional): one of customer, internal, engineering, ai_agent, handoff, vendor, financial, metrics. When provided the lens is created with the matching template_key, role_prompt, and cells are pre-scaffolded with actor_fields. An actor type outside that list is refused for that one operation, not guessed.
+
       Operations execute in order: removes first, then renames, then adds.
       This ensures stable keys are preserved during renames and new items don't conflict.
-    
+
+      Adds always append to the end. To place a column or row at a position, use
+      mutate_structure with after_stage_key / after_lens_key.
+
+      A key that is not in the map is reported in errors[] for that one operation
+      and the rest of the blueprint still applies. Read the map first so you are
+      using keys it actually has. A remove that live work depends on is refused
+      for that operation and reported the same way.
+
       Response shape:
       {
         success: boolean,
@@ -34,16 +67,16 @@ tool scaffold_structure {
   input {
     // The ID of the journey map to restructure.
     int journey_map_id filters=min:1
-  
-    // Array of stage operations: [{ action, key?, label, position? }]
+
+    // Array of stage operations: [{ action, key?, label, stage_goal?, primary_actor_lens? }]
     json stage_operations?
-  
-    // Array of lens operations: [{ action, key?, label }]
+
+    // Array of lens operations: [{ action, key?, label, actor_type? }]
     json lens_operations?
-  
+
     // Optional: for tool trace logging (transparency layer).
     int conversation_id?
-  
+
     text turn_id?
   }
 
@@ -52,153 +85,221 @@ tool scaffold_structure {
       field_name = "id"
       field_value = $input.journey_map_id
     } as $journey_map
-  
+
     precondition ($journey_map != null) {
       error_type = "notfound"
       error = "Journey map not found"
     }
-  
+
     var $stages_renamed {
       value = 0
     }
-  
+
     var $stages_added {
       value = 0
     }
-  
+
     var $stages_removed {
       value = 0
     }
-  
+
     var $lenses_renamed {
       value = 0
     }
-  
+
     var $lenses_added {
       value = 0
     }
-  
+
     var $lenses_removed {
       value = 0
     }
-  
+
     var $cells_created {
       value = 0
     }
-  
+
     var $cells_deleted {
       value = 0
     }
-  
+
     var $errors {
       value = []
     }
-  
-    // ── Process stage operations ──
+
+    // ── Stage operations ──
     conditional {
       if ($input.stage_operations != null) {
-        // Pass 1: removes
+        // Pass 1A — resolve removes to ids. No branching except on the loop item.
+        var $stage_removals {
+          value = []
+        }
+
         foreach ($input.stage_operations) {
           each as $op {
             conditional {
               if ($op.action == "remove") {
+                var $op_key_st_rm {
+                  value = $op|get:"key":""
+                }
+
                 db.query journey_stage {
-                  where = $db.journey_stage.journey_map == $input.journey_map_id && $db.journey_stage.key == $op.key
+                  where = $db.journey_stage.journey_map == $input.journey_map_id && $db.journey_stage.key == $op_key_st_rm
                   return = {type: "single"}
-                } as $target_stage
-              
-                conditional {
-                  if ($target_stage != null) {
-                    api.call "" verb=GET {
-                      api_group = ""
-                      input = {journey_stage_id: $target_stage.id}
-                    } as $remove_result
-                  
-                    var.update $stages_removed {
-                      value = $stages_removed + 1
-                    }
-                  
-                    var.update $cells_deleted {
-                      value = $cells_deleted + $remove_result.deleted_cell_count
-                    }
+                } as $rm_hit
+
+                array.push $stage_removals {
+                  value = {key: ($op|get:"key":""), id: ($rm_hit|get:"id":0)}
+                }
+              }
+            }
+          }
+        }
+
+        // Pass 1B — act. The condition reads the loop item's own id field.
+        foreach ($stage_removals) {
+          each as $rm {
+            conditional {
+              if ($rm.id > 0) {
+                function.run "journey/remove_stage" {
+                  input = {
+                    journey_stage_id: $rm.id
+                    step            : "ai_scaffold_remove_stage"
                   }
-                
-                  else {
-                    array.push $errors {
-                      value = {
-                        action: "remove_stage"
-                        key   : $op.key
-                        error : "Stage not found"
-                      }
-                    }
+                } as $rm_result
+
+                var.update $stages_removed {
+                  value = $stages_removed + 1
+                }
+
+                var.update $cells_deleted {
+                  value = $cells_deleted + $rm_result.deleted_cell_count
+                }
+              }
+
+              else {
+                array.push $errors {
+                  value = {
+                    action: "remove_stage"
+                    key   : $rm.key
+                    error : "No stage in this map has that key"
                   }
                 }
               }
             }
           }
         }
-      
-        // Pass 2: renames
+
+        // Pass 2A — resolve renames. has_goal / has_actor are captured HERE, as
+        // plain fields, so Pass 2B can branch on them safely. An optional field
+        // the caller left out must be left alone: the old version read
+        // $op.stage_goal directly, which fails at runtime when it is absent.
+        var $stage_renames {
+          value = []
+        }
+
         foreach ($input.stage_operations) {
           each as $op {
             conditional {
               if ($op.action == "rename") {
+                var $op_key_st_rn {
+                  value = $op|get:"key":""
+                }
+
                 db.query journey_stage {
-                  where = $db.journey_stage.journey_map == $input.journey_map_id && $db.journey_stage.key == $op.key
+                  where = $db.journey_stage.journey_map == $input.journey_map_id && $db.journey_stage.key == $op_key_st_rn
                   return = {type: "single"}
-                } as $rename_target
-              
-                conditional {
-                  if ($rename_target != null) {
-                    db.edit journey_stage {
-                      field_name = "id"
-                      field_value = $rename_target.id
-                      enforce_hidden_fields = false
-                      data = {
-                        label             : $op.label
-                        stage_goal        : $op.stage_goal
-                        primary_actor_lens: $op.primary_actor_lens
-                        updated_at        : "now"
-                      }
-                    } as $rename_result
-                  
-                    var.update $stages_renamed {
-                      value = $stages_renamed + 1
-                    }
-                  }
-                
-                  else {
-                    array.push $errors {
-                      value = {
-                        action: "rename_stage"
-                        key   : $op.key
-                        label : $op.label
-                        error : "Stage not found"
-                      }
-                    }
+                } as $rn_hit
+
+                array.push $stage_renames {
+                  value = {
+                    key      : ($op|get:"key":"")
+                    id       : ($rn_hit|get:"id":0)
+                    label    : ($op|get:"label":"")
+                    goal     : ($op|get:"stage_goal":"")
+                    has_goal : ($op|has:"stage_goal")
+                    actor    : ($op|get:"primary_actor_lens":"")
+                    has_actor: ($op|has:"primary_actor_lens")
                   }
                 }
               }
             }
           }
         }
-      
-        // Pass 3: adds
+
+        // Pass 2B — act.
+        foreach ($stage_renames) {
+          each as $rn {
+            conditional {
+              if ($rn.id > 0) {
+                db.patch journey_stage {
+                  field_name = "id"
+                  field_value = $rn.id
+                  data = {label: $rn.label, updated_at: "now"}
+                } as $rn_label_done
+
+                var.update $stages_renamed {
+                  value = $stages_renamed + 1
+                }
+
+                conditional {
+                  if ($rn.has_goal == true) {
+                    db.patch journey_stage {
+                      field_name = "id"
+                      field_value = $rn.id
+                      data = {stage_goal: $rn.goal, updated_at: "now"}
+                    } as $rn_goal_done
+                  }
+                }
+
+                conditional {
+                  if ($rn.has_actor == true) {
+                    db.patch journey_stage {
+                      field_name = "id"
+                      field_value = $rn.id
+                      data = {primary_actor_lens: $rn.actor, updated_at: "now"}
+                    } as $rn_actor_done
+                  }
+                }
+              }
+
+              else {
+                array.push $errors {
+                  value = {
+                    action: "rename_stage"
+                    key   : $rn.key
+                    label : $rn.label
+                    error : "No stage in this map has that key"
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Pass 3 — adds. One pass is enough: the only condition reads the loop
+        // item. journey/insert_stage is the same code journey_stage/add runs.
         foreach ($input.stage_operations) {
           each as $op {
             conditional {
               if ($op.action == "add") {
-                api.call "" verb=GET {
-                  api_group = ""
-                  input = {journey_map_id: $input.journey_map_id, label: $op.label}
-                } as $add_result
-              
+                function.run "journey/insert_stage" {
+                  input = {
+                    journey_map_id    : $input.journey_map_id
+                    after_stage_id    : -1
+                    label             : ($op|get:"label":"")
+                    stage_goal        : ($op|get:"stage_goal":"")
+                    primary_actor_lens: ($op|get:"primary_actor_lens":"")
+                    step              : "ai_scaffold_add_stage"
+                  }
+                } as $add_stage_result
+
                 var.update $stages_added {
                   value = $stages_added + 1
                 }
-              
+
                 var.update $cells_created {
-                  value = $cells_created + ($add_result.cells|count)
+                  value = $cells_created + ($add_stage_result.cells|count)
                 }
               }
             }
@@ -206,395 +307,152 @@ tool scaffold_structure {
         }
       }
     }
-  
-    // ── Process lens operations ──
+
+    // ── Lens operations ──
     conditional {
       if ($input.lens_operations != null) {
-        // Pass 1: removes
+        // Pass 1A — resolve removes.
+        var $lens_removals {
+          value = []
+        }
+
         foreach ($input.lens_operations) {
           each as $op {
             conditional {
               if ($op.action == "remove") {
+                var $op_key_ln_rm {
+                  value = $op|get:"key":""
+                }
+
                 db.query journey_lens {
-                  where = $db.journey_lens.journey_map == $input.journey_map_id && $db.journey_lens.key == $op.key
+                  where = $db.journey_lens.journey_map == $input.journey_map_id && $db.journey_lens.key == $op_key_ln_rm
                   return = {type: "single"}
-                } as $target_lens
-              
-                conditional {
-                  if ($target_lens != null) {
-                    api.call "" verb=GET {
-                      api_group = ""
-                      input = {journey_lens_id: $target_lens.id}
-                    } as $remove_lens_result
-                  
-                    var.update $lenses_removed {
-                      value = $lenses_removed + 1
-                    }
-                  
-                    var.update $cells_deleted {
-                      value = $cells_deleted + $remove_lens_result.deleted_cell_count
-                    }
+                } as $lrm_hit
+
+                array.push $lens_removals {
+                  value = {key: ($op|get:"key":""), id: ($lrm_hit|get:"id":0)}
+                }
+              }
+            }
+          }
+        }
+
+        // Pass 1B — act.
+        foreach ($lens_removals) {
+          each as $lrm {
+            conditional {
+              if ($lrm.id > 0) {
+                function.run "journey/remove_lens" {
+                  input = {
+                    journey_lens_id: $lrm.id
+                    step           : "ai_scaffold_remove_lens"
                   }
-                
-                  else {
-                    array.push $errors {
-                      value = {
-                        action: "remove_lens"
-                        key   : $op.key
-                        error : "Lens not found"
-                      }
-                    }
+                } as $lrm_result
+
+                var.update $lenses_removed {
+                  value = $lenses_removed + 1
+                }
+
+                var.update $cells_deleted {
+                  value = $cells_deleted + $lrm_result.deleted_cell_count
+                }
+              }
+
+              else {
+                array.push $errors {
+                  value = {
+                    action: "remove_lens"
+                    key   : $lrm.key
+                    error : "No lens in this map has that key"
                   }
                 }
               }
             }
           }
         }
-      
-        // Pass 2: renames
+
+        // Pass 2A — resolve renames.
+        var $lens_renames {
+          value = []
+        }
+
         foreach ($input.lens_operations) {
           each as $op {
             conditional {
               if ($op.action == "rename") {
+                var $op_key_ln_rn {
+                  value = $op|get:"key":""
+                }
+
                 db.query journey_lens {
-                  where = $db.journey_lens.journey_map == $input.journey_map_id && $db.journey_lens.key == $op.key
+                  where = $db.journey_lens.journey_map == $input.journey_map_id && $db.journey_lens.key == $op_key_ln_rn
                   return = {type: "single"}
-                } as $rename_lens_target
-              
-                conditional {
-                  if ($rename_lens_target != null) {
-                    db.edit journey_lens {
-                      field_name = "id"
-                      field_value = $rename_lens_target.id
-                      enforce_hidden_fields = false
-                      data = {label: $op.label, updated_at: "now"}
-                    } as $rename_lens_result
-                  
-                    var.update $lenses_renamed {
-                      value = $lenses_renamed + 1
-                    }
-                  }
-                
-                  else {
-                    array.push $errors {
-                      value = {
-                        action: "rename_lens"
-                        key   : $op.key
-                        label : $op.label
-                        error : "Lens not found"
-                      }
-                    }
+                } as $lrn_hit
+
+                array.push $lens_renames {
+                  value = {
+                    key  : ($op|get:"key":"")
+                    id   : ($lrn_hit|get:"id":0)
+                    label: ($op|get:"label":"")
                   }
                 }
               }
             }
           }
         }
-      
-        // Pass 3: adds
-        // Use direct DB ops — internal api.call does not forward the user auth
-        // context, so the auth-protected journey_lens/add endpoint would reject it.
+
+        // Pass 2B — act.
+        foreach ($lens_renames) {
+          each as $lrn {
+            conditional {
+              if ($lrn.id > 0) {
+                db.patch journey_lens {
+                  field_name = "id"
+                  field_value = $lrn.id
+                  data = {label: $lrn.label, updated_at: "now"}
+                } as $lrn_done
+
+                var.update $lenses_renamed {
+                  value = $lenses_renamed + 1
+                }
+              }
+
+              else {
+                array.push $errors {
+                  value = {
+                    action: "rename_lens"
+                    key   : $lrn.key
+                    label : $lrn.label
+                    error : "No lens in this map has that key"
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Pass 3 — adds, through the shared function and therefore through the
+        // one copy of the actor templates.
         foreach ($input.lens_operations) {
           each as $op {
             conditional {
               if ($op.action == "add") {
-                db.query journey_stage {
-                  where = $db.journey_stage.journey_map == $input.journey_map_id
-                  sort = {display_order: "asc"}
-                  return = {type: "list"}
-                } as $stages_for_scaffold
-              
-                // ORD-1 (US-ORD-1-01): key and display_order come from the one
-                // shared mint instead of "lens-" + (max display_order + 1),
-                // which collides once anything renumbers display_order.
-                function.run "journey/next_lens_key" {
-                  input = {journey_map_id: $input.journey_map_id}
-                } as $sc_mint
-              
-                var $sc_new_lens_order {
-                  value = $sc_mint.display_order
-                }
-              
-                var $sc_new_lens_key {
-                  value = $sc_mint.key
-                }
-              
-                // ── Actor template defaults ──
-                var $sc_template_key {
-                  value = null
-                }
-              
-                var $sc_role_prompt {
-                  value = null
-                }
-              
-                var $sc_actor_fields_scaffold {
-                  value = null
-                }
-              
-                conditional {
-                  if ($op.actor_type == "customer") {
-                    var.update $sc_template_key {
-                      value = "customer-v1"
-                    }
-                  
-                    var.update $sc_role_prompt {
-                      value = "You are capturing the customer perspective at each stage of this journey. For each stage focus on: Entry Trigger (what brought the customer here), Emotions (how the customer feels), Information Needs (what the customer needs to know), Decisions Required (choices the customer must make), Friction Points (what could cause hesitation or abandonment), Assumptions (what the customer believes that may be wrong), Acceptance Criteria (what success looks like for the customer), Expected Output (what the customer expects after this step), and Channel/Touchpoint (how or where this step happens). Be specific. Use the customer language. Avoid internal jargon."
-                    }
-                  
-                    var.update $sc_actor_fields_scaffold {
-                      value = {}
-                        |set:"entry_trigger":null
-                        |set:"emotions":null
-                        |set:"information_needs":null
-                        |set:"decisions_required":null
-                        |set:"friction_points":null
-                        |set:"assumptions":null
-                        |set:"acceptance_criteria":null
-                        |set:"expected_output":null
-                        |set:"channel_touchpoint":null
-                    }
+                function.run "journey/insert_lens" {
+                  input = {
+                    journey_map_id: $input.journey_map_id
+                    after_lens_id : -1
+                    label         : ($op|get:"label":"")
+                    actor_type    : ($op|get:"actor_type":"")
+                    step          : "ai_scaffold_add_lens"
                   }
-                }
-              
-                conditional {
-                  if ($op.actor_type == "internal") {
-                    var.update $sc_template_key {
-                      value = "internal-v1"
-                    }
-                  
-                    var.update $sc_role_prompt {
-                      value = "You are capturing the internal employee perspective at each stage of this journey. For each stage focus on: Task / Objective (what they are responsible for at this step), Entry Point / Trigger (what initiates their involvement), Tools & Systems Used (what platforms or devices they rely on), Information Needs (what data or context they need), Decisions Required (judgment calls they must make), Friction Points (what slows them down or causes errors), Assumptions Being Made (what they believe that may cause issues if wrong), Handoff Dependencies (what they need from a previous step or person), Success Criteria (what completing this step correctly looks like), Output / Deliverable (what they produce or pass forward), Employee Constraints (limitations affecting how they perform), and Pain Points (recurring frustrations or gaps). Be specific. Use operational language. Focus on process gaps and friction."
-                    }
-                  
-                    var.update $sc_actor_fields_scaffold {
-                      value = {}
-                        |set:"task_objective":null
-                        |set:"entry_trigger":null
-                        |set:"tools_systems":null
-                        |set:"information_needs":null
-                        |set:"decisions_required":null
-                        |set:"friction_points":null
-                        |set:"assumptions":null
-                        |set:"handoff_dependencies":null
-                        |set:"success_criteria":null
-                        |set:"output_deliverable":null
-                        |set:"employee_constraints":null
-                        |set:"pain_points":null
-                    }
-                  }
-                }
-              
-                conditional {
-                  if ($op.actor_type == "engineering") {
-                    var.update $sc_template_key {
-                      value = "engineering-v1"
-                    }
-                  
-                    var.update $sc_role_prompt {
-                      value = "You are capturing the engineering and technical perspective at each stage of this journey. For each stage focus on: System / Service Owner (what system or service is responsible for this step), Data Inputs (what data is required to initiate or complete this step), Data Outputs (what data is produced or updated when this step completes), API / Integration Dependencies (what external or internal services need to be called), Business Rules / Logic (what conditions or rules govern how this step behaves), Error States / Edge Cases (what can go wrong technically and how it should be handled), Data Storage Requirements (what needs to be saved, where, and for how long), Security & Permissions (who or what system is allowed to access or modify this step), Performance Requirements (how fast or reliable this step needs to be), and Audit / Logging Needs (what events need to be tracked for compliance or debugging). Be precise. Use technical language. Reference system names, SLAs, and data contracts where relevant."
-                    }
-                  
-                    var.update $sc_actor_fields_scaffold {
-                      value = {}
-                        |set:"system_service_owner":null
-                        |set:"data_inputs":null
-                        |set:"data_outputs":null
-                        |set:"api_integration_dependencies":null
-                        |set:"business_rules_logic":null
-                        |set:"error_states_edge_cases":null
-                        |set:"data_storage_requirements":null
-                        |set:"security_permissions":null
-                        |set:"performance_requirements":null
-                        |set:"audit_logging_needs":null
-                    }
-                  }
-                }
-              
-                conditional {
-                  if ($op.actor_type == "ai_agent") {
-                    var.update $sc_template_key {
-                      value = "ai-agent-v1"
-                    }
-                  
-                    var.update $sc_role_prompt {
-                      value = "You are capturing the AI model or automated agent perspective at each stage of this journey. For each stage focus on: AI Model / Agent (what specific AI model or agent is responsible), Input Data (what data the AI consumes), Decision / Output (what the AI decides or generates), Confidence Threshold (what certainty level is needed before acting independently), Escalation Logic (when and to whom the AI hands off to a human), Training Data (what historical data was used to train this model), Retraining Frequency (how often the model gets updated), Bias & Fairness Considerations (what potential biases could be introduced), Failure Scenarios (what can go wrong and what the fallback is), Performance Metrics (how effectiveness is measured), Model Owner (who is responsible for maintaining this AI), and Explainability Needs (whether users need to understand why the AI made this decision). Be precise. Reference model names, confidence scores, and SLAs where relevant."
-                    }
-                  
-                    var.update $sc_actor_fields_scaffold {
-                      value = {}
-                        |set:"ai_model_agent":null
-                        |set:"input_data":null
-                        |set:"decision_output":null
-                        |set:"confidence_threshold":null
-                        |set:"escalation_logic":null
-                        |set:"training_data":null
-                        |set:"retraining_frequency":null
-                        |set:"bias_fairness_considerations":null
-                        |set:"failure_scenarios":null
-                        |set:"performance_metrics":null
-                        |set:"model_owner":null
-                        |set:"explainability_needs":null
-                    }
-                  }
-                }
-              
-                conditional {
-                  if ($op.actor_type == "handoff") {
-                    var.update $sc_template_key {
-                      value = "handoff-v1"
-                    }
-                  
-                    var.update $sc_role_prompt {
-                      value = "You are capturing the system handoff and dependency perspective at each stage of this journey. For each stage focus on: Trigger Event (what initiates this step), Upstream Actor (who initiates this handoff), Prerequisite Data (what data must be present), Upstream Dependencies (what must be completed before this step), Handoff Output (what is passed forward), Handoff Format (how information is transferred), Handoff Timing (when the handoff occurs), Downstream Actor (who receives the handoff), Validation Rules (what conditions define a successful handoff), Failure Recovery (what happens if the handoff fails), Communication Method (how the downstream actor is notified), and Data Retention Policy (how long handoff data is stored and where). Focus on the connective tissue between steps and identify gaps in the handoff chain."
-                    }
-                  
-                    var.update $sc_actor_fields_scaffold {
-                      value = {}
-                        |set:"trigger_event":null
-                        |set:"upstream_actor":null
-                        |set:"prerequisite_data":null
-                        |set:"upstream_dependencies":null
-                        |set:"handoff_output":null
-                        |set:"handoff_format":null
-                        |set:"handoff_timing":null
-                        |set:"downstream_actor":null
-                        |set:"validation_rules":null
-                        |set:"failure_recovery":null
-                        |set:"communication_method":null
-                        |set:"data_retention_policy":null
-                    }
-                  }
-                }
-              
-                conditional {
-                  if ($op.actor_type == "vendor") {
-                    var.update $sc_template_key {
-                      value = "vendor-v1"
-                    }
-                  
-                    var.update $sc_role_prompt {
-                      value = "You are capturing the third-party vendor perspective at each stage of this journey. For each stage focus on: Vendor Name / Type (who this third party is and what category they fall under), Role at This Step (what specific function this vendor performs), Engagement Trigger (what event activates this vendor), Contractual Obligations (agreed service levels this vendor must meet), Information Needs (what data must be shared with this vendor), Information They Return (data or confirmation the vendor sends back), Integration Method (how this vendor connects to your system), SLA / Performance Metrics (how this vendor's performance is measured), Failure Scenario (what happens if this vendor fails to perform), Escalation Path (who owns the relationship and resolves issues), Data Privacy & Compliance (data governance rules for what is shared with this vendor), Vendor Constraints (limitations the vendor operates under), Cost Impact (financial implication of this vendor's involvement), and Dependency on Internal Actors (what internal teams must complete before this vendor can begin). Be specific. Reference vendor names, SLA thresholds, and integration types where relevant."
-                    }
-                  
-                    var.update $sc_actor_fields_scaffold {
-                      value = {}
-                        |set:"vendor_name_type":null
-                        |set:"role_at_step":null
-                        |set:"engagement_trigger":null
-                        |set:"contractual_obligations":null
-                        |set:"information_needs":null
-                        |set:"information_returned":null
-                        |set:"integration_method":null
-                        |set:"sla_performance_metrics":null
-                        |set:"failure_scenario":null
-                        |set:"escalation_path":null
-                        |set:"data_privacy_compliance":null
-                        |set:"vendor_constraints":null
-                        |set:"cost_impact":null
-                        |set:"dependency_on_internal":null
-                    }
-                  }
-                }
-              
-                conditional {
-                  if ($op.actor_type == "financial") {
-                    var.update $sc_template_key {
-                      value = "financial-v1"
-                    }
-                  
-                    var.update $sc_role_prompt {
-                      value = "You are capturing the financial intelligence perspective at each stage of this journey. For each stage focus on: Cost to Serve (estimated cost per interaction, transaction, or touchpoint at this stage), Revenue at Risk (revenue lost or threatened if this stage has friction or fails), Automation Savings (cost savings achievable if manual steps at this stage are automated), Upsell / Cross-sell Opportunity (revenue opportunity from upsell or cross-sell actions available at this stage), Revenue Leakage (value lost due to drop-off, abandonment, errors, or rework at this stage), Cost Efficiency Note (key observation about cost drivers, waste, or inefficiency at this stage), Breakeven Threshold (minimum improvement required to justify the cost of fixing this stage), CAC Contribution (how this stage contributes to or inflates customer acquisition cost), CLV Impact (how this stage positively or negatively affects long-term customer lifetime value), and Financial Priority Score (relative investment priority based on combined cost and revenue impact). Be specific. Use dollar figures, percentages, and time horizons where possible. Reference upstream friction from other lenses as the root cause of financial impact."
-                    }
-                  
-                    var.update $sc_actor_fields_scaffold {
-                      value = {}
-                        |set:"cost_to_serve":null
-                        |set:"revenue_at_risk":null
-                        |set:"automation_savings":null
-                        |set:"upsell_opportunity":null
-                        |set:"revenue_leakage":null
-                        |set:"cost_efficiency_note":null
-                        |set:"breakeven_threshold":null
-                        |set:"cac_contribution":null
-                        |set:"clv_impact":null
-                        |set:"priority_score":null
-                    }
-                  }
-                }
-              
-                conditional {
-                  if ($op.actor_type == "metrics") {
-                    var.update $sc_template_key {
-                      value = "metrics-v1"
-                    }
-                  
-                    var.update $sc_role_prompt {
-                      value = "You are capturing operational metrics at each stage of this journey. For each stage focus on: CSAT Score (customer satisfaction score 1-10 at this stage), Completion Rate (% of users who successfully complete this stage), Drop-off Rate (% who abandon or fail at this stage), Avg Time to Complete (average duration of this stage in minutes or hours), Error Rate (% of interactions at this stage that result in an error or failure), SLA Compliance Rate (% of interactions that meet defined SLA targets), Volume / Frequency (number of interactions or transactions at this stage per period), and Stage Health Score (composite 1-10 health score derived from all other metrics — weight CSAT and completion rate most heavily). Be specific. Use percentages, counts, and time units. Infer from qualitative actor content when direct data is unavailable."
-                    }
-                  
-                    var.update $sc_actor_fields_scaffold {
-                      value = {}
-                        |set:"csat_score":null
-                        |set:"completion_rate":null
-                        |set:"drop_off_rate":null
-                        |set:"avg_time_to_complete":null
-                        |set:"error_rate":null
-                        |set:"sla_compliance_rate":null
-                        |set:"volume_frequency":null
-                        |set:"stage_health":null
-                    }
-                  }
-                }
-              
-                db.add journey_lens {
-                  enforce_hidden_fields = false
-                  data = {
-                    created_at   : "now"
-                    updated_at   : "now"
-                    journey_map  : $input.journey_map_id
-                    key          : $sc_new_lens_key
-                    label        : $op.label
-                    display_order: $sc_new_lens_order
-                    actor_type   : $op.actor_type
-                    template_key : $sc_template_key
-                    role_prompt  : $sc_role_prompt
-                  }
-                } as $sc_added_lens
-              
-                var $sc_cells_for_lens {
-                  value = 0
-                }
-              
-                foreach ($stages_for_scaffold) {
-                  each as $sc_stg {
-                    db.add journey_cell {
-                      enforce_hidden_fields = false
-                      data = {
-                        created_at  : "now"
-                        updated_at  : "now"
-                        journey_map : $input.journey_map_id
-                        stage       : $sc_stg.id
-                        lens        : $sc_added_lens.id
-                        content     : ""
-                        status      : "open"
-                        is_locked   : false
-                        actor_fields: $sc_actor_fields_scaffold
-                      }
-                    } as $sc_new_cell
-                  
-                    var.update $sc_cells_for_lens {
-                      value = $sc_cells_for_lens + 1
-                    }
-                  }
-                }
-              
+                } as $add_lens_result
+
                 var.update $lenses_added {
                   value = $lenses_added + 1
                 }
-              
+
                 var.update $cells_created {
-                  value = $cells_created + $sc_cells_for_lens
+                  value = $cells_created + ($add_lens_result.cells|count)
                 }
               }
             }
@@ -602,26 +460,26 @@ tool scaffold_structure {
         }
       }
     }
-  
+
     // ── Final counts ──
     db.query journey_stage {
       where = $db.journey_stage.journey_map == $input.journey_map_id
       sort = {display_order: "asc"}
       return = {type: "list"}
     } as $final_stages
-  
+
     db.query journey_lens {
       where = $db.journey_lens.journey_map == $input.journey_map_id
       sort = {display_order: "asc"}
       return = {type: "list"}
     } as $final_lenses
-  
+
     db.patch journey_map {
       field_name = "id"
       field_value = $input.journey_map_id
       data = {updated_at: "now", last_interaction_at: "now"}
     } as $map_touch
-  
+
     // ── Tool trace logging ──
     conditional {
       if ($input.conversation_id != null && $input.turn_id != null) {

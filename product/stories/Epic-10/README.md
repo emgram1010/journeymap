@@ -12,7 +12,7 @@ SEC-1. Epic-8 holds the security work; **Epic-10 holds the ordering work.**
 | Epic | What it enables | Status |
 |---|---|---|
 | [ORD-1 — Insert and resequence](EPIC-ORD-1-insert-and-resequence.md) | Insert a column/row at a position; move it left/right or up/down, from the matrix | ✅ **All 6 stories done (2026-10-19)** — seam insert + move arrows live for columns and rows |
-| [ORD-2 — The AI reshapes a map the same way the buttons do](EPIC-ORD-2-ai-structure-parity.md) | Gives the AI agent add / remove / place-at-a-position, through the same functions the buttons use. Fixes six AI actions that report success and do nothing | 📋 **Not started** — 7 stories, depends on ORD-1 (done) |
+| [ORD-2 — The AI reshapes a map the same way the buttons do](EPIC-ORD-2-ai-structure-parity.md) | Gives the AI agent add / remove / place-at-a-position, through the same functions the buttons use. Fixes six AI actions that reported success and did nothing | ✅ **All 7 stories done (2026-10-19)** — proven through the real agent; closes issues #1, #8, #10 |
 
 ## ORD-1 build order
 
@@ -52,6 +52,13 @@ function boundary rather than inventing logic. Stories 02, 03 and 05 are the
 ones that earn Opus: a cascade delete that half-applies and a conditional that
 silently discards its writes are both failure modes this codebase has already
 been bitten by.
+
+**What actually happened:** one session, and story 05 was indeed where the
+trouble was. The conditional-in-a-loop trap turned out to affect **all six** of
+`scaffold_structure`'s operation blocks, not just the three with the dead call —
+so its renames had been silently discarding their writes too. Story 07 needed
+**no prompt edit at all**: the agent picked up placement from the tool's own
+instructions. Full detail in the epic's Build results.
 
 **Why ORD-2 exists at all:** the AI agent (`Journey Map Assistant`, agent 18)
 reaches structure through `mutate_structure` and `scaffold_structure`, and six of

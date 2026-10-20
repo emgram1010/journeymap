@@ -1,4 +1,14 @@
 // Remove a journey stage and all of its cells while preserving minimum matrix structure.
+//
+// ORD-2 (US-ORD-2-04): the work moved to journey/remove_stage, which the AI
+// tools call too. Two things changed in behaviour, both deliberate and both
+// recorded in the epic: the survivors are now renumbered so no gap is left,
+// and a column whose key is pinned by a task in a published plan is refused
+// with E-ORD-005 instead of silently stranding that task.
+//
+// This endpoint still has NO ownership check of its own — it never did.
+// Tightening it is ISSUES-BACKLOG #7 and is a behaviour change, not part of
+// this refactor.
 query "journey_stage/remove/{journey_stage_id}" verb=DELETE {
   api_group = "journey-map"
   auth = "user"
@@ -8,64 +18,18 @@ query "journey_stage/remove/{journey_stage_id}" verb=DELETE {
   }
 
   stack {
-    db.get journey_stage {
-      field_name = "id"
-      field_value = $input.journey_stage_id
-    } as $journey_stage
-  
-    precondition ($journey_stage != null) {
-      error_type = "notfound"
-      error = "Journey stage not found"
-    }
-  
-    db.query journey_stage {
-      where = $db.journey_stage.journey_map == $journey_stage.journey_map
-      return = {type: "list"}
-    } as $map_stages
-  
-    precondition (($map_stages|count) > 1) {
-      error_type = "inputerror"
-      error = "Journey map must keep at least one stage"
-    }
-  
-    db.query journey_cell {
-      where = $db.journey_cell.journey_map == $journey_stage.journey_map && $db.journey_cell.stage == $journey_stage.id
-      return = {type: "list"}
-    } as $stage_cells
-  
-    foreach ($stage_cells) {
-      each as $cell {
-        db.del journey_cell {
-          field_name = "id"
-          field_value = $cell.id
-        }
+    function.run "journey/remove_stage" {
+      input = {
+        journey_stage_id: $input.journey_stage_id
+        user_id         : $auth.id
+        step            : "remove_stage"
       }
-    }
-  
-    db.del journey_stage {
-      field_name = "id"
-      field_value = $input.journey_stage_id
-    }
-  
-    db.patch journey_map {
-      field_name = "id"
-      field_value = $journey_stage.journey_map
-      data = {updated_at: "now", last_interaction_at: "now"}
-    } as $journey_map_touch_patch
-  
-    precondition ($journey_map_touch_patch != null) {
-      error = "Failed to update journey map"
-    }
-  
-    db.get journey_map {
-      field_name = "id"
-      field_value = $journey_stage.journey_map
-    } as $journey_map_touch
+    } as $removed
   }
 
   response = {
-    stage                 : $journey_stage
-    deleted_cell_count    : $stage_cells|count
-    journey_map_updated_at: $journey_map_touch.updated_at
+    stage                 : $removed.stage
+    deleted_cell_count    : $removed.deleted_cell_count
+    journey_map_updated_at: $removed.journey_map_updated_at
   }
 }

@@ -21,13 +21,14 @@ shipped — it all predates it or sits next to it.
 | 12 | 🟢 Low | Local `.xs` files drift from live | The next AI session | S |
 | 13 | 🟢 Low | Seam/arrow polish: no keyboard shortcuts, no drag, narrow columns | Power users | M |
 | 14 | 🟢 Low | `planner/resolve_actor` is misnamed (generic, used by 15 journey-map endpoints) | Developers | S |
+| 15 | 🟡 Medium | A removed column/row's **key can be re-minted** for the next one added | Anyone reading an old published version | M |
 
 Fixed along the way (not open): see the bottom of this file.
 
-**Now scoped into an epic:** #1, #8 and #10 are all in scope for
-[ORD-2](EPIC-ORD-2-ai-structure-parity.md), which gives the AI agent the same
-add / remove / place abilities the buttons got in ORD-1. They stay listed here
-until that epic ships.
+**✅ Closed by [ORD-2](EPIC-ORD-2-ai-structure-parity.md) (2026-10-19):**
+**#1** (AI tools calling an empty endpoint), **#8** (actor templates copied and
+drifted) and **#10** (remove leaves a gap). ORD-2 also fixed two bugs nobody had
+recorded — see its Build results — and found one new issue, **#15** below.
 
 ---
 
@@ -179,3 +180,26 @@ Renaming touches 19 planner endpoints; do it with the next planner change.
   The existing unique index on `(journey_map, key, display_order)` already
   rejects two simultaneous adds (proven: "Duplicate record detected"), because a
   race computes the same key *and* the same order.
+
+## 🟡 15. A removed key can be handed to a different row later
+
+**What:** stage and lens keys are minted as
+`max(shape-valid key suffixes, display_orders) + 1` over the map's **live**
+rows. A removed row's key is therefore free to be issued again. Seen live on
+2026-10-19: a row keyed `lens-2` was removed, and the very next row created
+took `lens-2`.
+
+**Why it matters:** `key` is identity, not a label. A published
+`journey_map_version` snapshot, and `work_task` identity
+`(work_item_id, stage_key, lens_key)`, both refer to rows by key. A snapshot
+pinned to the old `lens-2` now resolves to a different actor — silently, and
+looking entirely plausible.
+
+**What already protects you:** ORD-2's E-ORD-005 refuses removing a key that a
+task in a published plan points at. So the case with live work attached is
+blocked. The exposed case is a published version with **no** tasks against it.
+
+**Fix:** mint from a per-map monotonic counter (a `next_key_no` on
+`journey_map`, or the max taken across live rows **and** every version
+snapshot). This changes the mint ORD-1 shipped, so it wants its own story and
+its own test pass — not a patch.

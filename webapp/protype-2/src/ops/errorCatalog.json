@@ -952,5 +952,27 @@
     "fix_hint": "Reload and try again. If it keeps happening, the Health page timeline for this Reference will show which entity was involved.",
     "message_varies": true,
     "message_varies_why": "Generic \"not found\" code: the sentence names the thing."
+  },
+  "E-ORD-004": {
+    "code": "E-ORD-004",
+    "feature": "ORD-2",
+    "user_message": "That actor type is not one I know, so no row was created.",
+    "message_varies": true,
+    "what_happened": "A row was requested with an actor_type that is not one of the eight the app defines.",
+    "likely_cause": "The AI invented an actor type. The matrix wizard can only offer valid ones, so this is almost always an AI call, not a person.",
+    "owner": "engineer",
+    "severity": "info",
+    "fix_hint": "The message lists the eight valid types. Nothing was created; ask again naming one of them."
+  },
+  "E-ORD-005": {
+    "code": "E-ORD-005",
+    "feature": "ORD-2",
+    "user_message": "This column (or row) can't be removed because tasks in a published plan still point at it.",
+    "message_varies": true,
+    "what_happened": "A remove was refused because work_task rows in a published version of this map are pinned to the column's or row's key.",
+    "likely_cause": "The map has been published and put to work. A work_task's identity is (work_item_id, stage_key, lens_key), so deleting the key would strand live execution records.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Finish or remove that work first, or rename the column instead — a rename keeps the key, which is what execution records point at."
   }
 }

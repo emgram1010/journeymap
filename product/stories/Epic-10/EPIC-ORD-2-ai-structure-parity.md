@@ -1,9 +1,10 @@
 # EPIC-ORD-2 — The AI reshapes a map the same way the buttons do
 
-**Status:** 📋 **not started.** Written 2026-10-19, immediately after ORD-1
-shipped insert-on-the-seam and resequencing for the matrix buttons. This epic
-gives the **AI agent** the same abilities, and fixes six actions it has been
-claiming to perform while doing nothing.
+**Status:** ✅ **all seven stories done (2026-10-19).** The AI agent can now
+add, remove and **place** a column or a row, through the same functions the
+matrix buttons run. The six actions that reported success while doing nothing
+now do what they say. Proven end to end through the real agent in the chat —
+the gap ORD-1 left open.
 
 Depends on **ORD-1** (done). Nothing else blocks it.
 
@@ -115,7 +116,7 @@ self-correct on its next turn instead of retrying the same thing.
 
 ## Stories
 
-### US-ORD-2-01 — One actor template, not four copies
+### US-ORD-2-01 — One actor template, not four copies ✅ Done (2026-10-19)
 
 **As a** founder
 **I want** a row to behave the same no matter what created it
@@ -158,7 +159,7 @@ output.
 
 ---
 
-### US-ORD-2-02 — One place adds a column or a row
+### US-ORD-2-02 — One place adds a column or a row ✅ Done (2026-10-19)
 
 **As a** founder
 **I want** adding a column to mean exactly one thing
@@ -219,7 +220,7 @@ original (CLAUDE.md), for both axes.
 
 ---
 
-### US-ORD-2-03 — One place removes a column or a row
+### US-ORD-2-03 — One place removes a column or a row ✅ Done (2026-10-19)
 
 **As a** founder
 **I want** removing a column to clean up after itself
@@ -278,7 +279,7 @@ and after proves no orphans and no collateral deletions.
 
 ---
 
-### US-ORD-2-04 — The buttons keep working, provably
+### US-ORD-2-04 — The buttons keep working, provably ✅ Done (2026-10-19)
 
 **As a** founder
 **I want** my screen to behave exactly as it did yesterday
@@ -315,7 +316,7 @@ typecheck and build, **before story 05 begins**.
 
 ---
 
-### US-ORD-2-05 — The AI's six dead actions actually work
+### US-ORD-2-05 — The AI's six dead actions actually work ✅ Done (2026-10-19)
 
 **As a** founder
 **I want** the AI to change the map when it says it did
@@ -379,7 +380,7 @@ not only by calling the tool directly — the gap ORD-1 story 06 left open.
 
 ---
 
-### US-ORD-2-06 — The AI can place a column or a row, not just append
+### US-ORD-2-06 — The AI can place a column or a row, not just append ✅ Done (2026-10-19)
 
 **As a** founder
 **I want** to say "add a stage after Onboarding" and have it land there
@@ -428,7 +429,7 @@ the agent reasons in keys and `get_map_state` gives it keys.
 
 ---
 
-### US-ORD-2-07 — The AI knows what it can and cannot do
+### US-ORD-2-07 — The AI knows what it can and cannot do ✅ Done (2026-10-19)
 
 **As a** founder
 **I want** the agent's instructions to match reality
@@ -459,6 +460,124 @@ Scenario: The agent prompt no longer over-promises
 
 **Done when:** a fresh chat session with the agent, given "add a stage called
 Renewal after Onboarding", does it in one turn without being told how.
+
+## Build results (2026-10-19)
+
+Everything below was proved live as **test user 9 in test account 6**, on test
+map **211**, created for this epic and soft-deleted afterwards. Map 178 was
+never touched; the founder's account was never written to, and is proven
+refused below.
+
+### What was built
+
+| Piece | Where | Live id |
+|---|---|---|
+| The one copy of the actor templates | `functions/journey/actor_template.xs` | function 190 |
+| The one place a column is added | `functions/journey/insert_stage.xs` | function 192 |
+| The one place a row is added | `functions/journey/insert_lens.xs` | function 193 |
+| The one place a column is removed | `functions/journey/remove_stage.xs` | function 196 |
+| The one place a row is removed | `functions/journey/remove_lens.xs` | function 197 |
+| Thin authenticated front doors | endpoints 47, 48, 49, 50 | — |
+| AI structure actions, all eight | `ai/tool/mutate_structure.xs` | tool 4 |
+| AI blueprint, all six operation blocks | `ai/tool/scaffold_structure.xs` | tool 7 |
+| Two new error codes | `E-ORD-004`, `E-ORD-005` in `src/ops/errorCatalog.json` | — |
+
+### What the diff of the four template copies actually showed
+
+The epic was written expecting wide drift. The real picture, measured before
+anything was replaced:
+
+- **Field lists were identical** everywhere a template existed. Nothing to
+  reconcile there.
+- **`mutate_structure` had no `financial` and no `metrics` case at all** — so
+  asking the AI for a financial row produced a row with no prompt and cells
+  with no fields.
+- **`scaffold_structure`'s metrics prompt was a different, shorter text**
+  (843 characters against endpoint 49's 1197).
+- **It was three copies, not four.** Endpoint 47 does not hold actor templates;
+  it keys cell scaffolding off each existing row's `template_key`. **Which
+  surfaced a bug nobody had recorded: endpoint 47 had no `financial-v1` case,
+  so adding a column to any map with a financial row scaffolded that cell with
+  no fields at all.** Fixed on the way past.
+
+Endpoint 49's text won every disagreement, as the epic specified.
+
+### Where the plan changed, and why
+
+- **Story 07 needed no prompt edit.** The agent discovered placement from the
+  tool's own `instructions` and used it correctly on the first try, from the
+  plain sentence *"Add a column called Checkout between Discovery and Zero"* —
+  no key given, no prompt change. Editing a 40,000-character prompt that
+  already contains unresolved merge-conflict markers would have been risk with
+  no reward, so **agent 18 and agent 9 were left untouched.** Their claim that
+  `mutate_structure` can add and remove became true without being edited.
+- **The epic's 🔴 "a second bug may hide under the empty `api.call`" risk was
+  real, and bigger than predicted.** In `scaffold_structure` every one of the
+  six operation blocks branched on a variable written earlier in the same loop
+  iteration. The three renames, which ran real writes, were in that shape too.
+  Swapping the dead call would have fixed nothing. Each block is now two
+  passes: resolve to plain facts, then act with every condition reading only
+  the loop item. **In `mutate_structure` the trap did not apply** — those
+  branches are a top-level `$input.action` chain, not a loop.
+- **`scaffold_structure`'s renames also crashed on an omitted optional field.**
+  They read `$op.stage_goal` directly, which fails at runtime when absent — the
+  same bug as ISSUES-BACKLOG #2 in `scaffold_map`. A rename now leaves an
+  omitted field alone, decided from `$op|has:"stage_goal"` captured in the
+  resolve pass so the decision is a field of the loop item.
+- **`where` clauses cannot call filters**, so every `$op|get:"key":""` used for
+  a lookup is hoisted into its own var first (CLAUDE.md).
+- **Remove now closes its own gap and clears dangling contracts.** A removed
+  row's key could be named by a stage's `primary_actor_lens`; that reference is
+  now cleared in the same transaction instead of left pointing at nothing.
+- **An unmatched template yields `actor_fields: {}`, where the old code wrote
+  `null`.** Checked before accepting: the matrix only renders a tile when at
+  least one field has a non-empty value, so `{}` and `null` render identically.
+- **Dead code removed, not preserved.** Both add endpoints guarded the label
+  with `if ($input.label != null)` wrapping `precondition ($input.label != "")`.
+  For an optional text input `!= null` is never true when it is empty
+  (CLAUDE.md), so that precondition could never fire. Replaced with the single
+  test it actually was.
+
+### Tests
+
+| Check | Result |
+|---|---|
+| `actor_template`: all eight types, by `actor_type` | ✅ keys and field lists identical to endpoint 49's baseline |
+| `actor_template`: reverse lookup by `template_key` | ✅ `financial-v1` → financial, with its 10 fields |
+| `actor_template`: `AI_Agent` (wrong case) | ✅ folded to `ai_agent` → `ai-agent-v1` |
+| `actor_template`: empty type | ✅ plain row, empty template, no refusal |
+| `actor_template`: `accountant` | ✅ refused, E-ORD-004, message names the eight valid types |
+| `insert_lens`: append a financial row | ✅ `financial-v1`, full prompt, 10 fields scaffolded |
+| `insert_stage`: append | ✅ key `s2` from the shared mint, one cell per row |
+| `insert_stage`: a column added to a map holding a financial row | ✅ **both** cells correct — the customer cell and the financial cell. The bug endpoint 47 had is gone |
+| `insert_stage`: anchor = a real id | ✅ landed 2nd, label "New stage", 3 rows renumbered |
+| `insert_stage`: anchor 0 | ✅ landed 1st |
+| `insert_stage` / `insert_lens`: anchor from another map | ✅ refused E-ORD-002, nothing created |
+| `insert_lens`: unknown actor type | ✅ refused E-ORD-004, nothing created |
+| `remove_stage`: cascade | ✅ all 3 cells gone, no other column's cells touched |
+| `remove_stage`: gap closed | ✅ survivors renumbered 1..n |
+| `remove_lens`: dangling stage contract | ✅ `cleared_stage_contracts: 1`, inside the transaction |
+| `remove_stage` / `remove_lens`: key pinned by a published plan | ✅ both refused E-ORD-005, message counts the tasks |
+| Same check is **specific, not a blanket block** | ✅ the unpinned column next to it removed fine |
+| `remove_stage`: the last column | ✅ refused, "must keep at least one stage" |
+| **ORD-1's recorded HTTP table, re-run** — stage add (no token / append / anchor 0 / foreign anchor / founder's map), lens add (append / foreign anchor / bad actor type), reorder (no token / short list / founder's map) | ✅ **11 of 11 identical to ORD-1's recorded results** |
+| Remove over HTTP: unpinned stage, pinned stage, pinned lens, unpinned lens | ✅ 200 / 400 E-ORD-005 / 400 E-ORD-005 / 200 |
+| **Through the real agent:** "Add a column called Renewal immediately after the column whose key is s6" | ✅ read the map, called `add_stage` with `after_stage_key`, landed between the two — **the first time the AI has ever placed anything** |
+| Through the real agent: remove by key | ✅ removed, reported what was left |
+| Through the real agent: remove key `s99` (does not exist) | ✅ *"Failed — no column with key s99 exists in this map. Nothing was removed."* |
+| Through the real agent: one `scaffold_structure` blueprint — rename + stage add + lens add + lens remove | ✅ all four applied; **counts verified against the database, not the tool's own response**: 3 stages, 2 lenses, 6 cells = 3 × 2, exactly as reported |
+| Through the real agent: "Add a column called Checkout between Discovery and Zero" (no key, no prompt change) | ✅ landed between them; database confirms 4 columns, 8 cells |
+| `npm test` | ✅ **416/416** |
+| `npm run lint` / `npm run build` | ✅ clean / builds |
+
+**Not run, stated plainly:**
+- **Still no Playwright spec.** The 26 existing specs fail at sign-in for want
+  of `E2E_AUTH_TOKEN` (ISSUES-BACKLOG #4). The browser path for these endpoints
+  was proved by hand in ORD-1 and by real HTTP here.
+- **The matrix was not re-opened in a browser for ORD-2.** The endpoints'
+  request and response shapes are unchanged and were re-proved over HTTP, so
+  the frontend has nothing new to exercise. If anything in the matrix misbehaves
+  on the next session, these four endpoints are the first place to look.
 
 ## MVP scope
 
@@ -495,13 +614,13 @@ _Not started._
 
 | Story | Tests | Result |
 |---|---|---|
-| 01 | Eight actor types through the function, diffed against endpoint 49's current output; unknown type refused | — |
-| 02 | 4 scenarios × 2 axes on a clone; cell counts before/after | — |
-| 03 | 4 scenarios × 2 axes on a clone; orphan scan; last-row refusal | — |
-| 04 | **Full ORD-1 test table re-run** (8 insert + 6 reorder HTTP cases, browser seam/arrow run); `npm test`, typecheck, build | — |
-| 05 | 4 scenarios through the real agent in the chat; counts verified by query, not by tool response | — |
-| 06 | 5 placement scenarios through the real agent | — |
-| 07 | Cold chat session places a column from one natural sentence | — |
+| 01 | Eight actor types through the function, diffed against endpoint 49's output; reverse lookup; case folding; empty; unknown type refused | ✅ all pass |
+| 02 | Append, anchor, anchor 0, foreign anchor, bad actor type, cell counts before/after, both axes | ✅ all pass |
+| 03 | Cascade, gap closed, dangling contract cleared, dependency refusal both axes, specificity, last-row refusal | ✅ all pass |
+| 04 | **ORD-1's recorded HTTP table re-run — 11 of 11 identical**, plus 4 remove cases; `npm test` 416/416, lint, build | ✅ all pass |
+| 05 | Four scenarios through the real agent, including a four-operation blueprint; counts verified by database query, not by tool response | ✅ all pass |
+| 06 | Placement through the real agent, by explicit key and by plain sentence | ✅ all pass |
+| 07 | Cold sentence, no key, no prompt edit | ✅ pass — **and the prompt edit turned out to be unnecessary; see Build results** |
 
 ## Risks
 
@@ -528,11 +647,21 @@ _Not started._
 
 ## Still open
 
+**One new finding, logged as ISSUES-BACKLOG #15:** a removed row's key can be
+re-minted for the next row added. Seen live — a row keyed `lens-2` was removed
+and the next row created took `lens-2` again. The mint computes
+`max(key suffixes ∪ display_orders) + 1` over **live** rows, so it cannot see a
+key that history still refers to. A published version's snapshot pinned to the
+old `lens-2` now resolves to a different actor. The dangerous case is already
+blocked — E-ORD-005 refuses removing a key live work depends on — but a
+snapshot with no tasks against it is still exposed. Not fixed here: the fix is
+a per-map monotonic counter, which is a change to the mint ORD-1 shipped.
+
 | Question | Why it's the founder's |
 |---|---|
 | **Should `Journey Map Builder` (agent 9) be allowed to place columns?** | Its prompt currently forbids adding anything: *"NEVER call scaffold_structure. NEVER call mutate_structure with add_stage or add_lens."* That was deliberate — the Builder runs fast phased cell-fill turns and structure was meant to be settled first. Letting it place columns mid-build makes builds more autonomous and less predictable. Recommend **leave it forbidden** for now; the Assistant is the right agent for structure |
-| **Can a column or row be removed when a published plan references its key?** | Story 03 needs an answer. Recommend **refuse**, matching DEL-1's "a map in use can't be deleted" rule, with the message naming what depends on it |
-| **Does ORD-1 get committed to git first?** | Story 04 edits four endpoints whose current, working source is **still uncommitted**. Recommend committing ORD-1 before this epic starts, so there is something to roll back to |
+| ~~**Can a column or row be removed when a published plan references its key?**~~ | **Answered: refuse.** Built as E-ORD-005, with the message counting the tasks that depend on it. Matches DEL-1's "a map in use can't be deleted" |
+| ~~**Does ORD-1 get committed to git first?**~~ | **Answered: yes, done.** ORD-1 and the uncommitted SEC-1 work were committed before story 04 touched the endpoints, so there is a clean rollback point |
 
 ## Relationship to ORD-1 and the issues backlog
 
