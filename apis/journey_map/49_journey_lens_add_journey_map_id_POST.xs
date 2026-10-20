@@ -1,5 +1,14 @@
 // Add a journey lens and scaffold matching cells for all stages in the map.
 // v7: added financial 10-field scaffold block
+//
+// ORD-1 (US-ORD-1-01): the key and display_order come from
+// journey/next_lens_key, the one place a lens key is minted. They used to
+// be computed here as "lens-" + (max display_order + 1), which ties a key to
+// a position and collides once anything renumbers display_order.
+//
+// ORD-1 (US-ORD-1-04): optional `after_lens_id` inserts the new row at a
+// position instead of the end (0 = first). Omit it and the call behaves
+// exactly as before.
 query "journey_lens/add/{journey_map_id}" verb=POST {
   api_group = "journey-map"
   auth = "user"
@@ -34,15 +43,14 @@ query "journey_lens/add/{journey_map_id}" verb=POST {
   
     // For ai_agent lenses: FK to the sub-journey map that is this agent's operating manual.
     int agent_map_id?
+
+    // ORD-1: insert after this lens id; 0 = insert first; omit = append.
+    int after_lens_id?
   }
 
   stack {
     var $cells {
       value = []
-    }
-  
-    var $next_lens_order {
-      value = 1
     }
   
     db.get journey_map {
@@ -60,12 +68,6 @@ query "journey_lens/add/{journey_map_id}" verb=POST {
       error = "Access denied"
     }
   
-    db.query journey_lens {
-      where = $db.journey_lens.journey_map == $input.journey_map_id
-      sort = {display_order: "desc"}
-      return = {type: "list"}
-    } as $existing_lenses
-  
     db.query journey_stage {
       where = $db.journey_stage.journey_map == $input.journey_map_id
       sort = {display_order: "asc"}
@@ -77,15 +79,68 @@ query "journey_lens/add/{journey_map_id}" verb=POST {
       error = "Journey map must include at least one stage before adding a lens"
     }
   
+    // ORD-1 (US-ORD-1-04) — optional insert position.
+    // after_lens_id omitted -> append (exactly the old behaviour);
+    // 0 -> insert first; a lens id -> insert directly after that lens.
+    // An omitted optional int arrives as 0, which is ALSO the legitimate
+    // "insert first" value, so presence is read from the raw body, not
+    // from $input (CLAUDE.md). This is a POST, so there is a body to read.
+    util.get_raw_input {
+      encoding = "json"
+      exclude_middleware = false
+    } as $raw_input
+
+    var $after_lens_id {
+      value = -1
+    }
+
     conditional {
-      if (($existing_lenses|count) > 0) {
-        var.update $next_lens_order {
-          value = $existing_lenses
-            |first
-            |get:"display_order"
-            |add:1
+      if ($raw_input|has:"after_lens_id") {
+        var.update $after_lens_id {
+          value = ($raw_input|get:"after_lens_id":0)|to_int
         }
       }
+    }
+
+    db.query journey_lens {
+      where = $db.journey_lens.journey_map == $input.journey_map_id && $db.journey_lens.id == $after_lens_id
+      return = {type: "count"}
+    } as $anchor_found
+
+    var $anchor_bad {
+      value = ($after_lens_id > 0) && ($anchor_found == 0)
+    }
+
+    conditional {
+      if ($anchor_bad) {
+        function.run "ops/log_event" {
+          input = {
+            feature    : "ORD-1"
+            step       : "insert_lens"
+            outcome    : "rejected"
+            severity   : "info"
+            user_id    : $auth.id
+            account_id : $journey_map.account_id
+            entity_type: "journey_map"
+            entity_id  : $input.journey_map_id
+            error_code : "E-ORD-002"
+            message    : "Insert refused: the lens to insert after is not in this map."
+          }
+        } as $_anchor_logged
+      }
+    }
+
+    precondition ($anchor_bad == false) {
+      error_type = "inputerror"
+      error = "The row you tried to insert next to isn't in this map any more, so nothing was added. Refresh and try again. (E-ORD-002)"
+    }
+
+    function.run "journey/next_lens_key" {
+      input = {journey_map_id: $input.journey_map_id}
+    } as $mint
+  
+    var $next_lens_order {
+      value = $mint.display_order
     }
   
     var $lens_label {
@@ -106,7 +161,7 @@ query "journey_lens/add/{journey_map_id}" verb=POST {
     }
   
     var $lens_key {
-      value = "lens-%d"|sprintf:$next_lens_order
+      value = $mint.key
     }
   
     // ── Actor template defaults ──
@@ -443,6 +498,68 @@ query "journey_lens/add/{journey_map_id}" verb=POST {
       }
     }
   
+    // ORD-1 (US-ORD-1-04) — place the new lens. It was appended above (key
+    // and order from the shared mint); now splice it in after the anchor and
+    // let journey/apply_lens_order — the one place lens order is
+    // written — renumber the map 1..n. Every condition in the loop reads only
+    // the loop item or values set before the loop (CLAUDE.md).
+    conditional {
+      if ($after_lens_id >= 0) {
+        db.query journey_lens {
+          where = $db.journey_lens.journey_map == $input.journey_map_id
+          sort = {display_order: "asc", id: "asc"}
+          return = {type: "list"}
+        } as $ordered_rows
+
+        var $placed_ids {
+          value = []
+        }
+
+        conditional {
+          if ($after_lens_id == 0) {
+            array.push $placed_ids {
+              value = $journey_lens.id
+            }
+          }
+        }
+
+        foreach ($ordered_rows) {
+          each as $or {
+            conditional {
+              if ($or.id != $journey_lens.id) {
+                array.push $placed_ids {
+                  value = $or.id
+                }
+
+                conditional {
+                  if ($or.id == $after_lens_id) {
+                    array.push $placed_ids {
+                      value = $journey_lens.id
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        function.run "journey/apply_lens_order" {
+          input = {
+            journey_map_id: $input.journey_map_id
+            lens_ids      : $placed_ids
+            user_id       : $auth.id
+            account_id    : $journey_map.account_id
+            step          : "insert_lens"
+          }
+        } as $placed
+      }
+    }
+
+    db.get journey_lens {
+      field_name = "id"
+      field_value = $journey_lens.id
+    } as $placed_row
+
     db.patch journey_map {
       field_name = "id"
       field_value = $input.journey_map_id
@@ -451,7 +568,7 @@ query "journey_lens/add/{journey_map_id}" verb=POST {
   }
 
   response = {
-    lens                  : $journey_lens
+    lens                  : $placed_row
     cells                 : $cells
     journey_map_updated_at: $journey_map_touch.updated_at
   }

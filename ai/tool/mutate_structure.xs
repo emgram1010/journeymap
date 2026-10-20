@@ -170,35 +170,25 @@ tool mutate_structure {
       
         // Use direct DB ops — internal api.call does not forward the user auth
         // context, so the auth-protected journey_lens/add endpoint would reject it.
-        db.query journey_lens {
-          where = $db.journey_lens.journey_map == $input.journey_map_id
-          sort = {display_order: "desc"}
-          return = {type: "list"}
-        } as $lenses_for_order
-      
         db.query journey_stage {
           where = $db.journey_stage.journey_map == $input.journey_map_id
           sort = {display_order: "asc"}
           return = {type: "list"}
         } as $stages_for_cells
       
-        var $new_lens_order {
-          value = 1
-        }
+        // ORD-1 (US-ORD-1-01): key and display_order come from the one
+        // shared mint instead of "lens-" + (max display_order + 1), which
+        // collides once anything renumbers display_order.
+        function.run "journey/next_lens_key" {
+          input = {journey_map_id: $input.journey_map_id}
+        } as $ms_mint
       
-        conditional {
-          if (($lenses_for_order|count) > 0) {
-            var.update $new_lens_order {
-              value = $lenses_for_order
-                |first
-                |get:"display_order"
-                |add:1
-            }
-          }
+        var $new_lens_order {
+          value = $ms_mint.display_order
         }
       
         var $new_lens_key {
-          value = "lens-%d"|sprintf:$new_lens_order
+          value = $ms_mint.key
         }
       
         // ── Actor template defaults ──
@@ -511,158 +501,113 @@ tool mutate_structure {
           error_type = "inputerror"
           error = "keys_in_order is required for reorder_stages"
         }
-      
-        db.query journey_stage {
-          where = $db.journey_stage.journey_map == $input.journey_map_id
-          return = {type: "list"}
-        } as $reorder_stages
-      
-        var $reorder_items {
+
+        // ORD-1 (US-ORD-1-06): the AI reorders through the SAME rule as the
+        // matrix arrows — journey/apply_stage_order — so the two can never
+        // disagree about what a legal order is. Keys are turned into ids
+        // one lookup per key, with no conditional in the loop: the old
+        // version decided whether to write by testing a var it had just
+        // updated in the same iteration, which is the CLAUDE.md pattern
+        // where every write in the branch is silently discarded. A key that
+        // is not in this map yields id 0, and the shared function then
+        // refuses the whole order (E-ORD-001) instead of skipping it.
+        var $reorder_ids {
           value = []
         }
-      
-        var $order_counter {
-          value = 1
-        }
-      
+
         foreach ($input.keys_in_order) {
           each as $key {
-            // Find the stage with this key
-            var $found {
-              value = null
-            }
-          
-            foreach ($reorder_stages) {
-              each as $rs {
-                conditional {
-                  if ($rs.key == $key) {
-                    var.update $found {
-                      value = $rs
-                    }
-                  }
-                }
-              }
-            }
-          
-            conditional {
-              if ($found != null) {
-                db.patch journey_stage {
-                  field_name = "id"
-                  field_value = $found.id
-                  data = {display_order: $order_counter, updated_at: "now"}
-                } as $reordered_stage
-              
-                array.push $reorder_items {
-                  value = {
-                    key      : $found.key
-                    label    : $found.label
-                    old_order: $found.display_order
-                    new_order: $order_counter
-                  }
-                }
-              
-                var.update $order_counter {
-                  value = $order_counter + 1
-                }
-              }
+            db.query journey_stage {
+              where = $db.journey_stage.journey_map == $input.journey_map_id && $db.journey_stage.key == $key
+              return = {type: "single"}
+            } as $hit
+
+            array.push $reorder_ids {
+              value = $hit|get:"id":0
             }
           }
         }
-      
+
+        function.run "journey/apply_stage_order" {
+          input = {
+            journey_map_id: $input.journey_map_id
+            stage_ids     : $reorder_ids
+            step          : "ai_reorder_stages"
+          }
+        } as $reorder_applied
+
         db.patch journey_map {
           field_name = "id"
           field_value = $input.journey_map_id
           data = {updated_at: "now", last_interaction_at: "now"}
         } as $reorder_map_touch
-      
+
         var.update $result {
           value = {
             action : "reorder_stages"
             success: true
-            result : {items: $reorder_items}
+            result : {items: $reorder_applied.order}
             error  : null
           }
         }
       }
-    
+
       elseif ($input.action == "reorder_lenses") {
         precondition ($input.keys_in_order != null) {
           error_type = "inputerror"
           error = "keys_in_order is required for reorder_lenses"
         }
-      
-        db.query journey_lens {
-          where = $db.journey_lens.journey_map == $input.journey_map_id
-          return = {type: "list"}
-        } as $reorder_lenses
-      
-        var $reorder_lens_items {
+
+        // ORD-1 (US-ORD-1-06): the AI reorders through the SAME rule as the
+        // matrix arrows — journey/apply_lens_order — so the two can never
+        // disagree about what a legal order is. Keys are turned into ids
+        // one lookup per key, with no conditional in the loop: the old
+        // version decided whether to write by testing a var it had just
+        // updated in the same iteration, which is the CLAUDE.md pattern
+        // where every write in the branch is silently discarded. A key that
+        // is not in this map yields id 0, and the shared function then
+        // refuses the whole order (E-ORD-001) instead of skipping it.
+        var $reorder_ids {
           value = []
         }
-      
-        var $lens_order_counter {
-          value = 1
-        }
-      
+
         foreach ($input.keys_in_order) {
           each as $key {
-            var $found_lens {
-              value = null
-            }
-          
-            foreach ($reorder_lenses) {
-              each as $rl {
-                conditional {
-                  if ($rl.key == $key) {
-                    var.update $found_lens {
-                      value = $rl
-                    }
-                  }
-                }
-              }
-            }
-          
-            conditional {
-              if ($found_lens != null) {
-                db.patch journey_lens {
-                  field_name = "id"
-                  field_value = $found_lens.id
-                  data = {display_order: $lens_order_counter, updated_at: "now"}
-                } as $reordered_lens
-              
-                array.push $reorder_lens_items {
-                  value = {
-                    key      : $found_lens.key
-                    label    : $found_lens.label
-                    old_order: $found_lens.display_order
-                    new_order: $lens_order_counter
-                  }
-                }
-              
-                var.update $lens_order_counter {
-                  value = $lens_order_counter + 1
-                }
-              }
+            db.query journey_lens {
+              where = $db.journey_lens.journey_map == $input.journey_map_id && $db.journey_lens.key == $key
+              return = {type: "single"}
+            } as $hit
+
+            array.push $reorder_ids {
+              value = $hit|get:"id":0
             }
           }
         }
-      
+
+        function.run "journey/apply_lens_order" {
+          input = {
+            journey_map_id: $input.journey_map_id
+            lens_ids      : $reorder_ids
+            step          : "ai_reorder_lenses"
+          }
+        } as $reorder_applied
+
         db.patch journey_map {
           field_name = "id"
           field_value = $input.journey_map_id
           data = {updated_at: "now", last_interaction_at: "now"}
-        } as $reorder_lens_map_touch
-      
+        } as $reorder_map_touch
+
         var.update $result {
           value = {
             action : "reorder_lenses"
             success: true
-            result : {items: $reorder_lens_items}
+            result : {items: $reorder_applied.order}
             error  : null
           }
         }
       }
-    
+
       else {
         var.update $result {
           value = {

@@ -298,35 +298,25 @@ tool scaffold_structure {
           each as $op {
             conditional {
               if ($op.action == "add") {
-                db.query journey_lens {
-                  where = $db.journey_lens.journey_map == $input.journey_map_id
-                  sort = {display_order: "desc"}
-                  return = {type: "list"}
-                } as $lenses_before_add
-              
                 db.query journey_stage {
                   where = $db.journey_stage.journey_map == $input.journey_map_id
                   sort = {display_order: "asc"}
                   return = {type: "list"}
                 } as $stages_for_scaffold
               
-                var $sc_new_lens_order {
-                  value = 1
-                }
+                // ORD-1 (US-ORD-1-01): key and display_order come from the one
+                // shared mint instead of "lens-" + (max display_order + 1),
+                // which collides once anything renumbers display_order.
+                function.run "journey/next_lens_key" {
+                  input = {journey_map_id: $input.journey_map_id}
+                } as $sc_mint
               
-                conditional {
-                  if (($lenses_before_add|count) > 0) {
-                    var.update $sc_new_lens_order {
-                      value = $lenses_before_add
-                        |first
-                        |get:"display_order"
-                        |add:1
-                    }
-                  }
+                var $sc_new_lens_order {
+                  value = $sc_mint.display_order
                 }
               
                 var $sc_new_lens_key {
-                  value = "lens-%d"|sprintf:$sc_new_lens_order
+                  value = $sc_mint.key
                 }
               
                 // ── Actor template defaults ──

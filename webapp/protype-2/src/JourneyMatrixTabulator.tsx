@@ -32,6 +32,13 @@ type Props = {
   onTogglePlannedWork?: (lensId: string) => void;
   // AUTH-1 (US-AUTH-1-04) — stage.key/id → ready, from computeMapReadiness.perStage
   stageReadiness?: Record<string, boolean>;
+  // ORD-1 (US-ORD-1-05) — the seam + and the move arrows. Omit all four and the
+  // matrix draws neither (read-only use is unchanged).
+  // seamIndex: 0 = before the first item, items.length = after the last.
+  onInsertStageAt?: (seamIndex: number) => void;
+  onMoveStage?: (stageId: string, dir: -1 | 1) => void;
+  onInsertLensAt?: (seamIndex: number) => void;
+  onMoveLens?: (lensId: string, dir: -1 | 1) => void;
 };
 
 export default function JourneyMatrixTabulator({
@@ -48,6 +55,10 @@ export default function JourneyMatrixTabulator({
   linkedCells,
   onTogglePlannedWork,
   stageReadiness,
+  onInsertStageAt,
+  onMoveStage,
+  onInsertLensAt,
+  onMoveLens,
 }: Props) {
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -69,6 +80,13 @@ export default function JourneyMatrixTabulator({
   const onEditLensRef = useRef(onEditLens);
   const onEditStageRef = useRef(onEditStage);
   const onTogglePlannedWorkRef = useRef(onTogglePlannedWork);
+  const onInsertStageAtRef = useRef(onInsertStageAt);
+  const onMoveStageRef = useRef(onMoveStage);
+  const onInsertLensAtRef = useRef(onInsertLensAt);
+  const onMoveLensRef = useRef(onMoveLens);
+  // Decided once per render: the formatters read it when they draw.
+  const orderingEnabled = Boolean(onInsertStageAt || onMoveStage || onInsertLensAt || onMoveLens);
+  const orderingEnabledRef = useRef(orderingEnabled);
 
   const cellMap = useMemo(
     () => new Map(cells.map((cell) => [`${cell.stageId}:${cell.lensId}`, cell])),
@@ -77,9 +95,12 @@ export default function JourneyMatrixTabulator({
 
   const tableData = useMemo(
     () =>
-      lenses.map((lens) => {
-        const row: Record<string, string | boolean> = {
+      lenses.map((lens, lensIndex) => {
+        const row: Record<string, string | boolean | number> = {
           id: lens.id,
+          // ORD-1 — row position, so the row header can draw its seams and arrows.
+          lensIndex,
+          lensCount: lenses.length,
           lensLabel: lens.label,
           lensActorType: lens.actorType ?? '',
           // STAGE-1 (US-STAGE-1-06) — resolved value (override or actor_type default), same rule as stageOwnerModel/readiness.
@@ -141,6 +162,14 @@ export default function JourneyMatrixTabulator({
   }, [onTogglePlannedWork]);
 
   useEffect(() => {
+    onInsertStageAtRef.current = onInsertStageAt;
+    onMoveStageRef.current = onMoveStage;
+    onInsertLensAtRef.current = onInsertLensAt;
+    onMoveLensRef.current = onMoveLens;
+    orderingEnabledRef.current = orderingEnabled;
+  }, [onInsertStageAt, onMoveStage, onInsertLensAt, onMoveLens, orderingEnabled]);
+
+  useEffect(() => {
     linkedCellsRef.current = linkedCells;
     // Re-render table cells when link data changes
     if (tableRef.current) {
@@ -159,6 +188,33 @@ export default function JourneyMatrixTabulator({
     }
 
     const handleClick = (event: MouseEvent) => {
+      // ORD-1 (US-ORD-1-05) — seam + and move arrows. Same delegated pattern as
+      // the edit/planned-work buttons: the headers are Tabulator markup strings,
+      // so there is no React onClick to attach to.
+      const target = event.target as HTMLElement;
+      const orderBtn = target.closest?.(
+        '[data-insert-stage-at], [data-insert-lens-at], [data-move-stage-id], [data-move-lens-id]',
+      ) as HTMLButtonElement | null;
+      if (orderBtn && container.contains(orderBtn)) {
+        event.stopPropagation();
+        event.preventDefault();
+        if (orderBtn.disabled) {
+          return;
+        }
+        const {insertStageAt, insertLensAt, moveStageId, moveLensId, moveDir} = orderBtn.dataset;
+        const dir = moveDir === '-1' ? -1 : 1;
+        if (insertStageAt !== undefined) {
+          onInsertStageAtRef.current?.(Number(insertStageAt));
+        } else if (insertLensAt !== undefined) {
+          onInsertLensAtRef.current?.(Number(insertLensAt));
+        } else if (moveStageId) {
+          onMoveStageRef.current?.(moveStageId, dir);
+        } else if (moveLensId) {
+          onMoveLensRef.current?.(moveLensId, dir);
+        }
+        return;
+      }
+
       // Intercept clicks on the stage edit button.
       const stageEditBtn = (event.target as HTMLElement).closest?.('[data-edit-stage-id]') as HTMLElement | null;
       if (stageEditBtn && container.contains(stageEditBtn)) {
@@ -238,10 +294,13 @@ export default function JourneyMatrixTabulator({
             actorType: rowData.lensActorType || undefined,
             lensId: String(rowData.id),
             doesPlannedWork: rowData.lensActorType ? Boolean(rowData.lensDoesPlannedWork) : undefined,
+            position: orderingEnabledRef.current
+              ? {index: Number(rowData.lensIndex), count: Number(rowData.lensCount)}
+              : undefined,
           });
         },
       },
-      ...currentStages.map((stage) => {
+      ...currentStages.map((stage, stageIndex) => {
         const ownerLens = stage.primaryActorLens
           ? currentLenses.find((l) => l.key === stage.primaryActorLens || l.id === stage.primaryActorLens)
           : undefined;
@@ -254,6 +313,7 @@ export default function JourneyMatrixTabulator({
             primaryActorLabel: ownerLens?.label,
             stageId: stage.id,
             isReady: currentStageReadiness ? currentStageReadiness[stageReadinessKey] : undefined,
+            position: orderingEnabledRef.current ? {index: stageIndex, count: currentStages.length} : undefined,
           }),
           field: stage.id,
           width: 240,

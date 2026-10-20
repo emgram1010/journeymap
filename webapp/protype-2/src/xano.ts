@@ -236,6 +236,8 @@ type RenameJourneyLensInput = {
 type AddJourneyStageInput = {
   journeyMapId: number;
   label?: string;
+  /** ORD-1 — insert after this stage id; 0 = insert first; omit = append. */
+  afterStageId?: number;
 };
 
 type RemoveJourneyStageInput = {
@@ -251,6 +253,8 @@ type AddJourneyLensInput = {
   personaDescription?: string;
   primaryGoal?: string;
   standingConstraints?: string;
+  /** ORD-1 — insert after this lens id; 0 = insert first; omit = append. */
+  afterLensId?: number;
 };
 
 type UpdateLensActorFieldsInput = {
@@ -1116,9 +1120,32 @@ export async function renameJourneyLens(input: RenameJourneyLensInput): Promise<
 }
 
 export async function addJourneyStage(input: AddJourneyStageInput): Promise<void> {
+  const body: Record<string, unknown> = {};
+  if (input.label) body.label = input.label;
+  // `0` is meaningful (insert first), so test for undefined, not truthiness.
+  if (input.afterStageId !== undefined) body.after_stage_id = input.afterStageId;
   await xanoRequest<unknown>(buildParameterizedPath(getXanoAddStagePath(), {journeyMapId: input.journeyMapId}), {
     method: 'POST',
-    body: input.label ? {label: input.label} : undefined,
+    body: Object.keys(body).length > 0 ? body : undefined,
+  });
+}
+
+// ORD-1 (US-ORD-1-03) — send every id in the new order. The server refuses
+// anything that is not an exact permutation (E-ORD-001) and writes nothing.
+const XANO_REORDER_STAGES_PATH = '/journey_stage/reorder/:journeyMapId';
+const XANO_REORDER_LENSES_PATH = '/journey_lens/reorder/:journeyMapId';
+
+export async function reorderJourneyStages(input: {journeyMapId: number; stageIds: number[]}): Promise<void> {
+  await xanoRequest<unknown>(buildParameterizedPath(XANO_REORDER_STAGES_PATH, {journeyMapId: input.journeyMapId}), {
+    method: 'POST',
+    body: {stage_ids: input.stageIds},
+  });
+}
+
+export async function reorderJourneyLenses(input: {journeyMapId: number; lensIds: number[]}): Promise<void> {
+  await xanoRequest<unknown>(buildParameterizedPath(XANO_REORDER_LENSES_PATH, {journeyMapId: input.journeyMapId}), {
+    method: 'POST',
+    body: {lens_ids: input.lensIds},
   });
 }
 
@@ -1137,6 +1164,7 @@ export async function addJourneyLens(input: AddJourneyLensInput): Promise<void> 
   if (input.personaDescription) body.persona_description = input.personaDescription;
   if (input.primaryGoal) body.primary_goal = input.primaryGoal;
   if (input.standingConstraints) body.standing_constraints = input.standingConstraints;
+  if (input.afterLensId !== undefined) body.after_lens_id = input.afterLensId;
   await xanoRequest<unknown>(buildParameterizedPath(getXanoAddLensPath(), {journeyMapId: input.journeyMapId}), {
     method: 'POST',
     body: Object.keys(body).length > 0 ? body : undefined,

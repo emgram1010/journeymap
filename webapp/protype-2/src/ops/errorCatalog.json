@@ -683,6 +683,28 @@
     "severity": "info",
     "fix_hint": "Reload the day and drag again. The order was left exactly as it was — a partial reorder is never applied."
   },
+  "E-ORD-001": {
+    "code": "E-ORD-001",
+    "feature": "ORD-1",
+    "user_message": "That column (or row) order doesn't match this map, so nothing was changed. Refresh and try again.",
+    "message_varies": true,
+    "what_happened": "A reorder of a journey map's columns or rows was sent that did not list exactly the columns/rows currently in the map — one was missing, repeated, or belonged to a different map.",
+    "likely_cause": "The map changed in another tab, or someone else added or removed a column/row while this screen was open.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload the map and move it again. The order was left exactly as it was — a partial reorder is never applied. Different from E-PLN-016, which is the same rule for a planner day."
+  },
+  "E-ORD-002": {
+    "code": "E-ORD-002",
+    "feature": "ORD-1",
+    "user_message": "The column (or row) you tried to insert next to isn't in this map any more, so nothing was added. Refresh and try again.",
+    "message_varies": true,
+    "what_happened": "An insert-at-position named an after_stage_id / after_lens_id that is not a column/row of this map.",
+    "likely_cause": "The screen is stale: that column or row was removed (or moved to another map) after the page loaded. Refetch, don't retry.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload the map; the seam + will then point at real columns/rows. Nothing was created."
+  },
   "E-PLN-017": {
     "code": "E-PLN-017",
     "feature": "APP-1",

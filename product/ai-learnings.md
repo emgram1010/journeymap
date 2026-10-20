@@ -106,3 +106,31 @@ When an audit turns up something real — orphaned rows, a dead
 endpoint, a lying dialog — the useful output is the fix, not a
 well-written description of the problem. Report what could not be
 fixed and why, not a list of everything observed.
+
+## 9. "I looked and it isn't there" is not the same as "it doesn't exist"
+
+Three times in Epic-8 I stated a confident negative that one more
+query would have disproved:
+
+- I called `ai/tool/mutate_structure`'s `reorder_stages` dead code
+  from reading it. A scratch function reproducing the loop showed it
+  works.
+- I told the founder there were **no test users** and that creating
+  some was a decision they had to make, and wrote it into the epic as
+  a blocker. There were five, in five different accounts, left by
+  AUTH-1, GOV-1, DEL-1 and PLN-9. I had searched for *one* email from
+  the Playwright specs, found it missing, and generalised from that to
+  the whole table.
+- I wrote in an endpoint comment that a call with no filter "returns
+  an empty list exactly as before". It returns 400. The validator was
+  visible in the schema I had already read.
+
+Each one cost real work: the first produced a retraction, the second
+told the founder they were blocked when they were not, the third put
+a false statement into code where someone would later trust it.
+
+The pattern is the same every time: **the evidence for a negative was
+the absence of something in a narrow lookup.** A negative claim needs
+the query that would have found it — list the table, not one row;
+check the count, not one id. If that query has not been run, the
+honest form is "I did not find X", not "X does not exist".
