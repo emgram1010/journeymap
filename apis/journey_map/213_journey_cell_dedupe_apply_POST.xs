@@ -24,8 +24,21 @@
 //      planned_deletions  : [ { group:{journey_map,stage,lens}, kept_id, removed_ids:[...], reason } ],
 //      ambiguous_groups   : [ { group:{...}, candidate_ids:[...], reason } ],
 //      ran_at             : timestamp }
+//
+// US-SEC-1-05 (2026-10-19) — PLATFORM ADMIN ONLY, AND THE MOST
+// DANGEROUS ENDPOINT IN THIS GROUP. It DELETES journey_cell rows, with
+// no journey_map_id required, across every account. It needed no login.
+// `dry_run` defaults to true and `confirm` must be true, which is a
+// fat-finger guard, not a security boundary — an anonymous caller could
+// simply pass both and mass-delete cells from every customer's maps.
+//
+// Gated on `is_platform_admin` rather than ownership because a
+// cross-account delete has no single owning account. The refusal logs a
+// `rejected` event with E-OBS-001 before it throws, so an attempt on
+// this endpoint in particular leaves a record (OBS-1).
 query "journey_cell/dedupe_apply" verb=POST {
   api_group = "journey-map"
+  auth = "user"
 
   input {
     int journey_map_id?
@@ -34,6 +47,15 @@ query "journey_cell/dedupe_apply" verb=POST {
   }
 
   stack {
+    function.run "ops/require_platform_admin" {
+      input = {
+        user_id: $auth.id
+        what   : "maintenance tool"
+        feature: "SEC-1"
+        step   : "dedupe_apply"
+      }
+    } as $admin_guard
+  
     precondition ($input.dry_run || $input.confirm) {
       error_type = "badrequest"
       error = "Refusing to delete: pass dry_run=false AND confirm=true to actually delete rows."

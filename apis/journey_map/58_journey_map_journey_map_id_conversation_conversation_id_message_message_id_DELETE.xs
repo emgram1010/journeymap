@@ -1,8 +1,19 @@
 // Delete an individual message from a conversation.
 // Validates the message belongs to a conversation owned by the given journey map.
 // Recalculates last_message_at on the parent conversation after deletion.
+//
+// US-SEC-1-04 (2026-10-18) — WAS AN OPEN DELETE. No login, three
+// guessable integers, and any single message in any account's AI
+// conversation could be removed — the quietest of the four, because a
+// conversation missing one answer still looks intact.
+//
+// THE "DOES THE MAP EXIST" READ IS NOW THE OWNERSHIP CHECK — see
+// endpoint 54's note. `journey/assert_map_owner` holds the rule for
+// all eight row-touching endpoints in this group, and logs `rejected`
+// with E-GOV-001 on a refusal (GOV-1).
 query "journey_map/{journey_map_id}/conversation/{conversation_id}/message/{message_id}" verb=DELETE {
   api_group = "journey-map"
+  auth = "user"
 
   input {
     int journey_map_id? filters=min:1
@@ -11,15 +22,18 @@ query "journey_map/{journey_map_id}/conversation/{conversation_id}/message/{mess
   }
 
   stack {
-    db.get journey_map {
-      field_name = "id"
-      field_value = $input.journey_map_id
-    } as $journey_map
+    function.run "planner/resolve_actor" {
+      input = {user_id: $auth.id}
+    } as $actor
   
-    precondition ($journey_map != null) {
-      error_type = "notfound"
-      error = "Journey map not found"
-    }
+    function.run "journey/assert_map_owner" {
+      input = {
+        journey_map_id   : $input.journey_map_id
+        caller_account_id: $actor.account_id
+        user_id          : $auth.id
+        step             : "delete_conversation_message"
+      }
+    } as $guard
   
     db.get agent_conversation {
       field_name = "id"
