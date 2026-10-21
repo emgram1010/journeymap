@@ -15,6 +15,7 @@ import {
   summariseJob,
   reasonLabel,
   eventLabel,
+  cardVariance,
 } from './varianceDisplay';
 
 // ── roundMinutes ─────────────────────────────────────────────────────
@@ -126,4 +127,80 @@ test('UT-W3-15 event types read as words', () => {
   assert.equal(eventLabel('completed'), 'Finished');
   assert.equal(eventLabel('blocked'), 'Blocked');
   assert.equal(eventLabel('invented'), 'invented');
+});
+
+// ── BLK-1 (US-BLK-1-06): a tweak is a promise about the card ──────────
+//
+// The decision these lock in: a card-level duration tweak is NEVER
+// attributed down to its steps. If it were, the invented split would
+// flow into the process variance, which is the figure the product's
+// whole claim rests on.
+
+const JONES_STEPS = [
+  {expected_minutes: 120, actual_minutes: 118},
+  {expected_minutes: 240, actual_minutes: 265},
+];
+
+test('UT-BLK-1-06: an untweaked card reports both gaps, and they agree', () => {
+  const v = cardVariance(JONES_STEPS, 360); // committed === estimated sum
+  assert.equal(v.actual_minutes, 383);
+  assert.equal(v.expected_minutes, 360);
+  assert.equal(v.process_gap_minutes, 23);
+  assert.equal(v.plan_gap_minutes, 23);
+  assert.equal(v.is_tweaked, false);
+});
+
+test('UT-BLK-1-07: tweaking the card moves the PLAN gap only -- the process gap is untouched', () => {
+  const before = cardVariance(JONES_STEPS, 360);
+  const after = cardVariance(JONES_STEPS, 300); // planner cut it to 300
+
+  // This is the assertion the whole story exists for.
+  assert.equal(after.process_gap_minutes, before.process_gap_minutes);
+  assert.equal(after.expected_minutes, before.expected_minutes);
+
+  assert.equal(after.plan_gap_minutes, 83);
+  assert.equal(after.is_tweaked, true);
+});
+
+test('UT-BLK-1-08: the steps own the estimate -- a tweak never changes what a step expected', () => {
+  const tweaked = cardVariance(JONES_STEPS, 60);
+  // Still 120 + 240, exactly as the pinned version says.
+  assert.equal(tweaked.expected_minutes, 360);
+});
+
+test('UT-BLK-1-09: a card has no actual of its own -- it is summed from recorded steps', () => {
+  const half = cardVariance(
+    [
+      {expected_minutes: 120, actual_minutes: 118},
+      {expected_minutes: 240, actual_minutes: null},
+    ],
+    360,
+  );
+  // Only the finished step counts, on BOTH sides, so a half-done card
+  // is not reported as wildly under plan.
+  assert.equal(half.actual_minutes, 118);
+  assert.equal(half.expected_minutes, 120);
+  assert.equal(half.recorded_steps, 1);
+  assert.equal(half.total_steps, 2);
+});
+
+test('UT-BLK-1-10: nothing recorded yet reports null gaps, never zero', () => {
+  const v = cardVariance([{expected_minutes: 30, actual_minutes: null}], 30);
+  assert.equal(v.actual_minutes, null);
+  assert.equal(v.process_gap_minutes, null);
+  assert.equal(v.plan_gap_minutes, null);
+  assert.equal(v.recorded_steps, 0);
+});
+
+test('UT-BLK-1-11: is_tweaked compares against the FULL estimate, not the recorded part', () => {
+  // One step done; the card was committed at the full estimated sum, so
+  // it is not tweaked even though only 120 of 360 minutes are recorded.
+  const v = cardVariance(
+    [
+      {expected_minutes: 120, actual_minutes: 118},
+      {expected_minutes: 240, actual_minutes: null},
+    ],
+    360,
+  );
+  assert.equal(v.is_tweaked, false);
 });

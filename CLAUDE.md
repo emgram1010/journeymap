@@ -13,36 +13,33 @@
 - Treat their statements as direction, not gospel: validate, refine, point out gaps, then ask.
 - Their examples are **illustrations**. Design the generic pattern; never build for a literal example (no industry assumptions).
 
-## 🔴 Response format — a hard cap, not a style note
+## 🔴 Response format — short bullets, always
 
-The founder is ADHD/INTP and has asked for this **four times** across sessions.
-"Short and scannable" kept being interpreted generously, so it is now countable.
+Asked for **five times**. Two failure modes, both wrong:
+1. Many bullets with sub-bullets and tables (treating a cap as a budget to spend).
+2. Prose paragraphs, after being told there were too many bullets.
 
-**Every chat response obeys all of these, by default:**
+**The answer is always short bullets. Prose is NOT the fallback.**
 
 | Rule | Limit |
 |---|---|
-| Top-level bullets | **7 max** |
-| Lines per bullet | **1** (2 only if a number or a name won't fit) |
-| Sub-bullets | **none** |
-| Tables | **none unless asked**, or unless replacing >4 bullets |
-| Preamble / closing summary | **none** — no "here's what I found", no recap of what was just said |
-| Open questions | **1 max**, last, its own bullet |
+| Bullets | **5 max**, and fewer is better |
+| Each bullet | **one line**, about 15 words, max 25 |
+| Paragraphs | **never** — not even one |
+| Sub-bullets, tables | **none unless asked** |
+| Preamble, recap | **none** |
+| Question | **1 max**, last, its own bullet |
 
-**Then stop and offer:** one closing line naming the detail available
-("say the word and I'll expand X"). Do not deliver it unasked.
+**When the founder asks for more detail, the answer is still bullets** — more
+specific ones, not sentences. Depth means better bullets, never a wall of text.
 
-**Applies hardest to** build reports, discovery write-ups, epic summaries and
-"what did you do" answers — the exact cases where long-form is most tempting.
+**Headings are allowed** to separate two topics, with its own bullets under each.
 
-**What this does NOT mean:** fewer findings. Research still happens in full and a
-real risk still gets a bullet. **Trim words, never substance.** If the content
-genuinely cannot fit, say so in one bullet and offer the long version — do not
-silently exceed the cap.
+**Trim words, never findings.** A real risk keeps its bullet. If it genuinely
+will not fit, say so in one bullet and offer the long version.
 
-**Exception:** the founder explicitly asks for depth ("explain in detail", "walk
-me through it", "give me the full write-up"). Documents written to files are not
-chat and are not capped.
+**Exceptions:** the founder explicitly asks for a write-up or walkthrough, or
+the output is a file. Files are never capped.
 
 ## Build protocol (one epic at a time)
 1. Work in the **MVP build order** in `product/stories/phase-4/README.md`. Do not start an epic whose dependencies are not done. Build only the stories marked in the epic's **MVP scope**; deferred stories wait.

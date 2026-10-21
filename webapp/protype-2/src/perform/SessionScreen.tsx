@@ -5,7 +5,7 @@
 // is its own server event), gated by `canFinishSession`.
 import {ChevronLeft} from 'lucide-react';
 import type {Session} from './sessionModel';
-import {nextItemToWork, canFinishSession} from './sessionModel';
+import {nextSubStepToWork, canFinishSession} from './sessionModel';
 import type {TaskStatus} from './performerView';
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
@@ -39,7 +39,7 @@ export default function SessionScreen({
   onStartSession: () => void;
   onFinishSession: () => void;
 }) {
-  const next = nextItemToWork(session);
+  const next = nextSubStepToWork(session);
   const canFinish = canFinishSession(session);
   const notStarted = session.status === 'not_started';
 
@@ -63,30 +63,96 @@ export default function SessionScreen({
       </header>
 
       <main className="px-4 py-4">
+        {/*
+          BLK-1 (US-BLK-1-04) — a card can hold a whole order's work for
+          one actor row, so EVERY stage inside it is listed and tappable.
+          This used to render `subSteps[0]` only: on a two-step card the
+          second stage was unreachable, with nothing on screen to say it
+          existed.
+
+          A single-step card still renders as one plain row, exactly as
+          before, so nothing changes for a plan that has not been
+          scheduled as cards.
+        */}
         <ul className="space-y-2">
           {session.items.map((item) => {
-            const sub = item.subSteps[0];
-            const isNext = next?.itemRef === item.itemRef;
-            const label = item.title || sub?.stageLabel || item.itemRef;
-            return (
-              <li key={item.itemRef}>
-                <button
-                  type="button"
-                  onClick={() => sub && onOpenStep(sub.workTaskId)}
-                  className={`w-full text-left rounded-xl border bg-white p-3 min-h-[44px] ${
-                    isNext ? 'border-zinc-900 ring-1 ring-zinc-900' : 'border-zinc-200'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs text-zinc-400">{item.plannedStartLabel}</p>
-                      <p className="text-sm font-medium text-zinc-900 truncate">{label}</p>
+            const isBlock = item.subSteps.length > 1;
+
+            if (!isBlock) {
+              const sub = item.subSteps[0];
+              const isNext = next?.workTaskId === sub?.workTaskId;
+              const label = item.title || sub?.stageLabel || item.itemRef;
+              return (
+                <li key={item.itemRef}>
+                  <button
+                    type="button"
+                    onClick={() => sub && onOpenStep(sub.workTaskId)}
+                    className={`w-full text-left rounded-xl border bg-white p-3 min-h-[44px] ${
+                      isNext ? 'border-zinc-900 ring-1 ring-zinc-900' : 'border-zinc-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs text-zinc-400">{item.plannedStartLabel}</p>
+                        <p className="text-sm font-medium text-zinc-900 truncate">{label}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-medium ${STATUS_COLORS[item.status]}`}>
+                        {STATUS_LABELS[item.status]}
+                      </span>
                     </div>
-                    <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-medium ${STATUS_COLORS[item.status]}`}>
-                      {STATUS_LABELS[item.status]}
-                    </span>
+                  </button>
+                </li>
+              );
+            }
+
+            const rowLabel = item.subSteps[0]?.lensLabel;
+            return (
+              <li key={item.itemRef} className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
+                <div className="flex items-center justify-between gap-3 px-3 pt-3 pb-2">
+                  <div className="min-w-0">
+                    <p className="text-xs text-zinc-400">{item.plannedStartLabel}</p>
+                    <p className="text-sm font-medium text-zinc-900 truncate">
+                      {item.title || rowLabel || item.itemRef}
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {item.subSteps.length} steps · {item.scheduledMinutes} min
+                    </p>
                   </div>
-                </button>
+                  <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-medium ${STATUS_COLORS[item.status]}`}>
+                    {STATUS_LABELS[item.status]}
+                  </span>
+                </div>
+                <ol className="border-t border-zinc-100">
+                  {item.subSteps.map((sub, index) => {
+                    const isNext = next?.workTaskId === sub.workTaskId;
+                    return (
+                      <li key={sub.workTaskId} className="border-b border-zinc-100 last:border-b-0">
+                        <button
+                          type="button"
+                          onClick={() => onOpenStep(sub.workTaskId)}
+                          className={`w-full text-left px-3 py-2.5 min-h-[44px] flex items-center justify-between gap-3 ${
+                            isNext ? 'bg-zinc-50 ring-1 ring-inset ring-zinc-900' : ''
+                          }`}
+                        >
+                          <div className="min-w-0 flex items-start gap-2">
+                            <span className="text-xs text-zinc-400 pt-0.5 shrink-0">{index + 1}.</span>
+                            <div className="min-w-0">
+                              <p className="text-sm text-zinc-900 truncate">{sub.stageLabel || sub.stageKey}</p>
+                              {sub.expectedMinutes != null && (
+                                <p className="text-xs text-zinc-400">{sub.expectedMinutes} min</p>
+                              )}
+                            </div>
+                          </div>
+                          <span
+                            className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-medium ${STATUS_COLORS[sub.status]}`}
+                          >
+                            {isNext ? 'Next' : STATUS_LABELS[sub.status]}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ol>
               </li>
             );
           })}

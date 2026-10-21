@@ -13,22 +13,31 @@
 // another day but never taken off, because `backlog_work` decides
 // "unscheduled" purely by absence from `planner_task_work_task`.
 //
-// TWO REFUSALS, both the same shape as the deletes already live.
-// (First written as E-SCHED-002/003 — both were already taken, by the
-// duration check and the concurrent-edit check. Caught by grepping the
-// catalog before wiring the UI, not by anything failing.)
+// BLK-1 (US-BLK-1-03, 2026-10-21) — THIS IS NOW THE CARD-LEVEL UNDO.
+// A slot can hold a whole card (one job's steps for one actor row), so
+// taking any one of its steps off the day releases the WHOLE card. The
+// epic asked for a separate card endpoint; one endpoint that is
+// card-aware is better, because two code paths doing the same delete
+// is exactly how the two eventually disagree about the rule.
+//
+// Which means BOTH REFUSALS NOW LOOK AT EVERY STEP THE SLOT COVERS,
+// not only the one named in the URL. Refusing on the named step alone
+// would let a card be dissolved out from under a sibling step that had
+// already been started — the slot would vanish and that work would
+// have nowhere to point.
 //
 //   E-SCHED-006  the day is PUBLISHED. LIVE-1 froze that day and handed
 //                it to someone; the publication snapshot and every
 //                activity_log row still name this slot. Same reasoning
 //                as E-P3A-003 on deleting a published timeline.
-//   E-SCHED-007  the step has been WORKED ON. Checked two ways, because
-//                either alone has a hole: the live status (anything but
-//                not_started means it moved) AND any activity_log row
-//                (a note can be left on a step nobody has started, and
-//                that note is evidence the slot existed).
+//   E-SCHED-007  ANY step of the card has been WORKED ON. Checked two
+//                ways, because either alone has a hole: the live status
+//                (anything but not_started means it moved) AND any
+//                activity_log row (a note can be left on a step nobody
+//                has started, and that note is evidence the slot
+//                existed).
 //
-// Everything else — a draft day, an untouched step — unschedules.
+// Everything else — a draft day, untouched steps — unschedules.
 query "work_task/{work_task_id}/schedule" verb=DELETE {
   api_group = "planner"
   auth = "user"
@@ -103,6 +112,12 @@ query "work_task/{work_task_id}/schedule" verb=DELETE {
       value = ""
     }
 
+    // Every step the slot covers. Seeded with -1 so the `in` clauses
+    // below are never handed an empty array (CLAUDE.md).
+    var $card_ids {
+      value = [-1]
+    }
+
     conditional {
       if ($has_link == true) {
         db.get planner_task {
@@ -118,13 +133,31 @@ query "work_task/{work_task_id}/schedule" verb=DELETE {
         var.update $timeline_status {
           value = ($tl.status ?? "")
         }
+
+        db.query planner_task_work_task {
+          where = $db.planner_task_work_task.planner_task_id == $link.planner_task_id
+          return = {type: "list"}
+        } as $siblings
+
+        foreach ($siblings) {
+          each as $sib {
+            array.push $card_ids {
+              value = $sib.work_task_id
+            }
+          }
+        }
       }
     }
 
     db.query activity_log {
-      where = $db.activity_log.work_task_id == $input.work_task_id
+      where = $db.activity_log.work_task_id in $card_ids
       return = {type: "count"}
     } as $activity_count
+
+    db.query work_task {
+      where = $db.work_task.id in $card_ids && $db.work_task.status != "not_started"
+      return = {type: "count"}
+    } as $moved_count
 
     var $reject_code {
       value = ""
@@ -147,7 +180,7 @@ query "work_task/{work_task_id}/schedule" verb=DELETE {
     }
 
     conditional {
-      if ($reject_code == "" && $has_link == true && ($wt.status != "not_started" || $activity_count > 0)) {
+      if ($reject_code == "" && $has_link == true && ($moved_count > 0 || $activity_count > 0)) {
         var.update $reject_code {
           value = "E-SCHED-007"
         }
@@ -198,22 +231,25 @@ query "work_task/{work_task_id}/schedule" verb=DELETE {
         entity_type   : "work_task"
         entity_id     : $input.work_task_id
         correlation_id: $input.correlation_id
-        message       : "Job step returned to the backlog."
+        message       : "Card returned to the backlog."
         metadata      : {
           workspace_id   : $job.workspace_id
           work_item_id   : $wt.work_item_id
           removed_slot_id: $removed.removed_slot_id
           container      : $removed.container
           was_linked     : $has_link
+          released_count : $removed.released_count
         }
       }
     }
   }
 
   response = {
-    work_task_id         : $input.work_task_id
-    already_unscheduled  : ($has_link == false)
-    removed_slot_id      : $removed.removed_slot_id
-    container            : $removed.container
+    work_task_id          : $input.work_task_id
+    already_unscheduled   : ($has_link == false)
+    removed_slot_id       : $removed.removed_slot_id
+    container             : $removed.container
+    released_work_task_ids: $removed.released_work_task_ids
+    released_count        : $removed.released_count
   }
 }

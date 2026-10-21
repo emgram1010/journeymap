@@ -116,3 +116,94 @@ const EVENT_LABELS: Record<string, string> = {
 export function eventLabel(eventType: string): string {
   return EVENT_LABELS[eventType] ?? eventType;
 }
+
+// ── BLK-1 (US-BLK-1-06): two variances, never one ──────────────────────
+//
+// A card can now cover several steps, which creates two different
+// questions that look like one number:
+//
+//   PROCESS variance  the steps' ACTUAL time against what the published
+//                     version ESTIMATED. Answers "is our process
+//                     estimate right?" — it belongs to the Definition
+//                     layer and must stay clean.
+//   PLAN variance     the card's actual against what the planner
+//                     COMMITTED on the day (`planner_task.duration_minutes`,
+//                     which may have been tweaked). Answers "did we do
+//                     what we promised today?"
+//
+// THE TWEAK IS NEVER ATTRIBUTED DOWN TO THE STEPS. Cutting a card from
+// 300 minutes to 240 says nothing about WHICH step the planner meant to
+// shorten, so any split would be invented — and the invented number
+// would then flow into the process variance, the one figure the whole
+// product depends on. Two numbers, neither derived from the other.
+//
+// A CARD HAS NO ACTUAL OF ITS OWN. It is summed from its steps here, on
+// read. A second stored copy is how `work_task.status` and
+// `activity_log` would have drifted, and this codebase already answers
+// that the same way: one is a cache of the other, never an independent
+// value.
+
+export interface CardStepTime {
+  /** From the pinned version. Null when the version has no estimate. */
+  expected_minutes: number | null;
+  /** Recorded by the performer. Null until the step is finished. */
+  actual_minutes: number | null;
+}
+
+export interface CardVariance {
+  /** Steps with a recorded actual. Nothing is judged without one. */
+  recorded_steps: number;
+  total_steps: number;
+  /** Summed from the steps — never stored on the card. */
+  actual_minutes: number | null;
+  /** The version's estimate for the steps that have an actual. */
+  expected_minutes: number;
+  /** What the planner committed on the day. */
+  committed_minutes: number;
+  /** actual − expected. "Is the estimate right?" */
+  process_gap_minutes: number | null;
+  /** actual − committed. "Did we do what we promised?" */
+  plan_gap_minutes: number | null;
+  /** True when the planner changed the card from the estimated sum. */
+  is_tweaked: boolean;
+}
+
+/**
+ * Both variances for one card, from its steps and its committed time.
+ *
+ * `committedMinutes` is `planner_task.duration_minutes`. Steps with no
+ * recorded actual are excluded from BOTH sums, so a half-finished card
+ * is never reported as massively under plan — the same rule
+ * `summariseJob` already follows.
+ */
+export function cardVariance(steps: CardStepTime[], committedMinutes: number): CardVariance {
+  const recorded = steps.filter((s) => s.actual_minutes !== null && s.actual_minutes !== undefined);
+  const expectedAll = steps.reduce((sum, s) => sum + (s.expected_minutes ?? 0), 0);
+
+  if (recorded.length === 0) {
+    return {
+      recorded_steps: 0,
+      total_steps: steps.length,
+      actual_minutes: null,
+      expected_minutes: 0,
+      committed_minutes: committedMinutes,
+      process_gap_minutes: null,
+      plan_gap_minutes: null,
+      is_tweaked: committedMinutes !== expectedAll,
+    };
+  }
+
+  const actual = recorded.reduce((sum, s) => sum + (s.actual_minutes ?? 0), 0);
+  const expected = recorded.reduce((sum, s) => sum + (s.expected_minutes ?? 0), 0);
+
+  return {
+    recorded_steps: recorded.length,
+    total_steps: steps.length,
+    actual_minutes: actual,
+    expected_minutes: expected,
+    committed_minutes: committedMinutes,
+    process_gap_minutes: actual - expected,
+    plan_gap_minutes: actual - committedMinutes,
+    is_tweaked: committedMinutes !== expectedAll,
+  };
+}

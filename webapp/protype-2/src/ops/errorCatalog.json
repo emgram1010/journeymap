@@ -768,12 +768,13 @@
   "E-SCHED-001": {
     "code": "E-SCHED-001",
     "feature": "SCHED-1",
-    "user_message": "This step is already on the schedule.",
-    "what_happened": "A job step was scheduled when it already had a slot, or belongs to a cancelled job.",
+    "user_message": "That work is already on the schedule.",
+    "what_happened": "A step, or a card covering several steps, was sent for scheduling when it already holds a slot. BLK-1 made the wording depend on which: one step, or a whole card of them.",
     "likely_cause": "The backlog was open in two places, or the step was scheduled a moment ago from another screen.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "Reload the backlog — a step that is already scheduled disappears from it. Each step gets one slot, so the same work can never be given out twice."
+    "fix_hint": "Reload the backlog — a step that is already scheduled disappears from it. Each step gets one slot, so the same work can never be given out twice.",
+    "message_varies": true
   },
   "E-SCHED-002": {
     "code": "E-SCHED-002",
@@ -974,5 +975,16 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Finish or remove that work first, or rename the column instead — a rename keeps the key, which is what execution records point at."
+  },
+  "E-BLK-001": {
+    "code": "E-BLK-001",
+    "feature": "BLK-1",
+    "user_message": "That card has no steps waiting to be scheduled. Refresh and try again.",
+    "message_varies": false,
+    "what_happened": "A card was sent for scheduling but the server found no unscheduled steps for that job and actor row.",
+    "likely_cause": "The screen is stale: somebody else scheduled it, or the job's steps moved, after the page loaded. Refetch, don't retry.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload the backlog. Nothing was scheduled and nothing was changed."
   }
 }

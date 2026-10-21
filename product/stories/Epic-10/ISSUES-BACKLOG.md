@@ -22,6 +22,11 @@ shipped — it all predates it or sits next to it.
 | 13 | 🟢 Low | Seam/arrow polish: no keyboard shortcuts, no drag, narrow columns | Power users | M |
 | 14 | 🟢 Low | `planner/resolve_actor` is misnamed (generic, used by 15 journey-map endpoints) | Developers | S |
 | 15 | 🟡 Medium | A removed column/row's **key can be re-minted** for the next one added | Anyone reading an old published version | M |
+| ~~16~~ | ✅ Fixed | ~~Anyone logged in can delete a column or row from any map~~ — **fixed 2026-10-21**, account-scoped | — | — |
+| 17 | 🟡 Medium | The Day Board **opens on a date outside the plan's own window**, showing an empty lane with no hint | Anyone opening a plan — cost a real hour on 2026-10-20 | S |
+| 18 | 🟡 Medium | `work_item.attributes` is **free-form JSON**, so quantities never aggregate across jobs | Anyone asking "how many did we process last month" | M |
+| 19 | 🟡 Medium | **Child jobs are impossible** — `parent_work_item_id` is hardcoded to 0 on create | The damaged-items-go-to-repair flow | M |
+| 20 | 🟢 Low | Test junk in the founder's live account: 12 test plan templates, 2 links to a deleted map | The founder, every time they open Templates | XS |
 
 Fixed along the way (not open): see the bottom of this file.
 
@@ -203,3 +208,109 @@ blocked. The exposed case is a published version with **no** tasks against it.
 `journey_map`, or the max taken across live rows **and** every version
 snapshot). This changes the mint ORD-1 shipped, so it wants its own story and
 its own test pass — not a patch.
+
+## ✅ 16. Anyone logged in can delete a column or row from any map — FIXED
+
+**What:** `journey_stage/remove/{id}` (endpoint 48) and
+`journey_lens/remove/{id}` (endpoint 50) check only that the row exists. There
+is no ownership check of any kind. Confirmed by reading the **live** source on
+2026-10-20, during ORD-2.
+
+**How it shows up:** it does not, until it does. Any authenticated user of any
+account can delete a column, and its cells, from any map in the workspace.
+ORD-2 deliberately left this unchanged rather than alter behaviour inside a
+refactor, and recorded it here instead.
+
+**Not tested, on purpose.** The only way to prove it is to delete something of
+the founder's.
+
+**Fixed 2026-10-21.** Both endpoints now load the row, then call
+`journey/assert_map_owner` — the same guard the reorder endpoints use.
+
+**Account-scoped, not owner-scoped**, matching those endpoints and SEC-1's
+rule: a teammate in the same account may remove a column. That also closes the
+inconsistency in #7, where a teammate could already reorder a map they could
+not add to. The founder was asleep and had said to proceed on recommendation;
+this was the recommendation, and it is a one-line change to reverse.
+
+**Proved live:** deleting a stage and a lens from **another test account's**
+map is refused 403 `E-GOV-001` with the row still present; the same call on the
+caller's own map succeeds and cascades; no token is 401. The refusal test
+deliberately targeted another test account rather than map 178, so a failing
+guard could not have damaged real work.
+
+## 🟡 17. The Day Board opens on a date outside the plan's own window
+
+**What:** plan "tesy" has a planning window of 20 Oct – 2 Nov. The Day Board
+opened on **13 Oct** — before the window starts — because an earlier timeline
+existed on that date. The agent's lane was genuinely empty, and nothing on
+screen said the date was outside the plan, or that work existed on another day.
+
+**How it shows up:** exactly as "the feature is broken". On 2026-10-20 the
+founder scheduled 8 steps correctly, then reported seeing no tasks. Everything
+was right; the board was simply parked a week early. The Schedule view showed
+the work immediately.
+
+**Fix:** open the Day Board on the first date **inside** the planning window
+that has work, and mark an out-of-window date on screen. The board endpoint
+already computes an `oow` flag per timeline — it is just not used to choose the
+opening date.
+
+## 🟡 18. Job quantities are free-form, so they never add up
+
+**What:** `work_item.attributes` is an open `json` column. A job can carry
+`{chairs: 25, tables: 3}`, and the next one `{Chairs: 40}` or
+`{chair_count: 40}`. Nothing constrains the keys and nothing reports on them.
+
+**How it shows up:** the moment anyone asks "how many items did we turn around
+last month". The data is all there and cannot be summed.
+
+**Fix:** depends on how far you want to go. Smallest: a declared list of
+quantity keys per map, validated on job creation. Largest: this is really the
+same need as [CAP-1](../Epic-12/EPIC-CAP-1-capture-fields.md) — a declared,
+typed field set — applied to the job rather than the step. Worth deciding
+together with CAP-1 rather than separately.
+
+## 🟡 19. Child jobs are impossible
+
+**What:** `work_item.parent_work_item_id` exists on the table, but
+`apis/planner/554_work_item_POST.xs` writes `parent_work_item_id: 0`
+unconditionally. Nothing can ever set it.
+
+**How it shows up:** the flow the founder described — 3 damaged tables leaving
+the main process for a repair map — cannot be built. It is the concrete form of
+"structure follows divergence, not count", and today the divergence has nowhere
+to go.
+
+**Fix:** accept an optional parent on create, and add the action that produces
+one: "split these items out of this job". Both ORD-2's and BLK-1's **Still
+open** sections name this as the natural next epic.
+
+## 🟢 20. Test junk in the founder's live account
+
+**What:** account 2 holds 15 plan templates, 12 of them active, of which 8 are
+named `E2E roster 17922…` plus `PLAN-3 smoke template`, `GAP-1 duplicate-name
+repro` and `guard check 1792296041`. The only real one, `Quote Handling
+Template`, is switched off and therefore hidden. Both of the account's only two
+template→map links point at **map 205, which no longer exists**.
+
+**How it shows up:** the Templates screen is mostly noise, and the one real
+template is invisible.
+
+**Fix:** delete the test templates and the two dangling links. Needs the
+founder's say-so — they are rows in their live account, not scratch data.
+
+---
+
+## Found while building BLK-1 (2026-10-21), fixed in the same change
+
+- **`planner/unschedule_work_task` deleted one link and then the whole slot.**
+  Correct while a slot held one step; the moment a slot holds a card it would
+  have deleted the slot and left its other links behind, pointing at nothing.
+  Those steps would have been invisible to the backlog forever — "unscheduled"
+  means "absent from that link table", and there would have been no slot left
+  to unschedule them from. Permanently stuck, nothing logged, no error. Found
+  by reading the function before building on it.
+- **Endpoint 576's refusals only looked at the named step.** A card could have
+  been dissolved out from under a sibling step that had already been started.
+  Both checks now cover every step the slot holds.
