@@ -106,6 +106,16 @@ export interface Task {
   jobStepTitle?: string;
   jobDoneWhen?: string;
   workTaskId?: string;
+  /**
+   * BLK-1 (US-BLK-1-07) — how many job steps this one slot covers.
+   *
+   * 1 for every slot built before BLK-1, and for any card whose actor
+   * row has a single stage. Above 1 the slot is a CARD: `workTaskId`,
+   * `jobStepTitle` and `jobDoneWhen` then describe only its FIRST
+   * step, so a screen showing them as the whole slot is lying. Check
+   * this before reading those three.
+   */
+  jobStepCount?: number;
   workItemId?: string;
 }
 

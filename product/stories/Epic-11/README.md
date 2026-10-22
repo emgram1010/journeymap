@@ -18,7 +18,7 @@ reach it through a day, so one order looks like several fragments.
 
 | Epic | What it enables | Status |
 |---|---|---|
-| [BLK-1 — One card per order](EPIC-BLK-1-one-card-per-order.md) | One card is one order's work for one actor row, scheduled in one action; the performer opens it and walks every stage start to finish | ✅ **Done (2026-10-21)** — 4 stories built and proved live, 05 deferred |
+| [BLK-1 — One card per order](EPIC-BLK-1-one-card-per-order.md) | One card is one order's work for one actor row, scheduled in one action; the performer opens it and walks every stage start to finish | ✅ **Done (2026-10-21)** — 5 stories built and proved live, 05 deferred |
 
 **One correction made before building (2026-10-21):** a card is one job's steps
 **for one actor row**, not the whole job. A live check found **7 of 23 existing
@@ -71,13 +71,14 @@ correctly and already arrive in the job.
 | 04 | The performer opens a job and walks it | **M** | Sonnet 5.5 |
 | ~~05~~ | ~~Reach a job without going through a day~~ | — | **Deferred** |
 | 06 | A tweak is a promise about the card, not its steps | **S–M** | Opus 5 — it decides what variance means |
+| 07 | The planner places a card, not a step | **M** | Opus 5 — it is also a fix to a live read path |
 
 **Story 05 is deferred.** The founder's "one pass, no dwell" decision removed
 the need: if an order is worked in a single day, the day view already shows the
 whole order, and a job-scoped screen reveals nothing new. Re-open it only if
 orders start spanning days.
 
-**Build order: 01 → 02 → 03 → 04 → 06**, backend before UI, so the one
+**Build order: 01 → 02 → 03 → 04 → 06 → 07**, backend before UI, so the one
 destructive story is proven over real HTTP before anything leans on it.
 
 **Total: roughly one working session.** Stories 02 and 06 earn Opus: 02 writes

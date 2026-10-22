@@ -22,6 +22,14 @@
 // slot that silently loses its text when the job is cancelled is the
 // blank-card bug all over again.
 //
+// BLK-1 (US-BLK-1-07, 2026-10-21) — `position` IS NOW RETURNED, and the
+// links are read in position order. A slot can cover a whole card since
+// story 02, and this function was the only thing that told the board
+// what a slot holds — without the position the frontend could group a
+// card's steps but not put them in the order they were agreed in, and
+// "first stage" would have meant "whichever row the query returned
+// first". Additive to the response, so no caller breaks.
+//
 // Composite keys use "::" — a literal "|" inside a quoted string
 // breaks the parser (CLAUDE.md).
 function "planner/job_step_hydration" {
@@ -149,6 +157,7 @@ function "planner/job_step_hydration" {
 
         db.query planner_task_work_task {
           where = $db.planner_task_work_task.work_task_id in $wt_ids
+          sort = {position: "asc"}
           return = {type: "list"}
         } as $links
 
@@ -202,6 +211,7 @@ function "planner/job_step_hydration" {
               value = {
                 planner_task_id : $l.planner_task_id
                 work_task_id    : $l.work_task_id
+                position        : $l.position
                 work_item_id    : $wt.work_item_id
                 job_title       : $job.title
                 job_status      : $job.status

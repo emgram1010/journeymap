@@ -1,7 +1,8 @@
 # EPIC-BLK-1 — One card per order
 
-**Status:** ✅ **done (2026-10-21).** Four stories built, pushed and proved
-live. Story 05 deferred by scope decision. Written 2026-10-20,
+**Status:** ✅ **done (2026-10-21).** Five stories built, pushed and proved
+live - 01-04 and 06 in the overnight session, **07 (the planner UI) the
+morning after**. Story 05 deferred by scope decision. Written 2026-10-20,
 rewritten the same day after the founder settled the question the design hung
 on, corrected on 2026-10-21 after a live check, and scoped to **four stories**
 on the same day.
@@ -456,6 +457,80 @@ existing `tweak_reason` field carries the explanation.
 **Done when:** tweaking a card changes the plan variance only, and the per-step
 process variance is byte-identical before and after.
 
+### US-BLK-1-07 — The planner places a card, not a step ✅ Done (2026-10-21)
+
+**As a** founder
+**I want** the Jobs screen to put a whole order on someone's day in one click
+**So that** what the planner sees and what the planner writes are the same thing.
+
+```gherkin
+Scenario: The backlog lists cards
+  Given a job with 2 unscheduled steps for one actor row
+  When I open Jobs
+  Then "Work waiting for a day" shows 1 row, naming the job and the actor row
+  And the row says how many steps it covers and their total minutes
+  And I can expand it to read every stage inside it
+
+Scenario: One click places the whole card
+  When I pick who and which day and press Place
+  Then one slot is created covering every step of that card
+  And the backlog row disappears
+
+Scenario: Taking a card off the day releases every step
+  Given a 2-step card is on someone's day
+  When I press Unschedule on it
+  Then both steps return to "Work waiting for a day"
+  And the notice says how many steps came back
+
+Scenario: One row per card, not per step
+  Given a 2-step card is scheduled
+  Then "Already on a day" shows 1 row, not 2
+  And it offers one Unschedule, not two
+
+Scenario: A board card says what it is
+  Given a slot covers 2 steps
+  Then its card on the day board names the job and says how many steps
+  And it does not show one arbitrary stage as though it were the whole card
+
+Scenario: A published day is still frozen
+  Given the day holding the card is published
+  Then the row shows "Live" and offers no Unschedule
+```
+
+**Method:** point the Jobs modal at the card endpoints stories 01-03 already
+built - `GET workspace/{id}/backlog_work` (559) for the list, `POST
+card/schedule` (583) to place one, `DELETE work_task/{id}/schedule` (576) to
+release one. Group the board's linked steps by slot so one slot renders as one
+thing.
+
+**Counter-measures:**
+- 🔴 **This is a fix, not only an enhancement.** Story 01 changed 559's
+  response and nothing on the frontend moved with it, so the backlog list
+  renders `row.task` and `row.stage_key` as `undefined` today - and because
+  every row's key is `undefined`, `schedulingFor === row.work_task_id` is true
+  for all rows at once, so one click opens every scheduler on the list. Found
+  by reading the drawer before writing to it.
+- 🔴 **`adaptBoard` keys its linked-steps `Map` by `planner_task_id`**, so a
+  multi-step slot keeps only whichever step the query happened to return last.
+  The board card has been showing one arbitrary stage, and the slot's
+  `workTaskId` has been pointing at it. Group them; do not overwrite.
+- **Delete the `scheduleWorkTask` wrapper** rather than leaving it beside
+  `scheduleCard`. Endpoint 560 stays live for API callers, but a second UI path
+  to the same write is how the two eventually disagree about the rule.
+- **Order must come from `position`, not from query order.**
+  `planner/job_step_hydration` returns its links unsorted and drops
+  `position`, so add both - additive to the response, so no caller breaks.
+- Leave the published-day lock exactly as it is: the server refuses
+  (`E-SCHED-006`/`E-SCHED-007`) and the row shows "Live" rather than offering a
+  button that will be turned down.
+- The grouping rule goes in a **pure function with its own tests**, not inline
+  in the component, so the card rule can be asserted without a browser.
+
+**Done when:** a job shows as one backlog row, Place creates one slot covering
+every stage of it, Unschedule returns all of them, and no screen calls 560.
+
+---
+
 ## Build results (2026-10-21)
 
 Proved live as **test user 9 in test account 6**, on a disposable plan and two
@@ -547,9 +622,86 @@ fixed before the suite went green.
   at a time through 560. That is the next piece of work and it is **not** in
   this epic; see Still open.
 
+## Build results — story 07 (2026-10-21, morning)
+
+The overnight session shipped the card endpoints and left the planner's own
+screen pointing at the old per-step shape. This is that screen.
+
+### What was built
+
+| Piece | Where |
+|---|---|
+| The backlog drawer lists **cards**, expandable to every stage | `src/planner/components/JobsModal.tsx` |
+| Place calls `POST card/schedule` (583) | `src/planner/plannerApi.ts` — `scheduleCard` |
+| "Already on a day" lists one row per **slot**, one Unschedule | `JobsModal.tsx` |
+| The grouping rule, pure and tested | `src/scheduleModel.ts` — `groupStepsBySlot`, `linkedCardTitle` |
+| A board card names the job and its step count | `src/planner/plannerAdapter.ts` |
+| `position` returned, links read in position order | `functions/planner/job_step_hydration.xs` (fn 168) |
+| The step-level `scheduleWorkTask` wrapper | **deleted** — no screen may call 560 |
+
+### 🔴 Two bugs this closed, neither of them new work
+
+- **The backlog drawer was already broken.** Story 01 changed 559's response;
+  nothing on the frontend moved with it. Every row rendered `undefined` for its
+  text, and because every row's key was `undefined`, `schedulingFor ===
+  row.work_task_id` was true for **all** rows at once — one click opened every
+  scheduler on the list. Found by reading the drawer before writing to it.
+- **`adaptBoard` kept one step per slot.** Its linked-steps `Map` was keyed by
+  `planner_task_id` and `set` once per step, so a slot covering a card kept
+  only whichever step the query returned last. The board card showed one
+  arbitrary stage as though it were the whole slot, and the slot's
+  `workTaskId` pointed at it. Story 02 made that reachable; nothing noticed,
+  because one step per slot had always been true.
+
+### Tests
+
+| Check | Result |
+|---|---|
+| `npm test` | ✅ **433/433** (6 new: UT-BLK-1-12..17) |
+| `npm run lint` (`tsc --noEmit`) | ✅ clean |
+| **Playwright** `card-scheduling.spec.ts` (E2E-BLK-1-07-01) | ✅ pass, against the live backend in a real browser |
+| └ one backlog row per (job, actor row), naming the actor row | ✅ "Clerk · 2 steps · 1 hr 44 min" |
+| └ the same job's other row is a separate **1 step** card | ✅ the (job, actor row) rule, on screen |
+| └ expanding reads every stage, from the pinned version | ✅ "1. Receive … 2. File", with done-when and minutes |
+| └ Place creates **one** slot covering every step | ✅ 2 links, **one** `planner_task_id`, positions **[1, 2]**, exactly the ids the card named |
+| └ the placed card leaves the backlog | ✅ |
+| └ the board card says what it is | ✅ "<job> · 2 steps", not one arbitrary stage |
+| └ "Already on a day" lists it **once** | ✅ `toHaveCount(1)`, one Unschedule |
+| └ Unschedule releases **every** step | ✅ "2 steps back in Work waiting for a day" |
+| └ **no orphan link** after the release | ✅ zero links pointing at the deleted slot |
+| └ the card returns **whole** | ✅ back in the backlog, still 2 steps |
+| Sibling spec `jobs-and-day-navigation.spec.ts` | ✅ 4/4 (its unschedule assertion was reworded by this story) |
+| `health-page.spec.ts` | ✅ 1/1 |
+| `perform-sessions-mobile.spec.ts` | ⏭️ 3 skipped by its own conditions (unchanged by this story) |
+| `plan-templates-roster.spec.ts` | ❌ 2 fail — **pre-existing**, proven by re-running them with this story's changes stashed. Not this story's work |
+| Visual check of the drawer | ✅ screenshot reviewed; cards, expander and stage list read correctly |
+
+**Correction to the overnight entry above.** Its "Not run" note said the 26
+Playwright specs "still fail at sign-in for want of `E2E_AUTH_TOKEN`
+(ISSUES-BACKLOG #4)". That is stale: `e2e/global-setup.ts` (O14) already
+builds one signed-in session for the whole suite from that variable, and with a
+token exported the specs run normally — which is how this story was tested.
+Issue #4 should be re-read before it is worked on.
+
+### Still true, and deliberate
+
+- **Endpoint 560 is still live** for API callers. It is no longer reachable
+  from any screen, and `plannerApi.ts` says so where the wrapper used to be.
+- **`job_step_hydration` gained a field**, nothing else. Additive, so no caller
+  breaks; the local file and live function 168 were diffed before the push.
+- **Test data:** the spec leaves one job per map it had to try. The ones this
+  session created were cancelled afterwards, which is the product's own
+  mechanism — nothing was deleted.
+
 ## MVP scope
 
-**In:** stories 01, 02, 03, 04 and 06.
+**In:** stories 01, 02, 03, 04, 06 and **07**.
+
+**Story 07 was added on 2026-10-21**, after the overnight session shipped the
+card endpoints without pointing the planner's own screen at them. It is not
+scope creep: without it the backlog *reads* as cards while the Schedule button
+still *writes* single steps, and the read side is already broken because 559's
+response changed under a frontend that was never updated.
 
 **Deferred:** **story 05** — a job-scoped "My Jobs" screen, which the
 one-pass-per-order decision made redundant (the day view already shows the
@@ -573,7 +725,7 @@ the board; reordering steps inside a card; assignment by role (SCHED-1's
 
 ## Test Results
 
-_Not started._
+_All stories in scope pass. Details in the two Build results sections above._
 
 | Story | Tests | Result |
 |---|---|---|
@@ -583,7 +735,7 @@ _Not started._
 | 04 | Browser: card opens, both stages listed, stage 2 reachable and finishable, card status derived; **per-stage timing proven in the database** | ✅ all pass |
 | 05 | _Deferred — not built_ | — |
 | 06 | 6 unit tests: tweaking a card moves the plan gap only, process gap byte-identical, card has no actual of its own | ✅ all pass |
-| 06 | Per-step process variance byte-identical before and after a tweak; both variances reported; no actual field on the card | — |
+| 07 | 6 unit tests (grouping, ordering, never-drop, card naming); **Playwright E2E-BLK-1-07-01** end to end in a real browser: one row per card, expand, Place → one slot at positions 1..n, board card named, listed once, Unschedule releases every step with zero orphan links | ✅ all pass |
 
 ## Risks
 
@@ -615,7 +767,6 @@ _Not started._
 
 | Question | Why it's the founder's |
 |---|---|
-| **The planner UI still schedules one step at a time** | Endpoint 583 is live and proven, but the Jobs modal has not been pointed at it, so the backlog still *reads* as cards while the Schedule button still *writes* single steps. One afternoon's frontend work. It was left out deliberately rather than rushed at the end of a long session |
 | **The expected minutes are wrong** | 11h 50m across eight stages describes a batch of returns, not one customer's order. Every duration in the map needs revisiting before capacity warnings mean anything. Small job, but it is yours to judge — nobody else knows the real times |
 | **What happens when a job genuinely cannot finish in one pass?** | Today's answer is that it always can. The moment one cannot, you are back to splitting a card across days, and dwell comes back with it. Worth knowing now whether that is a real case or truly never |
 | **Child jobs — when?** | `parent_work_item_id` exists on `work_item` but is **hardcoded to 0** in the create-job endpoint, so damaged items branching to a repair map cannot be built yet. It is the natural epic after this one |

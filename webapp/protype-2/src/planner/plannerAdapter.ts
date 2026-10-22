@@ -17,6 +17,7 @@
 // real optional/null. This boundary is where that gets reconciled.
 import type {Agent, AppSettings, ModelPricing, Task, Timeline, Workspace} from './types';
 import type {BoardResponse, LinkedStep, RawAgent, RawModel, RawTask, RawTimeline, RawWorkspace, WorkspaceListEntry} from './plannerApi';
+import {groupStepsBySlot, linkedCardTitle} from '../scheduleModel';
 
 export function adaptWorkspace(entry: WorkspaceListEntry): Workspace {
   const w: RawWorkspace = entry.workspace;
@@ -81,8 +82,18 @@ export function adaptSettings(board: BoardResponse): AppSettings {
 export function adaptBoard(board: BoardResponse) {
   // GAP-FIX W1 — keyed by planner_task id so a linked slot can be given
   // the text it was always meant to show.
-  const stepsByTask = new Map<number, LinkedStep>();
-  for (const step of board.linked_steps ?? []) stepsByTask.set(step.planner_task_id, step);
+  //
+  // 🔴 BLK-1 (US-BLK-1-07) — THIS USED TO BE `Map<number, LinkedStep>`
+  // and `set` the same key once per step, so a slot covering a card
+  // kept only whichever step the query returned LAST. The board card
+  // then showed one arbitrary stage as though it were the whole slot,
+  // and the slot's `workTaskId` pointed at it. Story 02 made that
+  // possible; nothing noticed, because one step per slot had always
+  // been true. Now every step is kept, in `position` order.
+  const stepsByTask = new Map<number, LinkedStep[]>();
+  for (const slot of groupStepsBySlot(board.linked_steps ?? [])) {
+    stepsByTask.set(slot.plannerTaskId, slot.steps);
+  }
 
   return {
     agents: board.agents.map(adaptAgent),
@@ -96,11 +107,16 @@ export function adaptBoard(board: BoardResponse) {
   };
 }
 
-export function adaptTask(raw: RawTask, step?: LinkedStep): Task {
+export function adaptTask(raw: RawTask, steps?: LinkedStep[]): Task {
   // A linked slot stores no title of its own (see Task.jobStepTitle).
-  // The fallback chain ends at the stage key so a card is never blank,
-  // even if a version somehow has no text for that cell.
-  const linkedTitle = step ? step.step_title || `${step.job_title ?? 'Job'} — ${step.stage_key}` : null;
+  // `linkedCardTitle` ends its fallback chain at the stage key so a
+  // card is never blank, even if a version somehow has no text for
+  // that cell — and names a MULTI-step slot after the job and its step
+  // count rather than after one of its stages, which would read as
+  // though the slot were only that stage.
+  const group = steps ?? [];
+  const step = group[0];
+  const linkedTitle = linkedCardTitle(group);
   return {
     id: String(raw.id),
     workspaceId: String(raw.workspace_id),
@@ -116,10 +132,13 @@ export function adaptTask(raw: RawTask, step?: LinkedStep): Task {
     ...(step
       ? {
           jobTitle: step.job_title ?? undefined,
+          // These three describe the card's FIRST step. `jobStepCount`
+          // is what tells a reader whether that is the whole story.
           jobStepTitle: step.step_title ?? undefined,
           jobDoneWhen: step.done_when ?? undefined,
           workTaskId: String(step.work_task_id),
           workItemId: String(step.work_item_id),
+          jobStepCount: group.length,
         }
       : {}),
   };

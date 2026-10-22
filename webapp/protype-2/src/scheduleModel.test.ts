@@ -4,6 +4,8 @@ import {
   isValidScheduledDuration,
   defaultBlockDuration,
   isValidTweakReason,
+  groupStepsBySlot,
+  linkedCardTitle,
   MIN_SCHEDULED_MINUTES,
   MAX_SCHEDULED_MINUTES,
 } from './scheduleModel';
@@ -82,4 +84,102 @@ test('tweak reason: optional, "other", or a key the job really has', () => {
 test('tweak reason: a job with no attributes still allows "other"', () => {
   assert.equal(isValidTweakReason('other', []), true);
   assert.equal(isValidTweakReason('anything', []), false);
+});
+
+// ── BLK-1 (US-BLK-1-07) ────────────────────────────────────
+
+const step = (
+  plannerTaskId: number,
+  workTaskId: number,
+  position: number | null | undefined,
+  extra: {stage_key?: string; step_title?: string | null; job_title?: string | null} = {},
+) => ({
+  planner_task_id: plannerTaskId,
+  work_task_id: workTaskId,
+  position,
+  stage_key: extra.stage_key ?? `s${workTaskId}`,
+  step_title: extra.step_title ?? null,
+  job_title: extra.job_title ?? null,
+});
+
+test('UT-BLK-1-12: two steps of one slot group into one card, in position order', () => {
+  const slots = groupStepsBySlot([step(9, 77, 2), step(9, 75, 1)]);
+
+  assert.equal(slots.length, 1);
+  assert.equal(slots[0].plannerTaskId, 9);
+  assert.equal(slots[0].stepCount, 2);
+  assert.deepEqual(
+    slots[0].steps.map((s) => s.work_task_id),
+    [75, 77],
+    'position decides the order, not the order the board happened to return',
+  );
+});
+
+test('UT-BLK-1-13: a step is never dropped, even with a missing or duplicate position', () => {
+  // The bug this replaces lost every step but one. Losing a step would
+  // hide work that really is on somebody's day.
+  const slots = groupStepsBySlot([
+    step(9, 75, 1),
+    step(9, 76, null),
+    step(9, 77, 1),
+    step(9, 78, 0),
+  ]);
+
+  assert.equal(slots.length, 1);
+  assert.equal(slots[0].stepCount, 4);
+  assert.deepEqual(
+    slots[0].steps.map((s) => s.work_task_id),
+    [75, 77, 76, 78],
+    'positioned steps first in position order, ties and unpositioned ones in arrival order',
+  );
+});
+
+test('UT-BLK-1-14: several slots keep first-appearance order and never mix', () => {
+  const slots = groupStepsBySlot([
+    step(11, 90, 1),
+    step(9, 75, 1),
+    step(11, 91, 2),
+    step(9, 77, 2),
+  ]);
+
+  assert.deepEqual(
+    slots.map((s) => s.plannerTaskId),
+    [11, 9],
+    "the board's own ordering survives the grouping",
+  );
+  assert.deepEqual(slots[0].steps.map((s) => s.work_task_id), [90, 91]);
+  assert.deepEqual(slots[1].steps.map((s) => s.work_task_id), [75, 77]);
+});
+
+test('UT-BLK-1-15: an empty list groups to nothing', () => {
+  assert.deepEqual(groupStepsBySlot([]), []);
+});
+
+test('UT-BLK-1-16: a one-step slot still reads as its step', () => {
+  assert.equal(
+    linkedCardTitle([step(9, 75, 1, {step_title: 'Log the enquiry', job_title: 'Garcia party'})]),
+    'Log the enquiry',
+  );
+
+  // No text in the version for that cell: fall back to job and stage,
+  // never a blank card.
+  assert.equal(
+    linkedCardTitle([step(9, 75, 1, {step_title: null, job_title: 'Garcia party', stage_key: 's1'})]),
+    'Garcia party — s1',
+  );
+});
+
+test('UT-BLK-1-17: a multi-step slot is named as a card, not as its first stage', () => {
+  // Naming it "Receive the return" would be the old bug with a stable
+  // order instead of an arbitrary one — the planner would still think
+  // the slot was one stage of the work.
+  assert.equal(
+    linkedCardTitle([
+      step(9, 75, 1, {step_title: 'Receive the return', job_title: 'Garcia party'}),
+      step(9, 77, 2, {step_title: 'File the paperwork', job_title: 'Garcia party'}),
+    ]),
+    'Garcia party · 2 steps',
+  );
+
+  assert.equal(linkedCardTitle([]), null, 'nothing to name means no made-up string');
 });

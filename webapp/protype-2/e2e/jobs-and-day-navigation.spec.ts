@@ -115,7 +115,10 @@ test('E2E-W1-01 / E2E-O4-01: create a job from a map, schedule a step, and take 
     .first();
   await expect(scheduledRow).toBeVisible();
   await scheduledRow.getByRole('button', {name: 'Unschedule'}).click();
-  await expect(modal.getByText(/Back in .Steps waiting for a day./)).toBeVisible();
+  // BLK-1 (US-BLK-1-07) reworded this: a slot now holds a whole card,
+  // so the notice reports how many steps actually came back instead of
+  // implying one step moved.
+  await expect(modal.getByText(/step(s)? back in .Work waiting for a day./)).toBeVisible();
 });
 
 test('E2E-W4-01: the performer can move off today and back', async ({page}) => {

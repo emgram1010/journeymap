@@ -20,6 +20,18 @@
 // THREE THINGS IN ONE PLACE, because they are one task in the planner's
 // head: start a job from a map, see the jobs in this plan, and put
 // their steps on someone's day.
+//
+// BLK-1 (US-BLK-1-07, 2026-10-21) — A ROW IS A CARD, NOT A STEP.
+// Stories 01-03 made the backlog return one row per (job, actor row)
+// and gave the server a card-level schedule and release, and this
+// screen was left pointing at the old per-step shape. It was not
+// merely behind: 559's response no longer had `work_task_id`, `task`
+// or `stage_key` in it, so every row rendered `undefined`, every row's
+// key was `undefined`, and `schedulingFor === row.work_task_id` was
+// therefore true for ALL of them at once — one click opened every
+// scheduler on the list. A card is keyed by `card_key`
+// (`work_item_id::lens_key`) precisely because `work_task_id` is no
+// longer one row's identity.
 import {useCallback, useEffect, useState} from 'react';
 import {X, Briefcase, Plus, CalendarPlus, CalendarX, Ban, AlertTriangle, Lock, ChevronRight, ChevronDown, TrendingUp} from 'lucide-react';
 import type {Agent, Task, Timeline} from '../types';
@@ -29,7 +41,7 @@ import {
   listBacklogWork,
   createWorkItem,
   cancelWorkItem,
-  scheduleWorkTask,
+  scheduleCard,
   unscheduleWorkTask,
   getWorkItemVariance,
   getWorkItemActivity,
@@ -38,9 +50,10 @@ import {
   type TaskVarianceRow,
   type RawWorkspaceMap,
   type WorkItemListEntry,
-  type BacklogWorkRow,
+  type BacklogCard,
 } from '../plannerApi';
 import {formatMinutes, formatGap, gapTone, summariseJob, reasonLabel, eventLabel} from '../varianceDisplay';
+import {groupStepsBySlot} from '../../scheduleModel';
 
 interface JobsModalProps {
   isOpen: boolean;
@@ -92,7 +105,7 @@ export function JobsModal({
 }: JobsModalProps) {
   const [maps, setMaps] = useState<RawWorkspaceMap[]>([]);
   const [jobs, setJobs] = useState<WorkItemListEntry[]>([]);
-  const [backlog, setBacklog] = useState<BacklogWorkRow[]>([]);
+  const [backlog, setBacklog] = useState<BacklogCard[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -102,8 +115,10 @@ export function JobsModal({
   const [newMapId, setNewMapId] = useState<number | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
-  // Scheduling: which step is being placed, and where
-  const [schedulingFor, setSchedulingFor] = useState<number | null>(null);
+  // Scheduling: which CARD is being placed, and where. Keyed by
+  // `card_key`, never by a step id — a card has several.
+  const [schedulingFor, setSchedulingFor] = useState<string | null>(null);
+  const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const [scheduleAgentId, setScheduleAgentId] = useState<string>('');
   const [scheduleDate, setScheduleDate] = useState<string>('');
   const [isScheduling, setIsScheduling] = useState(false);
@@ -158,6 +173,7 @@ export function JobsModal({
     setError(null);
     setNotice(null);
     setSchedulingFor(null);
+    setExpandedCard(null);
     setConfirmCancelId(null);
     setScheduleAgentId(agents[0]?.id ?? '');
     setScheduleDate(planningWindowStart || new Date().toISOString().slice(0, 10));
@@ -223,7 +239,11 @@ export function JobsModal({
     }
   };
 
-  const handleSchedule = async (workTaskId: number) => {
+  // BLK-1 — ONE CALL PLACES THE WHOLE CARD. The card is named by
+  // (job, actor row) and the server derives its steps, so there is no
+  // list of step ids here to be nearly right. A card with one step
+  // goes through exactly the same path.
+  const handleSchedule = async (card: BacklogCard) => {
     if (!scheduleAgentId || !scheduleDate) {
       setError('Pick who does it and which day.');
       return;
@@ -237,15 +257,22 @@ export function JobsModal({
         setError("Couldn't open that day for scheduling.");
         return;
       }
-      const result = await scheduleWorkTask(workTaskId, {timeline_id: Number(timelineId)});
+      const result = await scheduleCard({
+        work_item_id: card.work_item_id,
+        lens_key: card.lens_key,
+        timeline_id: Number(timelineId),
+      });
       setNotice(
-        `Scheduled for ${scheduleDate} (${result.scheduled_minutes} min). Publish the day to send it to Execution.`,
+        `${result.step_count} step${result.step_count === 1 ? '' : 's'} placed on ${scheduleDate} as one card (${formatMinutes(result.scheduled_minutes)}). Publish the day to send it to Execution.`,
       );
       setSchedulingFor(null);
+      setExpandedCard(null);
       if (workspaceId) await load(workspaceId);
       onChanged();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't schedule that step.");
+      // E-BLK-001 and E-SCHED-001/002/008 already say what to do, so
+      // they are shown as-is.
+      setError(err instanceof Error ? err.message : "Couldn't schedule that card.");
     } finally {
       setIsScheduling(false);
     }
@@ -255,21 +282,25 @@ export function JobsModal({
   // a published day (E-SCHED-006) or once anything has been recorded
   // against the step (E-SCHED-007); both messages already say why, so
   // they are shown as-is rather than re-worded here.
+  // BLK-1 — NAMING ONE STEP RELEASES THE WHOLE CARD. The slot is the
+  // unit being released, so the notice reports what actually came
+  // back rather than implying one step moved.
   const handleUnschedule = async (workTaskId: number) => {
     setUnschedulingId(workTaskId);
     setError(null);
     setNotice(null);
     try {
       const result = await unscheduleWorkTask(workTaskId);
+      const released = result.released_count ?? 0;
       setNotice(
         result.already_unscheduled
-          ? 'That step was already waiting for a day.'
-          : "Back in “Steps waiting for a day”. Nothing about the work itself changed.",
+          ? 'That work was already waiting for a day.'
+          : `${released} step${released === 1 ? '' : 's'} back in “Work waiting for a day”. Nothing about the work itself changed.`,
       );
       if (workspaceId) await load(workspaceId);
       onChanged();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't take that step off the schedule.");
+      setError(err instanceof Error ? err.message : "Couldn't take that off the schedule.");
     } finally {
       setUnschedulingId(null);
     }
@@ -317,23 +348,36 @@ export function JobsModal({
   const dayHasTimeline = (agentId: string, date: string) =>
     timelines.some((t) => t.agentId === agentId && t.plannedDate === date);
 
-  // O4 — where each scheduled step landed, and whether it can still be
-  // taken off. The chain is step → its slot (`planner_task`) → the
-  // slot's day (`timeline`); a published day is frozen, so the row says
-  // so rather than offering a button the server will refuse.
+  // O4 — where each scheduled slot landed, and whether it can still be
+  // taken off. The chain is slot (`planner_task`) → its day
+  // (`timeline`); a published day is frozen, so the row says so rather
+  // than offering a button the server will refuse.
+  //
+  // BLK-1 — ONE ROW PER SLOT, NOT PER STEP. A card listed once per
+  // step would offer two Unschedule buttons for one slot, and pressing
+  // either would release both steps — so the second button would
+  // always refer to something that no longer existed.
   const taskById = new Map(tasks.map((t) => [t.id, t]));
   const timelineById = new Map(timelines.map((tl) => [tl.id, tl]));
-  const scheduled = linkedSteps.map((step) => {
-    const slot = taskById.get(String(step.planner_task_id));
-    const timeline = slot?.timelineId ? timelineById.get(slot.timelineId) : undefined;
-    return {
-      step,
-      date: timeline?.plannedDate ?? null,
-      who: timeline ? agentName(timeline.agentId) : null,
-      isPublished: timeline?.status === 'published',
-      plannedStart: slot?.planned_start ?? null,
-    };
-  });
+  const scheduled = groupStepsBySlot(linkedSteps)
+    .map((group) => {
+      const slot = taskById.get(String(group.plannerTaskId));
+      const timeline = slot?.timelineId ? timelineById.get(slot.timelineId) : undefined;
+      return {
+        slotId: group.plannerTaskId,
+        steps: group.steps,
+        first: group.steps[0],
+        stepCount: group.stepCount,
+        date: timeline?.plannedDate ?? null,
+        who: timeline ? agentName(timeline.agentId) : null,
+        isPublished: timeline?.status === 'published',
+        plannedStart: slot?.planned_start ?? null,
+        seq: slot?.seq ?? 0,
+      };
+    })
+    // Day, then position within the day — the planner's own order,
+    // rather than whatever order the links came back in.
+    .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || a.seq - b.seq);
 
   return (
     <div
@@ -559,136 +603,208 @@ export function JobsModal({
             )}
           </section>
 
-          {/* ── Steps waiting to be scheduled ───────────────────────── */}
+          {/* ── Work waiting to be scheduled ───────────────────────── */}
           <section>
-            <h3 className="text-xs font-semibold text-neutral-900 mb-1">Steps waiting for a day</h3>
+            <h3 className="text-xs font-semibold text-neutral-900 mb-1">Work waiting for a day</h3>
             <p className="text-[11px] text-neutral-500 mb-2">
-              Each one is a real step from its job's published map. Scheduling it keeps the agreed minutes — it just makes
-              room for it on someone's day.
+              One row is one order's work for one role — every stage of it, in the order its published map agreed.
+              Placing it keeps those minutes; it just makes room for the whole card on someone's day.
             </p>
             {backlog.length === 0 ? (
               <p className="text-[11px] text-neutral-500">
-                {jobs.length === 0 ? 'Create a job above and its steps appear here.' : 'Every step is scheduled.'}
+                {jobs.length === 0 ? 'Create a job above and its work appears here.' : 'Everything is scheduled.'}
               </p>
             ) : (
               <ul className="divide-y divide-neutral-100 border border-neutral-200 rounded-md">
-                {backlog.map((row) => (
-                  <li key={row.work_task_id} className="px-3 py-2 flex flex-col gap-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-xs text-neutral-900 truncate">{row.task ?? `${row.job_title ?? 'Job'} — ${row.stage_key}`}</p>
-                        <p className="text-[10px] text-neutral-500 truncate">
-                          {row.job_title}
-                          {row.expected_minutes != null && ` · ${row.expected_minutes} min`}
-                        </p>
-                        {row.done_when && <p className="text-[10px] text-neutral-400 truncate">Done when: {row.done_when}</p>}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSchedulingFor(schedulingFor === row.work_task_id ? null : row.work_task_id)}
-                        className="shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-neutral-700 border border-neutral-200 rounded hover:bg-neutral-50"
-                      >
-                        <CalendarPlus className="w-3 h-3" />
-                        Schedule
-                      </button>
-                    </div>
-
-                    {schedulingFor === row.work_task_id && (
-                      <div className="flex flex-wrap items-end gap-2 bg-neutral-50 border border-neutral-200 rounded-md px-2.5 py-2">
-                        <label className="flex flex-col gap-1">
-                          <span className="text-[10px] text-neutral-600">Who</span>
-                          <select
-                            value={scheduleAgentId}
-                            onChange={(e) => setScheduleAgentId(e.target.value)}
-                            className="text-[11px] px-2 py-1 border border-neutral-200 rounded bg-white"
+                {backlog.map((card) => {
+                  const isExpanded = expandedCard === card.card_key;
+                  const isPlacing = schedulingFor === card.card_key;
+                  const stepWord = card.step_count === 1 ? 'step' : 'steps';
+                  return (
+                    <li key={card.card_key} className="px-3 py-2 flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs text-neutral-900 truncate">{card.job_title ?? 'Job'}</p>
+                          <p className="text-[10px] text-neutral-500 truncate">
+                            {card.lens_label || card.lens_key} · {card.step_count} {stepWord} ·{' '}
+                            {formatMinutes(card.expected_minutes)}
+                          </p>
+                          {card.step_count > 1 && (
+                            <p className="text-[10px] text-neutral-400 truncate">
+                              {card.first_stage_label} → {card.last_stage_label}
+                            </p>
+                          )}
+                        </div>
+                        <div className="shrink-0 flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedCard(isExpanded ? null : card.card_key)}
+                            className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-50"
+                            aria-expanded={isExpanded}
                           >
-                            {agents.length === 0 && <option value="">No agents in this plan</option>}
-                            {agents.map((a) => (
-                              <option key={a.id} value={a.id}>{a.name}</option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="flex flex-col gap-1">
-                          <span className="text-[10px] text-neutral-600">Day</span>
-                          <input
-                            type="date"
-                            value={scheduleDate}
-                            onChange={(e) => setScheduleDate(e.target.value)}
-                            className="text-[11px] px-2 py-1 border border-neutral-200 rounded font-mono bg-white"
-                          />
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => void handleSchedule(row.work_task_id)}
-                          disabled={isScheduling || agents.length === 0}
-                          className="px-3 py-1.5 bg-neutral-900 text-white rounded text-[11px] font-semibold hover:bg-neutral-800 disabled:opacity-60"
-                        >
-                          {isScheduling ? 'Placing…' : 'Place'}
-                        </button>
-                        {scheduleAgentId && scheduleDate && !dayHasTimeline(scheduleAgentId, scheduleDate) && (
-                          <span className="text-[10px] text-neutral-500 basis-full">
-                            {agentName(scheduleAgentId)} has no day on {scheduleDate} yet — it will be created.
-                          </span>
-                        )}
-                        {scheduleAgentId && !agents.find((a) => a.id === scheduleAgentId)?.userId && (
-                          <span className="text-[10px] text-amber-700 basis-full flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3 shrink-0" />
-                            {agentName(scheduleAgentId)} has no login linked — they won't see this in Execution.
-                          </span>
-                        )}
+                            {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                            {card.step_count} {stepWord}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSchedulingFor(isPlacing ? null : card.card_key)}
+                            className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-neutral-700 border border-neutral-200 rounded hover:bg-neutral-50"
+                          >
+                            <CalendarPlus className="w-3 h-3" />
+                            Schedule
+                          </button>
+                        </div>
                       </div>
-                    )}
-                  </li>
-                ))}
+
+                      {/* What the card actually covers. Read from the job's
+                          PINNED version, so it is what was agreed — not what
+                          the live map says today. */}
+                      {isExpanded && (
+                        <ol className="border border-neutral-200 rounded-md divide-y divide-neutral-100 bg-neutral-50/60">
+                          {card.steps.map((step, index) => (
+                            <li key={step.work_task_id} className="px-2.5 py-1.5 flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex items-start gap-2">
+                                <span className="text-[10px] text-neutral-400 pt-0.5 shrink-0">{index + 1}.</span>
+                                <div className="min-w-0">
+                                  <p className="text-[11px] text-neutral-800 truncate">
+                                    {step.stage_label || step.stage_key}
+                                  </p>
+                                  {step.task && <p className="text-[10px] text-neutral-500">{step.task}</p>}
+                                  {step.done_when && (
+                                    <p className="text-[10px] text-neutral-400">Done when: {step.done_when}</p>
+                                  )}
+                                </div>
+                              </div>
+                              <span className="shrink-0 text-[10px] text-neutral-500 font-mono">
+                                {formatMinutes(step.expected_minutes)}
+                              </span>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+
+                      {isPlacing && (
+                        <div className="flex flex-wrap items-end gap-2 bg-neutral-50 border border-neutral-200 rounded-md px-2.5 py-2">
+                          <label className="flex flex-col gap-1">
+                            <span className="text-[10px] text-neutral-600">Who</span>
+                            <select
+                              value={scheduleAgentId}
+                              onChange={(e) => setScheduleAgentId(e.target.value)}
+                              className="text-[11px] px-2 py-1 border border-neutral-200 rounded bg-white"
+                            >
+                              {agents.length === 0 && <option value="">No agents in this plan</option>}
+                              {agents.map((a) => (
+                                <option key={a.id} value={a.id}>{a.name}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="flex flex-col gap-1">
+                            <span className="text-[10px] text-neutral-600">Day</span>
+                            <input
+                              type="date"
+                              value={scheduleDate}
+                              onChange={(e) => setScheduleDate(e.target.value)}
+                              className="text-[11px] px-2 py-1 border border-neutral-200 rounded font-mono bg-white"
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => void handleSchedule(card)}
+                            disabled={isScheduling || agents.length === 0}
+                            className="px-3 py-1.5 bg-neutral-900 text-white rounded text-[11px] font-semibold hover:bg-neutral-800 disabled:opacity-60"
+                          >
+                            {isScheduling ? 'Placing…' : 'Place'}
+                          </button>
+                          <span className="text-[10px] text-neutral-500 basis-full">
+                            All {card.step_count} {stepWord} go onto that day as one card.
+                          </span>
+                          {scheduleAgentId && scheduleDate && !dayHasTimeline(scheduleAgentId, scheduleDate) && (
+                            <span className="text-[10px] text-neutral-500 basis-full">
+                              {agentName(scheduleAgentId)} has no day on {scheduleDate} yet — it will be created.
+                            </span>
+                          )}
+                          {scheduleAgentId && !agents.find((a) => a.id === scheduleAgentId)?.userId && (
+                            <span className="text-[10px] text-amber-700 basis-full flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3 shrink-0" />
+                              {agentName(scheduleAgentId)} has no login linked — they won't see this in Execution.
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>
 
-          {/* ── Steps already on a day (O4) ─────────────────────────── */}
+          {/* ── Already on a day (O4, card-aware since BLK-1) ───────── */}
           <section>
-            <h3 className="text-xs font-semibold text-neutral-900 mb-1">Steps already on a day</h3>
+            <h3 className="text-xs font-semibold text-neutral-900 mb-1">Already on a day</h3>
             <p className="text-[11px] text-neutral-500 mb-2">
-              Taking one off puts it back in the list above. The work itself doesn't change — only the claim on
-              someone's day. A day that's already published is frozen and can't be changed.
+              Taking a card off puts every step of it back in the list above. The work itself doesn't change — only the
+              claim on someone's day. A day that's already published is frozen and can't be changed.
             </p>
             {scheduled.length === 0 ? (
               <p className="text-[11px] text-neutral-500">Nothing scheduled yet.</p>
             ) : (
               <ul className="divide-y divide-neutral-100 border border-neutral-200 rounded-md">
-                {scheduled.map(({step, date, who, isPublished, plannedStart}) => (
-                  <li key={step.work_task_id} className="px-3 py-2 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs text-neutral-900 truncate">
-                        {step.step_title ?? `${step.job_title ?? 'Job'} — ${step.stage_key}`}
-                      </p>
-                      <p className="text-[10px] text-neutral-500 truncate">
-                        {step.job_title}
-                        {date && ` · ${date}`}
-                        {plannedStart && ` ${plannedStart}`}
-                        {who && ` · ${who}`}
-                      </p>
-                    </div>
-                    {isPublished ? (
-                      <span
-                        className="shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] text-neutral-400"
-                        title="This day is live — its contents are frozen"
-                      >
-                        <Lock className="w-3 h-3" />
-                        Live
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => void handleUnschedule(step.work_task_id)}
-                        disabled={unschedulingId === step.work_task_id}
-                        className="shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-50 hover:text-neutral-900 disabled:opacity-50"
-                      >
-                        <CalendarX className="w-3 h-3" />
-                        {unschedulingId === step.work_task_id ? 'Removing…' : 'Unschedule'}
-                      </button>
-                    )}
-                  </li>
-                ))}
+                {scheduled.map((card) => {
+                  const isCard = card.stepCount > 1;
+                  const title = isCard
+                    ? card.first.job_title ?? 'Job'
+                    : card.first.step_title ?? `${card.first.job_title ?? 'Job'} — ${card.first.stage_key}`;
+                  return (
+                    <li key={card.slotId} className="px-3 py-2 flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs text-neutral-900 truncate">{title}</p>
+                          <p className="text-[10px] text-neutral-500 truncate">
+                            {isCard
+                              ? `${card.stepCount} steps`
+                              : card.first.job_title}
+                            {card.date && ` · ${card.date}`}
+                            {card.plannedStart && ` ${card.plannedStart}`}
+                            {card.who && ` · ${card.who}`}
+                          </p>
+                        </div>
+                        {card.isPublished ? (
+                          <span
+                            className="shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] text-neutral-400"
+                            title="This day is live — its contents are frozen"
+                          >
+                            <Lock className="w-3 h-3" />
+                            Live
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => void handleUnschedule(card.first.work_task_id)}
+                            disabled={unschedulingId === card.first.work_task_id}
+                            className="shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-50 hover:text-neutral-900 disabled:opacity-50"
+                          >
+                            <CalendarX className="w-3 h-3" />
+                            {unschedulingId === card.first.work_task_id ? 'Removing…' : 'Unschedule'}
+                          </button>
+                        )}
+                      </div>
+
+                      {/* A card says which stages it covers. One slot, one
+                          row, one Unschedule — listing a card once per step
+                          would offer two buttons for one slot, and either
+                          would release both. */}
+                      {isCard && (
+                        <ol className="flex flex-wrap gap-x-3 gap-y-0.5 pl-0.5">
+                          {card.steps.map((step, index) => (
+                            <li key={step.work_task_id} className="text-[10px] text-neutral-500">
+                              {index + 1}. {step.step_title || step.stage_key}
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>

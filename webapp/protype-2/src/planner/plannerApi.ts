@@ -487,49 +487,91 @@ export const cancelWorkItem = (workItemId: number) =>
   );
 
 /**
- * Every job step in this plan with no slot on the schedule yet, with
- * its text and expected minutes read from its job's PINNED version —
- * what was agreed, not what the live map says today.
+ * Everything in this plan waiting for a day, as CARDS.
+ *
+ * BLK-1 (US-BLK-1-01) — one row is one job's unscheduled steps for ONE
+ * ACTOR ROW, which is the unit a person actually picks up. Before it, a
+ * customer's return arrived here as eight separate rows.
+ *
+ * Text and expected minutes are read from each job's PINNED version —
+ * what was agreed, not what the live map says today — and the steps
+ * arrive in that version's stage order, which ORD-1 made mutable.
  */
-export interface BacklogWorkRow {
+export interface BacklogCardStep {
   work_task_id: number;
-  work_item_id: number;
-  job_title: string | null;
   stage_key: string;
-  lens_key: string;
+  stage_label: string;
   status: string;
   task: string | null;
   done_when: string | null;
   expected_minutes: number | null;
 }
 
+export interface BacklogCard {
+  /** `work_item_id::lens_key`, the card's identity. Safe as a React key; `work_task_id` is not — a card has several. */
+  card_key: string;
+  work_item_id: number;
+  job_title: string | null;
+  lens_key: string;
+  lens_label: string;
+  step_count: number;
+  /** Summed over the card's steps, from the pinned version. */
+  expected_minutes: number;
+  first_stage_label: string;
+  last_stage_label: string;
+  work_task_ids: number[];
+  steps: BacklogCardStep[];
+}
+
 export const listBacklogWork = (workspaceId: number) =>
-  performRequest<{workspace_id: number; count: number; backlog: BacklogWorkRow[]}>(
+  performRequest<{workspace_id: number; count: number; backlog: BacklogCard[]}>(
     `/workspace/${workspaceId}/backlog_work`,
   );
 
 /**
- * Put a job step on a day. The slot's duration defaults to the step's
- * expected minutes from the pinned version, so scheduling changes
- * nothing about what was agreed. Scheduling the same step twice is
- * impossible (unique index), not merely checked.
+ * Put a whole CARD on a day: one slot linked to every unscheduled step
+ * of that job for that actor row, in the pinned version's stage order.
+ *
+ * THE CALLER NAMES THE CARD; THE SERVER DERIVES THE STEPS. Sending
+ * `work_item_id` + `lens_key` rather than a list of step ids removes
+ * the whole class of "the list was nearly right" failure — there is no
+ * list to be wrong, and no way to express a card spanning two jobs or
+ * two actor rows.
+ *
+ * The duration defaults to the summed expected minutes, so scheduling
+ * changes nothing about what was agreed. Scheduling any step twice is
+ * impossible (unique index), not merely checked — the server turns that
+ * into a sentence (`E-SCHED-001`) instead of a database error.
+ *
+ * ⚠️ `POST work_task/{id}/schedule` (endpoint 560) is still live for API
+ * callers, but NO SCREEN MAY CALL IT. A single-step card goes through
+ * here too; two UI paths to the same write is how the two eventually
+ * disagree about the rule (US-BLK-1-07).
  */
-export const scheduleWorkTask = (
-  workTaskId: number,
-  body: {timeline_id: number; duration_minutes?: number; assignee_agent_id?: number},
-) =>
+export const scheduleCard = (body: {
+  work_item_id: number;
+  lens_key: string;
+  timeline_id: number;
+  duration_minutes?: number;
+  assignee_agent_id?: number;
+}) =>
   performRequest<{
     planner_task: RawTask;
-    work_task_id: number;
-    expected_minutes: number | null;
+    work_item_id: number;
+    lens_key: string;
+    work_task_ids: number[];
+    step_count: number;
+    expected_minutes: number;
     scheduled_minutes: number;
     is_tweaked: boolean;
-  }>(`/work_task/${workTaskId}/schedule`, {method: 'POST', body});
+  }>('/card/schedule', {method: 'POST', body});
 
 /**
  * O4 — take a job step back off the schedule.
  *
- * The other half of `scheduleWorkTask`, which shipped without one. The
+ * The other half of scheduling, which shipped without one (the
+ * step-level `scheduleWorkTask` wrapper it was written against is gone;
+ * `scheduleCard` replaced it in US-BLK-1-07). The
  * step itself survives: it returns to "waiting for a day" and keeps
  * reading its text from its job's pinned version. Only the slot and
  * the link go.
@@ -537,6 +579,11 @@ export const scheduleWorkTask = (
  * Refuses on a published day (E-SCHED-006) or once anything has been
  * recorded against the step (E-SCHED-007). Calling it on a step that
  * isn't scheduled is NOT an error — `already_unscheduled` says so.
+ *
+ * BLK-1 — NAMING ONE STEP RELEASES THE WHOLE CARD, and both refusals
+ * are checked against every step the slot covers. The slot is the unit
+ * being released, so releasing half of one is not a thing that can be
+ * asked for; `released_work_task_ids` says what actually came back.
  */
 export const unscheduleWorkTask = (workTaskId: number) =>
   performRequest<{
@@ -544,6 +591,8 @@ export const unscheduleWorkTask = (workTaskId: number) =>
     already_unscheduled: boolean;
     removed_slot_id: number;
     container: number;
+    released_work_task_ids: number[];
+    released_count: number;
   }>(`/work_task/${workTaskId}/schedule`, {method: 'DELETE'});
 
 /**
@@ -553,6 +602,8 @@ export const unscheduleWorkTask = (workTaskId: number) =>
 export interface LinkedStep {
   planner_task_id: number;
   work_task_id: number;
+  /** `planner_task_work_task.position`, 1..n — the order the steps were agreed in. Optional: added to the hydration in US-BLK-1-07. */
+  position?: number | null;
   work_item_id: number;
   job_title: string | null;
   job_status: string;
