@@ -74,6 +74,14 @@ export interface XanoJourneyMap extends JourneySettings {
   intent?: string | null;
   // FK to parent L1/L2 map (TL-3)
   parent_map_id?: number | null;
+  /**
+   * GAP-FIX W7 — the map's latest published version number, or null if
+   * it has never been published. Added to `GET /journey_map` itself so
+   * a picker can tell which maps a plan will actually accept, instead
+   * of offering all of them and letting the server refuse.
+   */
+  published_version_no?: number | null;
+  last_published_at?: number | string | null;
 }
 
 // Lightweight scenario record returned by GET /journey_architecture/{id}/scenarios.
@@ -228,6 +236,8 @@ type RenameJourneyLensInput = {
 type AddJourneyStageInput = {
   journeyMapId: number;
   label?: string;
+  /** ORD-1 — insert after this stage id; 0 = insert first; omit = append. */
+  afterStageId?: number;
 };
 
 type RemoveJourneyStageInput = {
@@ -243,6 +253,8 @@ type AddJourneyLensInput = {
   personaDescription?: string;
   primaryGoal?: string;
   standingConstraints?: string;
+  /** ORD-1 — insert after this lens id; 0 = insert first; omit = append. */
+  afterLensId?: number;
 };
 
 type UpdateLensActorFieldsInput = {
@@ -637,6 +649,31 @@ type RequestOptions = {
   baseUrl?: string;
 };
 
+/**
+ * The clean sentence out of a Xano error body, if there is one.
+ * Mirrors `performApi.ts`'s own extractor — the planner client has
+ * done this since APP-1; this is the journey-map side catching up.
+ */
+function extractServerMessage(responseText: string): string | null {
+  if (!responseText) return null;
+  try {
+    const parsed = JSON.parse(responseText) as {message?: unknown};
+    return typeof parsed.message === 'string' && parsed.message.trim() !== '' ? parsed.message : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What to show a person when a request fails: the server's own words
+ * if it gave any, otherwise the caller's fallback. Never the raw
+ * technical string.
+ */
+export function friendlyError(error: unknown, fallback: string): string {
+  if (error instanceof XanoHttpError && error.serverMessage) return error.serverMessage;
+  return fallback;
+}
+
 export class XanoHttpError extends Error {
   status: number;
   /**
@@ -648,8 +685,25 @@ export class XanoHttpError extends Error {
    */
   reference: string;
 
-  constructor(status: number, message: string, reference: string) {
+  /**
+   * The server's OWN sentence, pulled out of the JSON body.
+   *
+   * `message` stays the full technical string (`Xano DELETE /x failed
+   * (400): {...}`) because existing callers log it and a diagnostic
+   * needs the method, path and status. But that string is useless to
+   * a person, and the endpoints in this project already write a
+   * friendly, actionable sentence into the body — "The plan 'Test QA'
+   * uses this map. Remove it there first. (E-DEL-001)". Until now the
+   * journey-map client threw that away, so every caller either showed
+   * the blob or replaced it with a vague fallback of its own.
+   *
+   * Null when the body is not JSON or carries no `message`.
+   */
+  serverMessage: string | null;
+
+  constructor(status: number, message: string, reference: string, serverMessage: string | null = null) {
     super(message);
+    this.serverMessage = serverMessage;
     this.status = status;
     this.reference = reference;
     this.name = 'XanoHttpError';
@@ -683,6 +737,7 @@ export async function xanoRequest<T>(path: string, options: RequestOptions = {})
       response.status,
       `Xano ${method} ${path} failed (${response.status}): ${responseText || response.statusText}`,
       correlationId,
+      extractServerMessage(responseText),
     );
   }
 
@@ -713,6 +768,7 @@ async function authXanoRequest<T>(path: string, options: RequestOptions = {}): P
       response.status,
       `Auth ${method} ${path} failed (${response.status}): ${responseText || response.statusText}`,
       correlationId,
+      extractServerMessage(responseText),
     );
   }
 
@@ -1064,9 +1120,32 @@ export async function renameJourneyLens(input: RenameJourneyLensInput): Promise<
 }
 
 export async function addJourneyStage(input: AddJourneyStageInput): Promise<void> {
+  const body: Record<string, unknown> = {};
+  if (input.label) body.label = input.label;
+  // `0` is meaningful (insert first), so test for undefined, not truthiness.
+  if (input.afterStageId !== undefined) body.after_stage_id = input.afterStageId;
   await xanoRequest<unknown>(buildParameterizedPath(getXanoAddStagePath(), {journeyMapId: input.journeyMapId}), {
     method: 'POST',
-    body: input.label ? {label: input.label} : undefined,
+    body: Object.keys(body).length > 0 ? body : undefined,
+  });
+}
+
+// ORD-1 (US-ORD-1-03) — send every id in the new order. The server refuses
+// anything that is not an exact permutation (E-ORD-001) and writes nothing.
+const XANO_REORDER_STAGES_PATH = '/journey_stage/reorder/:journeyMapId';
+const XANO_REORDER_LENSES_PATH = '/journey_lens/reorder/:journeyMapId';
+
+export async function reorderJourneyStages(input: {journeyMapId: number; stageIds: number[]}): Promise<void> {
+  await xanoRequest<unknown>(buildParameterizedPath(XANO_REORDER_STAGES_PATH, {journeyMapId: input.journeyMapId}), {
+    method: 'POST',
+    body: {stage_ids: input.stageIds},
+  });
+}
+
+export async function reorderJourneyLenses(input: {journeyMapId: number; lensIds: number[]}): Promise<void> {
+  await xanoRequest<unknown>(buildParameterizedPath(XANO_REORDER_LENSES_PATH, {journeyMapId: input.journeyMapId}), {
+    method: 'POST',
+    body: {lens_ids: input.lensIds},
   });
 }
 
@@ -1085,6 +1164,7 @@ export async function addJourneyLens(input: AddJourneyLensInput): Promise<void> 
   if (input.personaDescription) body.persona_description = input.personaDescription;
   if (input.primaryGoal) body.primary_goal = input.primaryGoal;
   if (input.standingConstraints) body.standing_constraints = input.standingConstraints;
+  if (input.afterLensId !== undefined) body.after_lens_id = input.afterLensId;
   await xanoRequest<unknown>(buildParameterizedPath(getXanoAddLensPath(), {journeyMapId: input.journeyMapId}), {
     method: 'POST',
     body: Object.keys(body).length > 0 ? body : undefined,
@@ -1157,11 +1237,28 @@ export interface PublishResult {
 export const getMapReadiness = (journeyMapId: number) =>
   xanoRequest<MapReadinessResponse>(`/journey_map/${journeyMapId}/readiness`);
 
-/** Frozen version history for a map, newest first. */
+/**
+ * Frozen version history for a map, newest first — plus, since GAP-FIX
+ * W6, what is LIVE and whether the map has been edited since.
+ *
+ * `has_unpublished_changes` is the server's own comparison: it rebuilds
+ * the live definition through the same two functions the publish
+ * endpoint uses and compares the hashes. False for a map that has never
+ * been published (nothing to have drifted from).
+ */
+export interface MapVersionsResponse {
+  journey_map_id: number;
+  count: number;
+  latest_hash: string | null;
+  latest_version_no: number | null;
+  latest_published_at: number | string | null;
+  live_hash: string | null;
+  has_unpublished_changes: boolean;
+  versions: PublishedVersion[];
+}
+
 export const listMapVersions = (journeyMapId: number) =>
-  xanoRequest<{journey_map_id: number; count: number; latest_hash: string | null; versions: PublishedVersion[]}>(
-    `/journey_map/${journeyMapId}/versions`,
-  );
+  xanoRequest<MapVersionsResponse>(`/journey_map/${journeyMapId}/versions`);
 
 /**
  * Publish version. Rejects with a 400 carrying E-PUB-001 when the gate is on

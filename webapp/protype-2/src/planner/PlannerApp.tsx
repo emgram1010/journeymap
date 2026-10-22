@@ -7,13 +7,17 @@ import {
   createAgent, updateAgent, setWorkspaceAgentVisibility,
   createTimeline, updateTimeline, publishTimeline as publishTimelineApi, reorderTimeline,
   createTask, updateTask, placeTask, deleteAgent, deleteTimeline,
-  listTemplates, createWorkspaceFromTemplate, TemplateListEntry,
-  updateWorkspace,
+  listTemplates, createWorkspaceFromTemplate, createWorkspace, TemplateListEntry, SkippedAgent,
+  updateWorkspace, LinkedStep,
 } from './plannerApi';
 import { adaptWorkspace, adaptBoard } from './plannerAdapter';
+import { windowEnd } from '../planTemplate';
 import { SettingsModal } from './components/SettingsModal';
 import { WorkspaceSettingsModal } from './components/WorkspaceSettingsModal';
+import { AgentProfilesModal } from './components/AgentProfilesModal';
+import { TemplatesModal } from './components/TemplatesModal';
 import { CreateWorkspaceModal } from './components/CreateWorkspaceModal';
+import { JobsModal } from './components/JobsModal';
 import { Header } from './components/Header';
 import { ScheduleGrid } from './components/ScheduleGrid';
 import { DayBoard } from './components/DayBoard';
@@ -29,6 +33,9 @@ export default function PlannerApp() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [timelines, setTimelines] = useState<Timeline[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  // O4 — which job steps already have a slot, so the Jobs screen can
+  // offer to take one back off. The board already computes this.
+  const [linkedSteps, setLinkedSteps] = useState<LinkedStep[]>([]);
 
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>('');
   const [activeTimelineId, setActiveTimelineId] = useState<string | null>(null);
@@ -53,6 +60,10 @@ export default function PlannerApp() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isWorkspaceSettingsOpen, setIsWorkspaceSettingsOpen] = useState(false);
+  const [isAgentProfilesOpen, setIsAgentProfilesOpen] = useState(false);
+  const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
+  // GAP-FIX W1 — the screen that turns a map into real work.
+  const [isJobsOpen, setIsJobsOpen] = useState(false);
 
   // Drag tracking state across components
   const [isDraggingTaskFromTimeline, setIsDraggingTaskFromTimeline] = useState(false);
@@ -110,11 +121,12 @@ export default function PlannerApp() {
     setLoadError(null);
     return getBoard(Number(workspaceId))
       .then((board) => {
-        const { agents: a, timelines: tl, tasks: tk, settings: s } = adaptBoard(board);
+        const { agents: a, timelines: tl, tasks: tk, settings: s, linkedSteps: ls } = adaptBoard(board);
         setAgents(a);
         setTimelines(tl);
         setTasks(tk);
         setSettings(s);
+        setLinkedSteps(ls);
 
         const firstTl = tl[0];
         if (firstTl) {
@@ -244,9 +256,35 @@ export default function PlannerApp() {
       .finally(() => setIsLoadingTemplates(false));
   };
 
-  const handleCreateWorkspaceFromTemplate = async (templateId: number, name: string, startDate: string): Promise<boolean> => {
+  const handleCreateWorkspaceFromTemplate = async (
+    templateId: number,
+    name: string,
+    startDate: string,
+  ): Promise<{ok: true; skippedAgents: SkippedAgent[]} | {ok: false}> => {
     try {
-      const { workspace } = await createWorkspaceFromTemplate(templateId, { name, start_date: startDate });
+      const { workspace, skipped_agents } = await createWorkspaceFromTemplate(templateId, { name, start_date: startDate });
+      const { workspaces: entries } = await listWorkspaces();
+      setWorkspaces(entries.map(adaptWorkspace));
+      setActiveTimelineId(null);
+      setActiveWorkspaceId(String(workspace.id));
+      return {ok: true, skippedAgents: skipped_agents};
+    } catch (err) {
+      reportActionError(err);
+      return {ok: false};
+    }
+  };
+
+  // "Start from scratch" (2026-10-17, founder request) — the plain
+  // phase-3 create, no template: no maps, no agents, just a name and a
+  // window. Reinstated as an explicit choice alongside "New Plan from
+  // Template" rather than the only path, which PLN-9 had made it.
+  const handleCreateBlankWorkspace = async (name: string, startDate: string, windowDays: number): Promise<boolean> => {
+    try {
+      const { workspace } = await createWorkspace({
+        name,
+        planning_window_start: startDate,
+        planning_window_end: windowEnd(startDate, windowDays),
+      });
       const { workspaces: entries } = await listWorkspaces();
       setWorkspaces(entries.map(adaptWorkspace));
       setActiveTimelineId(null);
@@ -329,10 +367,25 @@ export default function PlannerApp() {
 
   // Returns `false` on a rejected save so EditModal keeps the form open
   // with the user's typing intact instead of closing as if it worked.
+  // GAP-FIX W2 — `user_id` now travels with every agent save.
+  //
+  // CREATE IS TWO CALLS, ON PURPOSE. `POST workspace/{id}/agent` (535)
+  // has never accepted `user_id`; only the PATCH (536) does, with its
+  // own tenancy (E-PLN-010) and one-login-per-plan (E-PLN-011) checks.
+  // Rather than copy those two rules into a second endpoint — the one
+  // duplication CLAUDE.md singles out as the kind that eventually
+  // disagrees with itself — the create posts the agent and then links
+  // the login through the endpoint that already owns the rule. If the
+  // link is refused, the agent still exists WITHOUT a login and the
+  // W2 warning on it says exactly that, so the half-done state is
+  // visible rather than silent.
   const handleSaveAgent = async (
     agentId: string | null,
-    updates: { name: string; kind: 'person' | 'ai'; color: string; dailyCapacityHours: number; modelId?: string }
+    updates: { name: string; kind: 'person' | 'ai'; color: string; dailyCapacityHours: number; modelId?: string; userId?: string }
   ): Promise<boolean> => {
+    // '' / undefined means "no login" — 0 is the backend's own sentinel
+    // for that, and sending it explicitly is how a link gets CLEARED.
+    const nextUserId = updates.kind === 'person' && updates.userId ? Number(updates.userId) : 0;
     try {
       if (agentId) {
         await updateAgent(Number(agentId), {
@@ -341,6 +394,7 @@ export default function PlannerApp() {
           color: updates.color,
           daily_capacity_hours: updates.dailyCapacityHours,
           model_id: updates.kind === 'ai' && updates.modelId ? Number(updates.modelId) : 0,
+          user_id: nextUserId,
         });
       } else {
         if (!activeWorkspaceId) return false;
@@ -352,6 +406,15 @@ export default function PlannerApp() {
           model_id: updates.kind === 'ai' && updates.modelId ? Number(updates.modelId) : undefined,
         });
         setActiveAgentId(String(agent.id));
+        if (nextUserId !== 0) {
+          try {
+            await updateAgent(agent.id, { user_id: nextUserId });
+          } catch (linkErr) {
+            await refreshBoard();
+            reportActionError(linkErr);
+            return true; // the agent IS created; only the link failed
+          }
+        }
       }
       await refreshBoard();
       return true;
@@ -541,6 +604,9 @@ export default function PlannerApp() {
       type: 'publish_confirm',
       timeline: tl,
       agentName: agent?.name || tl.assignee || 'the assigned agent',
+      // GAP-FIX W2 — an unknown agent is treated as "has a login" so a
+      // lookup miss never invents a scary warning out of nothing.
+      agentHasLogin: agent ? Boolean(agent.userId) : true,
     });
   };
 
@@ -664,6 +730,25 @@ export default function PlannerApp() {
         return refreshBoard();
       })
       .catch(reportActionError);
+  };
+
+  // GAP-FIX W1 — "which day does this step go on?" resolved to a real
+  // timeline id, creating the day if it isn't there yet.
+  //
+  // `createTimeline` is IDEMPOTENT server-side (PLN-6): an existing
+  // (agent, date) row comes back as `created: false`, never duplicated.
+  // That is why this can be called blind, and why the rule lives here
+  // rather than in the modal — nothing else should hold a second
+  // opinion about how a day gets opened.
+  const handleEnsureTimeline = async (agentId: string, date: string): Promise<string | null> => {
+    if (!activeWorkspaceId) return null;
+    try {
+      const { timeline } = await createTimeline(Number(activeWorkspaceId), Number(agentId), date);
+      return String(timeline.id);
+    } catch (err) {
+      reportActionError(err);
+      return null;
+    }
   };
 
   // Create Backlog Task
@@ -1002,6 +1087,9 @@ export default function PlannerApp() {
           onRequestCreateWorkspace={handleOpenCreateWorkspaceModal}
           onRenameWorkspace={handleRenameWorkspace}
           onOpenWorkspaceSettings={() => setIsWorkspaceSettingsOpen(true)}
+          onOpenAgentProfiles={() => setIsAgentProfilesOpen(true)}
+          onOpenTemplates={() => setIsTemplatesOpen(true)}
+          onOpenJobs={() => setIsJobsOpen(true)}
         />
 
         {/* Workspace Body: Board/Grid + Backlog */}
@@ -1137,6 +1225,20 @@ export default function PlannerApp() {
         onOpenGlobalSettings={() => setIsSettingsOpen(true)}
       />
 
+      {/* Agents (PLAN-2, US-PLAN-2-03): account-wide, not workspace-scoped */}
+      <AgentProfilesModal isOpen={isAgentProfilesOpen} onClose={() => setIsAgentProfilesOpen(false)} />
+
+      {/* Templates (PLAN-3, US-PLAN-3-04): build/edit a template's maps + agent roster */}
+      <TemplatesModal
+        isOpen={isTemplatesOpen}
+        onClose={() => setIsTemplatesOpen(false)}
+        onTemplatesChanged={() => {
+          listTemplates()
+            .then(({ templates: t }) => setTemplates(t))
+            .catch(() => {});
+        }}
+      />
+
       {/* New plan from a template (US-PLN-9-07) */}
       <CreateWorkspaceModal
         isOpen={isCreateWorkspaceModalOpen}
@@ -1144,6 +1246,22 @@ export default function PlannerApp() {
         isLoadingTemplates={isLoadingTemplates}
         onClose={() => setIsCreateWorkspaceModalOpen(false)}
         onCreate={handleCreateWorkspaceFromTemplate}
+        onCreateBlank={handleCreateBlankWorkspace}
+      />
+
+      {/* Jobs (GAP-FIX W1): create real work from a map and put its steps on a day */}
+      <JobsModal
+        isOpen={isJobsOpen}
+        workspaceId={activeWorkspaceId || null}
+        workspaceName={activeWorkspace?.name ?? ''}
+        agents={agentsInActiveWs}
+        timelines={timelinesInActiveWs}
+        tasks={tasks}
+        linkedSteps={linkedSteps}
+        planningWindowStart={activeWorkspace?.planningWindowStart ?? ''}
+        onClose={() => setIsJobsOpen(false)}
+        onEnsureTimeline={handleEnsureTimeline}
+        onChanged={() => { void refreshBoard(); }}
       />
 
       {/* Component Sheet & Deliverables Modal (§11 & §8) */}

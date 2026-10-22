@@ -1,12 +1,16 @@
 // PLAN-1 (US-PLAN-1-02) — Create a plan template.
+// PLAN-3 (US-PLAN-3-01/02) — now also accepts the template's agent
+// roster, same shape as its maps.
 //
 // The template is the reusable shape; the plan made from it is a
-// separate copy. Nothing here holds tasks, people or capacity.
+// separate copy. Nothing here holds tasks — only which agent PROFILES
+// (durable, PLAN-2) and which published maps this template points at.
 //
-// MAPS ARE VALIDATED BEFORE ANYTHING IS WRITTEN, so a template is
-// never left half-built with some maps attached and one rejected.
-// Only a map with a published version may be attached — see
-// planner/assert_maps_publishable for why.
+// MAPS AND AGENTS ARE BOTH VALIDATED BEFORE ANYTHING IS WRITTEN, so a
+// template is never left half-built with some rejected. Only a map
+// with a published version, and an agent profile that's currently
+// eligible, may be attached — see planner/assert_maps_publishable and
+// planner/assert_agent_profiles_eligible for why.
 //
 // Admin-only is deliberately NOT applied: PLN-2's access matrix
 // reserves admin for rates and the model catalogue only. A template
@@ -20,6 +24,7 @@ query "template" verb=POST {
     int window_days?
     text default_start_time? filters=trim
     json map_ids?
+    json agent_profile_ids?
     text correlation_id? filters=trim
   }
 
@@ -69,6 +74,18 @@ query "template" verb=POST {
       }
     }
 
+    var $agent_profile_ids {
+      value = []
+    }
+
+    conditional {
+      if ($raw_input|has:"agent_profile_ids") {
+        var.update $agent_profile_ids {
+          value = $input.agent_profile_ids
+        }
+      }
+    }
+
     db.query plan_template {
       where = $db.plan_template.account_id == $actor.account_id && $db.plan_template.name == $input.name
       return = {type: "count"}
@@ -77,6 +94,17 @@ query "template" verb=POST {
     function.run "planner/assert_maps_publishable" {
       input = {account_id: $actor.account_id, map_ids: $map_ids}
     } as $maps_check
+
+    function.run "planner/assert_agent_profiles_eligible" {
+      input = {account_id: $actor.account_id, profile_ids: $agent_profile_ids}
+    } as $agents_check
+
+    // Gap-fix #1: two roster agents with the same name would make every
+    // plan created from this template fail (planner_agent is unique by
+    // plan + name). Refuse it here, where it can be explained.
+    function.run "planner/assert_roster_names_unique" {
+      input = {existing_profile_ids: [], add_profile_ids: $agent_profile_ids}
+    } as $names_check
 
     var $reject_code {
       value = ""
@@ -137,11 +165,47 @@ query "template" verb=POST {
     conditional {
       if ($reject_code == "" && $maps_check.ok == false) {
         var.update $reject_code {
-          value = "E-PLAN-004"
+          value = "E-PLAN-015"
         }
 
         var.update $reject_msg {
-          value = "One of those maps isn't available to this account. (E-PLAN-004)"
+          value = "One of those maps isn't available to this account. (E-PLAN-015)"
+        }
+      }
+    }
+
+    conditional {
+      if ($reject_code == "" && $agents_check.ok == false && $agents_check.reason == "not_eligible") {
+        var.update $reject_code {
+          value = "E-PLAN-010"
+        }
+
+        var.update $reject_msg {
+          value = "This person isn't tagged as an agent right now. (E-PLAN-010)"
+        }
+      }
+    }
+
+    conditional {
+      if ($reject_code == "" && $agents_check.ok == false) {
+        var.update $reject_code {
+          value = "E-PLAN-016"
+        }
+
+        var.update $reject_msg {
+          value = "One of those agents isn't available to this account. (E-PLAN-016)"
+        }
+      }
+    }
+
+    conditional {
+      if ($reject_code == "" && $names_check.ok == false) {
+        var.update $reject_code {
+          value = "E-PLAN-012"
+        }
+
+        var.update $reject_msg {
+          value = "Two agents on this template would both be called '" ~ $names_check.duplicate_name ~ "'. Rename one, or leave one off. (E-PLAN-012)"
         }
       }
     }
@@ -189,6 +253,14 @@ query "template" verb=POST {
             } as $link
           }
         }
+
+        foreach ($agent_profile_ids) {
+          each as $pid {
+            db.add plan_template_agent {
+              data = {plan_template_id: $template.id, agent_profile_id: $pid}
+            } as $agent_link
+          }
+        }
       }
     }
 
@@ -204,13 +276,36 @@ query "template" verb=POST {
         entity_id     : $template.id
         correlation_id: $input.correlation_id
         message       : "Plan template created."
-        metadata      : {map_count: ($map_ids|count)}
+        metadata      : {map_count: ($map_ids|count), agent_count: ($agent_profile_ids|count)}
+      }
+    }
+
+    // Gap-fix #6: roster changes are PLAN-3's, so the Health page can
+    // tell them apart from PLAN-1's template events.
+    conditional {
+      if (($agent_profile_ids|count) > 0) {
+        function.run "ops/log_event" {
+          input = {
+            feature       : "PLAN-3"
+            step          : "add_template_agent"
+            outcome       : "success"
+            severity      : "info"
+            user_id       : $actor.user_id
+            account_id    : $actor.account_id
+            entity_type   : "plan_template"
+            entity_id     : $template.id
+            correlation_id: $input.correlation_id
+            message       : "Agents added to a template roster."
+            metadata      : {agent_count: ($agent_profile_ids|count)}
+          }
+        }
       }
     }
   }
 
   response = {
-    template: $template
-    map_ids : $map_ids
+    template        : $template
+    map_ids         : $map_ids
+    agent_profile_ids: $agent_profile_ids
   }
 }

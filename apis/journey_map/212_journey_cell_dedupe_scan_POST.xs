@@ -23,8 +23,19 @@
 //    ],
 //    scanned_at: timestamp
 //  }
+//
+// US-SEC-1-05 (2026-10-19) — PLATFORM ADMIN ONLY. READ-ONLY, but it
+// reads across EVERY account: with no journey_map_id it loads the whole
+// journey_cell table and reports map, stage and lens ids plus content
+// previews. It needed no login, so it was a free index of every
+// customer's matrix.
+//
+// Gated on `is_platform_admin` rather than ownership because a
+// cross-account scan has no single owning account. The refusal logs a
+// `rejected` event with E-OBS-001 before it throws (OBS-1).
 query "journey_cell/dedupe_scan" verb=POST {
   api_group = "journey-map"
+  auth = "user"
 
   input {
     // Optional: limit the scan to a single journey map.
@@ -33,6 +44,15 @@ query "journey_cell/dedupe_scan" verb=POST {
   }
 
   stack {
+    function.run "ops/require_platform_admin" {
+      input = {
+        user_id: $auth.id
+        what   : "maintenance tool"
+        feature: "SEC-1"
+        step   : "dedupe_scan"
+      }
+    } as $admin_guard
+  
     // ── Load cells to scan (optionally scoped to one map) ──
     conditional {
       if ($input.journey_map_id != null) {

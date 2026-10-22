@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import MapVersionBadge from './MapVersionBadge';
+import {anchorForSeam, moveOneStep} from './matrixOrder';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Send,
@@ -57,6 +59,8 @@ import {
   addJourneyLens,
   updateLensActorFields,
   addJourneyStage,
+  reorderJourneyStages,
+  reorderJourneyLenses,
   buildSelectedCellPayload,
   createConversation,
   createDraftJourneyMap,
@@ -101,6 +105,8 @@ import {
   listJourneyStageOwners,
   publishMapVersion,
   getMapReadiness,
+  listMapVersions,
+  type MapVersionsResponse,
   type GateFailure,
 } from './xano';
 import {doesPlannedWork} from './stageOwnerModel';
@@ -147,7 +153,15 @@ const resolveXanoId = (entity: {id: string; xanoId?: number}, entityName: string
   throw new Error(`Cannot persist ${entityName} edits because this record is not backed by a saved Xano row yet.`);
 };
 
-const getErrorMessage = (error: unknown, fallback: string) => (error instanceof Error ? error.message : fallback);
+// Prefer the server's own sentence (XanoHttpError.serverMessage — e.g. "That
+// column order doesn't match this map's columns, so nothing was changed.
+// (E-ORD-001)") over the technical "Xano POST /x failed (400): {...}" blob.
+// The blob stays in error.message for logs; a person should never see it.
+const getErrorMessage = (error: unknown, fallback: string) => {
+  const serverMessage = (error as {serverMessage?: string | null} | null)?.serverMessage;
+  if (serverMessage) return serverMessage;
+  return error instanceof Error ? error.message : fallback;
+};
 
 // ── Transparency Layer helpers ──────────────────────────────────────────────
 
@@ -526,6 +540,9 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const [buildLoopProgress, setBuildLoopProgress] = useState(0);
   const [buildLoopTurnDisplay, setBuildLoopTurnDisplay] = useState(0);
   const isBuildLoopingRef = useRef(false);
+  // ORD-1 (US-ORD-1-05) — a row insert goes through the actor wizard (the row
+  // needs an actor type), so the seam's anchor is parked here until it confirms.
+  const pendingLensAnchorRef = useRef<number | undefined>(undefined);
   const buildLoopTurnsRef = useRef(0);
   const buildStallCountRef = useRef(0);
   // Tracks which conversation ID has already received the auto-greeting so we don't re-send
@@ -578,6 +595,10 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const [publishStubMessage, setPublishStubMessage] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
   const [serverBlockers, setServerBlockers] = useState<GateFailure[] | null>(null);
+  // ── GAP-FIX W6: what's live, and has it changed since? ──
+  const [versionInfo, setVersionInfo] = useState<MapVersionsResponse | null>(null);
+  const [isLoadingVersions, setIsLoadingVersions] = useState(false);
+  const versionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // ── Scorecard / Health Widget (US-MET-12/14) ──
   const [scorecard, setScorecard] = useState<ScorecardResult | null>(null);
   const [scorecardBaseline, setScorecardBaseline] = useState<ScorecardResult | null>(null);
@@ -747,6 +768,29 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     };
   }, [journeyMapRecord?.id]);
 
+  // ── GAP-FIX W6 ────────────────────────────────────────────────────────────
+  // The badge's whole job is to be TRUE, so a failure here shows nothing
+  // rather than a stale answer: a version badge that quietly keeps saying
+  // "in sync" after the check stopped working would be worse than no badge.
+  const refreshVersionInfo = useCallback(async (mapId: number) => {
+    setIsLoadingVersions(true);
+    try {
+      setVersionInfo(await listMapVersions(mapId));
+    } catch {
+      setVersionInfo(null);
+    } finally {
+      setIsLoadingVersions(false);
+    }
+  }, []);
+
+  // Each call rebuilds the map's snapshot and re-hashes it server-side, so
+  // it is debounced well past the scorecard's 2s — "have I published this?"
+  // is a question about the last few minutes, not the last keystroke.
+  const debouncedRefreshVersionInfo = useCallback((mapId: number) => {
+    if (versionDebounceRef.current) clearTimeout(versionDebounceRef.current);
+    versionDebounceRef.current = setTimeout(() => { void refreshVersionInfo(mapId); }, 5000);
+  }, [refreshVersionInfo]);
+
   // PUB-1 (US-PUB-1-02/06) — Publish version. The button is already disabled
   // while the browser's own readiness says no, but the server checks again
   // and is the one that decides: if it refuses, its reasons replace the
@@ -766,6 +810,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
           : 'Published. (The publish gate is off for this account, so no version was frozen.)',
       );
       setJourneyMapRecord((current) => (current ? {...current, status: 'active'} : current));
+      void refreshVersionInfo(journeyMapRecord.id); // GAP-FIX W6: the badge has to move the moment the version does
     } catch (error) {
       // A gate refusal is a 400 with E-PUB-001; re-read the server's own
       // reasons so the checklist shows exactly what IT objected to.
@@ -782,7 +827,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     } finally {
       setIsPublishing(false);
     }
-  }, [journeyMapRecord?.id]);
+  }, [journeyMapRecord?.id, refreshVersionInfo]);
 
   const handleTogglePlannedWork = useCallback(
     (lensId: string) => {
@@ -813,6 +858,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     if (scorecardDebounceRef.current) clearTimeout(scorecardDebounceRef.current);
     scorecardDebounceRef.current = setTimeout(() => { void refreshScorecard(mapId); }, 2000);
   }, [refreshScorecard]);
+
 
   const syncLatestJourneyMap = useCallback(async () => {
     setIsXanoSyncing(true);
@@ -858,6 +904,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
           applyJourneyMapBundle(bundle);
           setInitialLoadState('ready');
           void refreshScorecard(journeyMapId, true);
+          void refreshVersionInfo(journeyMapId);
         })
         .catch((err) => {
           applyJourneyMapBundle(null);
@@ -1585,6 +1632,8 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
 
         // Debounced scorecard refresh after cell save (SE-D1)
         if (persistedCell.journey_map) debouncedRefreshScorecard(persistedCell.journey_map);
+        // GAP-FIX W6: editing a cell is exactly what makes a published map stale.
+        if (persistedCell.journey_map) debouncedRefreshVersionInfo(persistedCell.journey_map);
 
         return true;
       } catch (error) {
@@ -1602,7 +1651,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         setIsXanoSyncing(false);
       }
     },
-    [selectedCellId, selectedCellSnapshot, debouncedRefreshScorecard],
+    [selectedCellId, selectedCellSnapshot, debouncedRefreshScorecard, debouncedRefreshVersionInfo],
   );
 
   const handleSelectCell = useCallback(
@@ -1750,7 +1799,9 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     })();
   };
 
-  const addStage = async () => {
+  // ORD-1 (US-ORD-1-04/05) — afterStageId: undefined = append (the toolbar
+  // button), 0 = insert first, an id = insert directly after that column.
+  const addStage = async (afterStageId?: number) => {
     const didPersistCurrentCell = await persistCellChanges(selectedCell);
     if (!didPersistCurrentCell) {
       return;
@@ -1766,8 +1817,9 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     setLastUpdateSummaries([]);
 
     try {
-      await addJourneyStage({journeyMapId: journeyMapRecord.id});
+      await addJourneyStage({journeyMapId: journeyMapRecord.id, afterStageId});
       await refreshCurrentJourneyMap(journeyMapRecord);
+      debouncedRefreshVersionInfo(journeyMapRecord.id);
     } catch (error) {
       setXanoError(getErrorMessage(error, 'Unable to add stage.'));
     } finally {
@@ -1804,7 +1856,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     }
   };
 
-  const addLens = async (actorInput?: ActorWizardInput) => {
+  const addLens = async (actorInput?: ActorWizardInput, afterLensId?: number) => {
     const didPersistCurrentCell = await persistCellChanges(selectedCell);
     if (!didPersistCurrentCell) {
       return;
@@ -1831,8 +1883,10 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
           primaryGoal: actorInput.primaryGoal,
           standingConstraints: actorInput.standingConstraints,
         }),
+        afterLensId,
       });
       await refreshCurrentJourneyMap(journeyMapRecord);
+      debouncedRefreshVersionInfo(journeyMapRecord.id);
     } catch (error) {
       setXanoError(getErrorMessage(error, 'Unable to add lens.'));
     } finally {
@@ -1859,11 +1913,110 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         await refreshCurrentJourneyMap(journeyMapRecord);
       }
     } else {
-      // Create mode — add a new lens row
-      await addLens(input);
+      // Create mode — add a new lens row (at the seam that opened the wizard, if any)
+      await addLens(input, pendingLensAnchorRef.current);
     }
+    pendingLensAnchorRef.current = undefined;
     setShowActorWizard(false);
     setActorWizardEditTarget(null);
+  };
+
+  // ── ORD-1 (US-ORD-1-05) — insert on the seam, move with arrows ────────────
+  // The server is the only thing that writes an order and it re-validates
+  // every list (E-ORD-001 / E-ORD-002). After any attempt — success or
+  // refusal — the matrix reloads from the server, so the screen always shows
+  // what is really stored, never the client's guess.
+
+  const xanoIdsOf = (items: {id: string; xanoId?: number}[], name: string) =>
+    items.map((item) => resolveXanoId(item, name));
+
+  const handleInsertStageAt = (seamIndex: number) => {
+    if (isXanoSyncing) return;
+    let afterStageId: number | undefined;
+    try {
+      afterStageId = anchorForSeam(xanoIdsOf(stages, 'stage'), seamIndex);
+    } catch (error) {
+      setXanoError(getErrorMessage(error, 'Unable to insert a column here.'));
+      return;
+    }
+    void addStage(afterStageId);
+  };
+
+  const handleInsertLensAt = (seamIndex: number) => {
+    if (isXanoSyncing) return;
+    try {
+      pendingLensAnchorRef.current = anchorForSeam(xanoIdsOf(lenses, 'lens'), seamIndex);
+    } catch (error) {
+      setXanoError(getErrorMessage(error, 'Unable to insert a row here.'));
+      return;
+    }
+    setActorWizardEditTarget(null);
+    setShowActorWizard(true);
+  };
+
+  const runReorder = async (send: (mapId: number) => Promise<void>, failMessage: string) => {
+    if (!journeyMapRecord) {
+      setXanoError(DEFAULT_MATRIX_EDIT_ERROR);
+      return;
+    }
+    const didPersistCurrentCell = await persistCellChanges(selectedCell);
+    if (!didPersistCurrentCell) return;
+
+    setIsXanoSyncing(true);
+    setXanoError(null);
+    setLastUpdateSummaries([]);
+    let failure: unknown = null;
+    try {
+      await send(journeyMapRecord.id);
+      debouncedRefreshVersionInfo(journeyMapRecord.id);
+    } catch (error) {
+      failure = error;
+    }
+    try {
+      await refreshCurrentJourneyMap(journeyMapRecord);
+    } catch (error) {
+      failure = failure ?? error;
+    }
+    if (failure) setXanoError(getErrorMessage(failure, failMessage));
+    setIsXanoSyncing(false);
+  };
+
+  const handleMoveStage = (stageId: string, dir: -1 | 1) => {
+    if (isXanoSyncing) return;
+    const target = stages.find((stage) => stage.id === stageId);
+    if (!target) return;
+    let next: number[] | null;
+    try {
+      next = moveOneStep(xanoIdsOf(stages, 'stage'), resolveXanoId(target, 'stage'), dir);
+    } catch (error) {
+      setXanoError(getErrorMessage(error, 'Unable to move that column.'));
+      return;
+    }
+    if (!next) return;
+    const stageIds = next;
+    void runReorder(
+      (journeyMapId) => reorderJourneyStages({journeyMapId, stageIds}),
+      'Unable to move that column, so nothing was changed.',
+    );
+  };
+
+  const handleMoveLens = (lensId: string, dir: -1 | 1) => {
+    if (isXanoSyncing) return;
+    const target = lenses.find((lens) => lens.id === lensId);
+    if (!target) return;
+    let next: number[] | null;
+    try {
+      next = moveOneStep(xanoIdsOf(lenses, 'lens'), resolveXanoId(target, 'lens'), dir);
+    } catch (error) {
+      setXanoError(getErrorMessage(error, 'Unable to move that row.'));
+      return;
+    }
+    if (!next) return;
+    const lensIds = next;
+    void runReorder(
+      (journeyMapId) => reorderJourneyLenses({journeyMapId, lensIds}),
+      'Unable to move that row, so nothing was changed.',
+    );
   };
 
   const handleEditActorOpen = (lens: Lens) => {
@@ -2238,7 +2391,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     Add Column
                   </button>
                   <button
-                    onClick={() => { setActorWizardEditTarget(null); setShowActorWizard(true); }}
+                    onClick={() => { pendingLensAnchorRef.current = undefined; setActorWizardEditTarget(null); setShowActorWizard(true); }}
                     disabled={isXanoSyncing}
                     className="inline-flex items-center gap-1.5 rounded border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-zinc-600 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
                   >
@@ -2300,6 +2453,12 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                       Checklist
                     </button>
                   )}
+                  {/* GAP-FIX W6 — what's live, when, and whether it's drifted. */}
+                  <MapVersionBadge
+                    info={versionInfo}
+                    isLoading={isLoadingVersions}
+                    onRefresh={() => { if (journeyMapRecord?.id) void refreshVersionInfo(journeyMapRecord.id); }}
+                  />
                   {/* AUTH-1 (US-AUTH-1-06) shows the state; PUB-1 (US-PUB-1-02) does the publish. */}
                   {mapReadiness.total > 0 && (
                     <button
@@ -2347,6 +2506,10 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     onEditStage={handleEditStageOpen}
                     onTogglePlannedWork={handleTogglePlannedWork}
                     stageReadiness={stageReadinessMap}
+                    onInsertStageAt={handleInsertStageAt}
+                    onMoveStage={handleMoveStage}
+                    onInsertLensAt={handleInsertLensAt}
+                    onMoveLens={handleMoveLens}
                   />
                 </div>
               </div>
@@ -3891,7 +4054,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
       {/* Actor Setup Wizard */}
       <ActorSetupWizard
         isOpen={showActorWizard}
-        onClose={() => { setShowActorWizard(false); setActorWizardEditTarget(null); }}
+        onClose={() => { pendingLensAnchorRef.current = undefined; setShowActorWizard(false); setActorWizardEditTarget(null); }}
         onConfirm={handleActorWizardConfirm}
         existingLens={actorWizardEditTarget}
       />

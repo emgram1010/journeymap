@@ -7,11 +7,39 @@
 
 ## About the founder
 - Product manager, **not an engineer**, and the only support person. ADHD/INTP-leaning.
-- Keep answers **short and scannable**: lead with the decision, use tables, ask **one clear question at a time**.
+- Keep answers **short and scannable**: lead with the decision, ask **one clear question at a time**. The hard limits are in **Response format** below — they are not optional.
 - Explain in plain language. No jargon, no walls of text.
 - **Explain before writing.** If asked to explain or review, answer in chat; do not create or edit files until asked.
 - Treat their statements as direction, not gospel: validate, refine, point out gaps, then ask.
 - Their examples are **illustrations**. Design the generic pattern; never build for a literal example (no industry assumptions).
+
+## 🔴 Response format — short bullets, always
+
+Asked for **five times**. Two failure modes, both wrong:
+1. Many bullets with sub-bullets and tables (treating a cap as a budget to spend).
+2. Prose paragraphs, after being told there were too many bullets.
+
+**The answer is always short bullets. Prose is NOT the fallback.**
+
+| Rule | Limit |
+|---|---|
+| Bullets | **5 max**, and fewer is better |
+| Each bullet | **one line**, about 15 words, max 25 |
+| Paragraphs | **never** — not even one |
+| Sub-bullets, tables | **none unless asked** |
+| Preamble, recap | **none** |
+| Question | **1 max**, last, its own bullet |
+
+**When the founder asks for more detail, the answer is still bullets** — more
+specific ones, not sentences. Depth means better bullets, never a wall of text.
+
+**Headings are allowed** to separate two topics, with its own bullets under each.
+
+**Trim words, never findings.** A real risk keeps its bullet. If it genuinely
+will not fit, say so in one bullet and offer the long version.
+
+**Exceptions:** the founder explicitly asks for a write-up or walkthrough, or
+the output is a file. Files are never capped.
 
 ## Build protocol (one epic at a time)
 1. Work in the **MVP build order** in `product/stories/phase-4/README.md`. Do not start an epic whose dependencies are not done. Build only the stories marked in the epic's **MVP scope**; deferred stories wait.
@@ -68,7 +96,12 @@ These were learned the hard way by pushing OBS-1 and hitting real runtime errors
 - **`now` is a numeric ms timestamp on its own, but inside an object literal it is the magic `"now"` token instead.** `var $t { value = now }` gives `1791951821495` and `now|to_int` works, but `duration_ms: (now - $started_at)` **inside an object literal** parses fine and then fails at runtime with `"Not numeric."` — in that position `now` is the same token that `data = {created_at: "now"}` relies on. Compute elapsed time into vars first (`var $end { value = now|to_int }`, then subtract) and pass the plain variable, the same hoisting rule that `where` clauses need. (PUB-1, endpoint 201 — found on the first real publish, not at push time.)
 - **`db.transaction` works, and an `as` variable assigned inside one IS readable outside it** — unlike the warning about `conditional` branches. Confirmed with a scratch function before restructuring endpoint 201, so `db.transaction { stack { db.patch ... as $x ... } }` then using `$x` in the response is safe. Keep `function.run` and HTTP calls OUT of the transaction: compute anything pure (hashes, next version numbers) before it and keep the block to plain database writes.
 - **Hashing anything that has to match the frontend must not go through `json_encode`.** Key order, whitespace and unicode escaping differ between encoders, so two sides encoding "the same" object produce different bytes. Build the string by explicit concatenation in a fixed field order and hash that (`$out|sha256`). Verified byte-identical against the TypeScript twice (PUB-1, `pub/canonical_hash.xs` ↔ `versionHash.ts`). Pin the expected hash on **both** sides so drift fails a test instead of silently invalidating stored hashes.
-- **Confirmed working filters this session:** `sha256`, `replace` (chainable: `|replace:"a":"b"|replace:"c":"d"`), `values` (object → array, safe to `foreach`), `count`, `trim`, `lower`, `to_int`, `to_text`, `join`. `|first` on a non-paged `return = {type:"list"}` also works (it is already used live in endpoint 201).
+- **Confirmed working filters this session:** `sha256`, `replace` (chainable: `|replace:"a":"b"|replace:"c":"d"`), `values` (object → array, safe to `foreach`), `count`, `trim`, `lower`, `to_int`, `to_text`, `join`. `|first` on a non-paged `return = {type:"list"}` also works (it is already used live in endpoint 201). **Also confirmed on real data (ORD-1, 2026-10-19):** `"/[^0-9]/"|regex_replace:"":$text` (pattern first, then replacement, then subject); `"/^s[0-9]+$/"|regex_matches:$text`; a **bool `|to_int`** gives 0/1, which lets you fold a test into arithmetic instead of a `conditional` inside a loop (see `functions/journey/next_stage_key.xs`); and `|max` on an array built with `array.push` works, unlike `[index]` on the same array. `$obj|has:"key"` exists and tells "present with value 0" from "absent" — the way to detect an optional int on a POST body (`util.get_raw_input` then `|has`), where `$input` can't. A `db.query ... return = {type: "single"}` that matches nothing gives a value that `|get:"id":0` safely turns into `0` (no crash), so a key→id lookup needs no `conditional` in the loop.
+- **A function's `response` lives OUTSIDE its `stack` block**: `function "x" { input {...} stack {...} response = {...} }`. Writing `response { value = ... }` inside the stack — the shape an API `query` uses — fails with `"Syntax error: unexpected 'response'"`. And a function or tool with no inputs still needs an `input {}` block, or it is rejected with `"Missing block: input"`. (ORD-2, 2026-10-19.)
+- **`|has:"key"` works on any object, not just `util.get_raw_input`** — including a `json` array element bound by `foreach ... each as $op`. This is the way to tell "the caller left this field out" from "the caller sent it empty" inside a loop: capture `($op|has:"field")` into the resolved row during a first pass, then branch on that **field of the loop item** in a second pass. That keeps the condition on the loop item, which is the only shape that reliably works. (ORD-2, `ai/tool/scaffold_structure.xs`.)
+- **The "a `where` clause cannot call filters" rule catches `|get` too.** `where = $db.t.key == ($op|get:"key":"")` must be hoisted into a plain `var` first, exactly like the `transform_timestamp` case. Same reason: the where compiles to SQL.
+- **A `precondition`'s `error =` accepts a plain variable**, so a message that needs `sprintf` (naming the key that was not found, counting the rows that block a delete) is built into a `var` on the line before. Keeps the condition on one line, which it must be.
+- **`db.transaction` happily mixes tables and verbs** — `db.del` on one table, `db.patch` on a second and `db.add` on a third all committed together, confirmed live. Still no `function.run` inside it: compute and resequence outside.
 - **There is no exposed tool to RUN a `workflow_test`.** `runUnitTest` only accepts unit tests attached to a function/query/middleware and rejects a workflow-test id; no `runWorkflowTest` exists in the MCP surface. Workflow test files can be written and pushed (`createWorkflowTest`) but not executed from a session — so when an epic's completion gate depends on them, drive each assertion through `runWorkspaceFunction` instead and say plainly in Test Results that the file itself was never run.
 - **A `|` character inside a STRING LITERAL breaks the parser.** `var $k { value = $a ~ "|" ~ $b }` fails at runtime with `"Invalid syntax. Try using the \"transform\" filter or an expression."` — the pipe is read as a filter separator even inside quotes. Changing the separator to `"::"` fixed it with no other edit. Don't build composite map keys, fingerprints or delimiters out of `|`; use `::`. (LOG-1, `scratch/verify_transitions`.)
 - **Nested `foreach` works, and so does a `conditional` nested inside another `conditional`'s `else` branch.** Both confirmed live with real data: a 5×7 `foreach`-in-`foreach` walking every (status, event) pair through a `function.run`, and two-deep `if`/`else`/`if` in `functions/ops/audit_execution.xs`. Worth stating explicitly, because so many neighbouring constructs silently fail that it is tempting to avoid these too. (LOG-1.)
@@ -201,6 +234,7 @@ not a fix to 210 itself, which still needs its own resolution later.
 - **`redis.ratelimit` / `redis.get` / `redis.set` are rejected outright on this Xano plan** with `403 "Not supported. Please upgrade your Xano instance."`, regardless of caller or input. `apis/ops/1_ops_event_POST.xs` (OBS-1) used all three and has therefore refused every call since it was built — rewritten to the same rate-limit/de-dup rule using a plain `db.query ... return = {type: "count"}` against `event_log` with a cutoff timestamp computed into a `var` first, instead. Before using ANY `redis.*` filter on this instance, confirm it works with a scratch function first; assume it does not.
 - **Multiple API groups means multiple base URLs — a `fetch` to the wrong one 404s with no hint it picked the wrong group.** `webapp/protype-2/src/xano.ts`'s `getOpsHealth`/`getOpsIssues`/`getOpsBundle` and `ops/logEvent.ts`'s `defaultSend` were all calling `xanoRequest('/ops/...')`, which targets the journey-map group (`ER4MRRWZ`) — but `/ops/*` only exists in its own group ("Ops", canonical `-2MhtESP`, **note the required `:v1` suffix**: `api:-2MhtESP:v1`, confirmed from that group's own OpenAPI spec). Every Health-page read and every client-side event send had been hitting a 404 since OBS-1 was built. Fixed by adding an optional `baseUrl` to `xanoRequest`'s options and a `getXanoOpsBaseUrl()` constant, same pattern as the existing `getXanoAuthBaseUrl()`. **Before wiring a frontend call to a newly-pushed endpoint, confirm which `api_group` it actually lives in** (`listAPIGroups`) — don't assume the app's one existing base URL covers it.
 - **A pipe chain immediately after a parenthesized `|get` expression is fine**: `($map|get:$key:0)|to_text` is NOT the "nested pipe inside a filter argument" trap (that trap is a pipe used as an ARGUMENT to another filter, e.g. `|get:($x|to_text):null`). Chaining a filter onto the result of a fully-parenthesized expression works. Confirmed live in `perform/hydrate_statuses`.
+- **Excluding a list of ids in a `where` clause must be written `not in`, never `!(... in ...)`.** `where = ... && !($db.journey_map.id in $deleted_ids)` **pushes cleanly and then fails at runtime**, with no usable error message — the MCP tool just reports "Unable to get successful response". `where = ... && ($db.journey_map.id not in $deleted_ids)` works and compiles to SQL. Confirmed twice on a scratch function, after the broken form took down all three map-keyed journey-map list endpoints live and had to be reverted (SEC-1, `journey/visible_map_ids`, 2026-10-19). Positive `in` was already known to work; the negation is a separate fact. **Seed the exclusion array with a sentinel (`-1`) so it is never empty** — `not in [-1]` correctly excludes nothing (16 of 16 rows kept), while `not in []` is untested.
 - **`int[]`/array-typed function inputs work and round-trip correctly** (`input { int[] work_task_ids }`, `input { int[] agent_ids }`), confirmed live via `runWorkspaceFunction` and real HTTP.
 
 ## Architecture rules (short form)

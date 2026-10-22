@@ -14,6 +14,11 @@
 // Reuses `planner/assert_maps_publishable` unchanged: a map must
 // belong to this account AND have a published version, the identical
 // rule a template enforces when accepting one.
+//
+// 2026-10-18 — the "not this account's map" branch was sharing
+// E-PLAN-004 with "not published yet", two different failures under
+// one code. Renumbered to E-PLAN-015; found by the error-code registry
+// guard, which now fails the build on a reused code.
 query "workspace/{workspace_id}/map" verb=POST {
   api_group = "planner"
   auth = "user"
@@ -84,11 +89,11 @@ query "workspace/{workspace_id}/map" verb=POST {
     conditional {
       if ($reject_code == "" && $maps_check.ok == false) {
         var.update $reject_code {
-          value = "E-PLAN-004"
+          value = "E-PLAN-015"
         }
 
         var.update $reject_msg {
-          value = "One of those maps isn't available to this account. (E-PLAN-004)"
+          value = "One of those maps isn't available to this account. (E-PLAN-015)"
         }
       }
     }

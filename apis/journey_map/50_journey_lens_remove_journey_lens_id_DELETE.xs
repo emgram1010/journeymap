@@ -1,4 +1,14 @@
 // Remove a journey lens and all of its cells while preserving minimum matrix structure.
+//
+// ORD-2 (US-ORD-2-04): the work lives in journey/remove_lens, which the AI
+// tools call too. The survivors are renumbered, any stage that named this row
+// as its accountable actor has that reference cleared, and a row whose key is
+// pinned by a task in a published plan is refused with E-ORD-005.
+//
+// ISSUES-BACKLOG #16 (2026-10-21): THIS ENDPOINT HAD NO OWNERSHIP CHECK AT
+// ALL -- see journey_stage/remove for the full note. Any authenticated user of
+// any account could delete a row, and its cells, from any map in the
+// workspace. Fixed here, account-scoped, matching the reorder endpoints.
 query "journey_lens/remove/{journey_lens_id}" verb=DELETE {
   api_group = "journey-map"
   auth = "user"
@@ -11,52 +21,39 @@ query "journey_lens/remove/{journey_lens_id}" verb=DELETE {
     db.get journey_lens {
       field_name = "id"
       field_value = $input.journey_lens_id
-    } as $journey_lens
-  
-    precondition ($journey_lens != null) {
+    } as $target
+
+    precondition ($target != null) {
       error_type = "notfound"
       error = "Journey lens not found"
     }
-  
-    db.query journey_lens {
-      where = $db.journey_lens.journey_map == $journey_lens.journey_map
-      return = {type: "list"}
-    } as $map_lenses
-  
-    precondition (($map_lenses|count) > 1) {
-      error_type = "inputerror"
-      error = "Journey map must keep at least one lens"
-    }
-  
-    db.query journey_cell {
-      where = $db.journey_cell.journey_map == $journey_lens.journey_map && $db.journey_cell.lens == $journey_lens.id
-      return = {type: "list"}
-    } as $lens_cells
-  
-    foreach ($lens_cells) {
-      each as $cell {
-        db.del journey_cell {
-          field_name = "id"
-          field_value = $cell.id
-        }
+
+    function.run "planner/resolve_actor" {
+      input = {user_id: $auth.id}
+    } as $actor
+
+    function.run "journey/assert_map_owner" {
+      input = {
+        journey_map_id   : $target.journey_map
+        caller_account_id: $actor.account_id
+        user_id          : $auth.id
+        step             : "remove_lens"
       }
-    }
-  
-    db.del journey_lens {
-      field_name = "id"
-      field_value = $input.journey_lens_id
-    }
-  
-    db.patch journey_map {
-      field_name = "id"
-      field_value = $journey_lens.journey_map
-      data = {updated_at: "now", last_interaction_at: "now"}
-    } as $journey_map_touch
+    } as $guard
+
+    function.run "journey/remove_lens" {
+      input = {
+        journey_lens_id: $input.journey_lens_id
+        user_id        : $auth.id
+        account_id     : $actor.account_id
+        step           : "remove_lens"
+      }
+    } as $removed
   }
 
   response = {
-    lens                  : $journey_lens
-    deleted_cell_count    : $lens_cells|count
-    journey_map_updated_at: $journey_map_touch.updated_at
+    lens                  : $removed.lens
+    deleted_cell_count    : $removed.deleted_cell_count
+    journey_map_updated_at: $removed.journey_map_updated_at
   }
 }

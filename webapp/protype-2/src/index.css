@@ -278,6 +278,147 @@
   color: #ffffff;
 }
 
+/* ── ORD-1 (US-ORD-1-05): insert on the seam, move with arrows ───────────
+   The + is ALWAYS faintly visible, not hover-only: touch has no hover, and a
+   hover-only + would make insertion silently unreachable on a tablet
+   (decided 2026-10-19). It darkens, and the seam line appears, on hover/focus.
+   Each strip lives inside its own header cell (never an overlay positioned by
+   measured pixels), so it scrolls with the frozen lens column correctly. */
+
+.jm-seam {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.jm-seam > span {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  border: 1px solid #c7d2fe;
+  background: #ffffff;
+  color: #6366f1;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+  opacity: 0.45;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  transition: opacity 120ms ease, transform 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.jm-seam:hover > span,
+.jm-seam:focus-visible > span {
+  opacity: 1;
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #ffffff;
+  transform: scale(1.15);
+}
+
+.jm-seam:focus-visible {
+  outline: none;
+}
+
+/* Column seams: a full-height strip on a header's left edge (and the last
+   header's right edge). */
+.jm-seam-col {
+  top: 0;
+  bottom: 0;
+  width: 16px;
+  /* The + sits at the bottom of the seam: mid-height would cover the
+     owner pill, the top would cover the ready mark. */
+  align-items: flex-end;
+  padding-bottom: 8px;
+}
+
+.jm-seam-col.jm-seam-start {
+  left: -2px;
+}
+
+.jm-seam-col.jm-seam-end {
+  right: -2px;
+}
+
+.jm-seam-col:hover,
+.jm-seam-col:focus-visible {
+  background: linear-gradient(to right, transparent 7px, #6366f1 7px, #6366f1 9px, transparent 9px);
+}
+
+/* Row seams: a strip along a row header's top edge (and the last row's
+   bottom edge). Stops short of the top-right edit button. */
+.jm-seam-row {
+  left: 0;
+  right: 30px;
+  height: 16px;
+}
+
+.jm-seam-row.jm-seam-start {
+  top: -2px;
+}
+
+.jm-seam-row.jm-seam-end {
+  bottom: -2px;
+}
+
+.jm-seam-row:hover,
+.jm-seam-row:focus-visible {
+  background: linear-gradient(to bottom, transparent 7px, #6366f1 7px, #6366f1 9px, transparent 9px);
+}
+
+/* Move arrows. Also faint-but-visible for the same touch reason. A disabled
+   arrow (first/last) is a real disabled button: it sends nothing. */
+.jm-move-group {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.jm-move-group-stage {
+  align-self: flex-end;
+}
+
+.jm-move-group-lens {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+}
+
+.jm-move-btn {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #a1a1aa;
+  font-size: 9px;
+  line-height: 18px;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.jm-move-btn:hover:not(:disabled),
+.jm-move-btn:focus-visible {
+  opacity: 1;
+  background: rgba(99, 102, 241, 0.15);
+  color: #6366f1;
+  outline: none;
+}
+
+.jm-move-btn:disabled {
+  opacity: 0.15;
+  cursor: default;
+}
+
 /* ── Grid cells ──────────────────────────────────────────────────────── */
 
 .jm-grid-cell {

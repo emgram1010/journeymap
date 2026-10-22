@@ -49,25 +49,27 @@
     "severity": "error",
     "fix_hint": "Quote the Reference on the Health page to find the exact event. The screen recovers to a safe empty state rather than staying crashed."
   },
-  "E-OBS-001": {
-    "code": "E-OBS-001",
-    "feature": "OBS-1",
-    "user_message": "You don't have access to this page.",
-    "what_happened": "A non-admin user (or an unauthenticated request) tried to reach an ops/* endpoint or the Health page.",
-    "likely_cause": "The caller's user record does not have is_platform_admin set to true.",
-    "owner": "engineer",
-    "severity": "warn",
-    "fix_hint": "If this user should be a platform admin, set user.is_platform_admin = true directly in the database. There is no UI for this on purpose."
-  },
-  "E-OBS-002": {
-    "code": "E-OBS-002",
-    "feature": "OBS-1",
-    "user_message": "Too many reports were sent in a short time, so we slowed down.",
-    "what_happened": "The client event endpoint's rate limit (20 per minute per user) was hit, usually from a screen stuck in an error loop.",
-    "likely_cause": "A front-end bug is repeatedly failing and reporting the same error.",
-    "owner": "engineer",
+  "E-DEL-001": {
+    "code": "E-DEL-001",
+    "feature": "DEL-1",
+    "user_message": "Something is using this map, so it can’t be deleted.",
+    "what_happened": "A journey map was deleted while a plan, a template or a job still depended on it.",
+    "likely_cause": "The map was attached to a plan or template earlier, or work was already created from it.",
+    "owner": "user",
     "severity": "info",
-    "fix_hint": "Check the Health page's issue list for the feature/step that is flooding, and fix the underlying front-end error."
+    "fix_hint": "The message names what is using it. Remove the map there first, or leave it in place — an unused map can always be deleted later. Deleting it anyway would leave that plan pointing at a map that no longer exists.",
+    "message_varies": true,
+    "message_varies_why": "The sentence names the plan or template that is using the map."
+  },
+  "E-DEL-002": {
+    "code": "E-DEL-002",
+    "feature": "DEL-1",
+    "user_message": "Only the person who created this map, or an account admin, can delete it.",
+    "what_happened": "Someone tried to delete a map they do not own and is not an admin for.",
+    "likely_cause": "Maps belonging to the whole account became visible to everyone on 2026-10-17, so a teammate’s map now appears in your list.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Ask the person who created it, or an account admin. You can still open and read the map — only deleting it is restricted."
   },
   "E-GOV-001": {
     "code": "E-GOV-001",
@@ -109,105 +111,15 @@
     "severity": "info",
     "fix_hint": "Reload to confirm it is archived. Archived items are kept for history on purpose and are never edited again."
   },
-  "E-VAL-001": {
-    "code": "E-VAL-001",
-    "feature": "VAL-1",
-    "user_message": "This is required.",
-    "what_happened": "A required field was left empty or contained only whitespace.",
-    "likely_cause": "The field was skipped, or only spaces were typed into it.",
+  "E-GOV-005": {
+    "code": "E-GOV-005",
+    "feature": "GOV-1",
+    "user_message": "Someone else changed this. Reload to see the latest.",
+    "what_happened": "Two people edited the same record, and the second save was refused so it couldn't overwrite the first.",
+    "likely_cause": "Two tabs or two people working on the same plan at the same time.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "Fill in the field and try again. Your other entries were kept."
-  },
-  "E-VAL-002": {
-    "code": "E-VAL-002",
-    "feature": "VAL-1",
-    "user_message": "This is too long.",
-    "what_happened": "A value was longer than the field allows.",
-    "likely_cause": "Pasted text, or a very long sentence where a short label was expected.",
-    "owner": "user",
-    "severity": "info",
-    "fix_hint": "Shorten the value to the field's limit."
-  },
-  "E-VAL-003": {
-    "code": "E-VAL-003",
-    "feature": "VAL-1",
-    "user_message": "That value isn't valid.",
-    "what_happened": "A number, date or time was not in a valid format, or a number was outside its allowed range.",
-    "likely_cause": "A typo, or a value copied from somewhere with a different format.",
-    "owner": "user",
-    "severity": "info",
-    "fix_hint": "Check the expected format or range and try again."
-  },
-  "E-VAL-004": {
-    "code": "E-VAL-004",
-    "feature": "VAL-1",
-    "user_message": "That isn't one of the allowed options.",
-    "what_happened": "A value was outside the fixed list this field accepts.",
-    "likely_cause": "A direct API call, or stale choices in an old browser tab.",
-    "owner": "user",
-    "severity": "info",
-    "fix_hint": "Pick one of the listed options and try again."
-  },
-  "E-VAL-005": {
-    "code": "E-VAL-005",
-    "feature": "VAL-1",
-    "user_message": "That can't contain formatting like that.",
-    "what_happened": "A value looked like it contained an HTML tag, which this field does not allow.",
-    "likely_cause": "Text copied from a web page or rich-text editor brought formatting codes with it.",
-    "owner": "user",
-    "severity": "info",
-    "fix_hint": "Paste as plain text, or remove the angle-bracket formatting."
-  },
-  "E-VAL-006": {
-    "code": "E-VAL-006",
-    "feature": "VAL-1",
-    "user_message": "That name is already used.",
-    "what_happened": "A name that must be unique already exists.",
-    "likely_cause": "Someone already created something with this name (matching is case- and space-insensitive).",
-    "owner": "user",
-    "severity": "info",
-    "fix_hint": "Pick a different name, or find and use the existing one."
-  },
-  "E-VAL-007": {
-    "code": "E-VAL-007",
-    "feature": "VAL-1",
-    "user_message": "That couldn't be found.",
-    "what_happened": "A reference pointed at something that doesn't exist, is archived, or belongs to a different account.",
-    "likely_cause": "A stale link, or something that was archived or deleted after this screen loaded.",
-    "owner": "user",
-    "severity": "info",
-    "fix_hint": "Reload and try again. If it keeps happening, the Health page timeline for this Reference will show which entity was involved."
-  },
-  "E-TIME-001": {
-    "code": "E-TIME-001",
-    "feature": "TIME-1",
-    "user_message": "Enter how long this takes as a number, like 15.",
-    "what_happened": "A duration value was missing, negative, or not a number.",
-    "likely_cause": "The field was left as text, or a negative number was typed.",
-    "owner": "user",
-    "severity": "info",
-    "fix_hint": "Enter a number of 0 or more."
-  },
-  "E-TIME-002": {
-    "code": "E-TIME-002",
-    "feature": "TIME-1",
-    "user_message": "Pick a unit: minutes, hours, days or weeks.",
-    "what_happened": "A duration unit was missing or not one of the four allowed units.",
-    "likely_cause": "The unit picker was left unset, or a direct API call sent an unexpected value.",
-    "owner": "user",
-    "severity": "info",
-    "fix_hint": "Choose one of the listed units."
-  },
-  "E-TIME-003": {
-    "code": "E-TIME-003",
-    "feature": "TIME-1",
-    "user_message": "Add both a number and a unit, or leave both empty.",
-    "what_happened": "Only one of the duration value and unit was filled in.",
-    "likely_cause": "A number was typed without picking a unit, or a unit was picked without a number.",
-    "owner": "user",
-    "severity": "info",
-    "fix_hint": "Fill in both fields, or clear both to leave the duration unset."
+    "fix_hint": "Reload and redo the change. Nothing was lost: the refused save was never written."
   },
   "E-GOV-006": {
     "code": "E-GOV-006",
@@ -219,65 +131,397 @@
     "severity": "warn",
     "fix_hint": "Open the Health page and copy the diagnostic bundle. The counts show which check failed and how often. Orphans are safe to leave in place short-term (nothing reads them), but the delete path that created them needs a guard so it stops happening."
   },
-  "E-GOV-005": {
-    "code": "E-GOV-005",
-    "feature": "GOV-1",
-    "user_message": "Someone else changed this. Reload to see the latest.",
-    "what_happened": "Two people edited the same record, and the second save was refused so it couldn't overwrite the first.",
-    "likely_cause": "Two tabs or two people working on the same plan at the same time.",
+  "E-JOB-001": {
+    "code": "E-JOB-001",
+    "feature": "JOB-1",
+    "user_message": "Give the job a short title (up to 120 characters).",
+    "what_happened": "A job was added with no title, a title over 120 characters, or one containing HTML tags.",
+    "likely_cause": "The title box was left empty, or text was pasted in from a web page and brought formatting with it.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "Reload and redo the change. Nothing was lost: the refused save was never written."
+    "fix_hint": "A job title is how people recognise this piece of work in a list — a customer name or a reference is usually enough. Paste as plain text if you copied it from elsewhere. Your typing was kept."
   },
-  "E-STAGE-001": {
-    "code": "E-STAGE-001",
-    "feature": "STAGE-1",
-    "user_message": "Pick an owner from this map's rows.",
-    "what_happened": "A stage was saved with an owner that is not one of the rows on that map.",
-    "likely_cause": "The owner picker was showing a row from a different map, usually because the page was left open while the map changed.",
+  "E-JOB-002": {
+    "code": "E-JOB-002",
+    "feature": "JOB-1",
+    "user_message": "This plan doesn't use that map. Add it to the plan's maps first.",
+    "what_happened": "A job was added for a journey map the plan does not accept.",
+    "likely_cause": "The plan was created from a template that did not include this map, or the map was added to the template after this plan was made.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "Reload the map and pick the owner again. If the right row genuinely isn't in the list, add it to the map first."
+    "fix_hint": "The full message names the map. A plan's accepted maps are copied from its template when the plan is created, so adding a map to the template later does not reach plans that already exist — add it to this plan directly."
   },
-  "E-PUB-001": {
-    "code": "E-PUB-001",
-    "feature": "PUB-1",
-    "user_message": "This map isn't ready yet. Open the checklist to see what needs attention.",
-    "what_happened": "Publish was refused because the map did not pass the readiness gate.",
-    "likely_cause": "Something on the checklist is still missing: a title, a stage owner, a task, or an expected duration.",
+  "E-JOB-003": {
+    "code": "E-JOB-003",
+    "feature": "JOB-1",
+    "user_message": "That map hasn't been published yet.",
+    "what_happened": "A job was added for a map that has never had a version published.",
+    "likely_cause": "The map is still a draft.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "Open the checklist on the map. Every unticked item is a thing to fill in. Nothing was published and nothing was lost."
+    "fix_hint": "Open the map and publish a version. A job pins itself to the published version it was created from, so there has to be one before any work can be based on it."
   },
-  "E-PUB-003": {
-    "code": "E-PUB-003",
-    "feature": "PUB-1",
-    "user_message": "This saved version doesn't match its own record. Someone should look into it.",
-    "what_happened": "A published version's stored content no longer matches the fingerprint taken when it was published.",
-    "likely_cause": "The row was changed outside the publish path: a direct database edit, a restore gone wrong, or tampering.",
+  "E-JOB-004": {
+    "code": "E-JOB-004",
+    "feature": "JOB-1",
+    "user_message": "That detail isn't valid. Use short text or a number.",
+    "what_happened": "A job detail was rejected: the name used characters other than letters, numbers and underscores, the value was over 200 characters, or the job already has 50 details.",
+    "likely_cause": "A space or punctuation in the detail's name, or a long note pasted into a value.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Detail names look like customer_name or order_ref. Long explanations belong in the job's own notes rather than in a detail. Replacing a detail the job already has always works, even at the 50 limit."
+  },
+  "E-JOB-005": {
+    "code": "E-JOB-005",
+    "feature": "JOB-1",
+    "user_message": "This job is already cancelled.",
+    "what_happened": "Cancel was called on a job that had already been cancelled.",
+    "likely_cause": "The button was clicked twice, or a request was retried.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Nothing went wrong and nothing changed — cancelling twice is harmless. The job's tasks are left exactly as they were, because a cancelled job is still history."
+  },
+  "E-LIVE-001": {
+    "code": "E-LIVE-001",
+    "feature": "LIVE-1",
+    "user_message": "There's nothing on this timeline to publish.",
+    "what_happened": "Publish to live was attempted on a day with no work scheduled on it.",
+    "likely_cause": "The day was created but nothing has been dragged onto it yet.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Schedule at least one piece of work on the day first. Publishing an empty day would show the person an empty list."
+  },
+  "E-LIVE-002": {
+    "code": "E-LIVE-002",
+    "feature": "LIVE-1",
+    "user_message": "Some steps don't have a person assigned.",
+    "what_happened": "Publish to live was refused because at least one scheduled step has nobody to do it.",
+    "likely_cause": "A step was scheduled onto a day without picking who does it, and the day has no default person either.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "The full message says how many. Assign someone to each step, or set the day's person. Nothing was published."
+  },
+  "E-LIVE-003": {
+    "code": "E-LIVE-003",
+    "feature": "LIVE-1",
+    "user_message": "Some steps are marked 'needs info'. Complete them first.",
+    "what_happened": "Publish to live was refused because at least one step is still waiting on information.",
+    "likely_cause": "Someone flagged a step as needing information and it has not been resolved.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Open each flagged step, deal with what it is waiting on, and set it back to planned. Sending someone work that is known to be incomplete wastes their time."
+  },
+  "E-LIVE-004": {
+    "code": "E-LIVE-004",
+    "feature": "LIVE-1",
+    "user_message": "That person doesn't have a login yet, so they can't see their work.",
+    "what_happened": "Publish to live was refused because an assigned person has no linked login.",
+    "likely_cause": "The person was added to the plan as a name, without being connected to a user account.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "The full message names them. Link their login on the agent, or assign the work to someone who has one. Publishing to a person who cannot sign in would look successful and deliver nothing."
+  },
+  "E-LIVE-005": {
+    "code": "E-LIVE-005",
+    "feature": "LIVE-1",
+    "user_message": "This timeline is already published.",
+    "what_happened": "Publish to live was attempted on a day that has already been published.",
+    "likely_cause": "The button was clicked twice, or the day was published from another screen.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Nothing changed. A day is published once — the frozen copy the person sees must not move under them. Later planner changes are recorded separately and stay with the planner."
+  },
+  "E-LIVE-006": {
+    "code": "E-LIVE-006",
+    "feature": "LIVE-1",
+    "user_message": "We couldn't publish. Nothing was changed.",
+    "what_happened": "Publishing failed partway and was rolled back.",
+    "likely_cause": "A database or connection problem during the write.",
     "owner": "engineer",
     "severity": "error",
-    "fix_hint": "Do not edit the row. Copy the diagnostic bundle from the Health page. Published versions are meant to be permanent and unchangeable, so a mismatch means something wrote to the table directly and that write needs finding."
+    "fix_hint": "Try again. The publication and the day's status are written together, so a failure leaves no half-published day. If it keeps happening, copy the diagnostic bundle from the Health page."
   },
-  "E-PUB-004": {
-    "code": "E-PUB-004",
-    "feature": "PUB-1",
-    "user_message": "You don't have access to this map.",
-    "what_happened": "Someone asked for a map's readiness or published versions while not being its owner.",
-    "likely_cause": "A stale link or bookmark pointing at someone else's map, or a bug passing the wrong map id.",
-    "owner": "engineer",
-    "severity": "warn",
-    "fix_hint": "Check the Health page timeline for this Reference to see which map and user were involved. If it keeps happening for a real user, a screen is loading an id it shouldn't have."
-  },
-  "E-PUB-005": {
-    "code": "E-PUB-005",
-    "feature": "PUB-1",
-    "user_message": "This map is archived and can't be published.",
-    "what_happened": "Publish was refused because the map's status is archived.",
-    "likely_cause": "The map was archived earlier, and a page left open still shows its Publish button.",
+  "E-LOG-001": {
+    "code": "E-LOG-001",
+    "feature": "LOG-1",
+    "user_message": "That action isn't available for this step right now.",
+    "what_happened": "An action was taken that isn't allowed from the step's current state — for example starting something already finished.",
+    "likely_cause": "The screen was showing an out-of-date state, or someone else moved the step first.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "Un-archive the map first if it should still be in use. Nothing was published."
+    "fix_hint": "The full message says what state the step is in and what to do instead — usually reopening it, or unblocking it first. Nothing was recorded."
+  },
+  "E-LOG-002": {
+    "code": "E-LOG-002",
+    "feature": "LOG-1",
+    "user_message": "Pick a reason so the team knows why.",
+    "what_happened": "A step was marked blocked without choosing a reason.",
+    "likely_cause": "The reason list was skipped.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Choose one of the four reasons. A blocked step with no reason tells the planner there is a problem but nothing about what to chase, which is barely better than not flagging it."
+  },
+  "E-LOG-003": {
+    "code": "E-LOG-003",
+    "feature": "LOG-1",
+    "user_message": "This step isn't assigned to you.",
+    "what_happened": "Someone tried to record progress on work that belongs to another person.",
+    "likely_cause": "A stale link, or the work was reassigned after the screen loaded.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Refresh your list. If the work really is yours, ask the planner to reassign it to you — the record needs to show who actually did it."
+  },
+  "E-LOG-004": {
+    "code": "E-LOG-004",
+    "feature": "LOG-1",
+    "user_message": "Your tap wasn't saved. Please try again.",
+    "what_happened": "Recording an action failed and was rolled back.",
+    "likely_cause": "A connection or database problem at the moment of the tap.",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "Tap again — repeats are safe, because the same tap is never recorded twice. The log entry and the step's status are written together, so a failure leaves neither. This is the most important write path in the product; repeated failures should be looked at immediately."
+  },
+  "E-LOG-005": {
+    "code": "E-LOG-005",
+    "feature": "LOG-1",
+    "user_message": "Pick one of the listed reasons.",
+    "what_happened": "A blocked step was sent with a reason that isn't one of the four allowed.",
+    "likely_cause": "A client sent its own wording instead of choosing from the list.",
+    "owner": "engineer",
+    "severity": "info",
+    "fix_hint": "The reasons are a fixed list so they can be counted and compared across jobs. Free text belongs in the note instead."
+  },
+  "E-LOG-006": {
+    "code": "E-LOG-006",
+    "feature": "LOG-1",
+    "user_message": "Write something before saving.",
+    "what_happened": "A note was saved with no text.",
+    "likely_cause": "The note box was submitted empty.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "An empty note was always accepted before APP-2 (US-APP-2-02) added this check — the Step screen's own box also refuses an empty save, but this is the one that actually enforces it."
+  },
+  "E-LOG-007": {
+    "code": "E-LOG-007",
+    "feature": "LOG-1",
+    "user_message": "Notes can be up to 1,000 characters.",
+    "what_happened": "A note was longer than the allowed length.",
+    "likely_cause": "Pasted text, or several notes combined into one.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Shorten the note and save again. The typed text is kept on screen, per CLAUDE.md's rule to never discard a rejected save's input."
+  },
+  "E-OBS-001": {
+    "code": "E-OBS-001",
+    "feature": "OBS-1",
+    "user_message": "You don't have access to this page.",
+    "what_happened": "A non-admin user (or an unauthenticated request) tried to reach an ops/* endpoint or the Health page.",
+    "likely_cause": "The caller's user record does not have is_platform_admin set to true.",
+    "owner": "engineer",
+    "severity": "warn",
+    "fix_hint": "If this user should be a platform admin, set user.is_platform_admin = true directly in the database. There is no UI for this on purpose."
+  },
+  "E-OBS-002": {
+    "code": "E-OBS-002",
+    "feature": "OBS-1",
+    "user_message": "Too many reports were sent in a short time, so we slowed down.",
+    "what_happened": "The client event endpoint's rate limit (20 per minute per user) was hit, usually from a screen stuck in an error loop.",
+    "likely_cause": "A front-end bug is repeatedly failing and reporting the same error.",
+    "owner": "engineer",
+    "severity": "info",
+    "fix_hint": "Check the Health page's issue list for the feature/step that is flooding, and fix the underlying front-end error."
+  },
+  "E-P3A-001": {
+    "code": "E-P3A-001",
+    "feature": "P3A-1",
+    "user_message": "This plan has work recorded against it. Archive it instead.",
+    "what_happened": "A delete was refused because the plan already has jobs, a publication or logged activity.",
+    "likely_cause": "Someone tried to delete a plan that has already been used, rather than archiving it.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Archive the plan. It disappears from the plan list and stops accepting changes, but everything already recorded against it stays intact. Deleting is only possible for a plan nothing has happened on yet."
+  },
+  "E-P3A-002": {
+    "code": "E-P3A-002",
+    "feature": "P3A-1",
+    "user_message": "This agent has recorded work, so they can't be removed.",
+    "what_happened": "An agent with a published day or logged activity was deleted.",
+    "likely_cause": "Someone tried to remove a person who has already done work.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Hide them from the roster instead. Their recorded work still points at them, so the row has to stay."
+  },
+  "E-P3A-003": {
+    "code": "E-P3A-003",
+    "feature": "P3A-1",
+    "user_message": "This timeline is live. It can't be deleted.",
+    "what_happened": "A published day was deleted.",
+    "likely_cause": "Someone tried to remove a day that has already been handed to a performer.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Publishing freezes a day. Its contents can still be reassigned, but the day itself stays."
+  },
+  "E-PLAN-001": {
+    "code": "E-PLAN-001",
+    "feature": "PLAN-1",
+    "user_message": "Give the template a unique name (up to 80 characters).",
+    "what_happened": "A plan template was saved with no name, a name over 80 characters, or a name another template in the same account already uses.",
+    "likely_cause": "The name was left blank, or a template for this purpose already exists.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Check the template list first — if one already covers this, edit it rather than making a second. Your typing was kept."
+  },
+  "E-PLAN-002": {
+    "code": "E-PLAN-002",
+    "feature": "PLAN-1",
+    "user_message": "Choose a window between 1 and 366 days.",
+    "what_happened": "A template's planning window was saved as zero, negative, or longer than a year.",
+    "likely_cause": "The field was left at zero, or a number of weeks was typed where days were expected.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "The window is in days and counts both the first and last day, so a fortnight is 14, not 15."
+  },
+  "E-PLAN-003": {
+    "code": "E-PLAN-003",
+    "feature": "PLAN-1",
+    "user_message": "Enter a start time like 08:00.",
+    "what_happened": "A template's default start time was not a 24-hour HH:MM value.",
+    "likely_cause": "A single-digit hour (\"8:00\"), or an hour above 23.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Use two digits for both parts. This is the time each day starts in plans made from this template; it can still be changed per day afterwards."
+  },
+  "E-PLAN-004": {
+    "code": "E-PLAN-004",
+    "feature": "PLAN-1",
+    "user_message": "Only published maps can be used in a plan.",
+    "what_happened": "A journey map was attached to a template before it had ever been published.",
+    "likely_cause": "The map is still a draft, so there is no fixed version of it for a plan to work from.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Open the map and publish a version, then attach it. The full message names the map. Publishing freezes a copy, which is what stops a plan's work changing underneath it later."
+  },
+  "E-PLAN-005": {
+    "code": "E-PLAN-005",
+    "feature": "PLAN-1",
+    "user_message": "This plan has work recorded against it, so it can't be deleted. Archive it instead.",
+    "what_happened": "A delete was refused because the plan already has jobs, a publication or logged activity.",
+    "likely_cause": "Someone tried to delete a plan that has already been used.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Archive the plan. It leaves the plan list and stops accepting changes, but everything recorded against it stays intact."
+  },
+  "E-PLAN-006": {
+    "code": "E-PLAN-006",
+    "feature": "PLAN-2",
+    "user_message": "This person is already set up as an agent.",
+    "what_happened": "A user was tagged as an agent a second time.",
+    "likely_cause": "They already have a profile; the create form was submitted again for the same person.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Find their existing profile and edit it instead of creating a new one — one profile per real login."
+  },
+  "E-PLAN-007": {
+    "code": "E-PLAN-007",
+    "feature": "PLAN-2",
+    "user_message": "Give this AI agent a name.",
+    "what_happened": "An AI agent profile (no login) was saved with no name.",
+    "likely_cause": "The name field was left blank — a person profile gets its name from their login, but an AI profile has no login to borrow one from.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Name the AI agent directly, same as naming one inside a plan today."
+  },
+  "E-PLAN-008": {
+    "code": "E-PLAN-008",
+    "feature": "PLAN-2",
+    "user_message": "Daily capacity must be a positive number of hours.",
+    "what_happened": "An agent profile's default daily capacity was zero or negative.",
+    "likely_cause": "The field was left at zero or a negative number was typed.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Enter the usual number of hours this person or AI agent is expected to work in a day — it's only a default, and can still be changed per plan."
+  },
+  "E-PLAN-009": {
+    "code": "E-PLAN-009",
+    "feature": "PLAN-2",
+    "user_message": "Enter a color like #4f46e5.",
+    "what_happened": "An agent profile's color wasn't a 6-digit hex value.",
+    "likely_cause": "A color name or a shorthand 3-digit hex was typed instead of the full 6-digit form.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Use the full #RRGGBB form, e.g. #4f46e5."
+  },
+  "E-PLAN-010": {
+    "code": "E-PLAN-010",
+    "feature": "PLAN-3",
+    "user_message": "This person isn't tagged as an agent right now.",
+    "what_happened": "A template tried to add an agent profile that's currently marked ineligible.",
+    "likely_cause": "The profile was toggled off (PLAN-2) after it was last used, or was never fully set up.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Re-enable the agent's profile first, or pick someone else."
+  },
+  "E-PLAN-011": {
+    "code": "E-PLAN-011",
+    "feature": "PLAN-2",
+    "user_message": "That user isn't on this account.",
+    "what_happened": "An agent profile was requested for a user outside the caller's account.",
+    "likely_cause": "A stale or mistaken user id.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Only teammates on this account can be tagged as agents."
+  },
+  "E-PLAN-012": {
+    "code": "E-PLAN-012",
+    "feature": "PLAN-3",
+    "user_message": "Two agents on this template would both be called the same name. Rename one, or leave one off.",
+    "what_happened": "An agent was added to a template roster whose display name matches another agent already on it (ignoring capitals and spaces).",
+    "likely_cause": "An AI agent named like a person, or two people with the same name.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "A plan can't hold two agents with the same name, so every plan made from this template would fail. Rename one in the Agents screen, then add it again."
+  },
+  "E-PLAN-013": {
+    "code": "E-PLAN-013",
+    "feature": "PLAN-2",
+    "user_message": "Only an account admin can set up or change agents for other people, or AI agents.",
+    "what_happened": "A non-admin tried to tag, untag or edit someone else's agent profile, or an AI agent's.",
+    "likely_cause": "A member trying to manage the team's agent list.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Members can manage their own profile only. Ask an account admin to make the change.",
+    "message_varies": true,
+    "message_varies_why": "Same admin-only rule, worded for create vs edit."
+  },
+  "E-PLAN-014": {
+    "code": "E-PLAN-014",
+    "feature": "PLAN-1",
+    "user_message": "That template is archived, so new plans can't be made from it.",
+    "what_happened": "A plan was created from a template that has been archived.",
+    "likely_cause": "The template was archived after the screen was opened, or an old link was used.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Un-archive the template, or pick a different one. Plans already made from it are unaffected."
+  },
+  "E-PLAN-015": {
+    "code": "E-PLAN-015",
+    "feature": "PLAN-1",
+    "user_message": "One of those maps isn't available to this account.",
+    "what_happened": "A map was attached that does not belong to this account.",
+    "likely_cause": "A stale list, or an id from somewhere else.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload the picker. It only offers maps this account owns; anything else is refused server-side."
+  },
+  "E-PLAN-016": {
+    "code": "E-PLAN-016",
+    "feature": "PLAN-2",
+    "user_message": "One of those agents isn't available to this account.",
+    "what_happened": "An agent profile was added to a template but does not belong to this account.",
+    "likely_cause": "A stale list, or an id from somewhere else.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload the Agents screen. Only this account’s agents can go on a template roster."
   },
   "E-PLN-001": {
     "code": "E-PLN-001",
@@ -439,115 +683,98 @@
     "severity": "info",
     "fix_hint": "Reload the day and drag again. The order was left exactly as it was — a partial reorder is never applied."
   },
-  "E-PLAN-001": {
-    "code": "E-PLAN-001",
-    "feature": "PLAN-1",
-    "user_message": "Give the template a unique name (up to 80 characters).",
-    "what_happened": "A plan template was saved with no name, a name over 80 characters, or a name another template in the same account already uses.",
-    "likely_cause": "The name was left blank, or a template for this purpose already exists.",
+  "E-ORD-001": {
+    "code": "E-ORD-001",
+    "feature": "ORD-1",
+    "user_message": "That column (or row) order doesn't match this map, so nothing was changed. Refresh and try again.",
+    "message_varies": true,
+    "what_happened": "A reorder of a journey map's columns or rows was sent that did not list exactly the columns/rows currently in the map — one was missing, repeated, or belonged to a different map.",
+    "likely_cause": "The map changed in another tab, or someone else added or removed a column/row while this screen was open.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "Check the template list first — if one already covers this, edit it rather than making a second. Your typing was kept."
+    "fix_hint": "Reload the map and move it again. The order was left exactly as it was — a partial reorder is never applied. Different from E-PLN-016, which is the same rule for a planner day."
   },
-  "E-PLAN-002": {
-    "code": "E-PLAN-002",
-    "feature": "PLAN-1",
-    "user_message": "Choose a window between 1 and 366 days.",
-    "what_happened": "A template's planning window was saved as zero, negative, or longer than a year.",
-    "likely_cause": "The field was left at zero, or a number of weeks was typed where days were expected.",
+  "E-ORD-002": {
+    "code": "E-ORD-002",
+    "feature": "ORD-1",
+    "user_message": "The column (or row) you tried to insert next to isn't in this map any more, so nothing was added. Refresh and try again.",
+    "message_varies": true,
+    "what_happened": "An insert-at-position named an after_stage_id / after_lens_id that is not a column/row of this map.",
+    "likely_cause": "The screen is stale: that column or row was removed (or moved to another map) after the page loaded. Refetch, don't retry.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "The window is in days and counts both the first and last day, so a fortnight is 14, not 15."
+    "fix_hint": "Reload the map; the seam + will then point at real columns/rows. Nothing was created."
   },
-  "E-PLAN-003": {
-    "code": "E-PLAN-003",
-    "feature": "PLAN-1",
-    "user_message": "Enter a start time like 08:00.",
-    "what_happened": "A template's default start time was not a 24-hour HH:MM value.",
-    "likely_cause": "A single-digit hour (\"8:00\"), or an hour above 23.",
+  "E-PLN-017": {
+    "code": "E-PLN-017",
+    "feature": "APP-1",
+    "user_message": "That login doesn't belong to this account.",
+    "what_happened": "An agent was linked to a login from a different account.",
+    "likely_cause": "The person was removed from the account after the screen was opened.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "Use two digits for both parts. This is the time each day starts in plans made from this template; it can still be changed per day afterwards."
+    "fix_hint": "Pick someone from this account’s own list. An agent can only be performed by a login that belongs here."
   },
-  "E-PLAN-004": {
-    "code": "E-PLAN-004",
-    "feature": "PLAN-1",
-    "user_message": "Only published maps can be used in a plan.",
-    "what_happened": "A journey map was attached to a template before it had ever been published.",
-    "likely_cause": "The map is still a draft, so there is no fixed version of it for a plan to work from.",
+  "E-PLN-018": {
+    "code": "E-PLN-018",
+    "feature": "APP-1",
+    "user_message": "That login is already linked to someone else in this plan.",
+    "what_happened": "Two agents in one plan were pointed at the same login.",
+    "likely_cause": "The same person added twice under different names.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "Open the map and publish a version, then attach it. The full message names the map. Publishing freezes a copy, which is what stops a plan's work changing underneath it later."
+    "fix_hint": "One login, one agent, per plan — otherwise their day would arrive twice. Unlink the other agent first."
   },
-  "E-PLAN-005": {
-    "code": "E-PLAN-005",
-    "feature": "PLAN-1",
-    "user_message": "This plan has work recorded against it, so it can't be deleted. Archive it instead.",
-    "what_happened": "A delete was refused because the plan already has jobs, a publication or logged activity.",
-    "likely_cause": "Someone tried to delete a plan that has already been used.",
+  "E-PUB-001": {
+    "code": "E-PUB-001",
+    "feature": "PUB-1",
+    "user_message": "This map isn't ready yet. Open the checklist to see what needs attention.",
+    "what_happened": "Publish was refused because the map did not pass the readiness gate.",
+    "likely_cause": "Something on the checklist is still missing: a title, a stage owner, a task, or an expected duration.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "Archive the plan. It leaves the plan list and stops accepting changes, but everything recorded against it stays intact."
+    "fix_hint": "Open the checklist on the map. Every unticked item is a thing to fill in. Nothing was published and nothing was lost."
   },
-  "E-JOB-001": {
-    "code": "E-JOB-001",
-    "feature": "JOB-1",
-    "user_message": "Give the job a short title (up to 120 characters).",
-    "what_happened": "A job was added with no title, a title over 120 characters, or one containing HTML tags.",
-    "likely_cause": "The title box was left empty, or text was pasted in from a web page and brought formatting with it.",
-    "owner": "user",
-    "severity": "info",
-    "fix_hint": "A job title is how people recognise this piece of work in a list — a customer name or a reference is usually enough. Paste as plain text if you copied it from elsewhere. Your typing was kept."
+  "E-PUB-003": {
+    "code": "E-PUB-003",
+    "feature": "PUB-1",
+    "user_message": "This saved version doesn't match its own record. Someone should look into it.",
+    "what_happened": "A published version's stored content no longer matches the fingerprint taken when it was published.",
+    "likely_cause": "The row was changed outside the publish path: a direct database edit, a restore gone wrong, or tampering.",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "Do not edit the row. Copy the diagnostic bundle from the Health page. Published versions are meant to be permanent and unchangeable, so a mismatch means something wrote to the table directly and that write needs finding."
   },
-  "E-JOB-002": {
-    "code": "E-JOB-002",
-    "feature": "JOB-1",
-    "user_message": "This plan doesn't use that map. Add it to the plan's maps first.",
-    "what_happened": "A job was added for a journey map the plan does not accept.",
-    "likely_cause": "The plan was created from a template that did not include this map, or the map was added to the template after this plan was made.",
-    "owner": "user",
-    "severity": "info",
-    "fix_hint": "The full message names the map. A plan's accepted maps are copied from its template when the plan is created, so adding a map to the template later does not reach plans that already exist — add it to this plan directly."
+  "E-PUB-004": {
+    "code": "E-PUB-004",
+    "feature": "PUB-1",
+    "user_message": "You don't have access to this map.",
+    "what_happened": "Someone asked for a map's readiness or published versions while not being its owner.",
+    "likely_cause": "A stale link or bookmark pointing at someone else's map, or a bug passing the wrong map id.",
+    "owner": "engineer",
+    "severity": "warn",
+    "fix_hint": "Check the Health page timeline for this Reference to see which map and user were involved. If it keeps happening for a real user, a screen is loading an id it shouldn't have."
   },
-  "E-JOB-003": {
-    "code": "E-JOB-003",
-    "feature": "JOB-1",
-    "user_message": "That map hasn't been published yet.",
-    "what_happened": "A job was added for a map that has never had a version published.",
-    "likely_cause": "The map is still a draft.",
+  "E-PUB-005": {
+    "code": "E-PUB-005",
+    "feature": "PUB-1",
+    "user_message": "This map is archived and can't be published.",
+    "what_happened": "Publish was refused because the map's status is archived.",
+    "likely_cause": "The map was archived earlier, and a page left open still shows its Publish button.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "Open the map and publish a version. A job pins itself to the published version it was created from, so there has to be one before any work can be based on it."
-  },
-  "E-JOB-004": {
-    "code": "E-JOB-004",
-    "feature": "JOB-1",
-    "user_message": "That detail isn't valid. Use short text or a number.",
-    "what_happened": "A job detail was rejected: the name used characters other than letters, numbers and underscores, the value was over 200 characters, or the job already has 50 details.",
-    "likely_cause": "A space or punctuation in the detail's name, or a long note pasted into a value.",
-    "owner": "user",
-    "severity": "info",
-    "fix_hint": "Detail names look like customer_name or order_ref. Long explanations belong in the job's own notes rather than in a detail. Replacing a detail the job already has always works, even at the 50 limit."
-  },
-  "E-JOB-005": {
-    "code": "E-JOB-005",
-    "feature": "JOB-1",
-    "user_message": "This job is already cancelled.",
-    "what_happened": "Cancel was called on a job that had already been cancelled.",
-    "likely_cause": "The button was clicked twice, or a request was retried.",
-    "owner": "user",
-    "severity": "info",
-    "fix_hint": "Nothing went wrong and nothing changed — cancelling twice is harmless. The job's tasks are left exactly as they were, because a cancelled job is still history."
+    "fix_hint": "Un-archive the map first if it should still be in use. Nothing was published."
   },
   "E-SCHED-001": {
     "code": "E-SCHED-001",
     "feature": "SCHED-1",
-    "user_message": "This step is already on the schedule.",
-    "what_happened": "A job step was scheduled when it already had a slot, or belongs to a cancelled job.",
+    "user_message": "That work is already on the schedule.",
+    "what_happened": "A step, or a card covering several steps, was sent for scheduling when it already holds a slot. BLK-1 made the wording depend on which: one step, or a whole card of them.",
     "likely_cause": "The backlog was open in two places, or the step was scheduled a moment ago from another screen.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "Reload the backlog — a step that is already scheduled disappears from it. Each step gets one slot, so the same work can never be given out twice."
+    "fix_hint": "Reload the backlog — a step that is already scheduled disappears from it. Each step gets one slot, so the same work can never be given out twice.",
+    "message_varies": true
   },
   "E-SCHED-002": {
     "code": "E-SCHED-002",
@@ -579,144 +806,185 @@
     "severity": "info",
     "fix_hint": "Reasons point at one of the job's recorded details so the change can be explained later. If none fits, choose Other. Giving no reason at all is also fine."
   },
-  "E-LIVE-001": {
-    "code": "E-LIVE-001",
-    "feature": "LIVE-1",
-    "user_message": "There's nothing on this timeline to publish.",
-    "what_happened": "Publish to live was attempted on a day with no work scheduled on it.",
-    "likely_cause": "The day was created but nothing has been dragged onto it yet.",
+  "E-SCHED-006": {
+    "code": "E-SCHED-006",
+    "feature": "SCHED-1",
+    "user_message": "That day is already live, so this step can't be taken off it.",
+    "what_happened": "A job step was unscheduled from a day that has already been published.",
+    "likely_cause": "The day was published after the step was placed on it, and the planner changed their mind afterwards.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "Schedule at least one piece of work on the day first. Publishing an empty day would show the person an empty list."
+    "fix_hint": "Publishing freezes a day and hands it to the person doing the work, so its contents can't be pulled back out. Nothing is lost: the step is still there, and the performer can skip it with a reason if it shouldn't be done."
   },
-  "E-LIVE-002": {
-    "code": "E-LIVE-002",
-    "feature": "LIVE-1",
-    "user_message": "Some steps don't have a person assigned.",
-    "what_happened": "Publish to live was refused because at least one scheduled step has nobody to do it.",
-    "likely_cause": "A step was scheduled onto a day without picking who does it, and the day has no default person either.",
+  "E-SCHED-007": {
+    "code": "E-SCHED-007",
+    "feature": "SCHED-1",
+    "user_message": "Work has already been recorded on this step, so it can't be unscheduled.",
+    "what_happened": "A job step was unscheduled after it had been started, finished, blocked, skipped, or had a note left on it.",
+    "likely_cause": "Someone began the work between the step being scheduled and the planner changing their mind.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "The full message says how many. Assign someone to each step, or set the day's person. Nothing was published."
+    "fix_hint": "Removing the slot would orphan what was already recorded against it. The step can still be moved to a different day, and the person doing it can skip it with a reason."
   },
-  "E-LIVE-003": {
-    "code": "E-LIVE-003",
-    "feature": "LIVE-1",
-    "user_message": "Some steps are marked 'needs info'. Complete them first.",
-    "what_happened": "Publish to live was refused because at least one step is still waiting on information.",
-    "likely_cause": "Someone flagged a step as needing information and it has not been resolved.",
+  "E-SCHED-008": {
+    "code": "E-SCHED-008",
+    "feature": "SCHED-1",
+    "user_message": "That job is cancelled, so its steps can't be scheduled.",
+    "what_happened": "A step from a cancelled job was scheduled onto a day.",
+    "likely_cause": "The job was cancelled while the backlog was open.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "Open each flagged step, deal with what it is waiting on, and set it back to planned. Sending someone work that is known to be incomplete wastes their time."
+    "fix_hint": "Reload the backlog — a cancelled job’s steps drop out of it. Its history stays, but it is no longer work waiting to happen."
   },
-  "E-LIVE-004": {
-    "code": "E-LIVE-004",
-    "feature": "LIVE-1",
-    "user_message": "That person doesn't have a login yet, so they can't see their work.",
-    "what_happened": "Publish to live was refused because an assigned person has no linked login.",
-    "likely_cause": "The person was added to the plan as a name, without being connected to a user account.",
+  "E-STAGE-001": {
+    "code": "E-STAGE-001",
+    "feature": "STAGE-1",
+    "user_message": "Pick an owner from this map's rows.",
+    "what_happened": "A stage was saved with an owner that is not one of the rows on that map.",
+    "likely_cause": "The owner picker was showing a row from a different map, usually because the page was left open while the map changed.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "The full message names them. Link their login on the agent, or assign the work to someone who has one. Publishing to a person who cannot sign in would look successful and deliver nothing."
+    "fix_hint": "Reload the map and pick the owner again. If the right row genuinely isn't in the list, add it to the map first."
   },
-  "E-LIVE-005": {
-    "code": "E-LIVE-005",
-    "feature": "LIVE-1",
-    "user_message": "This timeline is already published.",
-    "what_happened": "Publish to live was attempted on a day that has already been published.",
-    "likely_cause": "The button was clicked twice, or the day was published from another screen.",
+  "E-TIME-001": {
+    "code": "E-TIME-001",
+    "feature": "TIME-1",
+    "user_message": "Enter how long this takes as a number, like 15.",
+    "what_happened": "A duration value was missing, negative, or not a number.",
+    "likely_cause": "The field was left as text, or a negative number was typed.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "Nothing changed. A day is published once — the frozen copy the person sees must not move under them. Later planner changes are recorded separately and stay with the planner."
+    "fix_hint": "Enter a number of 0 or more."
   },
-  "E-LIVE-006": {
-    "code": "E-LIVE-006",
-    "feature": "LIVE-1",
-    "user_message": "We couldn't publish. Nothing was changed.",
-    "what_happened": "Publishing failed partway and was rolled back.",
-    "likely_cause": "A database or connection problem during the write.",
+  "E-TIME-002": {
+    "code": "E-TIME-002",
+    "feature": "TIME-1",
+    "user_message": "Pick a unit: minutes, hours, days or weeks.",
+    "what_happened": "A duration unit was missing or not one of the four allowed units.",
+    "likely_cause": "The unit picker was left unset, or a direct API call sent an unexpected value.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Choose one of the listed units."
+  },
+  "E-TIME-003": {
+    "code": "E-TIME-003",
+    "feature": "TIME-1",
+    "user_message": "Add both a number and a unit, or leave both empty.",
+    "what_happened": "Only one of the duration value and unit was filled in.",
+    "likely_cause": "A number was typed without picking a unit, or a unit was picked without a number.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Fill in both fields, or clear both to leave the duration unset."
+  },
+  "E-VAL-001": {
+    "code": "E-VAL-001",
+    "feature": "VAL-1",
+    "user_message": "This is required.",
+    "what_happened": "A required field was left empty or contained only whitespace.",
+    "likely_cause": "The field was skipped, or only spaces were typed into it.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Fill in the field and try again. Your other entries were kept.",
+    "message_varies": true,
+    "message_varies_why": "Generic \"required\" code: the sentence names the field."
+  },
+  "E-VAL-002": {
+    "code": "E-VAL-002",
+    "feature": "VAL-1",
+    "user_message": "This is too long.",
+    "what_happened": "A value was longer than the field allows.",
+    "likely_cause": "Pasted text, or a very long sentence where a short label was expected.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Shorten the value to the field's limit.",
+    "message_varies": true,
+    "message_varies_why": "Generic \"too long\" code: the sentence names the field and its limit."
+  },
+  "E-VAL-003": {
+    "code": "E-VAL-003",
+    "feature": "VAL-1",
+    "user_message": "That value isn't valid.",
+    "what_happened": "A number, date or time was not in a valid format, or a number was outside its allowed range.",
+    "likely_cause": "A typo, or a value copied from somewhere with a different format.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Check the expected format or range and try again."
+  },
+  "E-VAL-004": {
+    "code": "E-VAL-004",
+    "feature": "VAL-1",
+    "user_message": "That isn't one of the allowed options.",
+    "what_happened": "A value was outside the fixed list this field accepts.",
+    "likely_cause": "A direct API call, or stale choices in an old browser tab.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Pick one of the listed options and try again.",
+    "message_varies": true,
+    "message_varies_why": "Generic \"not an allowed value\" code: the sentence names the rule."
+  },
+  "E-VAL-005": {
+    "code": "E-VAL-005",
+    "feature": "VAL-1",
+    "user_message": "That can't contain formatting like that.",
+    "what_happened": "A value looked like it contained an HTML tag, which this field does not allow.",
+    "likely_cause": "Text copied from a web page or rich-text editor brought formatting codes with it.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Paste as plain text, or remove the angle-bracket formatting."
+  },
+  "E-VAL-006": {
+    "code": "E-VAL-006",
+    "feature": "VAL-1",
+    "user_message": "That name is already used.",
+    "what_happened": "A name that must be unique already exists.",
+    "likely_cause": "Someone already created something with this name (matching is case- and space-insensitive).",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Pick a different name, or find and use the existing one."
+  },
+  "E-VAL-007": {
+    "code": "E-VAL-007",
+    "feature": "VAL-1",
+    "user_message": "That couldn't be found.",
+    "what_happened": "A reference pointed at something that doesn't exist, is archived, or belongs to a different account.",
+    "likely_cause": "A stale link, or something that was archived or deleted after this screen loaded.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload and try again. If it keeps happening, the Health page timeline for this Reference will show which entity was involved.",
+    "message_varies": true,
+    "message_varies_why": "Generic \"not found\" code: the sentence names the thing."
+  },
+  "E-ORD-004": {
+    "code": "E-ORD-004",
+    "feature": "ORD-2",
+    "user_message": "That actor type is not one I know, so no row was created.",
+    "message_varies": true,
+    "what_happened": "A row was requested with an actor_type that is not one of the eight the app defines.",
+    "likely_cause": "The AI invented an actor type. The matrix wizard can only offer valid ones, so this is almost always an AI call, not a person.",
     "owner": "engineer",
-    "severity": "error",
-    "fix_hint": "Try again. The publication and the day's status are written together, so a failure leaves no half-published day. If it keeps happening, copy the diagnostic bundle from the Health page."
+    "severity": "info",
+    "fix_hint": "The message lists the eight valid types. Nothing was created; ask again naming one of them."
   },
-  "E-LOG-001": {
-    "code": "E-LOG-001",
-    "feature": "LOG-1",
-    "user_message": "That action isn't available for this step right now.",
-    "what_happened": "An action was taken that isn't allowed from the step's current state — for example starting something already finished.",
-    "likely_cause": "The screen was showing an out-of-date state, or someone else moved the step first.",
+  "E-ORD-005": {
+    "code": "E-ORD-005",
+    "feature": "ORD-2",
+    "user_message": "This column (or row) can't be removed because tasks in a published plan still point at it.",
+    "message_varies": true,
+    "what_happened": "A remove was refused because work_task rows in a published version of this map are pinned to the column's or row's key.",
+    "likely_cause": "The map has been published and put to work. A work_task's identity is (work_item_id, stage_key, lens_key), so deleting the key would strand live execution records.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "The full message says what state the step is in and what to do instead — usually reopening it, or unblocking it first. Nothing was recorded."
+    "fix_hint": "Finish or remove that work first, or rename the column instead — a rename keeps the key, which is what execution records point at."
   },
-  "E-LOG-002": {
-    "code": "E-LOG-002",
-    "feature": "LOG-1",
-    "user_message": "Pick a reason so the team knows why.",
-    "what_happened": "A step was marked blocked without choosing a reason.",
-    "likely_cause": "The reason list was skipped.",
+  "E-BLK-001": {
+    "code": "E-BLK-001",
+    "feature": "BLK-1",
+    "user_message": "That card has no steps waiting to be scheduled. Refresh and try again.",
+    "message_varies": false,
+    "what_happened": "A card was sent for scheduling but the server found no unscheduled steps for that job and actor row.",
+    "likely_cause": "The screen is stale: somebody else scheduled it, or the job's steps moved, after the page loaded. Refetch, don't retry.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "Choose one of the four reasons. A blocked step with no reason tells the planner there is a problem but nothing about what to chase, which is barely better than not flagging it."
-  },
-  "E-LOG-003": {
-    "code": "E-LOG-003",
-    "feature": "LOG-1",
-    "user_message": "This step isn't assigned to you.",
-    "what_happened": "Someone tried to record progress on work that belongs to another person.",
-    "likely_cause": "A stale link, or the work was reassigned after the screen loaded.",
-    "owner": "user",
-    "severity": "info",
-    "fix_hint": "Refresh your list. If the work really is yours, ask the planner to reassign it to you — the record needs to show who actually did it."
-  },
-  "E-LOG-004": {
-    "code": "E-LOG-004",
-    "feature": "LOG-1",
-    "user_message": "Your tap wasn't saved. Please try again.",
-    "what_happened": "Recording an action failed and was rolled back.",
-    "likely_cause": "A connection or database problem at the moment of the tap.",
-    "owner": "engineer",
-    "severity": "error",
-    "fix_hint": "Tap again — repeats are safe, because the same tap is never recorded twice. The log entry and the step's status are written together, so a failure leaves neither. This is the most important write path in the product; repeated failures should be looked at immediately."
-  },
-  "E-LOG-005": {
-    "code": "E-LOG-005",
-    "feature": "LOG-1",
-    "user_message": "Pick one of the listed reasons.",
-    "what_happened": "A blocked step was sent with a reason that isn't one of the four allowed.",
-    "likely_cause": "A client sent its own wording instead of choosing from the list.",
-    "owner": "engineer",
-    "severity": "info",
-    "fix_hint": "The reasons are a fixed list so they can be counted and compared across jobs. Free text belongs in the note instead."
-  },
-  "E-LOG-006": {
-    "code": "E-LOG-006",
-    "feature": "LOG-1",
-    "user_message": "Write something before saving.",
-    "what_happened": "A note was saved with no text.",
-    "likely_cause": "The note box was submitted empty.",
-    "owner": "user",
-    "severity": "info",
-    "fix_hint": "An empty note was always accepted before APP-2 (US-APP-2-02) added this check — the Step screen's own box also refuses an empty save, but this is the one that actually enforces it."
-  },
-  "E-LOG-007": {
-    "code": "E-LOG-007",
-    "feature": "LOG-1",
-    "user_message": "Notes can be up to 1,000 characters.",
-    "what_happened": "A note was longer than the allowed length.",
-    "likely_cause": "Pasted text, or several notes combined into one.",
-    "owner": "user",
-    "severity": "info",
-    "fix_hint": "Shorten the note and save again. The typed text is kept on screen, per CLAUDE.md's rule to never discard a rejected save's input."
-  },
-  "E-P3A-001": {
-    "code": "E-P3A-001",
-    "feature": "P3A-1",
-    "user_message": "This plan has work recorded against it. Archive it instead.",
-    "what_happened": "A delete was refused because the plan already has jobs, a publication or logged activity.",
-    "likely_cause": "Someone tried to delete a plan that has already been used, rather than archiving it.",
-    "owner": "user",
-    "severity": "info",
-    "fix_hint": "Archive the plan. It disappears from the plan list and stops accepting changes, but everything already recorded against it stays intact. Deleting is only possible for a plan nothing has happened on yet."
+    "fix_hint": "Reload the backlog. Nothing was scheduled and nothing was changed."
   }
 }

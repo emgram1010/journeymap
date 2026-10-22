@@ -1,6 +1,44 @@
 import type {MatrixCell, Stage, MetricsActorFields, CustomerActorFields, InternalActorFields, EngineeringActorFields, AiAgentActorFields, HandoffActorFields, VendorActorFields, FinancialActorFields} from './types';
 import {parseMetricValue, calcStageHealth} from './types';
 import {METRICS_THRESHOLDS, getMetricColor} from './constants';
+import {seamTitle} from './matrixOrder';
+
+/**
+ * ORD-1 (US-ORD-1-05) — where an item sits, so its header can draw the
+ * insert seams and the move arrows. Omitted = draw neither (read-only use).
+ */
+export type MatrixPosition = {index: number; count: number};
+
+/**
+ * The seam `+` buttons and move arrows for one column header or row header.
+ * Seam N sits on the leading edge of item N; the last item also gets the
+ * trailing seam, so N items get N+1 seams and no seam is drawn twice.
+ * Always faintly visible (touch has no hover — decided 2026-10-19).
+ */
+const orderingControlsMarkup = (axis: 'stage' | 'lens', id: string, position: MatrixPosition) => {
+  const noun = axis === 'stage' ? 'column' : 'row';
+  const seamClass = axis === 'stage' ? 'jm-seam-col' : 'jm-seam-row';
+  const insertAttr = axis === 'stage' ? 'data-insert-stage-at' : 'data-insert-lens-at';
+  const moveAttr = axis === 'stage' ? 'data-move-stage-id' : 'data-move-lens-id';
+  const [backGlyph, fwdGlyph] = axis === 'stage' ? ['◀', '▶'] : ['▲', '▼'];
+  const [backTitle, fwdTitle] = axis === 'stage' ? ['Move left', 'Move right'] : ['Move up', 'Move down'];
+  const {index, count} = position;
+  const isFirst = index <= 0;
+  const isLast = index >= count - 1;
+
+  const seam = (at: number, edge: 'start' | 'end') => {
+    const title = escapeHtml(seamTitle(noun, at, count));
+    return `<button class="jm-seam ${seamClass} jm-seam-${edge}" ${insertAttr}="${at}" title="${title}" aria-label="${title}" type="button"><span>+</span></button>`;
+  };
+
+  const arrow = (dir: -1 | 1, glyph: string, title: string, disabled: boolean) =>
+    `<button class="jm-move-btn" ${moveAttr}="${escapeHtml(id)}" data-move-dir="${dir}" title="${title}" aria-label="${title}" type="button"${disabled ? ' disabled' : ''}>${glyph}</button>`;
+
+  return {
+    seams: seam(index, 'start') + (isLast ? seam(count, 'end') : ''),
+    arrows: `<span class="jm-move-group jm-move-group-${axis}">${arrow(-1, backGlyph, backTitle, isFirst)}${arrow(1, fwdGlyph, fwdTitle, isLast)}</span>`,
+  };
+};
 
 type ToggleableClassList = {
   toggle(className: string, force?: boolean): void;
@@ -46,12 +84,15 @@ export const formatLensCellMarkup = ({
   actorType,
   lensId,
   doesPlannedWork,
+  position,
 }: {
   label: string;
   actorType?: string;
   lensId?: string;
   /** STAGE-1 (US-STAGE-1-06) — the resolved does_planned_work value (override or actor_type default). Omitted = don't render the toggle. */
   doesPlannedWork?: boolean;
+  /** ORD-1 — row position; when given (and lensId is), draws the insert seams and move arrows. */
+  position?: MatrixPosition;
 }) => {
   const pill = actorType
     ? `<span class="jm-lens-actor-pill">${escapeHtml(actorType.replace('_', ' '))}</span>`
@@ -63,7 +104,8 @@ export const formatLensCellMarkup = ({
     lensId && doesPlannedWork !== undefined
       ? `<button class="jm-lens-planned-toggle ${doesPlannedWork ? 'is-on' : 'is-off'}" data-toggle-planned-work-lens-id="${escapeHtml(lensId)}" title="Does this row do planned work? Click to toggle." type="button">${doesPlannedWork ? '✓ Plans work' : 'No planned work'}</button>`
       : '';
-  return `<div class="jm-lens-cell">${editBtn}<div class="jm-lens-cell-body"><span class="jm-lens-label">${escapeHtml(label)}</span>${pill}${plannedWorkToggle}</div></div>`;
+  const ordering = lensId && position ? orderingControlsMarkup('lens', lensId, position) : null;
+  return `<div class="jm-lens-cell">${ordering ? ordering.seams : ''}${editBtn}<div class="jm-lens-cell-body"><span class="jm-lens-label">${escapeHtml(label)}</span>${pill}${plannedWorkToggle}</div>${ordering ? ordering.arrows : ''}</div>`;
 };
 
 export const formatStageHeaderMarkup = ({
@@ -73,6 +115,7 @@ export const formatStageHeaderMarkup = ({
   primaryActorLabel,
   stageId,
   isReady,
+  position,
 }: {
   label: string;
   stageGoal?: string;
@@ -81,6 +124,8 @@ export const formatStageHeaderMarkup = ({
   stageId: string;
   /** AUTH-1 (US-AUTH-1-04) — from computeStageReadiness. Omitted = don't render a mark (readiness not computed yet). */
   isReady?: boolean;
+  /** ORD-1 — column position; when given, draws the insert seams and move arrows. */
+  position?: MatrixPosition;
 }): string => {
   const editBtn = `<button class="jm-stage-edit-btn" data-edit-stage-id="${escapeHtml(stageId)}" title="Edit stage" type="button">✎</button>`;
 
@@ -99,7 +144,8 @@ export const formatStageHeaderMarkup = ({
     ? `<span class="jm-stage-goal">${escapeHtml(goalText)}</span>`
     : `<span class="jm-stage-goal is-empty">\u26a0 No goal set</span>`;
 
-  return `<div class="jm-stage-header">${editBtn}${readyMark}<span class="jm-stage-label">${escapeHtml(label)}</span><div class="jm-stage-meta">${actorPill}${goalEl}</div></div>`;
+  const ordering = position ? orderingControlsMarkup('stage', stageId, position) : null;
+  return `<div class="jm-stage-header">${ordering ? ordering.seams : ''}${editBtn}${readyMark}<span class="jm-stage-label">${escapeHtml(label)}</span><div class="jm-stage-meta">${actorPill}${goalEl}</div>${ordering ? ordering.arrows : ''}</div>`;
 };
 
 const LINK_TYPE_ICON: Record<string, string> = {

@@ -72,6 +72,11 @@ export const TABLE_MANIFEST: Record<string, TableExpectation> = {
   actor_role: {naturalKeys: [['account_id', 'name_key']], enumFields: ['actor_type']},
   agent_role: {naturalKeys: [['planner_agent_id', 'actor_role_id']]},
   journey_map_version: {naturalKeys: [['journey_map_id', 'version_no']], appendOnly: true},
+  // US-DEL-1-07 — a MARKER, not a record: a row means "deleted", and
+  // restoring removes it. `appendOnly` here is about the SHAPE (no
+  // `updated_at`, because a row is never edited), not about permanence
+  // — the permanent record of the action is in event_log.
+  journey_map_deleted: {naturalKeys: [['journey_map_id']], appendOnly: true},
   // Built 2026-10-14 as live tables 119, 120, 121 (PLAN-1).
   // `name`, not `name_key`: this matches its sibling `planner_workspace`,
   // which also keys on (account_id, name). Case-insensitive template
@@ -82,6 +87,10 @@ export const TABLE_MANIFEST: Record<string, TableExpectation> = {
   // Link tables: rows are added or removed, never edited, so they have
   // no `updated_at` (GOV-1 S10).
   plan_template_map: {naturalKeys: [['plan_template_id', 'journey_map_id']], appendOnly: true},
+  // Built 2026-10-17 as live table 130 (PLAN-3). Same link-table shape
+  // as plan_template_map one line up — a row is added or removed,
+  // never edited.
+  plan_template_agent: {naturalKeys: [['plan_template_id', 'agent_profile_id']], appendOnly: true},
   planner_workspace_map: {naturalKeys: [['workspace_id', 'journey_map_id']], appendOnly: true},
   work_item: {enumFields: ['status']},
   work_task: {naturalKeys: [['work_item_id', 'stage_key', 'lens_key']], enumFields: ['status']},

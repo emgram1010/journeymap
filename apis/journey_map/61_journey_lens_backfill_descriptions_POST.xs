@@ -1,13 +1,38 @@
 // US-AI-2.08 — Populate default descriptions on existing lenses where description IS NULL
 // and key matches a known default key. Custom/non-default keys are skipped.
 // Idempotent: running twice has no additional effect.
+//
+// US-SEC-1-05 (2026-10-19) — PLATFORM ADMIN ONLY. This was open to the
+// internet with no login, and it writes across EVERY account: its query
+// is `journey_lens WHERE description IS NULL` with no map filter and no
+// owner filter, so one anonymous POST rewrote lens descriptions in every
+// map in the workspace. Being idempotent made it less dangerous, not
+// safe — it still overwrote whatever a customer had deliberately left
+// blank, in accounts the caller had nothing to do with.
+//
+// It is a one-off migration, so it is gated on `is_platform_admin`
+// rather than on ownership: there is no single account that owns the
+// action. Account-scoped work belongs in an account-scoped endpoint.
+//
+// The refusal logs a `rejected` event with E-OBS-001 before it throws,
+// so an attempt shows on the Health page (OBS-1).
 query "journey_lens/backfill_descriptions" verb=POST {
   api_group = "journey-map"
+  auth = "user"
 
   input {
   }
 
   stack {
+    function.run "ops/require_platform_admin" {
+      input = {
+        user_id: $auth.id
+        what   : "maintenance tool"
+        feature: "SEC-1"
+        step   : "backfill_lens_descriptions"
+      }
+    } as $admin_guard
+  
     // ── Define default descriptions keyed by lens key ──
     var $defaults {
       value = {}

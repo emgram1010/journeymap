@@ -35,6 +35,16 @@ export function getJourneyMapBaseUrl(): string {
   return trimTrailingSlash(configured || DEFAULT_JOURNEY_MAP_BASE_URL);
 }
 
+// PLAN-2 — the "Members & Accounts" group, needed to list an account's
+// users as candidates for tagging as an agent. Same bearer token works
+// across groups, same reasoning as the journey-map base URL above.
+const DEFAULT_ACCOUNTS_BASE_URL = 'https://xdjc-i7zz-jhm2.n7e.xano.io/api:Fcgmwc6Y';
+
+export function getAccountsBaseUrl(): string {
+  const configured = import.meta.env.VITE_XANO_ACCOUNTS_BASE_URL?.trim();
+  return trimTrailingSlash(configured || DEFAULT_ACCOUNTS_BASE_URL);
+}
+
 export interface PerformRequestOptions {
   // DELETE added by PLN-9: the planner can now remove an agent or a day.
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
@@ -121,14 +131,48 @@ export async function performRequest<T>(path: string, options: PerformRequestOpt
 import type {PerformerSnapshot, StatusMap, TaskStatus} from './performerView';
 
 export interface TodayResponse {
+  /** The day actually being shown — the requested date, or the server's "today". */
   date: string;
+  /** GAP-FIX W4 — the server's own "today" in `zone`, so the UI can tell today from any other day it is showing. */
+  today: string;
+  /** GAP-FIX W8 — the zone the server read its clock in (the one sent, else "UTC"). */
+  zone: string;
   agent_ids: number[];
+  /** GAP-FIX W4/W5 — every date this performer has published work on. Unsorted, with duplicates; see `publishedDays`. */
+  my_dates: string[];
   snapshot: PerformerSnapshot;
   statuses: StatusMap;
 }
 
+/**
+ * GAP-FIX W8 — the DEVICE'S ZONE, NEVER THE DEVICE'S CLOCK.
+ *
+ * APP-1 deliberately refuses to let the device decide what day it is,
+ * because a wrong clock would silently show the wrong day's work. A
+ * zone NAME is a different kind of fact: the server still reads its
+ * own clock, just in this zone. Without it "today" is UTC, which for
+ * a performer in US Pacific flips at 5pm local — work vanishes
+ * mid-afternoon and tomorrow's appears early.
+ *
+ * Returns undefined where `Intl` is unavailable or throws; the server
+ * then falls back to UTC exactly as before.
+ */
+export function deviceTimeZone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** `date` omitted lets the server decide "today" (the timezone seam — see `perform/today_for`'s own header). */
-export const fetchToday = (date?: string) => performRequest<TodayResponse>(`/perform/today${date ? `?date=${encodeURIComponent(date)}` : ''}`);
+export const fetchToday = (date?: string, tz: string | undefined = deviceTimeZone()) => {
+  const qs = new URLSearchParams();
+  if (date) qs.set('date', date);
+  if (tz) qs.set('tz', tz);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return performRequest<TodayResponse>(`/perform/today${suffix}`);
+};
 
 export type PerformEventType = 'started' | 'completed' | 'blocked' | 'unblocked' | 'skipped' | 'reopened' | 'note';
 

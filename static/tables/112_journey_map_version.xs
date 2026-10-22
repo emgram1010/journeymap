@@ -10,6 +10,25 @@
 // DOCUMENTED EXCEPTION to "no duplicate facts" (GOV-1): `snapshot` is a
 // deliberate frozen copy of the live definition. That is the point of a
 // version — live work pins to this, not to the editable map.
+// 🔴 US-DEL-1-02 — NOTHING MAY EVER DELETE A ROW FROM THIS TABLE.
+//
+// This is what stands between a deleted map and a broken job. A
+// `work_item` points at a version, never at a map, and reads its
+// steps, done-whens and durations out of this row's `snapshot`. So
+// deleting a journey_map is harmless to work already in flight —
+// which is exactly why map deletes have been allowed to leave
+// versions behind, and why orphaned versions must NOT be "tidied up".
+//
+// Deleting one would silently strip the instructions from live and
+// historical work: no error, no missing row anywhere the UI looks,
+// just steps that no longer say what to do and variance that can no
+// longer be explained.
+//
+// This was an accident until 2026-10-18 — the behaviour was correct
+// and nothing said so. `webapp/protype-2/src/ops/historyTables.ts`
+// now fails the build on any `db.del journey_map_version` in
+// `apis/`, `functions/` or `tasks/`.
+
 table journey_map_version {
   auth = false
 

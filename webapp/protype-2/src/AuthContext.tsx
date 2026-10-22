@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { loginUser, signupUser, getAuthMe, type XanoUser } from './xano';
+import { loginUser, signupUser, getAuthMe, XanoHttpError, type XanoUser } from './xano';
 
 interface AuthState {
   user: XanoUser | null;
@@ -25,12 +25,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setState({ user: null, token: null, isLoading: false });
       return;
     }
-    // Validate the stored token via GET /auth/me
+    // Validate the stored token via GET /auth/me.
+    //
+    // O14 (2026-10-17) — THE TOKEN IS ONLY DESTROYED FOR AN ACTUAL
+    // AUTH FAILURE. This used to clear it on ANY rejection, which
+    // meant a perfectly good session was thrown away by anything that
+    // made this one request fail: a flaky network, a 500, or — the way
+    // it was found — a request ABORTED because the user navigated
+    // somewhere else before it came back. Playwright reproduced it
+    // every time: open a page, navigate again immediately, and the
+    // in-flight check's abort logged the session out mid-navigation.
+    // A person clicking quickly on a slow connection hits the same
+    // thing, and the only symptom is being bounced to the sign-in
+    // page for no visible reason.
+    //
+    // 401/403 means the token really is no good — clear it. Anything
+    // else means WE could not find out, which is not the same answer:
+    // the token stays, so the next load (or the next online moment)
+    // signs them straight back in.
     getAuthMe()
       .then((user) => setState({ user, token: stored, isLoading: false }))
-      .catch(() => {
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('userId');
+      .catch((err: unknown) => {
+        const status = err instanceof XanoHttpError ? err.status : 0;
+        const tokenIsRejected = status === 401 || status === 403;
+        if (tokenIsRejected) {
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('userId');
+        }
         setState({ user: null, token: null, isLoading: false });
       });
   }, []);

@@ -8,6 +8,7 @@ import {
   updateJourneyMapMeta,
   type XanoJourneyMap,
   type JourneyMapStatus,
+  friendlyError,
 } from './xano';
 import { useAuth } from './AuthContext';
 
@@ -175,6 +176,7 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [createTitle, setCreateTitle] = useState('Untitled Journey Map');
   const [createLevel, setCreateLevel] = useState<string>('');
@@ -247,13 +249,19 @@ export default function Dashboard() {
     }
   };
 
+  // US-DEL-1-01 — a refused delete used to roll the row back with no
+  // message at all, so the map silently reappeared. The server's
+  // sentence names the plan or template using it (E-DEL-001), or who
+  // may delete it (E-DEL-002); it is shown rather than swallowed.
   const handleDelete = async (id: number) => {
     const prev = maps.find((m) => m.id === id);
     setMaps((ms) => ms.filter((m) => m.id !== id));
+    setDeleteError(null);
     try {
       await deleteJourneyMap(id);
-    } catch {
+    } catch (err) {
       if (prev) setMaps((ms) => [prev, ...ms]);
+      setDeleteError(friendlyError(err, 'Unable to delete this map.'));
     }
   };
 
@@ -334,6 +342,21 @@ export default function Dashboard() {
           <div className="mb-6 flex items-center justify-between px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700">
             <span>{loadError}</span>
             <button onClick={() => void loadMaps()} className="font-semibold hover:underline ml-4">Retry</button>
+          </div>
+        )}
+
+        {/* US-DEL-1-01 — why a delete was refused. Separate from the
+            load error: that one offers Retry, and retrying a refusal
+            is pointless. This one is dismissed once it has been read. */}
+        {deleteError && (
+          <div
+            id="map-delete-error"
+            className="mb-6 flex items-start justify-between gap-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900"
+          >
+            <span>{deleteError}</span>
+            <button onClick={() => setDeleteError(null)} className="font-semibold hover:underline shrink-0">
+              Dismiss
+            </button>
           </div>
         )}
 

@@ -1,4 +1,17 @@
 // Add a journey stage and scaffold matching cells for all lenses in the map.
+//
+// ORD-2 (US-ORD-2-04): the work moved to journey/insert_stage, which the AI
+// tools call too, so a column added by the AI and a column added from the
+// matrix are now produced by the same code. This endpoint is the
+// authenticated front door and does only what a function cannot:
+//
+//   1. proves the caller owns the map, and
+//   2. decides whether an insert position was actually SENT.
+//
+// (2) has to happen here. An omitted optional int arrives as 0, and 0 is also
+// the legitimate "insert at the very front" value, so the two are told apart
+// by reading the raw request body — which only an endpoint has (CLAUDE.md).
+// The function then receives an explicit -1 (append), 0 (first) or an id.
 query "journey_stage/add/{journey_map_id}" verb=POST {
   api_group = "journey-map"
   auth = "user"
@@ -8,275 +21,61 @@ query "journey_stage/add/{journey_map_id}" verb=POST {
     text label? filters=trim
     text stage_goal? filters=trim
     text primary_actor_lens? filters=trim
+
+    // ORD-1: insert after this stage id; 0 = insert first; omit = append.
+    int after_stage_id?
   }
 
   stack {
-    var $cells {
-      value = []
-    }
-  
-    var $next_stage_order {
-      value = 1
-    }
-  
     db.get journey_map {
       field_name = "id"
       field_value = $input.journey_map_id
     } as $journey_map
-  
+
     precondition ($journey_map != null) {
       error_type = "notfound"
       error = "Journey map not found"
     }
-  
+
     precondition ($journey_map.owner_user == $auth.id) {
       error_type = "accessdenied"
       error = "Access denied"
     }
-  
-    db.query journey_stage {
-      where = $db.journey_stage.journey_map == $input.journey_map_id
-      sort = {display_order: "desc"}
-      return = {type: "list"}
-    } as $existing_stages
-  
-    db.query journey_lens {
-      where = $db.journey_lens.journey_map == $input.journey_map_id
-      sort = {display_order: "asc"}
-      return = {type: "list"}
-    } as $existing_lenses
-  
-    precondition (($existing_lenses|count) > 0) {
-      error_type = "inputerror"
-      error = "Journey map must include at least one lens before adding a stage"
+
+    util.get_raw_input {
+      encoding = "json"
+      exclude_middleware = false
+    } as $raw_input
+
+    var $after_stage_id {
+      value = -1
     }
-  
+
     conditional {
-      if (($existing_stages|count) > 0) {
-        var.update $next_stage_order {
-          value = $existing_stages
-            |first
-            |get:"display_order"
-            |add:1
+      if ($raw_input|has:"after_stage_id") {
+        var.update $after_stage_id {
+          value = ($raw_input|get:"after_stage_id":0)|to_int
         }
       }
     }
-  
-    var $stage_label {
-      value = "Stage %d"|sprintf:$next_stage_order
-    }
-  
-    conditional {
-      if ($input.label != null) {
-        precondition ($input.label != "") {
-          error_type = "inputerror"
-          error = "Stage label is required"
-        }
-      
-        var.update $stage_label {
-          value = $input.label
-        }
-      }
-    }
-  
-    var $stage_key {
-      value = "s%d"|sprintf:$next_stage_order
-    }
-  
-    db.add journey_stage {
-      enforce_hidden_fields = false
-      data = {
-        created_at        : "now"
-        updated_at        : "now"
-        journey_map       : $input.journey_map_id
-        key               : $stage_key
-        label             : $stage_label
-        display_order     : $next_stage_order
+
+    function.run "journey/insert_stage" {
+      input = {
+        journey_map_id    : $input.journey_map_id
+        after_stage_id    : $after_stage_id
+        label             : $input.label
         stage_goal        : $input.stage_goal
         primary_actor_lens: $input.primary_actor_lens
+        user_id           : $auth.id
+        account_id        : $journey_map.account_id
+        step              : "insert_stage"
       }
-    } as $journey_stage
-  
-    foreach ($existing_lenses) {
-      each as $lens {
-        // Derive actor_fields scaffold from the lens's template_key
-        var $cell_actor_fields_scaffold {
-          value = null
-        }
-      
-        conditional {
-          if ($lens.template_key == "customer-v1") {
-            var.update $cell_actor_fields_scaffold {
-              value = {}
-                |set:"entry_trigger":null
-                |set:"emotions":null
-                |set:"information_needs":null
-                |set:"decisions_required":null
-                |set:"friction_points":null
-                |set:"assumptions":null
-                |set:"acceptance_criteria":null
-                |set:"expected_output":null
-                |set:"channel_touchpoint":null
-            }
-          }
-        }
-      
-        conditional {
-          if ($lens.template_key == "internal-v1") {
-            var.update $cell_actor_fields_scaffold {
-              value = {}
-                |set:"task_objective":null
-                |set:"entry_trigger":null
-                |set:"tools_systems":null
-                |set:"information_needs":null
-                |set:"decisions_required":null
-                |set:"friction_points":null
-                |set:"assumptions":null
-                |set:"handoff_dependencies":null
-                |set:"success_criteria":null
-                |set:"output_deliverable":null
-                |set:"employee_constraints":null
-                |set:"pain_points":null
-            }
-          }
-        }
-      
-        conditional {
-          if ($lens.template_key == "engineering-v1") {
-            var.update $cell_actor_fields_scaffold {
-              value = {}
-                |set:"system_service_owner":null
-                |set:"data_inputs":null
-                |set:"data_outputs":null
-                |set:"api_integration_dependencies":null
-                |set:"business_rules_logic":null
-                |set:"error_states_edge_cases":null
-                |set:"data_storage_requirements":null
-                |set:"security_permissions":null
-                |set:"performance_requirements":null
-                |set:"audit_logging_needs":null
-            }
-          }
-        }
-      
-        conditional {
-          if ($lens.template_key == "ai-agent-v1") {
-            var.update $cell_actor_fields_scaffold {
-              value = {}
-                |set:"ai_model_agent":null
-                |set:"input_data":null
-                |set:"decision_output":null
-                |set:"confidence_threshold":null
-                |set:"escalation_logic":null
-                |set:"training_data":null
-                |set:"retraining_frequency":null
-                |set:"bias_fairness_considerations":null
-                |set:"failure_scenarios":null
-                |set:"performance_metrics":null
-                |set:"model_owner":null
-                |set:"explainability_needs":null
-            }
-          }
-        }
-      
-        conditional {
-          if ($lens.template_key == "handoff-v1") {
-            var.update $cell_actor_fields_scaffold {
-              value = {}
-                |set:"trigger_event":null
-                |set:"upstream_actor":null
-                |set:"prerequisite_data":null
-                |set:"upstream_dependencies":null
-                |set:"handoff_output":null
-                |set:"handoff_format":null
-                |set:"handoff_timing":null
-                |set:"downstream_actor":null
-                |set:"validation_rules":null
-                |set:"failure_recovery":null
-                |set:"communication_method":null
-                |set:"data_retention_policy":null
-            }
-          }
-        }
-      
-        conditional {
-          if ($lens.template_key == "vendor-v1") {
-            var.update $cell_actor_fields_scaffold {
-              value = {}
-                |set:"vendor_name_type":null
-                |set:"role_at_step":null
-                |set:"engagement_trigger":null
-                |set:"contractual_obligations":null
-                |set:"information_needs":null
-                |set:"information_returned":null
-                |set:"integration_method":null
-                |set:"sla_performance_metrics":null
-                |set:"failure_scenario":null
-                |set:"escalation_path":null
-                |set:"data_privacy_compliance":null
-                |set:"vendor_constraints":null
-                |set:"cost_impact":null
-                |set:"dependency_on_internal":null
-            }
-          }
-        }
-      
-        conditional {
-          if ($lens.template_key == "metrics-v1") {
-            var.update $cell_actor_fields_scaffold {
-              value = {}
-                |set:"csat_score":null
-                |set:"completion_rate":null
-                |set:"drop_off_rate":null
-                |set:"avg_time_to_complete":null
-                |set:"error_rate":null
-                |set:"sla_compliance_rate":null
-                |set:"volume_frequency":null
-                |set:"stage_health":null
-            }
-          }
-        }
-      
-        db.add journey_cell {
-          enforce_hidden_fields = false
-          data = {
-            created_at  : "now"
-            updated_at  : "now"
-            journey_map : $input.journey_map_id
-            stage       : $journey_stage.id
-            lens        : $lens.id
-            content     : ""
-            status      : "open"
-            is_locked   : false
-            actor_fields: $cell_actor_fields_scaffold
-          }
-        } as $cell
-      
-        array.push $cells {
-          value = $cell
-        }
-      }
-    }
-  
-    db.patch journey_map {
-      field_name = "id"
-      field_value = $input.journey_map_id
-      data = {updated_at: "now", last_interaction_at: "now"}
-    } as $journey_map_touch_patch
-  
-    precondition ($journey_map_touch_patch != null) {
-      error = "Failed to update journey map"
-    }
-  
-    db.get journey_map {
-      field_name = "id"
-      field_value = $input.journey_map_id
-    } as $journey_map_touch
+    } as $added
   }
 
   response = {
-    stage                 : $journey_stage
-    cells                 : $cells
-    journey_map_updated_at: $journey_map_touch.updated_at
+    stage                 : $added.stage
+    cells                 : $added.cells
+    journey_map_updated_at: $added.journey_map_updated_at
   }
 }

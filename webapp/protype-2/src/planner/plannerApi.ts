@@ -3,7 +3,7 @@
 // workspace, not assumed from a spec). `plannerAdapter.ts` maps these
 // into the existing frontend types (`src/types.ts`), which this epic
 // deliberately keeps unchanged where possible.
-import {performRequest, getJourneyMapBaseUrl} from '../perform/performApi';
+import {performRequest, getJourneyMapBaseUrl, getAccountsBaseUrl} from '../perform/performApi';
 
 // ── Workspaces (plans) ──────────────────────────────────────────────────
 
@@ -25,6 +25,17 @@ export interface WorkspaceListEntry {
 }
 
 export const listWorkspaces = () => performRequest<{workspaces: WorkspaceListEntry[]}>('/workspace');
+
+/**
+ * Phase-3's plain create, no template — reinstated in the UI on the
+ * founder's request (2026-10-17) as an explicit "start from scratch"
+ * option, alongside "New Plan from Template". The endpoint never
+ * stopped existing or working (FT-PLAN-1-09 confirms it); only the
+ * frontend path to it had been removed when PLN-9 wired templates in.
+ * No maps, no agents, no template — add those by hand once inside it.
+ */
+export const createWorkspace = (body: {name: string; planning_window_start: string; planning_window_end: string}) =>
+  performRequest<{workspace: RawWorkspace; counts: WorkspaceListEntry['counts']}>('/workspace', {method: 'POST', body});
 
 /**
  * PLN-3 — rename a plan, move its planning window, or change its token
@@ -219,6 +230,8 @@ export interface BoardResponse {
   agents: RawAgent[];
   timelines: RawTimeline[];
   tasks: RawTask[];
+  /** GAP-FIX W1 — the real text behind each scheduled job step. Optional so an older server still parses. */
+  linked_steps?: LinkedStep[];
   settings: RawPlannerSettings;
   models: RawModel[];
 }
@@ -249,44 +262,67 @@ export const addWorkspaceMaps = (workspaceId: number, mapIds: number[]) =>
   });
 
 /**
- * Candidate maps for the "add a map" picker — the journey-map group, not
- * the planner group. Only a hint for the picker; `addWorkspaceMaps` above
+ * Candidate maps for the "add a map" picker — the journey-map group,
+ * not the planner group. Only a hint for the picker; `addWorkspaceMaps`
  * is what actually re-validates "published" server-side.
  *
- * ⚠️ NOT `GET journey_map/search` (endpoint 210, the account-scoped,
- * published-only search that would have been the right fit) — confirmed
- * live that it 400s with "journey_map_id... not a valid integer" on
- * EVERY call, because `journey_map/{journey_map_id}` (endpoint 23,
- * built earlier) shadows it: Xano's router matches the dynamic path
- * for any `journey_map/<anything>` GET, so the literal segment "search"
- * is parsed as an attempted `journey_map_id` and fails int validation.
- * Endpoint 210 is dead code as a result — a routing collision worth
- * knowing before adding a static path next to an existing dynamic one
- * in the same group (see CLAUDE.md).
+ * ACCOUNT-SCOPED SINCE O8 (2026-10-17). This used to read the plain
+ * `GET journey_map` (endpoint 18), which filters `owner_user ==
+ * auth.id` — so a map drawn by a teammate never appeared in any
+ * picker, even though attaching it would have been accepted. Invisible
+ * on a one-person account, and indistinguishable from "the map
+ * vanished" the moment there are two. Confirmed against real data:
+ * the owner-scoped list returned 14 maps where the account has 17.
  *
- * Falls back to the plain `GET journey_map` (endpoint 18) instead,
- * filtered to `status === 'active'` client-side. Known gap: that
- * endpoint is OWNER-scoped (`owner_user == auth.id`), not account-
- * scoped, so a map owned by a different user in the same account won't
- * appear here even though `addWorkspaceMaps` would accept it. Revisit
- * once the routing collision above is fixed and 210 is reachable.
+ * ⚠️ NOT `GET journey_map/search` (endpoint 210, built for exactly
+ * this and account-scoped) — confirmed live that it 400s with
+ * "journey_map_id... not a valid integer" on EVERY call, because
+ * `journey_map/{journey_map_id}` (endpoint 23, built earlier) shadows
+ * it: Xano's router matches the dynamic path for any
+ * `journey_map/<anything>` GET, so the literal segment "search" is
+ * parsed as an attempted id and fails int validation. The endpoint
+ * here uses a DIFFERENT STATIC PREFIX so no collision is possible —
+ * the workaround CLAUDE.md recommends for this shape. 210 is still
+ * dead code, and still carries the `status == "active"` filter that
+ * hid every draft map plus a telemetry write on every call.
+ *
+ * Unpublished maps are RETURNED, NOT FILTERED OUT. A planner looking
+ * for the map they just drew needs to see it and be told "publish it
+ * first" — a map silently missing from the list is the same dead end,
+ * one step earlier. The caller disables them.
  */
 export interface JourneyMapSearchResult {
   map_id: number;
   title: string;
   status: string;
+  /**
+   * GAP-FIX W7 — the map's latest published version, or null if it has
+   * never been published. Attaching a map REQUIRES one (E-PLAN-004),
+   * so a picker that doesn't know this offers maps the server will
+   * then refuse.
+   */
+  publishedVersionNo: number | null;
 }
 
 export const searchJourneyMaps = () =>
-  performRequest<Array<{id: number; title: string; status: string}>>('/journey_map', {baseUrl: getJourneyMapBaseUrl()}).then(
-    (maps) => ({results: maps.filter(m => m.status === 'active').map(m => ({map_id: m.id, title: m.title, status: m.status}))}),
-  );
+  performRequest<{
+    account_id: number;
+    count: number;
+    maps: Array<{map_id: number; title: string; status: string; published_version_no: number | null}>;
+  }>('/journey_map_attachable', {baseUrl: getJourneyMapBaseUrl()}).then((data) => ({
+    results: data.maps.map((m) => ({
+      map_id: m.map_id,
+      title: m.title,
+      status: m.status,
+      publishedVersionNo: m.published_version_no ?? null,
+    })),
+  }));
 
-// ── Plan templates (US-PLN-9-07) ────────────────────────────────────────
+// ── Plan templates (US-PLN-9-07, PLAN-3 US-PLAN-3-04) ──────────────────────
 //
-// Only read + instantiate are wired here. Creating/editing a template is
-// explicitly deferred by the epic's own scope table — this app only ever
-// offers "start a plan from an existing template."
+// PLN-9 wired read + instantiate only; creating/editing a template was
+// explicitly deferred to this epic (completing PLAN-1's own never-built
+// US-PLAN-1-05) — now also carrying the agent roster PLAN-3 adds.
 
 export interface RawTemplate {
   id: number;
@@ -300,12 +336,342 @@ export interface RawTemplate {
 export interface TemplateListEntry {
   template: RawTemplate;
   maps: Array<{map_id: number; title: string | null}>;
+  agents: Array<{profile_id: number; name: string | null}>;
 }
 
 export const listTemplates = () => performRequest<{templates: TemplateListEntry[]}>('/template');
 
+export const createTemplate = (body: {
+  name: string;
+  window_days?: number;
+  default_start_time?: string;
+  map_ids?: number[];
+  agent_profile_ids?: number[];
+}) => performRequest<{template: RawTemplate; map_ids: number[]; agent_profile_ids: number[]}>('/template', {method: 'POST', body});
+
+export const updateTemplate = (
+  templateId: number,
+  body: Partial<{name: string; window_days: number; default_start_time: string; is_active: boolean; add_map_ids: number[]; add_agent_profile_ids: number[]}>,
+) => performRequest<{template: RawTemplate; map_ids: number[]; agent_profile_ids: number[]}>(`/template/${templateId}`, {method: 'PATCH', body});
+
 export const createWorkspaceFromTemplate = (templateId: number, body: {name: string; start_date: string}) =>
-  performRequest<{workspace: RawWorkspace; from_template_id: number; default_start_time: string; window_days: number; accepted_map_count: number}>(
-    `/template/${templateId}/instance`,
-    {method: 'POST', body},
+  performRequest<{
+    workspace: RawWorkspace;
+    from_template_id: number;
+    default_start_time: string;
+    window_days: number;
+    accepted_map_count: number;
+    agent_count: number;
+    skipped_agents: SkippedAgent[];
+  }>(`/template/${templateId}/instance`, {method: 'POST', body});
+
+/** Why a roster agent was left off a new plan (gap-fix #1). */
+export interface SkippedAgent {
+  profile_id: number;
+  name: string | null;
+  reason: 'not_eligible' | 'not_found' | 'duplicate_name';
+}
+
+// ── Agent profiles (PLAN-2, US-PLAN-2-02) ──────────────────────────────────
+//
+// A durable, per-person identity independent of any one plan — see the
+// epic's own header for why `planner_agent` alone couldn't do this.
+// Account-scoped, not workspace-scoped: these calls don't take a
+// workspace id at all.
+
+export interface RawAgentProfile {
+  id: number;
+  user_id: number;
+  account_id: number;
+  kind: 'person' | 'ai';
+  name: string;
+  color: string;
+  default_daily_capacity_hours: number;
+  is_eligible: boolean;
+}
+
+export interface AgentProfileListEntry {
+  profile: RawAgentProfile;
+  display_name: string;
+}
+
+export const listAgentProfiles = (includeIneligible = false) =>
+  performRequest<{profiles: AgentProfileListEntry[]}>(`/agent-profile${includeIneligible ? '?include_ineligible=true' : ''}`);
+
+export const createAgentProfile = (body: {user_id?: number; name?: string; color?: string; default_daily_capacity_hours?: number}) =>
+  performRequest<{profile: RawAgentProfile}>('/agent-profile', {method: 'POST', body});
+
+export const updateAgentProfile = (
+  profileId: number,
+  body: Partial<{name: string; color: string; default_daily_capacity_hours: number; is_eligible: boolean}>,
+) => performRequest<{profile: RawAgentProfile}>(`/agent-profile/${profileId}`, {method: 'PATCH', body});
+
+// ── Team members (Members & Accounts group) — candidates for tagging ───────
+
+export interface TeamMember {
+  id: number;
+  created_at: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  account_id: number;
+}
+
+export const listTeamMembers = () => performRequest<TeamMember[]>('/account/my_team_members', {baseUrl: getAccountsBaseUrl()});
+
+// ── Jobs (GAP-FIX W1, over JOB-1 / SCHED-1) ────────────────────────────────
+//
+// THE BACKEND FOR ALL OF THIS WAS ALREADY BUILT AND TESTED. JOB-1 and
+// SCHED-1 shipped `work_item` (a real instance of the work, whose steps
+// come from a map's frozen version) and the scheduling link that puts
+// one of those steps on somebody's day — and nothing in the planner UI
+// ever called any of it. There were zero references to `work_item`,
+// `job_id` or `createJob` anywhere under `planner/`. "Add task" made a
+// plain `planner_task`: a title, a duration and a slot, with no
+// connection to any map. So attaching a map to a plan changed nothing a
+// user could see, and Execution showed steps with no instructions and
+// no done-when — the exact things the map exists to carry.
+//
+// These are the calls that were missing, not new capability.
+
+export interface RawWorkItem {
+  id: number;
+  account_id: number;
+  workspace_id: number;
+  journey_map_version_id: number;
+  title: string;
+  status: 'open' | 'in_progress' | 'blocked' | 'completed' | 'cancelled';
+  attributes: Record<string, unknown>;
+  parent_work_item_id: number;
+  created_by: number;
+  started_at: number;
+  finished_at: number;
+}
+
+export interface WorkItemListEntry {
+  work_item: RawWorkItem;
+  task_count: number;
+  finished_count: number;
+  has_blocked: boolean;
+  has_progress: boolean;
+}
+
+/**
+ * Create a job from one of the plan's accepted maps.
+ *
+ * THE JOB IS PINNED TO THAT MAP'S LATEST PUBLISHED VERSION AT THIS
+ * MOMENT, and the pin never moves — later edits or republishes cannot
+ * change a job already underway. Refuses with a friendly message if
+ * the plan doesn't accept the map (E-JOB-002) or the map has never
+ * been published (E-JOB-003).
+ */
+export const createWorkItem = (body: {workspace_id: number; journey_map_id: number; title: string}) =>
+  performRequest<{
+    work_item: RawWorkItem;
+    pinned_version: {id: number; version_no: number};
+    task_count: number;
+    skipped_stages: unknown[];
+  }>('/work_item', {method: 'POST', body});
+
+/** Cancelled jobs are excluded unless asked for — they're history, not work waiting to happen. */
+export const listWorkItems = (workspaceId: number, includeCancelled = false) =>
+  performRequest<{work_items: WorkItemListEntry[]}>(
+    `/workspace/${workspaceId}/work_item${includeCancelled ? '?include_cancelled=true' : ''}`,
   );
+
+/** US-JOB-1-05 — a cancelled job's steps leave the backlog but stay as history. */
+export const cancelWorkItem = (workItemId: number) =>
+  performRequest<{work_item: RawWorkItem; was_already_cancelled: boolean; message: string}>(
+    `/work_item/${workItemId}/cancel`,
+    {method: 'POST', body: {}},
+  );
+
+/**
+ * Everything in this plan waiting for a day, as CARDS.
+ *
+ * BLK-1 (US-BLK-1-01) — one row is one job's unscheduled steps for ONE
+ * ACTOR ROW, which is the unit a person actually picks up. Before it, a
+ * customer's return arrived here as eight separate rows.
+ *
+ * Text and expected minutes are read from each job's PINNED version —
+ * what was agreed, not what the live map says today — and the steps
+ * arrive in that version's stage order, which ORD-1 made mutable.
+ */
+export interface BacklogCardStep {
+  work_task_id: number;
+  stage_key: string;
+  stage_label: string;
+  status: string;
+  task: string | null;
+  done_when: string | null;
+  expected_minutes: number | null;
+}
+
+export interface BacklogCard {
+  /** `work_item_id::lens_key`, the card's identity. Safe as a React key; `work_task_id` is not — a card has several. */
+  card_key: string;
+  work_item_id: number;
+  job_title: string | null;
+  lens_key: string;
+  lens_label: string;
+  step_count: number;
+  /** Summed over the card's steps, from the pinned version. */
+  expected_minutes: number;
+  first_stage_label: string;
+  last_stage_label: string;
+  work_task_ids: number[];
+  steps: BacklogCardStep[];
+}
+
+export const listBacklogWork = (workspaceId: number) =>
+  performRequest<{workspace_id: number; count: number; backlog: BacklogCard[]}>(
+    `/workspace/${workspaceId}/backlog_work`,
+  );
+
+/**
+ * Put a whole CARD on a day: one slot linked to every unscheduled step
+ * of that job for that actor row, in the pinned version's stage order.
+ *
+ * THE CALLER NAMES THE CARD; THE SERVER DERIVES THE STEPS. Sending
+ * `work_item_id` + `lens_key` rather than a list of step ids removes
+ * the whole class of "the list was nearly right" failure — there is no
+ * list to be wrong, and no way to express a card spanning two jobs or
+ * two actor rows.
+ *
+ * The duration defaults to the summed expected minutes, so scheduling
+ * changes nothing about what was agreed. Scheduling any step twice is
+ * impossible (unique index), not merely checked — the server turns that
+ * into a sentence (`E-SCHED-001`) instead of a database error.
+ *
+ * ⚠️ `POST work_task/{id}/schedule` (endpoint 560) is still live for API
+ * callers, but NO SCREEN MAY CALL IT. A single-step card goes through
+ * here too; two UI paths to the same write is how the two eventually
+ * disagree about the rule (US-BLK-1-07).
+ */
+export const scheduleCard = (body: {
+  work_item_id: number;
+  lens_key: string;
+  timeline_id: number;
+  duration_minutes?: number;
+  assignee_agent_id?: number;
+}) =>
+  performRequest<{
+    planner_task: RawTask;
+    work_item_id: number;
+    lens_key: string;
+    work_task_ids: number[];
+    step_count: number;
+    expected_minutes: number;
+    scheduled_minutes: number;
+    is_tweaked: boolean;
+  }>('/card/schedule', {method: 'POST', body});
+
+/**
+ * O4 — take a job step back off the schedule.
+ *
+ * The other half of scheduling, which shipped without one (the
+ * step-level `scheduleWorkTask` wrapper it was written against is gone;
+ * `scheduleCard` replaced it in US-BLK-1-07). The
+ * step itself survives: it returns to "waiting for a day" and keeps
+ * reading its text from its job's pinned version. Only the slot and
+ * the link go.
+ *
+ * Refuses on a published day (E-SCHED-006) or once anything has been
+ * recorded against the step (E-SCHED-007). Calling it on a step that
+ * isn't scheduled is NOT an error — `already_unscheduled` says so.
+ *
+ * BLK-1 — NAMING ONE STEP RELEASES THE WHOLE CARD, and both refusals
+ * are checked against every step the slot covers. The slot is the unit
+ * being released, so releasing half of one is not a thing that can be
+ * asked for; `released_work_task_ids` says what actually came back.
+ */
+export const unscheduleWorkTask = (workTaskId: number) =>
+  performRequest<{
+    work_task_id: number;
+    already_unscheduled: boolean;
+    removed_slot_id: number;
+    container: number;
+    released_work_task_ids: number[];
+    released_count: number;
+  }>(`/work_task/${workTaskId}/schedule`, {method: 'DELETE'});
+
+/**
+ * GAP-FIX W1 — what a scheduled job step actually says, for every slot
+ * in the plan. Returned by the board; see `planner/job_step_hydration`.
+ */
+export interface LinkedStep {
+  planner_task_id: number;
+  work_task_id: number;
+  /** `planner_task_work_task.position`, 1..n — the order the steps were agreed in. Optional: added to the hydration in US-BLK-1-07. */
+  position?: number | null;
+  work_item_id: number;
+  job_title: string | null;
+  job_status: string;
+  stage_key: string;
+  lens_key: string;
+  step_status: string;
+  step_title: string | null;
+  done_when: string | null;
+  expected_minutes: number | null;
+}
+
+// ── What came back from Execution (W3) ─────────────────────────────────────
+//
+// THE LOOP WAS ONE-WAY. Everything below already existed server-side and
+// had never been called from anywhere: `variance.ts` (pure, tested),
+// endpoint 568, and an `activity_log` table that nothing read back. A
+// performer could be blocked twice and leave a note saying exactly why,
+// and no screen could show it.
+
+export interface TaskVarianceRow {
+  work_task_id: number;
+  stage_key: string;
+  lens_key: string;
+  status: string;
+  expected_minutes: number | null;
+  scheduled_minutes: number | null;
+  actual_minutes: number | null;
+  blocked_minutes: number | null;
+  expected_gap_minutes: number | null;
+  expected_gap_pct: number | null;
+  scheduled_gap_minutes: number | null;
+  scheduled_gap_pct: number | null;
+  start_lateness_minutes: number | null;
+  is_outlier: boolean;
+  warnings: string[];
+}
+
+/** Planned vs actual for one job. Computed on the fly from the log — nothing is stored, and nobody reports variance by hand (VAR-1). */
+export const getWorkItemVariance = (workItemId: number) =>
+  performRequest<{
+    work_item_id: number;
+    task_count: number;
+    outlier_count: number;
+    warning_count: number;
+    tasks: TaskVarianceRow[];
+  }>(`/variance/work_item/${workItemId}`);
+
+export interface ActivityEvent {
+  id: number;
+  work_task_id: number;
+  step_title: string | null;
+  stage_key: string | null;
+  event_type: 'started' | 'completed' | 'blocked' | 'unblocked' | 'skipped' | 'reopened' | 'note';
+  reason_code: string | null;
+  note: string | null;
+  occurred_at: number | null;
+  performer_name: string | null;
+  source: string;
+}
+
+/** The human half: what was said, by whom, when. Step wording comes from the job's pinned version, so a note reads against the text the person actually saw. */
+export const getWorkItemActivity = (workItemId: number) =>
+  performRequest<{
+    work_item_id: number;
+    job_title: string;
+    event_count: number;
+    note_count: number;
+    blocked_count: number;
+    skipped_count: number;
+    events: ActivityEvent[];
+  }>(`/work_item/${workItemId}/activity`);

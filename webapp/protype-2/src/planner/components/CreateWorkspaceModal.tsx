@@ -6,14 +6,29 @@
 // and a start date, not just a name.
 import { useState, useEffect } from 'react';
 import { X, FileStack } from 'lucide-react';
-import type { TemplateListEntry } from '../plannerApi';
+import type { TemplateListEntry, SkippedAgent } from '../plannerApi';
+
+type CreateResult = {ok: true; skippedAgents: SkippedAgent[]} | {ok: false};
+
+function skipReasonText(a: SkippedAgent): string {
+  const who = a.name || `Agent #${a.profile_id}`;
+  if (a.reason === 'duplicate_name') return `${who} shares a name with another agent on this template, so neither copy was added. Rename one in the Agents screen.`;
+  if (a.reason === 'not_found') return `Agent #${a.profile_id} no longer exists, so they weren't added.`;
+  return `${who} isn't tagged as an agent right now, so they weren't added to this plan.`;
+}
 
 interface CreateWorkspaceModalProps {
   isOpen: boolean;
   templates: TemplateListEntry[];
   isLoadingTemplates: boolean;
   onClose: () => void;
-  onCreate: (templateId: number, name: string, startDate: string) => Promise<boolean | void>;
+  onCreate: (templateId: number, name: string, startDate: string) => Promise<CreateResult>;
+  /**
+   * "Start from scratch" (founder request, 2026-10-17): the plain
+   * phase-3 create, no template — no maps, no agents, just a name and
+   * a window. Optional so older callers don't need to change.
+   */
+  onCreateBlank?: (name: string, startDate: string, windowDays: number) => Promise<boolean>;
 }
 
 function todayIso(): string {
@@ -26,19 +41,41 @@ export function CreateWorkspaceModal({
   isLoadingTemplates,
   onClose,
   onCreate,
+  onCreateBlank,
 }: CreateWorkspaceModalProps) {
   const [name, setName] = useState('');
   const [templateId, setTemplateId] = useState<number | null>(null);
   const [startDate, setStartDate] = useState(todayIso());
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fromScratch, setFromScratch] = useState(false);
+  const [windowDays, setWindowDays] = useState(14);
+  // PLAN-3 (US-PLAN-3-03/-04): a roster agent can have gone ineligible
+  // since it was added to the template — the instance is still created,
+  // but a skip must be visible, not silently swallowed by an auto-close.
+  const [skippedAgents, setSkippedAgents] = useState<SkippedAgent[] | null>(null);
 
+  // Reset the form only when the modal OPENS. The template list loads
+  // after opening; resetting on every `templates` change used to wipe
+  // whatever the planner had already typed (found by E2E-PLAN-3-01).
   useEffect(() => {
     if (!isOpen) return;
     setName('');
     setStartDate(todayIso());
     setError(null);
-    setTemplateId(templates[0]?.template.id ?? null);
+    setSkippedAgents(null);
+    setTemplateId(null);
+    setFromScratch(false);
+    setWindowDays(14);
+  }, [isOpen]);
+
+  // When the list arrives (or changes), keep the planner's choice if it
+  // still exists; otherwise default to the first template.
+  useEffect(() => {
+    if (!isOpen) return;
+    setTemplateId(prev =>
+      prev !== null && templates.some(t => t.template.id === prev) ? prev : templates[0]?.template.id ?? null,
+    );
   }, [isOpen, templates]);
 
   if (!isOpen) return null;
@@ -48,6 +85,18 @@ export function CreateWorkspaceModal({
       setError('Give the plan a name.');
       return;
     }
+
+    if (fromScratch) {
+      if (!onCreateBlank) return; // guarded by the UI not offering the toggle without it
+      setIsSaving(true);
+      setError(null);
+      const ok = await onCreateBlank(name.trim(), startDate, windowDays);
+      setIsSaving(false);
+      if (ok) onClose();
+      else setError('Could not create that plan — check the name isn’t already used.');
+      return;
+    }
+
     if (!templateId) {
       setError('Choose a template to start from.');
       return;
@@ -56,8 +105,12 @@ export function CreateWorkspaceModal({
     setError(null);
     const result = await onCreate(templateId, name.trim(), startDate);
     setIsSaving(false);
-    if (result !== false) onClose();
-    else setError('Could not create that plan — check the name isn’t already used.');
+    if (result.ok) {
+      if (result.skippedAgents.length > 0) setSkippedAgents(result.skippedAgents);
+      else onClose();
+    } else {
+      setError('Could not create that plan — check the name isn’t already used.');
+    }
   };
 
   const selectedTemplate = templates.find(t => t.template.id === templateId);
@@ -76,85 +129,139 @@ export function CreateWorkspaceModal({
         <div className="h-14 px-6 border-b border-neutral-200 flex items-center justify-between bg-neutral-50 shrink-0">
           <div className="flex items-center gap-2">
             <FileStack className="w-4 h-4 text-neutral-900" />
-            <h2 className="text-sm font-bold text-neutral-900">New plan from a template</h2>
+            <h2 className="text-sm font-bold text-neutral-900">{fromScratch ? 'New plan' : 'New plan from a template'}</h2>
           </div>
           <button type="button" onClick={onClose} className="p-1 rounded-md text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/50" aria-label="Close">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="p-6 flex flex-col gap-4">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold text-neutral-700">Plan name</span>
-            <input
-              id="new-workspace-name-input"
-              type="text"
-              autoFocus
-              value={name}
-              onChange={e => { setName(e.target.value); setError(null); }}
-              placeholder="e.g. Receiving — Nov batch"
-              className="text-xs px-3 py-2 border border-neutral-200 rounded-md focus:outline-none focus:border-neutral-900"
-            />
-          </label>
-
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold text-neutral-700">Template</span>
-            {isLoadingTemplates ? (
-              <span className="text-xs text-neutral-400">Loading templates…</span>
-            ) : templates.length === 0 ? (
-              <span className="text-xs text-neutral-500">
-                No templates yet — a template needs to exist first (its own screen isn't built yet).
-              </span>
-            ) : (
-              <select
-                id="new-workspace-template-select"
-                value={templateId ?? ''}
-                onChange={e => setTemplateId(Number(e.target.value))}
-                className="text-xs px-3 py-2 border border-neutral-200 rounded-md focus:outline-none focus:border-neutral-900 bg-white"
-              >
-                {templates.map(t => (
-                  <option key={t.template.id} value={t.template.id}>
-                    {t.template.name} ({t.template.window_days}d, {t.maps.length} map{t.maps.length === 1 ? '' : 's'})
-                  </option>
+        {skippedAgents ? (
+          <>
+            <div className="p-6 flex flex-col gap-3">
+              <p className="text-xs text-neutral-700">Plan created. One thing to know:</p>
+              <ul className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 list-disc list-inside">
+                {skippedAgents.map((a) => (
+                  <li key={a.profile_id}>{skipReasonText(a)}</li>
                 ))}
-              </select>
-            )}
-          </label>
+              </ul>
+              <p className="text-[11px] text-neutral-500">You can still add anyone to this plan directly.</p>
+            </div>
+            <div className="h-14 px-6 border-t border-neutral-200 flex items-center justify-end gap-3 bg-neutral-50 shrink-0">
+              <button type="button" onClick={onClose} className="px-4 py-1.5 bg-neutral-900 text-white rounded-md text-xs font-semibold hover:bg-neutral-800">
+                Done
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="p-6 flex flex-col gap-4">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-semibold text-neutral-700">Plan name</span>
+                <input
+                  id="new-workspace-name-input"
+                  type="text"
+                  autoFocus
+                  value={name}
+                  onChange={e => { setName(e.target.value); setError(null); }}
+                  placeholder="e.g. Receiving — Nov batch"
+                  className="text-xs px-3 py-2 border border-neutral-200 rounded-md focus:outline-none focus:border-neutral-900"
+                />
+              </label>
 
-          {selectedTemplate && (
-            <p className="text-[11px] text-neutral-500 -mt-2">
-              Maps: {selectedTemplate.maps.length > 0 ? selectedTemplate.maps.map(m => m.title).join(', ') : 'none yet'}
-            </p>
-          )}
+              {!fromScratch && (
+                <>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs font-semibold text-neutral-700">Template</span>
+                    {isLoadingTemplates ? (
+                      <span className="text-xs text-neutral-400">Loading templates…</span>
+                    ) : templates.length === 0 ? (
+                      <span className="text-xs text-neutral-500">
+                        No templates yet — build one first from "Manage Templates" in the plan switcher.
+                      </span>
+                    ) : (
+                      <select
+                        id="new-workspace-template-select"
+                        value={templateId ?? ''}
+                        onChange={e => setTemplateId(Number(e.target.value))}
+                        className="text-xs px-3 py-2 border border-neutral-200 rounded-md focus:outline-none focus:border-neutral-900 bg-white"
+                      >
+                        {templates.map(t => (
+                          <option key={t.template.id} value={t.template.id}>
+                            {t.template.name} ({t.template.window_days}d, {t.maps.length} map{t.maps.length === 1 ? '' : 's'})
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </label>
 
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold text-neutral-700">Start date</span>
-            <input
-              id="new-workspace-start-date-input"
-              type="date"
-              value={startDate}
-              onChange={e => setStartDate(e.target.value)}
-              className="text-xs px-3 py-2 border border-neutral-200 rounded-md focus:outline-none focus:border-neutral-900 font-mono"
-            />
-          </label>
+                  {selectedTemplate && (
+                    <div className="text-[11px] text-neutral-500 -mt-2 flex flex-col gap-0.5">
+                      <p>Maps: {selectedTemplate.maps.length > 0 ? selectedTemplate.maps.map(m => m.title).join(', ') : 'none yet'}</p>
+                      <p>Agents: {selectedTemplate.agents.length > 0 ? selectedTemplate.agents.map(a => a.name ?? `#${a.profile_id}`).join(', ') : 'none yet'}</p>
+                    </div>
+                  )}
+                </>
+              )}
 
-          {error && <p className="text-[11px] text-red-600">{error}</p>}
-        </div>
+              <div className="flex items-end gap-3">
+                <label className="flex flex-col gap-1 flex-1">
+                  <span className="text-xs font-semibold text-neutral-700">Start date</span>
+                  <input
+                    id="new-workspace-start-date-input"
+                    type="date"
+                    value={startDate}
+                    onChange={e => setStartDate(e.target.value)}
+                    className="text-xs px-3 py-2 border border-neutral-200 rounded-md focus:outline-none focus:border-neutral-900 font-mono"
+                  />
+                </label>
 
-        <div className="h-14 px-6 border-t border-neutral-200 flex items-center justify-end gap-3 bg-neutral-50 shrink-0">
-          <button type="button" onClick={onClose} className="px-3.5 py-1.5 text-xs text-neutral-600 hover:text-neutral-900 font-medium rounded hover:bg-neutral-200/50">
-            Cancel
-          </button>
-          <button
-            id="confirm-create-workspace-btn"
-            type="button"
-            onClick={handleCreate}
-            disabled={isSaving || templates.length === 0}
-            className="px-4 py-1.5 bg-neutral-900 text-white rounded-md text-xs font-semibold hover:bg-neutral-800 transition-colors shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {isSaving ? 'Creating…' : 'Create plan'}
-          </button>
-        </div>
+                {fromScratch && (
+                  <label className="flex flex-col gap-1 w-28">
+                    <span className="text-xs font-semibold text-neutral-700">Window (days)</span>
+                    <input
+                      id="new-workspace-window-days-input"
+                      type="number"
+                      min={1}
+                      max={366}
+                      value={windowDays}
+                      onChange={e => setWindowDays(Number(e.target.value) || 1)}
+                      className="text-xs px-3 py-2 border border-neutral-200 rounded-md focus:outline-none focus:border-neutral-900 font-mono"
+                    />
+                  </label>
+                )}
+              </div>
+
+              {onCreateBlank && (
+                <button
+                  id="toggle-from-scratch-btn"
+                  type="button"
+                  onClick={() => { setFromScratch(v => !v); setError(null); }}
+                  className="self-start text-[11px] text-neutral-500 hover:text-neutral-800 underline underline-offset-2"
+                >
+                  {fromScratch ? 'Use a template instead' : 'Start from scratch instead (no template)'}
+                </button>
+              )}
+
+              {error && <p className="text-[11px] text-red-600">{error}</p>}
+            </div>
+
+            <div className="h-14 px-6 border-t border-neutral-200 flex items-center justify-end gap-3 bg-neutral-50 shrink-0">
+              <button type="button" onClick={onClose} className="px-3.5 py-1.5 text-xs text-neutral-600 hover:text-neutral-900 font-medium rounded hover:bg-neutral-200/50">
+                Cancel
+              </button>
+              <button
+                id="confirm-create-workspace-btn"
+                type="button"
+                onClick={handleCreate}
+                disabled={isSaving || (!fromScratch && templates.length === 0)}
+                className="px-4 py-1.5 bg-neutral-900 text-white rounded-md text-xs font-semibold hover:bg-neutral-800 transition-colors shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isSaving ? 'Creating…' : 'Create plan'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

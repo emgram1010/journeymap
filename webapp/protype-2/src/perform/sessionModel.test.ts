@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {toSessions, nextItemToWork, canFinishSession, type Session} from './sessionModel';
+import {toSessions, nextItemToWork, nextSubStepToWork, canFinishSession, type Session} from './sessionModel';
 import type {PerformerItem, PerformerSubStep, SessionInfo, TaskStatus} from './performerView';
 
 // ── Fixtures ───────────────────────────────────────────────────────────
@@ -205,4 +205,58 @@ test('UT-APP-2-S19: null session text fields degrade to safe defaults', () => {
   assert.equal(typeof s.title, 'string');
   assert.equal(typeof s.flowTitle, 'string');
   assert.equal(typeof s.planName, 'string');
+});
+
+// ── BLK-1 (US-BLK-1-04): a card can hold several stages ────────────────
+//
+// `nextItemToWork` answers "which card"; once a card is a whole order's
+// work for one actor row, the screen needs "which STAGE inside it".
+// These cover the half-finished card, which is the case the old helper
+// could not describe at all.
+
+function blockItem(statuses: TaskStatus[]): PerformerItem {
+  const subs = statuses.map((status, i) =>
+    subStep({workTaskId: 100 + i, status, stageKey: `s${i + 1}`, stageLabel: `Stage ${i + 1}`}),
+  );
+  return {
+    itemRef: 'pt-900',
+    plannerTaskId: 900,
+    title: '',
+    assigneeAgentId: 21,
+    assigneeName: 'Rochelle',
+    scheduledMinutes: 104,
+    plannedStartMinutes: 540,
+    plannedStartLabel: '09:00',
+    status: 'in_progress',
+    subSteps: subs,
+  };
+}
+
+test('UT-BLK-1-01: nextSubStepToWork picks the first unfinished STAGE inside a card', () => {
+  const s = toSessions([blockItem(['done', 'not_started', 'not_started'])])[0];
+  assert.equal(nextSubStepToWork(s)?.workTaskId, 101);
+});
+
+test('UT-BLK-1-02: a stage finished out of order is skipped over, not re-offered', () => {
+  // D-4: order is a guide, not a lock, so stage 2 may be done first.
+  const s = toSessions([blockItem(['not_started', 'done', 'not_started'])])[0];
+  assert.equal(nextSubStepToWork(s)?.workTaskId, 100);
+});
+
+test('UT-BLK-1-03: nextSubStepToWork is null once every stage is done or skipped', () => {
+  const s = toSessions([blockItem(['done', 'skipped', 'done'])])[0];
+  assert.equal(nextSubStepToWork(s), null);
+});
+
+test('UT-BLK-1-04: it walks into the SECOND card once the first is finished', () => {
+  const first = blockItem(['done', 'done']);
+  const second = {...blockItem(['not_started']), itemRef: 'pt-901', plannerTaskId: 901};
+  second.subSteps = [subStep({workTaskId: 200, status: 'not_started'})];
+  const s = toSessions([first, second])[0];
+  assert.equal(nextSubStepToWork(s)?.workTaskId, 200);
+});
+
+test('UT-BLK-1-05: a single-step card answers the same as nextItemToWork did', () => {
+  const s = statusesOf(['not_started', 'not_started']);
+  assert.equal(nextSubStepToWork(s)?.workTaskId, nextItemToWork(s)?.subSteps[0].workTaskId);
 });

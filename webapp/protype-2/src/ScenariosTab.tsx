@@ -6,6 +6,7 @@ import {
   updateJourneyMapMeta,
   deleteJourneyMap,
   type XanoScenario,
+  friendlyError,
 } from './xano';
 
 function relativeTime(value: string | number | null | undefined): string {
@@ -164,7 +165,10 @@ export default function ScenariosTab({archId, onOpenScenario, onCreateBlank, onC
     });
     setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
     try { await deleteJourneyMap(id); }
-    catch { void load(); }
+    // US-DEL-1-01 — a refused delete reloaded the list in silence, so
+    // the scenario just reappeared. The server already explains why
+    // (it names the plan or template using it), so say that.
+    catch (err) { setError(friendlyError(err, 'Unable to delete this scenario.')); void load(); }
   };
 
   const handleDeleteSelected = async () => {

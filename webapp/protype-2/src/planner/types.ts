@@ -15,6 +15,15 @@ export interface Agent {
   dailyCapacityHours: number; // e.g. 8
   isVisible: boolean; // For show/hide roster toggle
   modelId?: string; // AI agents only: which model in settings.models it runs on
+  /**
+   * GAP-FIX W2 — which login performs this agent's work. Undefined
+   * means NOBODY SEES THIS AGENT'S WORK IN EXECUTION: the performer
+   * app resolves "my agents" by `planner_agent.user_id`, so an agent
+   * with no login can be scheduled and published into silence. The
+   * column has existed since APP-1; nothing in the planner UI ever
+   * read or wrote it, which is the gap itself.
+   */
+  userId?: string;
 }
 
 /**
@@ -82,6 +91,32 @@ export interface Task {
   notes: string;
   status: TaskPlanningStatus;
   needsInfoReason?: string; // Optional explanation of what is missing
+  /**
+   * GAP-FIX W1 — set only on a slot that is a scheduled JOB STEP.
+   *
+   * A linked slot deliberately stores no title of its own: the real
+   * text lives in the job's pinned map version and is read through the
+   * link ("reference, do not copy"). Until now nothing read it, so
+   * every job step on the board was a blank card. `title` is filled
+   * from `jobStepTitle` at the adapter boundary, so the whole existing
+   * UI shows the real text without changing; these fields carry the
+   * provenance a card can show alongside it.
+   */
+  jobTitle?: string;
+  jobStepTitle?: string;
+  jobDoneWhen?: string;
+  workTaskId?: string;
+  /**
+   * BLK-1 (US-BLK-1-07) — how many job steps this one slot covers.
+   *
+   * 1 for every slot built before BLK-1, and for any card whose actor
+   * row has a single stage. Above 1 the slot is a CARD: `workTaskId`,
+   * `jobStepTitle` and `jobDoneWhen` then describe only its FIRST
+   * step, so a screen showing them as the whole slot is lying. Check
+   * this before reading those three.
+   */
+  jobStepCount?: number;
+  workItemId?: string;
 }
 
 export type SelectedEntity = 
@@ -95,4 +130,7 @@ export type ModalEntity =
   | { type: 'timeline'; timeline: Timeline; tasksInTimeline: Task[]; planningWindowStart?: string; planningWindowEnd?: string }
   | { type: 'agent'; agent?: Agent | null; isNew?: boolean }
   | { type: 'bulk_publish_day'; date: string; outcomes: { timeline: Timeline; agent?: Agent; status: 'ready' | 'blocked' | 'already_published'; reason?: string; taskCount: number }[] }
-  | { type: 'publish_confirm'; timeline: Timeline; agentName: string };
+  // GAP-FIX W2: `agentHasLogin` false means publishing this day sends
+  // it nowhere — the strongest moment to say so is the confirmation,
+  // because after this click the day is frozen and looks finished.
+  | { type: 'publish_confirm'; timeline: Timeline; agentName: string; agentHasLogin: boolean };

@@ -7,7 +7,10 @@ import {
   Edit2,
   Trash2,
   CalendarRange,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Users,
+  FileStack,
+  Briefcase
 } from 'lucide-react';
 import { Workspace } from '../types';
 import { formatShortDate, getDaysDifference } from '../utils/dateUtils';
@@ -28,6 +31,15 @@ interface HeaderProps {
   // on refresh. Same precedent as EditModal's `onDeleteAgent`.
   onDeleteWorkspace?: (id: string) => void;
   onOpenWorkspaceSettings: () => void;
+  // PLAN-2 (US-PLAN-2-03) — account-scoped, not workspace-scoped: tags
+  // a teammate as an agent so they're selectable on a template's roster.
+  onOpenAgentProfiles: () => void;
+  // PLAN-3 (US-PLAN-3-04) — build/edit templates (maps + agent roster),
+  // separate from "New Plan from Template" which only instantiates one.
+  onOpenTemplates: () => void;
+  // GAP-FIX W1 — jobs: the step between "this plan uses that map" and
+  // "someone is doing that work on Tuesday", which had no screen at all.
+  onOpenJobs: () => void;
 }
 
 export function Header({
@@ -38,6 +50,9 @@ export function Header({
   onRenameWorkspace,
   onDeleteWorkspace,
   onOpenWorkspaceSettings,
+  onOpenAgentProfiles,
+  onOpenTemplates,
+  onOpenJobs,
 }: HeaderProps) {
   // Workspace dropdown state
   const [isWsDropdownOpen, setIsWsDropdownOpen] = useState(false);
@@ -207,6 +222,14 @@ export function Header({
                   <Plus className="w-3.5 h-3.5" />
                   New Plan from Template
                 </button>
+                <button
+                  id="manage-templates-dropdown-btn"
+                  onClick={() => { setIsWsDropdownOpen(false); onOpenTemplates(); }}
+                  className="w-full text-left px-2 py-1.5 text-xs text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 rounded flex items-center gap-1.5 font-medium"
+                >
+                  <FileStack className="w-3.5 h-3.5" />
+                  Manage Templates
+                </button>
               </div>
             </div>
           )}
@@ -229,6 +252,26 @@ export function Header({
           <span className="truncate">
             {formatShortDate(windowStart)} – {formatShortDate(windowEnd)} · {windowDays} days
           </span>
+        </button>
+
+        <button
+          id="jobs-btn"
+          onClick={onOpenJobs}
+          className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium text-neutral-700 bg-white hover:bg-neutral-100 hover:text-neutral-900 border border-neutral-300 hover:border-neutral-400 transition-colors shadow-2xs shrink-0"
+          title="Jobs — start real work from one of this plan's maps, and put its steps on a day"
+        >
+          <Briefcase className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+          <span className="truncate">Jobs</span>
+        </button>
+
+        <button
+          id="agent-profiles-btn"
+          onClick={onOpenAgentProfiles}
+          className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium text-neutral-700 bg-white hover:bg-neutral-100 hover:text-neutral-900 border border-neutral-300 hover:border-neutral-400 transition-colors shadow-2xs shrink-0"
+          title="Agents — tag teammates or add an AI agent, account-wide"
+        >
+          <Users className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+          <span className="truncate">Agents</span>
         </button>
 
         <button

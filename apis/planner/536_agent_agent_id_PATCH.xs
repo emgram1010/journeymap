@@ -274,11 +274,11 @@ query "agent/{agent_id}" verb=PATCH {
     conditional {
       if ($reject_code == "" && $next_user != 0 && ($linked_user == null || $linked_user.account_id != $actor.account_id)) {
         var.update $reject_code {
-          value = "E-PLN-010"
+          value = "E-PLN-017"
         }
 
         var.update $reject_msg {
-          value = "That login doesn't belong to this account. (E-PLN-010)"
+          value = "That login doesn't belong to this account. (E-PLN-017)"
         }
       }
     }
@@ -286,11 +286,11 @@ query "agent/{agent_id}" verb=PATCH {
     conditional {
       if ($reject_code == "" && $user_clash > 0) {
         var.update $reject_code {
-          value = "E-PLN-011"
+          value = "E-PLN-018"
         }
 
         var.update $reject_msg {
-          value = "That login is already linked to someone else in this plan. (E-PLN-011)"
+          value = "That login is already linked to someone else in this plan. (E-PLN-018)"
         }
       }
     }

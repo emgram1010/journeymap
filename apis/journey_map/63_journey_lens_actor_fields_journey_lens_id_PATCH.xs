@@ -2,8 +2,20 @@
 // Accepts any subset of the actor fields — only provided fields are written.
 // agent_map_id: set on ai_agent lenses to wire the sub-journey operating manual.
 // Returns the updated journey_lens record.
+//
+// US-SEC-1-04 (2026-10-18) — THIS WAS AN OPEN WRITE. No login, no
+// ownership check: anyone could rewrite any account's actor personas,
+// role prompts, standing constraints and cost rates. The cost rate
+// feeds the leakage maths, so a changed value quietly changes what the
+// product tells that account its process is costing.
+//
+// Unlike the generic lens PATCH (endpoint 33) this one writes from a
+// fixed allow-list that does not include `journey_map`, so one
+// ownership check is enough — a lens cannot be moved between maps
+// through here.
 query "journey_lens/actor_fields/{journey_lens_id}" verb=PATCH {
   api_group = "journey-map"
+  auth = "user"
 
   input {
     int journey_lens_id? filters=min:1
@@ -40,6 +52,10 @@ query "journey_lens/actor_fields/{journey_lens_id}" verb=PATCH {
   }
 
   stack {
+    function.run "planner/resolve_actor" {
+      input = {user_id: $auth.id}
+    } as $actor
+  
     db.get journey_lens {
       field_name = "id"
       field_value = $input.journey_lens_id
@@ -49,6 +65,15 @@ query "journey_lens/actor_fields/{journey_lens_id}" verb=PATCH {
       error_type = "notfound"
       error = "Journey lens not found"
     }
+  
+    function.run "journey/assert_map_owner" {
+      input = {
+        journey_map_id   : $existing.journey_map
+        caller_account_id: $actor.account_id
+        user_id          : $auth.id
+        step             : "patch_lens_actor_fields"
+      }
+    } as $guard
   
     util.get_raw_input {
       encoding = "json"

@@ -5,6 +5,7 @@
 // to them.
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {fetchToday, recordEvent, PerformRequestError, type PerformEventType} from './performApi';
+import {publishedDays, addDays, diagnoseEmptyDay} from './dayNavigation';
 import {
   toPerformerItems,
   newClientEventId,
@@ -55,6 +56,17 @@ export default function PerformToday() {
   const [phase, setPhase] = useState<LoadPhase>('loading');
   const [snapshot, setSnapshot] = useState<PerformerSnapshot | null>(null);
   const [statuses, setStatuses] = useState<StatusMap>({});
+  // GAP-FIX W4 — which day is on screen. `null` means "whatever the
+  // server calls today", which is NOT the same as hardcoding today's
+  // date here: the server decides, in the performer's own zone (W8),
+  // and the device's clock is still never trusted for it.
+  const [viewDate, setViewDate] = useState<string | null>(null);
+  // GAP-FIX W4/W5 — the facts the empty state needs to say anything
+  // useful: the server's today, which days have published work, and
+  // whether this login is linked to an agent at all.
+  const [serverToday, setServerToday] = useState<string>('');
+  const [myDates, setMyDates] = useState<string[]>([]);
+  const [agentIds, setAgentIds] = useState<number[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pendingWorkTaskId, setPendingWorkTaskId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<{workTaskId: number; message: string} | null>(null);
@@ -64,21 +76,25 @@ export default function PerformToday() {
   const [noteErrors, setNoteErrors] = useState<Record<number, string | null>>({});
   const [savingNoteFor, setSavingNoteFor] = useState<number | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (date: string | null = null) => {
     setPhase('loading');
     setLoadError(null);
     const startedAt = Date.now();
     try {
-      const data = await fetchToday();
+      const data = await fetchToday(date ?? undefined);
       setSnapshot(data.snapshot);
       setStatuses(data.statuses);
+      setServerToday(data.today);
+      setMyDates(data.my_dates ?? []);
+      setAgentIds(data.agent_ids ?? []);
+      setViewDate(data.date);
       setPhase('ready');
       void logEvent({
         feature: 'APP-1',
         step: 'load_today',
         outcome: 'success',
         durationMs: Date.now() - startedAt,
-        metadata: {item_count: data.snapshot.items.length},
+        metadata: {item_count: data.snapshot.items.length, date: data.date, zone: data.zone},
       });
     } catch (err) {
       const perr = err instanceof PerformRequestError ? err : null;
@@ -98,21 +114,29 @@ export default function PerformToday() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+    // Deliberately runs ONCE. `load` takes the day as an argument
+    // rather than reading state, so re-running it on every day change
+    // would double-fetch; the navigation handlers below call it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Re-fetches without flipping `phase` — used after a note saves, so
   // the screen gets the server-stamped note (real author, real time)
   // without losing the user's place on the Step screen.
   const refresh = useCallback(async () => {
     try {
-      const data = await fetchToday();
+      // Refreshes the day being LOOKED AT, not the server's today —
+      // otherwise saving a note while viewing another day would
+      // silently jump the screen back (GAP-FIX W4).
+      const data = await fetchToday(viewDate ?? undefined);
       setSnapshot(data.snapshot);
       setStatuses(data.statuses);
+      setMyDates(data.my_dates ?? []);
     } catch {
       // Best effort: the write already succeeded; a failed refresh just
       // means the confirmation doesn't show until the next reload.
     }
-  }, []);
+  }, [viewDate]);
 
   const items = useMemo(() => (snapshot ? toPerformerItems(snapshot, statuses) : []), [snapshot, statuses]);
   const sessions = useMemo(() => toSessions(items), [items]);
@@ -243,6 +267,26 @@ export default function PerformToday() {
     [noteDrafts, savingNoteFor, refresh],
   );
 
+  // GAP-FIX W4 — day navigation. ‹ › step one calendar day; the
+  // "next/last work" jump uses the published-days list so a performer
+  // doesn't have to click through a quiet week to find their work.
+  const days = useMemo(() => publishedDays(myDates), [myDates]);
+  const shownDate = viewDate ?? serverToday;
+
+  const goToDay = useCallback(
+    (date: string) => {
+      setView({type: 'today'});
+      void logEvent({feature: 'APP-2', step: 'change_day', outcome: 'success', metadata: {date}});
+      void load(date);
+    },
+    [load],
+  );
+
+  const diagnosis = useMemo(
+    () => diagnoseEmptyDay({date: shownDate, today: serverToday, agentIds, days}),
+    [shownDate, serverToday, agentIds, days],
+  );
+
   const onOpenSession = useCallback((workItemId: number) => {
     void logEvent({feature: 'APP-2', step: 'open_session', outcome: 'success', entityType: 'work_item', entityId: workItemId});
     setView({type: 'session', workItemId});
@@ -290,7 +334,19 @@ export default function PerformToday() {
   // already relies on), so `session`/`item`/`sub` should never be
   // missing in practice — but a merge must degrade to Today rather
   // than crash if a stale `view` ever outlives its target.
-  const todayFallback = <TodayScreen date={snapshot?.date} sessions={sessions} onOpenSession={onOpenSession} />;
+  const todayFallback = (
+    <TodayScreen
+      date={shownDate}
+      isToday={shownDate === serverToday}
+      sessions={sessions}
+      diagnosis={diagnosis}
+      onOpenSession={onOpenSession}
+      onPrevDay={() => goToDay(addDays(shownDate, -1))}
+      onNextDay={() => goToDay(addDays(shownDate, 1))}
+      onGoToToday={() => goToDay(serverToday)}
+      onJumpTo={goToDay}
+    />
+  );
 
   if (view.type === 'session') {
     const session = sessions.find((s) => s.workItemId === view.workItemId);

@@ -5,6 +5,7 @@ import {
   findMatrixCellIdFromClickTarget,
   formatLensCellMarkup,
   formatMatrixCellMarkup,
+  formatStageHeaderMarkup,
   syncSelectedMatrixCellClasses,
   resolveEmotionColor,
   resolveFinancialPriorityColor,
@@ -361,4 +362,47 @@ test('applyMatrixSearchFilter matches lens labels and stage cell content case-in
   assert.equal(predicate?.({lensLabel: 'Customer Ops', 'stage-a': '', 'stage-b': ''}), true);
   assert.equal(predicate?.({lensLabel: 'Customer', 'stage-a': 'Needs OPS review', 'stage-b': ''}), true);
   assert.equal(predicate?.({lensLabel: 'Customer', 'stage-a': '', 'stage-b': 'No match'}), false);
+});
+
+// ── ORD-1 (US-ORD-1-05) — seams and arrows ─────────────────────────────────
+
+test('UT-ORD-1-05m: without a position, headers draw no seam and no arrows (read-only use unchanged)', () => {
+  const stage = formatStageHeaderMarkup({label: 'A', stageId: '11'});
+  const lens = formatLensCellMarkup({label: 'Row', lensId: '21'});
+  assert.ok(!stage.includes('jm-seam') && !stage.includes('jm-move-btn'));
+  assert.ok(!lens.includes('jm-seam') && !lens.includes('jm-move-btn'));
+});
+
+test('UT-ORD-1-05n: a middle column draws its leading seam only, and both arrows enabled', () => {
+  const m = formatStageHeaderMarkup({label: 'B', stageId: '12', position: {index: 1, count: 3}});
+  assert.ok(m.includes('data-insert-stage-at="1"'));
+  assert.ok(!m.includes('data-insert-stage-at="3"'));
+  assert.equal((m.match(/data-move-stage-id="12"/g) ?? []).length, 2);
+  assert.ok(!m.includes('disabled'));
+});
+
+test('UT-ORD-1-05o: the first column cannot move left; the last cannot move right and also draws the trailing seam', () => {
+  const first = formatStageHeaderMarkup({label: 'A', stageId: '11', position: {index: 0, count: 3}});
+  assert.ok(first.includes('data-insert-stage-at="0"'));
+  assert.ok(/data-move-dir="-1"[^>]*disabled/.test(first));
+  assert.ok(!/data-move-dir="1"[^>]*disabled/.test(first));
+
+  const last = formatStageHeaderMarkup({label: 'C', stageId: '13', position: {index: 2, count: 3}});
+  assert.ok(last.includes('data-insert-stage-at="2"'));
+  assert.ok(last.includes('data-insert-stage-at="3"'));
+  assert.ok(/data-move-dir="1"[^>]*disabled/.test(last));
+});
+
+test('UT-ORD-1-05p: three columns together draw exactly four seams, 0..3, none twice', () => {
+  const all = [0, 1, 2].map((i) => formatStageHeaderMarkup({label: 'S', stageId: String(10 + i), position: {index: i, count: 3}})).join('');
+  const seams = [...all.matchAll(/data-insert-stage-at="(\d+)"/g)].map((m) => Number(m[1]));
+  assert.deepEqual(seams.sort(), [0, 1, 2, 3]);
+});
+
+test('UT-ORD-1-05q: rows draw row seams and up/down arrows, and escape the id', () => {
+  const m = formatLensCellMarkup({label: 'Row', lensId: '"x"', position: {index: 0, count: 1}});
+  assert.ok(m.includes('jm-seam-row'));
+  assert.ok(m.includes('data-insert-lens-at="0"') && m.includes('data-insert-lens-at="1"'));
+  assert.ok(m.includes('data-move-lens-id="&quot;x&quot;"'));
+  assert.equal((m.match(/ disabled/g) ?? []).length, 2);
 });

@@ -21,7 +21,13 @@
 // backend has shipped everywhere, but a merge must degrade, not
 // crash) gets its own one-item session rather than being silently
 // merged into some other job's or discarded.
-import {deriveBlockStatus, type PerformerItem, type SessionInfo, type TaskStatus} from './performerView';
+import {
+  deriveBlockStatus,
+  type PerformerItem,
+  type PerformerSubStep,
+  type SessionInfo,
+  type TaskStatus,
+} from './performerView';
 
 export interface Session {
   workItemId: number;
@@ -115,6 +121,29 @@ export function toSessions(items: PerformerItem[]): Session[] {
  */
 export function nextItemToWork(session: Session): PerformerItem | null {
   return session.items.find((i) => i.status !== 'done' && i.status !== 'skipped') ?? null;
+}
+
+/**
+ * BLK-1 (US-BLK-1-04) — the next STEP to work, not the next card.
+ *
+ * `nextItemToWork` above answers "which card", which was the same
+ * question while a card held exactly one step. A card is now a whole
+ * order's work for one actor row, so the screen has to highlight the
+ * next STAGE inside it — otherwise a half-finished card points at
+ * nothing useful.
+ *
+ * Same rule as its sibling, one level down: planned order, first one
+ * that is not already done or skipped, null once every one is. Order
+ * is still a suggestion, not a lock (D-4) — this only decides what is
+ * highlighted, never what is tappable.
+ */
+export function nextSubStepToWork(session: Session): PerformerSubStep | null {
+  for (const item of session.items) {
+    for (const sub of item.subSteps) {
+      if (sub.status !== 'done' && sub.status !== 'skipped') return sub;
+    }
+  }
+  return null;
 }
 
 /**

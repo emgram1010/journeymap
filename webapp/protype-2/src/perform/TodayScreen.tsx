@@ -2,8 +2,19 @@
 // by the planned start of their first step. A thin render over
 // `sessionModel.ts`'s pure `Session[]` — no grouping/ordering logic lives
 // here, only display.
+//
+// GAP-FIX W4 (2026-10-17) — the screen is no longer locked to today.
+// `perform/today` has always accepted a date; nothing ever passed one,
+// so a performer could not look at yesterday's day or check tomorrow's,
+// and work published for another day read as "nothing scheduled".
+//
+// GAP-FIX W5 — and when a day IS empty, it now says which of the four
+// possible reasons applies. The decision itself is `diagnoseEmptyDay`
+// in `dayNavigation.ts`, tested on its own; this file only renders it.
+import {ChevronLeft, ChevronRight} from 'lucide-react';
 import type {Session} from './sessionModel';
 import {nextItemToWork} from './sessionModel';
+import {formatDayLabel, type EmptyDayDiagnosis} from './dayNavigation';
 
 const STATUS_LABELS: Record<Session['status'], string> = {
   not_started: 'Not started',
@@ -41,12 +52,24 @@ function formatMinutes(total: number): string {
 
 export default function TodayScreen({
   date,
+  isToday,
   sessions,
+  diagnosis,
   onOpenSession,
+  onPrevDay,
+  onNextDay,
+  onGoToToday,
+  onJumpTo,
 }: {
   date: string | undefined;
+  isToday: boolean;
   sessions: Session[];
+  diagnosis: EmptyDayDiagnosis;
   onOpenSession: (workItemId: number) => void;
+  onPrevDay: () => void;
+  onNextDay: () => void;
+  onGoToToday: () => void;
+  onJumpTo: (date: string) => void;
 }) {
   const sessionsDone = sessions.filter((s) => s.status === 'done').length;
   const nextSession = sessions.find((s) => s.status !== 'done' && s.status !== 'skipped');
@@ -54,8 +77,40 @@ export default function TodayScreen({
   return (
     <div className="min-h-screen bg-zinc-50">
       <header className="sticky top-0 bg-white border-b border-zinc-200 px-4 py-3">
-        <h1 className="text-base font-semibold text-zinc-900">Today</h1>
-        <p className="text-xs text-zinc-400">{date}</p>
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <h1 className="text-base font-semibold text-zinc-900">{isToday ? 'Today' : formatDayLabel(date ?? '')}</h1>
+            <p className="text-xs text-zinc-400">{date}</p>
+          </div>
+          {/* 44px tap targets: this is a phone-first screen (US-APP-2-05). */}
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              aria-label="Previous day"
+              onClick={onPrevDay}
+              className="w-11 h-11 flex items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 active:bg-zinc-100"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            {!isToday && (
+              <button
+                type="button"
+                onClick={onGoToToday}
+                className="h-11 px-3 rounded-lg border border-zinc-200 text-xs font-medium text-zinc-700 active:bg-zinc-100"
+              >
+                Today
+              </button>
+            )}
+            <button
+              type="button"
+              aria-label="Next day"
+              onClick={onNextDay}
+              className="w-11 h-11 flex items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 active:bg-zinc-100"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
         {sessions.length > 0 && (
           <p className="mt-1 text-xs text-zinc-500">
             {sessions.length} session{sessions.length === 1 ? '' : 's'} · {sessionsDone} done · {sessions.length - sessionsDone} remaining
@@ -65,7 +120,20 @@ export default function TodayScreen({
 
       <main className="px-4 py-4 pb-24">
         {sessions.length === 0 ? (
-          <p className="text-sm text-zinc-500 text-center mt-16">Nothing is scheduled for you today.</p>
+          <div id="perform-empty-state" className="mt-12 mx-auto max-w-xs text-center">
+            <p className="text-sm font-medium text-zinc-800">{diagnosis.headline}</p>
+            <p className="mt-2 text-xs text-zinc-500">{diagnosis.detail}</p>
+            {diagnosis.jumpTo && (
+              <button
+                type="button"
+                id="perform-jump-to-work-btn"
+                onClick={() => onJumpTo(diagnosis.jumpTo!)}
+                className="mt-4 min-h-[44px] w-full rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white"
+              >
+                Go to {formatDayLabel(diagnosis.jumpTo)}
+              </button>
+            )}
+          </div>
         ) : (
           <ul className="space-y-3">
             {sessions.map((session) => {
