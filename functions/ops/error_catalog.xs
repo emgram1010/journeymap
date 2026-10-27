@@ -540,6 +540,26 @@ function "ops/error_catalog" {
           severity     : "info"
           fix_hint     : "Nothing to do: the first send made the child job. Reopen the job to see it."
         }
+        |set:"E-EXC-014":{
+          code         : "E-EXC-014"
+          feature      : "EXC-2"
+          user_message : "We couldn't open that job just now. Try again."
+          what_happened: "The job view failed to load the other job's steps."
+          likely_cause : "A dropped connection or a server error."
+          owner        : "engineer"
+          severity     : "warn"
+          fix_hint     : "Try again. If it keeps happening, quote the Reference to support."
+        }
+        |set:"E-EXC-015":{
+          code         : "E-EXC-015"
+          feature      : "EXC-2"
+          user_message : "That job isn't available any more."
+          what_happened: "The job view asked for a job that no longer exists in this account."
+          likely_cause : "The job belongs to another account, or the link is stale."
+          owner        : "user"
+          severity     : "info"
+          fix_hint     : "Nothing to fix on the job you're on. Ask a planner if the sent work was moved."
+        }
     }
   }
 
@@ -565,6 +585,12 @@ function "ops/error_catalog" {
 
   test "contains the ITEM-1 owner-guard entry" {
     expect.to_equal ($response|get:"E-ITM-007.owner":null) {
+      value = "engineer"
+    }
+  }
+
+  test "contains the EXC-2 job-view-load-failure entry" {
+    expect.to_equal ($response|get:"E-EXC-014.owner":null) {
       value = "engineer"
     }
   }

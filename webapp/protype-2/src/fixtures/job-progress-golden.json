@@ -1,0 +1,228 @@
+{
+  "_about": "EXC-2 (US-EXC-2-01/02) golden fixtures for job progress. Shared by webapp/protype-2/src/exceptions/jobProgress.ts (UT-EXC-2-01..03) and functions/exceptions/job_progress.xs. The last two cases are verified live against the real backend function (scratch fn 268, deleted after use, 2026-10-27) — their stage keys/labels match map 219's real stages s1/s2. Keep both sides in step: if a rule changes, change it here first.",
+  "cases": [
+    {
+      "id": "UT-EXC-2-golden-01",
+      "name": "0 steps",
+      "stageOrder": [
+        {"key": "s1", "label": "Stage 1"},
+        {"key": "s2", "label": "Stage 2"},
+        {"key": "s3", "label": "Stage 3"},
+        {"key": "s4", "label": "Stage 4"},
+        {"key": "s5", "label": "Stage 5"},
+        {"key": "s6", "label": "Stage 6"}
+      ],
+      "tasks": [],
+      "expected": {
+        "task_count": 0,
+        "finished_count": 0,
+        "has_blocked": false,
+        "current_stage_key": "",
+        "current_stage_label": ""
+      }
+    },
+    {
+      "id": "UT-EXC-2-golden-02",
+      "name": "6 steps, none started",
+      "stageOrder": [
+        {"key": "s1", "label": "Stage 1"},
+        {"key": "s2", "label": "Stage 2"},
+        {"key": "s3", "label": "Stage 3"},
+        {"key": "s4", "label": "Stage 4"},
+        {"key": "s5", "label": "Stage 5"},
+        {"key": "s6", "label": "Stage 6"}
+      ],
+      "tasks": [
+        {"stage_key": "s1", "status": "not_started"},
+        {"stage_key": "s2", "status": "not_started"},
+        {"stage_key": "s3", "status": "not_started"},
+        {"stage_key": "s4", "status": "not_started"},
+        {"stage_key": "s5", "status": "not_started"},
+        {"stage_key": "s6", "status": "not_started"}
+      ],
+      "expected": {
+        "task_count": 6,
+        "finished_count": 0,
+        "has_blocked": false,
+        "current_stage_key": "s1",
+        "current_stage_label": "Stage 1"
+      }
+    },
+    {
+      "id": "UT-EXC-2-golden-03",
+      "name": "part-way, with a skipped step (done + skipped both count as finished, D-4)",
+      "stageOrder": [
+        {"key": "s1", "label": "Stage 1"},
+        {"key": "s2", "label": "Stage 2"},
+        {"key": "s3", "label": "Stage 3"},
+        {"key": "s4", "label": "Stage 4"},
+        {"key": "s5", "label": "Stage 5"},
+        {"key": "s6", "label": "Stage 6"}
+      ],
+      "tasks": [
+        {"stage_key": "s1", "status": "done"},
+        {"stage_key": "s2", "status": "skipped"},
+        {"stage_key": "s3", "status": "not_started"},
+        {"stage_key": "s4", "status": "not_started"},
+        {"stage_key": "s5", "status": "not_started"},
+        {"stage_key": "s6", "status": "not_started"}
+      ],
+      "expected": {
+        "task_count": 6,
+        "finished_count": 2,
+        "has_blocked": false,
+        "current_stage_key": "s3",
+        "current_stage_label": "Stage 3"
+      }
+    },
+    {
+      "id": "UT-EXC-2-golden-04",
+      "name": "blocked at stage 3",
+      "stageOrder": [
+        {"key": "s1", "label": "Stage 1"},
+        {"key": "s2", "label": "Stage 2"},
+        {"key": "s3", "label": "Stage 3"},
+        {"key": "s4", "label": "Stage 4"},
+        {"key": "s5", "label": "Stage 5"},
+        {"key": "s6", "label": "Stage 6"}
+      ],
+      "tasks": [
+        {"stage_key": "s1", "status": "done"},
+        {"stage_key": "s2", "status": "done"},
+        {"stage_key": "s3", "status": "blocked"},
+        {"stage_key": "s4", "status": "not_started"},
+        {"stage_key": "s5", "status": "not_started"},
+        {"stage_key": "s6", "status": "not_started"}
+      ],
+      "expected": {
+        "task_count": 6,
+        "finished_count": 2,
+        "has_blocked": true,
+        "current_stage_key": "s3",
+        "current_stage_label": "Stage 3"
+      }
+    },
+    {
+      "id": "UT-EXC-2-golden-05",
+      "name": "all finished",
+      "stageOrder": [
+        {"key": "s1", "label": "Stage 1"},
+        {"key": "s2", "label": "Stage 2"},
+        {"key": "s3", "label": "Stage 3"},
+        {"key": "s4", "label": "Stage 4"},
+        {"key": "s5", "label": "Stage 5"},
+        {"key": "s6", "label": "Stage 6"}
+      ],
+      "tasks": [
+        {"stage_key": "s1", "status": "done"},
+        {"stage_key": "s2", "status": "done"},
+        {"stage_key": "s3", "status": "skipped"},
+        {"stage_key": "s4", "status": "done"},
+        {"stage_key": "s5", "status": "skipped"},
+        {"stage_key": "s6", "status": "done"}
+      ],
+      "expected": {
+        "task_count": 6,
+        "finished_count": 6,
+        "has_blocked": false,
+        "current_stage_key": "",
+        "current_stage_label": ""
+      }
+    },
+    {
+      "id": "UT-EXC-2-golden-06",
+      "name": "two owner rows at one stage, one done and one not — the stage stays current",
+      "stageOrder": [
+        {"key": "s1", "label": "Stage 1"},
+        {"key": "s2", "label": "Stage 2"},
+        {"key": "s3", "label": "Stage 3"},
+        {"key": "s4", "label": "Stage 4"},
+        {"key": "s5", "label": "Stage 5"},
+        {"key": "s6", "label": "Stage 6"}
+      ],
+      "tasks": [
+        {"stage_key": "s1", "status": "done"},
+        {"stage_key": "s1", "status": "not_started"},
+        {"stage_key": "s2", "status": "not_started"},
+        {"stage_key": "s3", "status": "not_started"},
+        {"stage_key": "s4", "status": "not_started"},
+        {"stage_key": "s5", "status": "not_started"},
+        {"stage_key": "s6", "status": "not_started"}
+      ],
+      "expected": {
+        "task_count": 7,
+        "finished_count": 1,
+        "has_blocked": false,
+        "current_stage_key": "s1",
+        "current_stage_label": "Stage 1"
+      }
+    },
+    {
+      "id": "UT-EXC-2-golden-07",
+      "name": "a step whose stage is missing from the snapshot sorts last",
+      "stageOrder": [
+        {"key": "s1", "label": "Stage 1"},
+        {"key": "s2", "label": "Stage 2"},
+        {"key": "s3", "label": "Stage 3"},
+        {"key": "s4", "label": "Stage 4"},
+        {"key": "s5", "label": "Stage 5"},
+        {"key": "s6", "label": "Stage 6"}
+      ],
+      "tasks": [
+        {"stage_key": "s1", "status": "done"},
+        {"stage_key": "s2", "status": "done"},
+        {"stage_key": "ghost-stage", "status": "not_started"},
+        {"stage_key": "s3", "status": "not_started"}
+      ],
+      "expected": {
+        "task_count": 4,
+        "finished_count": 2,
+        "has_blocked": false,
+        "current_stage_key": "s3",
+        "current_stage_label": "Stage 3"
+      }
+    },
+    {
+      "id": "UT-EXC-2-golden-08",
+      "name": "mixed: two owner rows + skipped + blocked-and-unknown-stage — verified live against exceptions/job_progress (scratch fn 268, 2026-10-27)",
+      "stageOrder": [
+        {"key": "s1", "label": "Receive at the dock"},
+        {"key": "s2", "label": "Triage"}
+      ],
+      "tasks": [
+        {"stage_key": "s1", "status": "done"},
+        {"stage_key": "s1", "status": "not_started"},
+        {"stage_key": "s2", "status": "skipped"},
+        {"stage_key": "ghost-stage", "status": "blocked"}
+      ],
+      "expected": {
+        "task_count": 4,
+        "finished_count": 2,
+        "has_blocked": true,
+        "current_stage_key": "s1",
+        "current_stage_label": "Receive at the dock"
+      }
+    },
+    {
+      "id": "UT-EXC-2-golden-09",
+      "name": "all finished, including an unknown stage — verified live (scratch fn 268, 2026-10-27)",
+      "stageOrder": [
+        {"key": "s1", "label": "Receive at the dock"},
+        {"key": "s2", "label": "Triage"}
+      ],
+      "tasks": [
+        {"stage_key": "s1", "status": "done"},
+        {"stage_key": "s1", "status": "done"},
+        {"stage_key": "s2", "status": "skipped"},
+        {"stage_key": "ghost-stage", "status": "skipped"}
+      ],
+      "expected": {
+        "task_count": 4,
+        "finished_count": 4,
+        "has_blocked": false,
+        "current_stage_key": "",
+        "current_stage_label": ""
+      }
+    }
+  ]
+}

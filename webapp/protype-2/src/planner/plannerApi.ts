@@ -784,6 +784,24 @@ export const listCatalogItemTypes = () =>
 
 // ── EXC-1 — exceptions: work leaves this journey for a linked map ────────
 
+/**
+ * EXC-2 (US-EXC-2-01) — a job's progress, as seen from its family: how
+ * many of its steps are finished (done or skipped, D-4), whether any
+ * is blocked, and which stage is "now" (the lowest-position unfinished
+ * stage in THAT job's own pinned version — a child and its parent can
+ * be on different maps with different stage orders). `current_stage_key`
+ * is `""` once every step is finished. See `exceptions/jobProgress.ts`
+ * for the pure TypeScript twin and `job-progress-golden.json` for the
+ * pinned cases both sides must agree on.
+ */
+export interface JobProgress {
+  task_count: number;
+  finished_count: number;
+  has_blocked: boolean;
+  current_stage_key: string;
+  current_stage_label: string;
+}
+
 /** Where a job came from (null for an ordinary job). `via` says whether it was an exception or added by hand. */
 export interface JobParentLink {
   work_item_id: number;
@@ -796,6 +814,8 @@ export interface JobParentLink {
   moved_lines: {item_type_id: number; item_key: string; quantity: number}[];
   created_at: number;
   via: 'exception' | 'manual';
+  /** EXC-2 — the parent's own progress. Absent on data from before this epic. */
+  progress?: JobProgress | null;
 }
 
 export interface JobChildLink {
@@ -811,6 +831,8 @@ export interface JobChildLink {
   parent_blocked: boolean;
   created_at: number;
   via: 'exception' | 'manual';
+  /** EXC-2 — this child's own progress. Absent on data from before this epic. */
+  progress?: JobProgress | null;
 }
 
 export interface JobSendOption {
@@ -830,6 +852,42 @@ export const getWorkItemLinks = (workItemId: number) =>
     children: JobChildLink[];
     send_options: JobSendOption[];
   }>(`/work_item/${workItemId}/links`);
+
+/** EXC-2 (US-EXC-2-02) — one task of a job, hydrated from its pinned version (555's shape). */
+export interface WorkItemTask {
+  id: number;
+  stage_key: string;
+  lens_key: string;
+  status: 'not_started' | 'in_progress' | 'blocked' | 'done' | 'skipped';
+  started_at: number | null;
+  completed_at: number | null;
+  stage_label: string | null;
+  owner_lens_label: string | null;
+  task: string | null;
+  done_when: string | null;
+  expected_minutes: number | null;
+  estimate_status: 'n/a' | 'complete' | 'incomplete';
+  estimate_source: string;
+}
+
+/**
+ * GET work_item/{id} (555) — one job, every task hydrated from its
+ * pinned version, plus `parent`/`children` from the same `job_links`
+ * read 611 uses. `JobPeekSheet` (US-EXC-2-02) is the one caller of
+ * this that reads someone ELSE's job — read-only, same tenancy check
+ * as every other 555 caller (the job must be in the caller's account).
+ */
+export const getWorkItem = (workItemId: number) =>
+  performRequest<{
+    work_item: RawWorkItem;
+    parent: JobParentLink | null;
+    children: JobChildLink[];
+    pinned_version: {id: number; version_no: number; title: string};
+    derived_status: string;
+    status_matches: boolean;
+    tasks: WorkItemTask[];
+    estimate_summary: {has_items_row: boolean; complete: boolean; total_minutes: number; missing: unknown[]; reasons: unknown[]};
+  }>(`/work_item/${workItemId}`);
 
 export interface RaiseExceptionResult {
   exception_id: number;
