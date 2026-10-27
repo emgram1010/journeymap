@@ -16,6 +16,11 @@
 //
 // Every per-row lookup is computed into a var and read with `??`; the
 // only branches compare loop items to loop items (CLAUDE.md).
+//
+// EXC-2 (US-EXC-2-01) — additive: each of `parent` and `children[]`
+// also carries a `progress` summary (task_count, finished_count,
+// has_blocked, current_stage_key/label), computed once for the whole
+// family by exceptions/job_progress and merged on below.
 function "exceptions/job_links" {
   input {
     int work_item_id filters=min:1
@@ -127,10 +132,49 @@ function "exceptions/job_links" {
       value = [-1]
     }
 
+    // EXC-2 (US-EXC-2-01) — every id whose progress we need: the parent
+    // (if any) plus every child, so ONE job_progress call covers the
+    // whole family (CLAUDE.md: one query, never one per child).
+    var $progress_target_ids {
+      value = [-1]
+    }
+
+    conditional {
+      if ($job.parent_work_item_id != 0) {
+        array.push $progress_target_ids {
+          value = $job.parent_work_item_id
+        }
+      }
+    }
+
     foreach ($child_jobs) {
       each as $cjv {
         array.push $child_version_ids {
           value = $cjv.journey_map_version_id
+        }
+
+        array.push $progress_target_ids {
+          value = $cjv.id
+        }
+      }
+    }
+
+    function.run "exceptions/job_progress" {
+      input = {work_item_ids: $progress_target_ids}
+    } as $progress_result
+
+    conditional {
+      if ($job.parent_work_item_id != 0) {
+        var $parent_progress_key {
+          value = "c:" ~ ($job.parent_work_item_id|to_text)
+        }
+
+        var $parent_progress_value {
+          value = $progress_result.progress_by_job|get:$parent_progress_key:null
+        }
+
+        var.update $parent {
+          value = $parent|set:"progress":$parent_progress_value
         }
       }
     }
@@ -386,6 +430,14 @@ function "exceptions/job_links" {
           value = (($ch_exc|get:"id":0) == 0) ? "manual" : "exception"
         }
 
+        var $ch_progress_key {
+          value = "c:" ~ $ch_key
+        }
+
+        var $ch_progress {
+          value = $progress_result.progress_by_job|get:$ch_progress_key:null
+        }
+
         array.push $children {
           value = {
             work_item_id    : $ch.id
@@ -400,6 +452,7 @@ function "exceptions/job_links" {
             parent_blocked  : $ch_exc.parent_blocked ?? false
             created_at      : $ch_exc.created_at ?? $ch.created_at
             via             : $ch_via
+            progress        : $ch_progress
           }
         }
       }
