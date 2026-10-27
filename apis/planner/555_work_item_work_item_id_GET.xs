@@ -1,22 +1,42 @@
-// JOB-1 (US-JOB-1-03) — One job, with every task hydrated from its
-// PINNED version.
+//  JOB-1 (US-JOB-1-03) — One job, with every task hydrated from its
+//  PINNED version.
 //
-// THIS IS WHERE THE PINNING PAYS OFF. The task text, done-when, owner
-// row and expected minutes are read out of the frozen snapshot the
-// job was created against — never from the live map, and never from a
-// newer version. Confirmed live: after version 3 was published with
-// every label and task rewritten, a job pinned to version 2 still
-// returned version 2's text, labels and minutes exactly.
+//  THIS IS WHERE THE PINNING PAYS OFF. The task text, done-when, owner
+//  row and expected minutes are read out of the frozen snapshot the
+//  job was created against — never from the live map, and never from a
+//  newer version. Publish version 3 tomorrow and this job still reads
+//  version 2, because that is the work people actually agreed to do.
 //
-// `work_task` stores no text at all, so there is nothing to drift.
-// The row says WHICH cell and WHAT STATE; the version says what the
-// cell means.
+//  `work_task` stores no text at all, so there is nothing to drift.
+//  The row says WHICH cell and WHAT STATE; the version says what the
+//  cell means.
 //
-// `derived_status` is computed from the tasks every time and returned
-// alongside the stored `status`. They should always agree — the
-// stored one is a cache LOG-1 maintains — and GOV-1's audit compares
-// them. Returning both makes a disagreement visible rather than
-// something only a nightly job notices.
+//  `derived_status` is computed from the tasks every time and returned
+//  alongside the stored `status`. They should always agree — the
+//  stored one is a cache LOG-1 maintains — and GOV-1's audit compares
+//  them. Returning both makes a disagreement visible rather than
+//  something only a nightly job notices.
+//
+//  EST-1 (US-EST-1-05) — on a map WITH an Items row, each task's
+//  expected_minutes now comes from estimate/estimate_job's per-stage
+//  total (baseline_minutes when that stage has a missing rate), not
+//  straight from its own cell. Two guards, both added in the Opus
+//  review pass (2026-10-25):
+//    - the override only applies to the task whose lens_key equals
+//      the stage's owner_lens_key — a SECOND actor at the same stage
+//      keeps its own cell duration, never the combined stage number
+//      (the earlier version applied it to every task at the stage
+//      regardless of row, which would double-count a two-actor stage);
+//    - a stage is also "incomplete" when the whole job is incomplete
+//      for a reason that isn't about THIS stage specifically (no
+//      lines at all) — not just when this stage's own `missing` is
+//      non-empty — so a brand-new job with zero lines shows the badge
+//      instead of looking finished.
+//  A map with NO Items row is completely unchanged.
+//
+//  EXC-1 (US-EXC-1-05) — additive: `parent` (null, or where this job
+//  came from and why) and `children[]` (jobs sent off it, plus any added
+//  by hand under it), from exceptions/job_links.
 query "work_item/{work_item_id}" verb=GET {
   api_group = "planner"
   auth = "user"
@@ -54,6 +74,22 @@ query "work_item/{work_item_id}" verb=GET {
       sort = {work_task.id: "asc"}
       return = {type: "list"}
     } as $tasks
+
+    function.run "estimate/estimate_job" {
+      input = {work_item_id: $input.work_item_id}
+    } as $estimate
+
+    var $stage_est_by_key {
+      value = {}
+    }
+
+    foreach ($estimate.stages) {
+      each as $es {
+        var.update $stage_est_by_key {
+          value = $stage_est_by_key|set:$es.stage_key:$es
+        }
+      }
+    }
 
     // Index the pinned snapshot's cells and stages so hydration is
     // one pass, not a scan per task.
@@ -175,6 +211,68 @@ query "work_item/{work_item_id}" verb=GET {
           value = $lens_labels|get:$key:null
         }
 
+        var $expected_minutes {
+          value = ($cell.duration_minutes ?? null)
+        }
+
+        var $estimate_status {
+          value = "n/a"
+        }
+
+        var $estimate_source {
+          value = "n/a"
+        }
+
+        conditional {
+          if ($estimate.has_items_row == true) {
+            var $stage_est {
+              value = $stage_est_by_key|get:$t.stage_key:null
+            }
+
+            conditional {
+              if ($stage_est != null && $stage_est.owner_lens_key == $t.lens_key) {
+                var.update $estimate_source {
+                  value = $stage_est.source
+                }
+
+                var $stage_incomplete {
+                  value = (($stage_est.missing|count) > 0)
+                }
+
+                conditional {
+                  if ($stage_est.scales_with != "per_order" && $estimate.complete == false) {
+                    var.update $stage_incomplete {
+                      value = true
+                    }
+                  }
+                }
+
+                conditional {
+                  if ($stage_incomplete == true) {
+                    var.update $expected_minutes {
+                      value = $stage_est.baseline_minutes
+                    }
+
+                    var.update $estimate_status {
+                      value = "incomplete"
+                    }
+                  }
+
+                  else {
+                    var.update $expected_minutes {
+                      value = $stage_est.total_minutes
+                    }
+
+                    var.update $estimate_status {
+                      value = "complete"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
         array.push $hydrated {
           value = {
             id              : $t.id
@@ -187,7 +285,9 @@ query "work_item/{work_item_id}" verb=GET {
             owner_lens_label: $lens_label
             task            : ($cell.task ?? null)
             done_when       : ($cell.done_when ?? null)
-            expected_minutes: ($cell.duration_minutes ?? null)
+            expected_minutes: $expected_minutes
+            estimate_status : $estimate_status
+            estimate_source : $estimate_source
           }
         }
       }
@@ -241,7 +341,7 @@ query "work_item/{work_item_id}" verb=GET {
     }
 
     conditional {
-      if ($any_progress == true) {
+      if ($any_progress) {
         var.update $derived {
           value = "in_progress"
         }
@@ -249,7 +349,7 @@ query "work_item/{work_item_id}" verb=GET {
     }
 
     conditional {
-      if (($tasks|count) > 0 && $all_finished == true) {
+      if (($tasks|count) > 0 && $all_finished) {
         var.update $derived {
           value = "completed"
         }
@@ -257,7 +357,7 @@ query "work_item/{work_item_id}" verb=GET {
     }
 
     conditional {
-      if ($any_blocked == true) {
+      if ($any_blocked) {
         var.update $derived {
           value = "blocked"
         }
@@ -271,13 +371,22 @@ query "work_item/{work_item_id}" verb=GET {
         }
       }
     }
+
+    // EXC-1 (US-EXC-1-05) — where this job came from, and what was sent
+    // off it. One shared read (also used by the perform screen).
+    function.run "exceptions/job_links" {
+      input = {work_item_id: $input.work_item_id}
+    } as $links
   }
 
   response = {
-    work_item     : $job
-    pinned_version: {id: $version.id, version_no: $version.version_no, title: $version.snapshot.title}
-    derived_status: $derived
-    status_matches: ($job.status == $derived)
-    tasks         : $hydrated
+    work_item       : $job
+    parent          : $links.parent
+    children        : $links.children
+    pinned_version  : {id: $version.id, version_no: $version.version_no, title: $version.snapshot.title}
+    derived_status  : $derived
+    status_matches  : ($job.status == $derived)
+    tasks           : $hydrated
+    estimate_summary: {has_items_row: $estimate.has_items_row, complete: $estimate.complete, total_minutes: $estimate.total_minutes, missing: $estimate.missing, reasons: $estimate.reasons}
   }
 }

@@ -37,6 +37,26 @@ function "variance/task_report" {
       return = {type: "list"}
     } as $tasks
 
+    // EST-1 (US-EST-1-05/FT-EST-1-09) — on a map WITH an Items row,
+    // "expected" is the real per-stage estimate (baseline only when
+    // that stage has a missing rate), not the raw cell duration. One
+    // call for the whole job; a map with no Items row is unchanged.
+    function.run "estimate/estimate_job" {
+      input = {work_item_id: $input.work_item_id}
+    } as $job_estimate
+
+    var $stage_est_by_key {
+      value = {}
+    }
+
+    foreach ($job_estimate.stages) {
+      each as $jes {
+        var.update $stage_est_by_key {
+          value = $stage_est_by_key|set:$jes.stage_key:$jes
+        }
+      }
+    }
+
     // Expected minutes, keyed by "stage_key::lens_key" from the pinned version.
     var $cell_map {
       value = {}
@@ -241,6 +261,54 @@ function "variance/task_report" {
 
         var.update $expected {
           value = ($cell.duration_minutes ?? null)
+        }
+
+        // EST-1 Opus review fixes (2026-10-25), mirrored from 555/560/
+        // 583: the override only applies to the task whose lens_key is
+        // the stage's OWNER — a second actor at the same stage keeps
+        // the raw cell duration, never the combined stage total
+        // (double-counting otherwise). And a stage also counts as
+        // incomplete when the WHOLE job is incomplete for a reason
+        // that isn't this stage's own (no lines at all), not only
+        // when this stage's own `missing` is non-empty. Reads
+        // `$job_estimate.complete` directly (one job, no map), so
+        // `== false` is a plain, safe comparison.
+        conditional {
+          if ($job_estimate.has_items_row == true) {
+            var $var_stage_est {
+              value = $stage_est_by_key|get:$t.stage_key:null
+            }
+
+            conditional {
+              if ($var_stage_est != null && $var_stage_est.owner_lens_key == $t.lens_key) {
+                var $var_incomplete {
+                  value = (($var_stage_est.missing|count) > 0)
+                }
+
+                conditional {
+                  if ($var_stage_est.scales_with != "per_order" && $job_estimate.complete == false) {
+                    var.update $var_incomplete {
+                      value = true
+                    }
+                  }
+                }
+
+                conditional {
+                  if ($var_incomplete == true) {
+                    var.update $expected {
+                      value = $var_stage_est.baseline_minutes
+                    }
+                  }
+
+                  else {
+                    var.update $expected {
+                      value = $var_stage_est.total_minutes
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
 
         // Scheduled + planned start, only if this task's slot has been published.

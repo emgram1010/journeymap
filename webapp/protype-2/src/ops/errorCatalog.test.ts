@@ -37,6 +37,20 @@ const BACKEND_CODE_DIRS = [
   ['apis', 'ops'],
   ['apis', 'planner'],
   ['apis', 'journey_map'],
+  // USR-1 (2026-10-22): the team-management guards and endpoints. Added with
+  // the directories rather than after them, so E-USR-* can never go live
+  // uncataloged the way E-PUB-* and E-STAGE-* did.
+  ['functions', 'usr'],
+  ['apis', 'members_accounts'],
+  // CAT-1 (2026-10-24): the item-type / method catalog. Added with the
+  // directories rather than after them, for the same reason USR-1 was.
+  ['functions', 'catalog'],
+  ['apis', 'catalog'],
+  // EXC-1 (2026-10-26): the exception spawn's functions, and the two
+  // functions extracted for it (create_job, refresh_job_slots).
+  ['functions', 'exceptions'],
+  ['functions', 'jobs'],
+  ['functions', 'estimate'],
 ];
 
 test('UT-OBS-1-02: every E-XXX-NNN code referenced in the backend source files exists in the catalog', () => {

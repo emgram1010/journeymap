@@ -111,7 +111,14 @@ import {
 } from './xano';
 import {doesPlannedWork} from './stageOwnerModel';
 import {computeMapReadiness, type ReadinessLensInput, type ReadinessStageInput, type ReadinessCellInput} from './readiness';
+import {LINK_TYPE_HELP, stageExceptionTargets, type LiveCellLink} from './exceptions/exceptionLinks';
 import type {CellLinkInfo} from './journeyMatrixTabulatorHelpers';
+import {listItemTypes} from './catalog/catalogApi';
+import {listMethods} from './catalog/catalogApi';
+import type {ItemType, CatalogMethod} from './catalog/catalogTypes';
+import {createItemsRow, deleteItemsRow, setItemsRowItems, saveItemsCell, getItemsRowItems, type ChosenItemDetail} from './items/itemsApi';
+import {ItemsCellEditor, type ItemsCellEditorHandle} from './items/ItemsCellEditor';
+import {ItemsPickerModal} from './items/ItemsPickerModal';
 
 type InitialLoadState = 'loading' | 'ready' | 'empty' | 'error';
 
@@ -502,6 +509,11 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
   const [lenses, setLenses] = useState<Lens[]>([]);
   const [journeyMapRecord, setJourneyMapRecord] = useState<XanoJourneyMap | null>(null);
   const [cellLinkMap, setCellLinkMap] = useState<Map<number, CellLinkInfo>>(new Map());
+  // EXC-1 (US-EXC-1-01) — every live link on this map (cellLinkMap keeps
+  // only one per cell), for the stage-header "exception →" chip.
+  const [liveCellLinks, setLiveCellLinks] = useState<LiveCellLink[]>([]);
+  // EXC-1 — the server's exception-link warnings, read when the checklist opens.
+  const [exceptionWarnings, setExceptionWarnings] = useState<GateFailure[]>([]);
   // Cell-level link creation state
   const [siblingMaps, setSiblingMaps] = useState<XanoJourneyMap[]>([]);
   const [siblingMapsLoaded, setSiblingMapsLoaded] = useState(false);
@@ -979,14 +991,15 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
 
   // Load journey links for the current map to power breakpoint indicators in the matrix.
   useEffect(() => {
-    if (!journeyMapRecord) { setCellLinkMap(new Map()); return; }
+    if (!journeyMapRecord) { setCellLinkMap(new Map()); setLiveCellLinks([]); return; }
     listJourneyLinksForMap(journeyMapRecord.id)
       .then((links) => {
         setCellLinkMap(
           new Map(links.map((l) => [l.source_cell, {linkType: l.link_type as JourneyLinkType, targetMapId: l.target_map}])),
         );
+        setLiveCellLinks(links.map((l) => ({sourceCellId: l.source_cell, linkType: l.link_type, targetMapId: l.target_map})));
       })
-      .catch(() => setCellLinkMap(new Map()));
+      .catch(() => { setCellLinkMap(new Map()); setLiveCellLinks([]); });
   }, [journeyMapRecord?.id]);
 
   const handleCreateCellLink = async () => {
@@ -1018,6 +1031,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         next.set(selectedCell.xanoId!, { linkType: link.link_type, targetMapId: link.target_map });
         return next;
       });
+      setLiveCellLinks((prev) => [...prev, {sourceCellId: selectedCell.xanoId!, linkType: link.link_type, targetMapId: link.target_map}]);
       setCellLinkSuccess(true);
       if (cellLinkTargetId === 'new') {
         navigate(`/maps/${targetMapId}?arch=${architectureId}`);
@@ -1245,6 +1259,28 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     () => Object.fromEntries(mapReadiness.perStage.map((s) => [s.stageKey, s.ready])),
     [mapReadiness],
   );
+
+  // EXC-1 (US-EXC-1-01) — stage id → titles of the maps its exception links hand work to.
+  const stageExceptionTargetsMap = useMemo(() => {
+    const stageOfCell = new Map<number, string>();
+    for (const c of cells) if (c.xanoId != null) stageOfCell.set(c.xanoId, c.stageId);
+    const titles = new Map<number, string>(siblingMaps.map((m) => [m.id, m.title ?? `map #${m.id}`]));
+    return stageExceptionTargets(liveCellLinks, stageOfCell, titles);
+  }, [cells, siblingMaps, liveCellLinks]);
+
+  // EXC-1 — the server's exception-link warnings (published? Items row?
+  // same architecture?) need database facts the browser doesn't have, so
+  // they are read from the readiness endpoint whenever the checklist opens.
+  useEffect(() => {
+    if (!isChecklistOpen || !journeyMapRecord?.id) return;
+    let cancelled = false;
+    getMapReadiness(journeyMapRecord.id)
+      .then((r) => {
+        if (!cancelled) setExceptionWarnings((r.warnings ?? []).filter((w) => w.code.startsWith('exception_map_')));
+      })
+      .catch(() => { if (!cancelled) setExceptionWarnings([]); });
+    return () => { cancelled = true; };
+  }, [isChecklistOpen, journeyMapRecord?.id, liveCellLinks]);
 
   /**
    * SE-B3: Memoized stage health for the detail panel.
@@ -1674,8 +1710,22 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     [cells, persistCellChanges, selectedCell, selectedCellId],
   );
 
+  // ITEM-1 bugfix (2026-10-25): an Items cell keeps its draft (the scaling
+  // choice and the per-item minutes) inside ItemsCellEditor, so the generic
+  // persist below never saw it -- "Save & Close" closed the panel and threw
+  // the typing away with no message. Commit that draft FIRST, and if the
+  // server refuses it, leave the panel open so the typing and the reason
+  // stay on screen. The ref is null for every other kind of cell, because
+  // the editor is only mounted for the Items row.
+  const itemsCellEditorRef = useRef<ItemsCellEditorHandle | null>(null);
+
   const handleCloseSelectedCell = useCallback(() => {
     void (async () => {
+      const didSaveItemsCell = await (itemsCellEditorRef.current?.saveIfChanged() ?? Promise.resolve(true));
+      if (!didSaveItemsCell) {
+        return;
+      }
+
       const didPersistCurrentCell = await persistCellChanges(selectedCell);
       if (!didPersistCurrentCell) {
         return;
@@ -1919,6 +1969,100 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
     pendingLensAnchorRef.current = undefined;
     setShowActorWizard(false);
     setActorWizardEditTarget(null);
+  };
+
+  // ── ITEM-1 — the Items row: create/remove, choose items, save a cell ─────
+  const itemsLens = lenses.find((l) => l.templateKey === 'items-v1') ?? null;
+  const [catalogItemTypes, setCatalogItemTypes] = useState<ItemType[]>([]);
+  const [catalogMethods, setCatalogMethods] = useState<CatalogMethod[]>([]);
+  const [itemsChosenSet, setItemsChosenSet] = useState<ChosenItemDetail[]>([]);
+  const [showItemsPicker, setShowItemsPicker] = useState(false);
+
+  const refreshItemsCatalogAndChosenSet = useCallback(async () => {
+    if (!journeyMapRecord?.id) return;
+    try {
+      const [itemTypesResult, methodsResult, chosenResult] = await Promise.all([
+        listItemTypes(false),
+        listMethods(false),
+        getItemsRowItems(journeyMapRecord.id),
+      ]);
+      setCatalogItemTypes(itemTypesResult.items);
+      setCatalogMethods(methodsResult.methods);
+      setItemsChosenSet(chosenResult.items);
+    } catch {
+      // Non-fatal: the Items editor degrades to "no items chosen yet"
+      // rather than blocking the rest of the map from loading.
+    }
+  }, [journeyMapRecord?.id]);
+
+  useEffect(() => {
+    void refreshItemsCatalogAndChosenSet();
+  }, [refreshItemsCatalogAndChosenSet, itemsLens?.xanoId]);
+
+  const handleAddItemsRow = async () => {
+    if (!journeyMapRecord) return;
+    setIsXanoSyncing(true);
+    setXanoError(null);
+    try {
+      await createItemsRow(journeyMapRecord.id);
+      await refreshCurrentJourneyMap(journeyMapRecord);
+    } catch (error) {
+      setXanoError(getErrorMessage(error, 'Unable to add the Items row.'));
+    } finally {
+      setIsXanoSyncing(false);
+    }
+  };
+
+  const handleChooseItems = (_lensId: string) => {
+    // Refresh here too, not just on map load — the account's catalog
+    // (and this map's own chosen set) can have changed since this map
+    // was opened, e.g. a new item added on the Catalog page in another
+    // tab. Found live while testing: without this, a freshly created
+    // catalog item never appeared in the picker until a full reload.
+    void refreshItemsCatalogAndChosenSet();
+    setShowItemsPicker(true);
+  };
+
+  const handleSaveItemsPicker = async (itemTypeIds: number[]) => {
+    if (!journeyMapRecord) return;
+    await setItemsRowItems(journeyMapRecord.id, itemTypeIds);
+    await refreshCurrentJourneyMap(journeyMapRecord);
+    await refreshItemsCatalogAndChosenSet();
+  };
+
+  // A native window.confirm() blocks the whole page (including browser
+  // automation) until dismissed, and doesn't match this app's own
+  // pattern for a destructive action (a small in-page confirm, same
+  // visual language as CatalogPage.tsx's ConfirmDialog). Found live
+  // while testing this exact handler.
+  const [pendingRemoveItemsRow, setPendingRemoveItemsRow] = useState(false);
+
+  const handleRemoveItemsRow = (_lensId: string) => {
+    setPendingRemoveItemsRow(true);
+  };
+
+  const confirmRemoveItemsRow = async () => {
+    setPendingRemoveItemsRow(false);
+    if (!journeyMapRecord) return;
+    setIsXanoSyncing(true);
+    setXanoError(null);
+    try {
+      await deleteItemsRow(journeyMapRecord.id);
+      await refreshCurrentJourneyMap(journeyMapRecord);
+    } catch (error) {
+      setXanoError(getErrorMessage(error, 'Unable to remove the Items row.'));
+    } finally {
+      setIsXanoSyncing(false);
+    }
+  };
+
+  const handleSaveItemsCell = async (
+    journeyCellId: number,
+    input: {scales_with: string; lines: Array<{item_key: string; method_key: string; minutes_per_unit: number | null}>},
+  ) => {
+    if (!journeyMapRecord) return;
+    await saveItemsCell(journeyMapRecord.id, journeyCellId, input);
+    await refreshCurrentJourneyMap(journeyMapRecord);
   };
 
   // ── ORD-1 (US-ORD-1-05) — insert on the seam, move with arrows ────────────
@@ -2399,6 +2543,15 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     Add Row
                   </button>
                   <button
+                    onClick={() => void handleAddItemsRow()}
+                    disabled={isXanoSyncing || Boolean(itemsLens)}
+                    title={itemsLens ? 'This map already has an Items row' : 'Add the Items row (D-IR-11)'}
+                    className="inline-flex items-center gap-1.5 rounded border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-zinc-600 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Items Row
+                  </button>
+                  <button
                     onClick={() => selectedCell && void removeStage(selectedCell.stageId)}
                     disabled={!selectedCell || stages.length <= 1 || isXanoSyncing}
                     title={selectedStageLabel ? `Remove ${selectedStageLabel}` : 'Select a cell to remove its column'}
@@ -2510,6 +2663,9 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     onMoveStage={handleMoveStage}
                     onInsertLensAt={handleInsertLensAt}
                     onMoveLens={handleMoveLens}
+                    onChooseItems={handleChooseItems}
+                    onRemoveItemsRow={handleRemoveItemsRow}
+                    stageExceptionTargets={stageExceptionTargetsMap}
                   />
                 </div>
               </div>
@@ -2738,6 +2894,17 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                             <div key={`${blocker.code}-${blocker.stage_key ?? 'map'}-${index}`} className="text-[11px] text-rose-700">
                               {blocker.stage_key ? `${blocker.stage_key}: ` : ''}
                               {blocker.message}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {/* EXC-1 (US-EXC-1-01) — never blocks publishing; says where a handoff can't happen yet. */}
+                      {exceptionWarnings.length > 0 && (
+                        <div className="p-3 rounded border border-amber-200 bg-amber-50 space-y-1.5" data-testid="exception-warnings">
+                          <div className="text-[11px] font-semibold text-amber-900">Handoffs to other maps</div>
+                          {exceptionWarnings.map((w, index) => (
+                            <div key={`${w.code}-${w.stage_key ?? 'map'}-${index}`} className="text-[11px] text-amber-800">
+                              {w.message}
                             </div>
                           ))}
                         </div>
@@ -3629,8 +3796,30 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     )}
                   </div>
 
+                  {/* ITEM-1 (US-ITEM-1-04) — the Items cell editor replaces every
+                      other panel below for a cell on the Items row. Every other
+                      block in this panel already returns null for an empty
+                      actorType (the Items row's own), so this is the ONLY branch
+                      that needs an explicit items-v1 check. */}
+                  {selectedCellLens?.templateKey === 'items-v1' && selectedCell && (
+                    <ItemsCellEditor
+                      ref={itemsCellEditorRef}
+                      scalesWith={(selectedCell.actorFields as {scales_with?: string} | null)?.scales_with ?? 'per_order'}
+                      lines={((selectedCell.actorFields as {lines?: unknown[]} | null)?.lines ?? []) as never}
+                      chosenItems={itemsChosenSet}
+                      activeMethods={catalogMethods.map((m) => ({
+                        id: m.id,
+                        key: m.key,
+                        label: m.label,
+                        sub_journey_map_id: m.sub_journey_map_id,
+                      }))}
+                      disabled={selectedCell.isLocked}
+                      onSave={(input) => handleSaveItemsCell(selectedCell.journeyCellId as number, input)}
+                    />
+                  )}
+
                   {/* Actor context — shown when the parent lens has an actor type */}
-                  {(() => {
+                  {selectedCellLens?.templateKey !== 'items-v1' && (() => {
                     const cellLens = selectedCell ? lenses.find((l) => l.id === selectedCell.lensId) : null;
                     if (!cellLens?.actorType) return null;
                     return (
@@ -3882,6 +4071,11 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     );
                   })()}
 
+                  {/* ITEM-1 — never shown for an Items cell: content is unused dead
+                      data there (everything lives in actor_fields), and typing
+                      into it would contradict the epic's own goal statement
+                      ("never touches a cell's task text"). */}
+                  {selectedCellLens?.templateKey !== 'items-v1' && (
                   <div>
                     <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-2">
                       {(() => {
@@ -3906,6 +4100,7 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                       )}
                     </div>
                   </div>
+                  )}
 
                   <div>
                     <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-2">Cell Controls</label>
@@ -3959,6 +4154,32 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                   <div className="px-4 pb-4 space-y-3">
                     <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Link to Map</label>
 
+                    {/* The links this cell already has. The form below only ever
+                        creates one, so without this a saved link looked unsaved. */}
+                    {(() => {
+                      const existing = liveCellLinks.filter((l) => selectedCell.xanoId != null && l.sourceCellId === selectedCell.xanoId);
+                      if (existing.length === 0) return null;
+                      const LABELS: Record<string, string> = {exception: 'Exception', anti_journey: 'Anti-Journey', sub_journey: 'Sub-Journey'};
+                      return (
+                        <ul className="space-y-1" data-testid="cell-existing-links">
+                          {existing.map((l) => {
+                            const target = siblingMaps.find((m) => m.id === l.targetMapId);
+                            return (
+                              <li key={`${l.linkType}-${l.targetMapId}`}>
+                                <button
+                                  type="button"
+                                  onClick={() => navigate(`/maps/${l.targetMapId}?arch=${architectureId}`)}
+                                  className="w-full text-left text-xs px-2 py-1.5 rounded border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-zinc-700"
+                                >
+                                  <span className="font-semibold">{LABELS[l.linkType] ?? l.linkType}</span> → {target?.title ?? `map #${l.targetMapId}`}
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      );
+                    })()}
+
                     {/* Link type */}
                     <div className="flex rounded-lg border border-zinc-200 overflow-hidden">
                       {(['exception', 'anti_journey', 'sub_journey'] as JourneyLinkType[]).map((t) => {
@@ -3972,6 +4193,8 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                         );
                       })}
                     </div>
+                    {/* EXC-1 (US-EXC-1-01) — what this link type means, in one line. */}
+                    <p className="text-[11px] leading-snug text-zinc-500" data-testid="link-type-help">{LINK_TYPE_HELP[cellLinkType]}</p>
 
                     {/* Target map dropdown */}
                     <select
@@ -4058,6 +4281,43 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
         onConfirm={handleActorWizardConfirm}
         existingLens={actorWizardEditTarget}
       />
+
+      {/* ITEM-1 — "Remove row" confirm, same visual language as
+          CatalogPage.tsx's ConfirmDialog (never a native window.confirm). */}
+      {pendingRemoveItemsRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl">
+            <h3 className="text-sm font-semibold text-zinc-900">Remove the Items row?</h3>
+            <p className="mt-2 text-sm text-zinc-600">Its rates are lost. Published versions are unaffected.</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingRemoveItemsRow(false)}
+                className="rounded-md px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmRemoveItemsRow()}
+                className="rounded-md bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-700"
+              >
+                Remove row
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ITEM-1 — "Choose items" picker */}
+      {showItemsPicker && (
+        <ItemsPickerModal
+          catalogItems={catalogItemTypes}
+          chosenItemTypeIds={itemsChosenSet.map((i) => i.item_type_id)}
+          onSave={handleSaveItemsPicker}
+          onClose={() => setShowItemsPicker(false)}
+        />
+      )}
 
       {/* Stage Edit Panel */}
       {editingStageId && (() => {

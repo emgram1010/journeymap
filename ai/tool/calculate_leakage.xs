@@ -40,7 +40,34 @@ tool calculate_leakage {
       where = $db.journey_lens.journey_map == $input.journey_map_id
       return = {type: "list"}
     } as $lenses
-  
+
+    // ITEM-1 (US-ITEM-1-06, audit finding L-1) — a lens that does no
+    // planned work (the Items row today; any row with an explicit false
+    // override) must never be charged leakage cost, and must never be
+    // reported as an "incomplete" cell either -- it was never meant to
+    // carry a duration or a rate. Proven live on 2026-10-24: giving the
+    // Items row both charged 50/event at s8 with no guard. Resolved per
+    // lens, once, before the main loop.
+    var $lens_does_work_map {
+      value = {}
+    }
+
+    foreach ($lenses) {
+      each as $dpw_lens {
+        function.run "does_planned_work" {
+          input = {journey_lens_id: $dpw_lens.id, actor_type: $dpw_lens.actor_type}
+        } as $dpw
+
+        var $dpw_key {
+          value = $dpw_lens.id|to_text
+        }
+
+        var.update $lens_does_work_map {
+          value = $lens_does_work_map|set:$dpw_key:$dpw.does_planned_work
+        }
+      }
+    }
+
     db.query journey_cell {
       where = $db.journey_cell.journey_map == $input.journey_map_id
       return = {type: "list"}
@@ -72,11 +99,15 @@ tool calculate_leakage {
                 var $lens_cost_rate {
                   value = null
                 }
-              
+
                 var $lens_cost_unit {
                   value = null
                 }
-              
+
+                var $lens_does_work {
+                  value = false
+                }
+
                 foreach ($lenses) {
                   each as $lens {
                     conditional {
@@ -84,15 +115,25 @@ tool calculate_leakage {
                         var.update $lens_cost_rate {
                           value = $lens.cost_rate_value
                         }
-                      
+
                         var.update $lens_cost_unit {
                           value = $lens.cost_rate_unit
+                        }
+
+                        var $lens_id_key {
+                          value = $lens.id|to_text
+                        }
+
+                        var.update $lens_does_work {
+                          value = $lens_does_work_map|get:$lens_id_key:false
                         }
                       }
                     }
                   }
                 }
-              
+
+                conditional {
+                  if ($lens_does_work == true) {
                 conditional {
                   if ($cell.time_duration_value != null && $lens_cost_rate != null) {
                     var $time_hours {
@@ -186,11 +227,13 @@ tool calculate_leakage {
                     }
                   }
                 }
+                  }
+                }
               }
             }
           }
         }
-      
+
         array.push $by_stage {
           value = {
             stage_key     : $stage.key

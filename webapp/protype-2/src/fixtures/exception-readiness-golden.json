@@ -1,0 +1,61 @@
+{
+  "_about": "EXC-1 (US-EXC-1-01 / UT-EXC-1-07 / FT-EXC-1-16) readiness warnings for exception links. Shared by readiness.ts::exceptionLinkWarnings and functions/pub/evaluate_readiness.xs (input exception_targets). Warnings never change `ready`.",
+  "cases": [
+    {
+      "id": "UT-EXC-1-07a",
+      "name": "target never published",
+      "sourceHasItemsRow": false,
+      "targets": [{"stage_key": "s2", "stage_label": "Triage", "lens_key": "description", "target_map_id": 220, "target_title": "Repair", "published": false, "has_items_row": false, "same_architecture": true}],
+      "expected": [{"code": "exception_map_unpublished", "stage_key": "s2", "lens_key": "description", "target_map_id": 220, "message": "Triage sends work to Repair, which has never been published. Performers won't be able to send work there until it is."}]
+    },
+    {
+      "id": "UT-EXC-1-07b",
+      "name": "this map has items, the target has none",
+      "sourceHasItemsRow": true,
+      "targets": [{"stage_key": "s2", "stage_label": "Triage", "lens_key": "items", "target_map_id": 218, "target_title": "Repair", "published": true, "has_items_row": false, "same_architecture": true}],
+      "expected": [{"code": "exception_map_has_no_items_row", "stage_key": "s2", "lens_key": "items", "target_map_id": 218, "message": "Items sent from Triage to Repair won't have an estimate there — Repair has no Items row."}]
+    },
+    {
+      "id": "UT-EXC-1-07c",
+      "name": "target in another architecture",
+      "sourceHasItemsRow": false,
+      "targets": [{"stage_key": "s4", "stage_label": "Clarify", "lens_key": "lens-2", "target_map_id": 300, "target_title": "Legal review", "published": true, "has_items_row": false, "same_architecture": false}],
+      "expected": [{"code": "exception_map_other_architecture", "stage_key": "s4", "lens_key": "lens-2", "target_map_id": 300, "message": "Clarify links to a map in a different architecture; keep exception maps in the same architecture."}]
+    },
+    {
+      "id": "UT-EXC-1-07d",
+      "name": "published, items on both sides, same architecture: nothing to say",
+      "sourceHasItemsRow": true,
+      "targets": [{"stage_key": "s2", "stage_label": "Triage", "lens_key": "description", "target_map_id": 220, "target_title": "Repair", "published": true, "has_items_row": true, "same_architecture": true}],
+      "expected": []
+    },
+    {
+      "id": "UT-EXC-1-07e",
+      "name": "no items on this map: a target without items is fine",
+      "sourceHasItemsRow": false,
+      "targets": [{"stage_key": "s2", "stage_label": "Triage", "lens_key": "lens-2", "target_map_id": 218, "target_title": "Repair", "published": true, "has_items_row": false, "same_architecture": true}],
+      "expected": []
+    },
+    {
+      "id": "UT-EXC-1-07f",
+      "name": "the same target linked from two rows of one stage warns once; checks run in a fixed order",
+      "sourceHasItemsRow": true,
+      "targets": [
+        {"stage_key": "s2", "stage_label": "Triage", "lens_key": "description", "target_map_id": 222, "target_title": "Never published", "published": false, "has_items_row": false, "same_architecture": false},
+        {"stage_key": "s2", "stage_label": "Triage", "lens_key": "lens-2", "target_map_id": 222, "target_title": "Never published", "published": false, "has_items_row": false, "same_architecture": false}
+      ],
+      "expected": [
+        {"code": "exception_map_unpublished", "stage_key": "s2", "lens_key": "description", "target_map_id": 222, "message": "Triage sends work to Never published, which has never been published. Performers won't be able to send work there until it is."},
+        {"code": "exception_map_has_no_items_row", "stage_key": "s2", "lens_key": "description", "target_map_id": 222, "message": "Items sent from Triage to Never published won't have an estimate there — Never published has no Items row."},
+        {"code": "exception_map_other_architecture", "stage_key": "s2", "lens_key": "description", "target_map_id": 222, "message": "Triage links to a map in a different architecture; keep exception maps in the same architecture."}
+      ]
+    },
+    {
+      "id": "UT-EXC-1-07g",
+      "name": "a sub-journey link is never passed in (the how-to link is not a handoff)",
+      "sourceHasItemsRow": true,
+      "targets": [],
+      "expected": []
+    }
+  ]
+}

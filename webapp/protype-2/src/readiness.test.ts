@@ -149,3 +149,14 @@ test('UT-AUTH-1-13: map 178 golden — stages 1-4 and 7 (customer-owned) report 
     );
   }
 });
+
+// ── EXC-1 (US-EXC-1-01) — exception-link warnings ─────────────────────────
+import exceptionGolden from './fixtures/exception-readiness-golden.json';
+import {exceptionLinkWarnings, type ExceptionTargetInput} from './readiness';
+
+for (const c of exceptionGolden.cases) {
+  test(`${c.id}: ${c.name}`, () => {
+    const result = exceptionLinkWarnings(c.sourceHasItemsRow, c.targets as ExceptionTargetInput[]);
+    assert.deepEqual(result, c.expected);
+  });
+}

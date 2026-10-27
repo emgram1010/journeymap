@@ -360,6 +360,33 @@ function "journey/actor_template" {
       }
     }
 
+    // ITEM-1 (US-ITEM-1-06, audit finding T-1) — the Items row has no
+    // actor_type (it is "", not one of the 11 enum values above), so it
+    // can only be reached by template_key, never by the $type branches.
+    // Checked directly against $input.template_key rather than through
+    // $type/$matched's actor_type-keyed resolution above. Without this,
+    // a stage added after the Items row existed (insert_stage, add_stage,
+    // scaffold_map) gave its Items cell an EMPTY actor_fields instead of
+    // the {scales_with: "per_order", lines: []} default every other
+    // Items cell is created with.
+    conditional {
+      if ($input.template_key == "items-v1") {
+        var.update $resolved_key {
+          value = "items-v1"
+        }
+
+        var.update $resolved_fields {
+          value = {}
+            |set:"scales_with":"per_order"
+            |set:"lines":[]
+        }
+
+        var.update $matched {
+          value = true
+        }
+      }
+    }
+
     // An empty type is a plain row and is allowed. Anything else that did not
     // match is a caller mistake — almost always the AI inventing an actor type.
     precondition ($type == "" || $matched == true) {

@@ -1,0 +1,23 @@
+{
+  "_about": "Captured 2026-10-26 from the LIVE function ops/exceptions_panel (runWorkspaceFunction) and trimmed to three rows. Served to the Health page by exceptions.spec.ts because ops/exceptions is platform-admin only and no platform admin exists in this workspace.",
+  "open_children": [
+    {"exception_id": 5, "account_id": 2, "created_at": 1793025025039, "age_days": 0, "child_work_item_id": 57, "child_title": "EXC-1 parent A (safe to delete) · EXC-1 Repair fixture — safe to delete (2 FT Active Item)", "child_status": "open", "parent_work_item_id": 56, "parent_title": "EXC-1 parent A (safe to delete)", "parent_status": "cancelled", "stage_key": "s2", "stage_label": "Triage", "reason_code": "something_went_wrong", "note": "Two are torn", "target_map_id": 220, "target_map_title": "EXC-1 Repair fixture — safe to delete", "moved_count": 2, "depth": 1, "source": "manual"},
+    {"exception_id": 19, "account_id": 2, "created_at": 1793027286737, "age_days": 0, "child_work_item_id": 80, "child_title": "EXC-1 parent B (safe to delete) · EXC-1 Repair fixture — safe to delete · EXC-1 no-items parent clone of item-turnaround", "child_status": "open", "parent_work_item_id": 79, "parent_title": "EXC-1 parent B (safe to delete) · EXC-1 Repair fixture — safe to delete", "parent_status": "open", "stage_key": "s2", "stage_label": "Triage", "reason_code": "something_went_wrong", "note": "", "target_map_id": 223, "target_map_title": "EXC-1 no-items parent clone of item-turnaround — safe to delete", "moved_count": 0, "depth": 2, "source": "manual"}
+  ],
+  "by_stage": [{"stage_label": "Triage", "count": 14}],
+  "by_reason": [
+    {"reason_code": "waiting_on_someone", "count": 1},
+    {"reason_code": "missing_information", "count": 1},
+    {"reason_code": "something_went_wrong", "count": 9},
+    {"reason_code": "other", "count": 3}
+  ],
+  "needs_attention": {
+    "parent_cancelled": [
+      {"exception_id": 5, "account_id": 2, "created_at": 1793025025039, "age_days": 0, "child_work_item_id": 57, "child_title": "EXC-1 parent A (safe to delete) · EXC-1 Repair fixture — safe to delete (2 FT Active Item)", "child_status": "open", "parent_work_item_id": 56, "parent_title": "EXC-1 parent A (safe to delete)", "parent_status": "cancelled", "stage_key": "s2", "stage_label": "Triage", "reason_code": "something_went_wrong", "note": "Two are torn", "target_map_id": 220, "target_map_title": "EXC-1 Repair fixture — safe to delete", "moved_count": 2, "depth": 1, "source": "manual"}
+    ],
+    "unpublished_targets": [
+      {"source_map_id": 219, "source_map_title": "EXC-1 parent clone of item-turnaround — safe to delete", "target_map_id": 222, "target_map_title": "EXC-1 never-published target — safe to delete"}
+    ],
+    "recent_rejections": [{"error_code": "E-EXC-008", "count": 5}, {"error_code": "E-EXC-002", "count": 3}]
+  }
+}

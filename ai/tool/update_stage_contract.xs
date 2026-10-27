@@ -120,6 +120,20 @@ tool update_stage_contract {
 
         conditional {
           if ($resolution.resolved == true) {
+            // ITEM-1 (US-ITEM-1-06, audit finding O-1) — resolve_stage_owner
+            // is a pure lookup with no actor filter, so it WILL hand back
+            // the Items row if a stage names it. The ban belongs here, at
+            // the write path, same as endpoint 211.
+            db.get journey_lens {
+              field_name = "id"
+              field_value = $resolution.owner_lens_id
+            } as $owner_lens_check
+
+            precondition ($owner_lens_check.template_key != "items-v1") {
+              error_type = "inputerror"
+              error = "The Items row can't own a stage — pick a person or team row. (E-ITM-007)"
+            }
+
             function.run "set_stage_owner" {
               input = {
                 journey_stage_id: $input.journey_stage_id

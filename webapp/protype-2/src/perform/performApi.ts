@@ -47,7 +47,8 @@ export function getAccountsBaseUrl(): string {
 
 export interface PerformRequestOptions {
   // DELETE added by PLN-9: the planner can now remove an agent or a day.
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  // PUT added by EST-1: the lines endpoint replaces a job's whole set.
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: Record<string, unknown>;
   signal?: AbortSignal;
   /** Defaults to the planner group; pass getJourneyMapBaseUrl() for a journey-map call. */

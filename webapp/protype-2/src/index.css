@@ -162,6 +162,58 @@
   filter: brightness(0.95);
 }
 
+/* ITEM-1 (D-1) — the Items row's own header: never draggable, no
+   edit/planned-work controls (neither applies), its own two buttons. */
+.jm-items-row {
+  background: rgba(238, 242, 255, 0.6);
+}
+
+.jm-items-choose-btn,
+.jm-items-remove-btn {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  border: 1px solid rgb(199 210 254);
+  cursor: pointer;
+  white-space: nowrap;
+  background: white;
+  color: rgb(67 56 202);
+  margin-top: 2px;
+}
+
+.jm-items-choose-btn:hover,
+.jm-items-remove-btn:hover {
+  background: rgb(224 231 255);
+}
+
+.jm-items-remove-btn {
+  border-color: rgb(254 202 202);
+  color: rgb(185 28 28);
+}
+
+.jm-items-remove-btn:hover {
+  background: rgb(254 226 226);
+}
+
+.jm-items-summary {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgb(63 63 70);
+}
+
+.jm-items-summary.is-incomplete {
+  color: rgb(161 98 7);
+  background: rgb(254 243 199);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
 /* ── Stage column header ──────────────────────────────────────────────── */
 
 .jm-stage-header {
@@ -246,6 +298,24 @@
 .jm-stage-goal.is-empty {
   font-style: normal;
   color: #f59e0b;
+}
+
+/* EXC-1 (US-EXC-1-01) — "work can leave this journey here" */
+.jm-stage-exception-chip {
+  display: inline-block;
+  align-self: flex-start;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 500;
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 9999px;
+  padding: 0 6px;
+  line-height: 16px;
 }
 
 .jm-stage-edit-btn {

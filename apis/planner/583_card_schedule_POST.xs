@@ -120,6 +120,67 @@ query "card/schedule" verb=POST {
       }
     }
 
+    // EST-1 (US-EST-1-05) — on a map WITH an Items row, every stage's
+    // minutes are overridden to its real estimate (baseline only when
+    // that stage has a missing rate). A map with no Items row keeps
+    // the raw per-cell minutes above untouched.
+    //
+    // EST-1 Opus review fixes (2026-10-25), mirrored from 555/560: a
+    // stage's estimate is only applied when THIS CARD's `lens_key` is
+    // that stage's OWNER — on a two-actor map, the other row's card
+    // at the same stage keeps the raw per-cell minutes already seeded
+    // above, never this stage's combined total (double-counting
+    // otherwise; the old version applied every stage's estimate here
+    // regardless of which row owned it). And a stage also counts as
+    // incomplete when the WHOLE job is incomplete for a reason that
+    // isn't this stage's own (no lines at all), not only when this
+    // stage's own `missing` is non-empty. Reads `$card_estimate.complete`
+    // directly (not through a map), so `== false` is a plain, safe
+    // comparison (unlike 559's job_complete map, which needs `|has`).
+    function.run "estimate/estimate_job" {
+      input = {work_item_id: $input.work_item_id}
+    } as $card_estimate
+
+    conditional {
+      if ($card_estimate.has_items_row == true) {
+        foreach ($card_estimate.stages) {
+          each as $ce {
+            conditional {
+              if ($ce.owner_lens_key == $input.lens_key) {
+                var $ce_incomplete {
+                  value = (($ce.missing|count) > 0)
+                }
+
+                conditional {
+                  if ($ce.scales_with != "per_order" && $card_estimate.complete == false) {
+                    var.update $ce_incomplete {
+                      value = true
+                    }
+                  }
+                }
+
+                var $ce_minutes {
+                  value = $ce.baseline_minutes
+                }
+
+                conditional {
+                  if ($ce_incomplete == false) {
+                    var.update $ce_minutes {
+                      value = $ce.total_minutes
+                    }
+                  }
+                }
+
+                var.update $minutes_by_stage {
+                  value = $minutes_by_stage|set:$ce.stage_key:$ce_minutes
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     // This row's steps, indexed by stage key.
     db.query work_task {
       where = $db.work_task.work_item_id == $input.work_item_id && $db.work_task.lens_key == $input.lens_key

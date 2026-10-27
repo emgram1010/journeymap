@@ -112,6 +112,30 @@ export const TABLE_MANIFEST: Record<string, TableExpectation> = {
   // be unique, because a reorder rewrites several rows and would collide
   // mid-flight. PLN-7's resequence function guarantees the ordering instead.
   planner_task: {enumFields: ['status']},
+
+  // ── CAT-1 (phase-6): item-type / method catalogs ────────────────────
+  // Built 2026-10-24 as local files 135/136; Xano assigns the real ids.
+  item_type: {naturalKeys: [['account_id', 'key']], enumFields: ['unit']},
+  method: {naturalKeys: [['account_id', 'key']]},
+
+  // ── RATE-1 (phase-6): the published rate card ───────────────────────
+  // Written only by publish, never edited, never deleted (history table).
+  stage_rate: {
+    naturalKeys: [['journey_map_version_id', 'stage_key', 'quantity_key', 'method_key']],
+    enumFields: ['source'],
+    appendOnly: true,
+  },
+
+  // ── EST-1 (phase-6): the counts on a job ────────────────────────────
+  work_item_line: {naturalKeys: [['work_item_id', 'item_type_id']]},
+
+  // ── EXC-1 (phase-7): work that left the happy path ──────────────────
+  // One row per spawn, never edited (bar one bool set once), never deleted.
+  work_item_exception: {
+    naturalKeys: [['child_work_item_id']],
+    enumFields: ['link_type', 'reason_code', 'source'],
+    appendOnly: true,
+  },
 };
 
 const FIELD_TYPES = [
@@ -202,12 +226,23 @@ export function parseTableFile(text: string, fileName: string): ParsedTable {
     }
     const indexBody = source.slice(bracketStart + 1, end);
     const entryPattern = /type\s*:\s*"([^"]+)"/g;
-    let em: RegExpExecArray | null;
-    while ((em = entryPattern.exec(indexBody)) !== null) {
+    // ITEM-1 (2026-10-24) — collect every `type:` match's position FIRST,
+    // then slice segments between consecutive matches. The previous
+    // approach re-searched for the bare substring "type" via indexOf to
+    // find each segment's end, which also matches "type" embedded inside
+    // a column name like `item_type_id` — truncating the segment before
+    // its own `name:` value and silently losing that field from the
+    // index. Found live: journey_lens_item's own (journey_lens,
+    // item_type_id) unique index audited as covering only journey_lens,
+    // and a trailing single-column index on item_type_id audited as
+    // covering no fields at all, both because of this substring match.
+    const typeMatches = [...indexBody.matchAll(entryPattern)];
+    for (let i = 0; i < typeMatches.length; i++) {
+      const em = typeMatches[i];
       const type = em[1];
-      // Collect the field names that follow this type, up to the next `type:`.
-      const nextType = indexBody.indexOf('type', em.index + em[0].length);
-      const segment = indexBody.slice(em.index, nextType === -1 ? undefined : nextType);
+      const start = em.index! + em[0].length;
+      const end2 = i + 1 < typeMatches.length ? typeMatches[i + 1].index! : indexBody.length;
+      const segment = indexBody.slice(start, end2);
       const fieldNames = [...segment.matchAll(/name\s*:\s*"([A-Za-z0-9_]+)"/g)].map((fm) => fm[1]);
       indexes.push({type, fields: fieldNames});
     }

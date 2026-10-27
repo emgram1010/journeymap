@@ -33,6 +33,10 @@ export const HISTORY_TABLES: HistoryTable[] = [
     why: "A job reads its instructions from this frozen snapshot. Delete one and live work loses the steps it was given — and finished work can no longer be explained.",
   },
   {
+    table: 'stage_rate',
+    why: "The rate card a version was published with. Estimates for every job pinned to that version read their minutes from here — delete a row and those estimates silently drop a line.",
+  },
+  {
     table: 'plan_publication',
     why: "The frozen copy of a day that was handed to someone. It is what the performer was actually told to do, and what variance is measured against.",
   },
@@ -43,6 +47,10 @@ export const HISTORY_TABLES: HistoryTable[] = [
   {
     table: 'plan_change_log',
     why: 'What a planner changed after a day went live. Deleting it would make a published day look like it was always that way.',
+  },
+  {
+    table: 'work_item_exception',
+    why: "Why part of a job left for a linked map, from which step, and which counts went with it. It is the only link between a child job and the reason it exists — delete a row and Health can no longer say what an orphaned child came from.",
   },
   {
     table: 'event_log',

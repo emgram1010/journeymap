@@ -380,14 +380,167 @@ function "pub/build_map_snapshot" {
       }
     }
 
+    // ── RATE-1 (US-RATE-1-02) — Items row: scaling + rates, schema v2 ──
+    // D-1, DECIDED AGAINST THE DRAFT DEFAULT: schema_version becomes 2 only
+    // when the map HAS an Items row. Bumping every snapshot would make
+    // endpoint 521's stale check (live v2 hash vs. stored v1 hash) report
+    // "unpublished changes" on every map ever published, the moment this
+    // shipped, with nothing changed. A map with no Items row has no rates,
+    // so v1 already says everything true about it.
+    var $schema_version {
+      value = 1
+    }
+
+    var $scaling {
+      value = []
+    }
+
+    var $rates {
+      value = []
+    }
+
+    db.query journey_lens {
+      where = $db.journey_lens.journey_map == $input.journey_map_id && $db.journey_lens.template_key == "items-v1"
+      return = {type: "single"}
+    } as $items_lens
+
+    conditional {
+      if ($items_lens != null) {
+        var.update $schema_version {
+          value = 2
+        }
+
+        db.query journey_cell {
+          where = $db.journey_cell.lens == $items_lens.id
+          return = {type: "list"}
+        } as $items_cell_rows
+
+        // Seed every stage as per_order with no lines, so a stage whose
+        // Items cell is missing still gets a deterministic entry and the
+        // lookup below never sees an absent key (|get with a variable key
+        // ignores its default — CLAUDE.md).
+        var $items_fields_by_stage {
+          value = {}
+        }
+
+        foreach ($stages) {
+          each as $seed_stage {
+            var.update $items_fields_by_stage {
+              value = $items_fields_by_stage|set:$seed_stage.key:{scales_with: "per_order", lines: []}
+            }
+          }
+        }
+
+        foreach ($items_cell_rows) {
+          each as $items_cell_row {
+            var $ic_stage_id_key {
+              value = $items_cell_row.stage|to_text
+            }
+
+            var $ic_stage_key {
+              value = $stage_key_by_id|get:$ic_stage_id_key:null
+            }
+
+            conditional {
+              if ($ic_stage_key != null) {
+                var.update $items_fields_by_stage {
+                  value = $items_fields_by_stage|set:$ic_stage_key:($items_cell_row.actor_fields ?? {scales_with: "per_order", lines: []})
+                }
+              }
+            }
+          }
+        }
+
+        // Stage display order, then quantity_key, then method_key —
+        // content order, never id order (PUB-1's lesson). A SPACE
+        // separates the two sort keys: keys are [a-z0-9-] and trimmed, so
+        // a space sorts below every key character and ("a", "z") comes
+        // before ("a-b", "c"). NOT "\u0000" — confirmed live that it
+        // sorted AFTER "-" (put "item-2" ahead of "item"), so XanoScript
+        // does not turn it into a NUL byte.
+        foreach ($stages) {
+          each as $rate_stage {
+            var $stage_fields {
+              value = $items_fields_by_stage|get:$rate_stage.key:null
+            }
+
+            array.push $scaling {
+              value = {
+                stage_key  : $rate_stage.key
+                scales_with: $stage_fields.scales_with ?? "per_order"
+              }
+            }
+
+            var $stage_lines {
+              value = $stage_fields.lines ?? []
+            }
+
+            var $stage_rates {
+              value = []
+            }
+
+            foreach ($stage_lines) {
+              each as $stage_line {
+                // An EMPTY minutes box is "no rate", not a rate of 0 — it is
+                // omitted here and surfaced by readiness / EST-1. Tested as
+                // text because `0 == null` is true in this engine
+                // (CLAUDE.md), and 0 minutes is a legitimate rate.
+                conditional {
+                  if ((($stage_line.minutes_per_unit ?? "")|to_text) != "") {
+                    array.push $stage_rates {
+                      value = {
+                        sort_key        : ($stage_line.item_key ?? "") ~ " " ~ ($stage_line.method_key ?? "")
+                        stage_key       : $rate_stage.key
+                        quantity_key    : $stage_line.item_key ?? ""
+                        method_key      : $stage_line.method_key ?? ""
+                        minutes_per_unit: ($stage_line.minutes_per_unit|number_format:2:".":"")|to_decimal
+                        source          : "seed"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
+            var $sorted_stage_rates {
+              value = $stage_rates|sort:"sort_key":"text":true
+            }
+
+            foreach ($sorted_stage_rates) {
+              each as $sorted_rate {
+                array.push $rates {
+                  value = {
+                    stage_key       : $sorted_rate.stage_key
+                    quantity_key    : $sorted_rate.quantity_key
+                    method_key      : $sorted_rate.method_key
+                    minutes_per_unit: $sorted_rate.minutes_per_unit
+                    source          : $sorted_rate.source
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     var $snapshot {
       value = {
-        schema_version: 1
+        schema_version: $schema_version
         title         : $map.title ?? ""
         stages        : $stages
         lenses        : $lenses
         cells         : $cells
         links         : $links
+      }
+    }
+
+    // v1 snapshots keep exactly their old shape — no empty new keys.
+    conditional {
+      if ($schema_version == 2) {
+        var.update $snapshot {
+          value = $snapshot|set:"scaling":$scaling|set:"rates":$rates
+        }
       }
     }
   }

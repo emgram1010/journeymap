@@ -390,6 +390,8 @@ export default function PerformToday() {
         onCancelReason={() => setReasonPickerFor(null)}
         onChangeNoteDraft={(text) => setNoteDrafts((d) => ({...d, [workTaskId]: text}))}
         onSaveNote={() => void onSaveNote(workTaskId)}
+        workItemId={view.workItemId}
+        onExceptionSent={() => void refresh()}
       />
     );
   }

@@ -180,7 +180,33 @@ tool get_gaps {
             }
           }
         }
-      
+
+        // ITEM-1 (US-ITEM-1-06, audit finding G-1) — the Items row (a
+        // journey_lens with template_key = "items-v1") is not an actor
+        // row and its cells hold rate data in actor_fields, never prose.
+        // Without this skip, every Items cell (even ones holding real
+        // rates) is counted as a gap and the row gets reported as
+        // most_empty_lens, pointing the AI builder at it to fill with
+        // prose. $l_key_pre/$l_rec_pre are a fresh lookup from $lens_map
+        // (built before this loop started) keyed by the loop item's own
+        // $c.lens, not a var set within this iteration (CLAUDE.md
+        // conditional-on-earlier-var trap does not apply here).
+        var $l_key_pre {
+          value = $c.lens|to_text
+        }
+
+        var $l_rec_pre {
+          value = $lens_map|get:$l_key_pre
+        }
+
+        conditional {
+          if ($l_rec_pre.template_key == "items-v1") {
+            var.update $include {
+              value = false
+            }
+          }
+        }
+
         conditional {
           if ($include) {
             var $s_key {

@@ -21,6 +21,26 @@ function "pub/evaluate_readiness" {
     json snapshot {
       description = "From pub/build_map_snapshot."
     }
+
+    // ITEM-1 (US-ITEM-1-05) — additive. build_map_snapshot deliberately
+    // never includes Items cells (ITEM-0 audit: cell_count stays 8->8
+    // when the Items row is added), so this data has to come from the
+    // caller separately, not from $input.snapshot. Omitted entirely =
+    // old behaviour, unchanged (ITEM-0's own FT-ITEM-0-02 stays green).
+    // One entry per per_unit/per_flagged_unit cell that is empty or has
+    // a line missing minutes_per_unit: {stage_key, item_keys: [...]}.
+    json items_cells? {
+      description = "Optional. Per-stage incomplete-rate warnings for the Items row, computed by the caller."
+    }
+
+    // EXC-1 (US-EXC-1-01) — additive. One entry per `exception` link,
+    // from exceptions/exception_targets: {stage_key, stage_label,
+    // lens_key, target_map_id, target_title, published, has_items_row,
+    // same_architecture}. Omitted = old behaviour, unchanged. Produces
+    // WARNINGS only; `ready` never changes. Twin:
+    // readiness.ts::exceptionLinkWarnings, golden file
+    // src/fixtures/exception-readiness-golden.json.
+    json exception_targets?
   }
 
   stack {
@@ -30,6 +50,110 @@ function "pub/evaluate_readiness" {
 
     var $warnings {
       value = []
+    }
+
+    var $items_cells_list {
+      value = ($input.items_cells ?? [])
+    }
+
+    foreach ($items_cells_list) {
+      each as $ic {
+        array.push $warnings {
+          value = {
+            code     : "items_cell_incomplete"
+            stage_key: ($ic.stage_key ?? null)
+            lens_key : "items"
+            message  : "This stage has no complete rate for one or more items yet."
+            item_keys: ($ic.item_keys ?? [])
+          }
+        }
+      }
+    }
+
+    // ── EXC-1 — exception links: warn, never block ─────────────────────
+    // Two passes: the first marks repeats of the same (stage, target) as a
+    // FIELD, unconditionally; the second branches only on fields of its
+    // loop item (CLAUDE.md: never on a var updated in the same iteration).
+    var $source_has_items_row {
+      value = (($input.snapshot.schema_version ?? 1) >= 2)
+    }
+
+    var $exc_seen {
+      value = {}
+    }
+
+    var $exc_rows {
+      value = []
+    }
+
+    foreach ($input.exception_targets ?? []) {
+      each as $et {
+        var $et_target_text {
+          value = ($et.target_map_id ?? 0)|to_text
+        }
+
+        var $et_key {
+          value = ($et.stage_key ?? "") ~ "::" ~ $et_target_text
+        }
+
+        var $et_dup {
+          value = (($exc_seen|get:$et_key:null) != null)
+        }
+
+        var.update $exc_seen {
+          value = $exc_seen|set:$et_key:true
+        }
+
+        array.push $exc_rows {
+          value = $et|set:"dup":$et_dup
+        }
+      }
+    }
+
+    foreach ($exc_rows) {
+      each as $er {
+        conditional {
+          if ($er.dup == false && $er.published == false) {
+            array.push $warnings {
+              value = {
+                code         : "exception_map_unpublished"
+                stage_key    : $er.stage_key
+                lens_key     : $er.lens_key
+                target_map_id: $er.target_map_id
+                message      : $er.stage_label ~ " sends work to " ~ $er.target_title ~ ", which has never been published. Performers won't be able to send work there until it is."
+              }
+            }
+          }
+        }
+
+        conditional {
+          if ($er.dup == false && $source_has_items_row == true && $er.has_items_row == false) {
+            array.push $warnings {
+              value = {
+                code         : "exception_map_has_no_items_row"
+                stage_key    : $er.stage_key
+                lens_key     : $er.lens_key
+                target_map_id: $er.target_map_id
+                message      : "Items sent from " ~ $er.stage_label ~ " to " ~ $er.target_title ~ " won't have an estimate there — " ~ $er.target_title ~ " has no Items row."
+              }
+            }
+          }
+        }
+
+        conditional {
+          if ($er.dup == false && $er.same_architecture == false) {
+            array.push $warnings {
+              value = {
+                code         : "exception_map_other_architecture"
+                stage_key    : $er.stage_key
+                lens_key     : $er.lens_key
+                target_map_id: $er.target_map_id
+                message      : $er.stage_label ~ " links to a map in a different architecture; keep exception maps in the same architecture."
+              }
+            }
+          }
+        }
+      }
     }
 
     var $title {

@@ -67,6 +67,14 @@ query "journey_stage/update/{journey_stage_id}" verb=PATCH {
           error = "Pick an owner from this map's rows. (E-STAGE-001)"
         }
 
+        // ITEM-1 (US-ITEM-1-06, audit finding O-1) — resolve_stage_owner
+        // and this lookup are pure, unfiltered by row kind on purpose; the
+        // ban on the Items row owning a stage belongs at the write path.
+        precondition ($owner_lens_lookup.template_key != "items-v1") {
+          error_type = "inputerror"
+          error = "The Items row can't own a stage — pick a person or team row. (E-ITM-007)"
+        }
+
         var.update $owner_lens {
           value = $owner_lens_lookup
         }

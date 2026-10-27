@@ -1,0 +1,85 @@
+{
+  "_comment": "RATE-1 (US-RATE-1-03) — schema v2 golden. Pinned on BOTH sides: versionHash.test.ts and functions/pub/canonical_hash.xs (verified live via runWorkspaceFunction). Changing any byte here invalidates every stored v2 content_hash.",
+  "snapshot": {
+    "schema_version": 2,
+    "title": "Item turnaround",
+    "stages": [
+      {
+        "key": "s1",
+        "label": "Receive",
+        "owner_lens_key": "lens-1"
+      },
+      {
+        "key": "s2",
+        "label": "Clean",
+        "owner_lens_key": "lens-1"
+      }
+    ],
+    "lenses": [
+      {
+        "key": "lens-1",
+        "label": "Crew",
+        "actor_type": "internal",
+        "does_planned_work": true
+      },
+      {
+        "key": "items",
+        "label": "Items",
+        "actor_type": "",
+        "does_planned_work": false
+      }
+    ],
+    "cells": [
+      {
+        "stage_key": "s1",
+        "lens_key": "lens-1",
+        "task": "Count the load",
+        "done_when": "Count logged",
+        "duration_minutes": 10
+      },
+      {
+        "stage_key": "s2",
+        "lens_key": "lens-1",
+        "task": "Wash",
+        "done_when": null,
+        "duration_minutes": 30
+      }
+    ],
+    "links": [],
+    "scaling": [
+      {
+        "stage_key": "s1",
+        "scales_with": "per_order"
+      },
+      {
+        "stage_key": "s2",
+        "scales_with": "per_unit"
+      }
+    ],
+    "rates": [
+      {
+        "stage_key": "s2",
+        "quantity_key": "chair-resin",
+        "method_key": "hand-wash",
+        "minutes_per_unit": 2.5,
+        "source": "seed"
+      },
+      {
+        "stage_key": "s2",
+        "quantity_key": "chair-resin",
+        "method_key": "pressure-wash",
+        "minutes_per_unit": 0.5,
+        "source": "seed"
+      },
+      {
+        "stage_key": "s2",
+        "quantity_key": "table-6ft",
+        "method_key": "hand-wash",
+        "minutes_per_unit": 12.25,
+        "source": "seed"
+      }
+    ]
+  },
+  "expected_canonical": "v2\ntitle|Item turnaround\nstage|s1|Receive|lens-1\nstage|s2|Clean|lens-1\nlens|lens-1|Crew|internal|1\nlens|items|Items||0\ncell|s1|lens-1|Count the load|Count logged|10\ncell|s2|lens-1|Wash||30\nscale|s1|per_order\nscale|s2|per_unit\nrate|s2|chair-resin|hand-wash|2.50|seed\nrate|s2|chair-resin|pressure-wash|0.50|seed\nrate|s2|table-6ft|hand-wash|12.25|seed\n",
+  "expected_hash": "5ecc3e7eef1b1155ecb9659f01dff21cf5e253e14c5a0e19bc0498b632741c54"
+}

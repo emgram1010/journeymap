@@ -145,3 +145,82 @@ export function computeMapReadiness(
 
   return {ready, readyCount, total, perStage, mapReasons};
 }
+
+// ── EXC-1 (US-EXC-1-01) — exception links: warn, never block ─────────────
+//
+// A stage's `exception` link says "work leaves this journey here and
+// continues on that map". Readiness warns when that handoff could not
+// actually happen yet, so the first real exception is not the moment the
+// author finds out. These are WARNINGS: `ready` never changes.
+//
+// The inputs need database facts (is the target published? does it have an
+// Items row? same architecture?), so the caller resolves them first — the
+// backend's `exceptions/exception_targets`, mirrored here by whatever builds
+// `targets` — and both sides run the same pure rule. Golden cases:
+// `src/fixtures/exception-readiness-golden.json` (FT-EXC-1-16 runs the
+// backend over the same file). `sub_journey` links are never passed in: a
+// method's how-to is not a handoff (D-6).
+//
+// One warning per (stage, target), however many rows of that stage carry
+// the link; checks in a fixed order: unpublished, items, architecture.
+export type ExceptionWarningCode =
+  | 'exception_map_unpublished'
+  | 'exception_map_has_no_items_row'
+  | 'exception_map_other_architecture';
+
+export interface ExceptionTargetInput {
+  stage_key: string;
+  stage_label: string;
+  lens_key: string;
+  target_map_id: number;
+  target_title: string;
+  published: boolean;
+  has_items_row: boolean;
+  same_architecture: boolean;
+}
+
+export interface ExceptionWarning {
+  code: ExceptionWarningCode;
+  stage_key: string;
+  lens_key: string;
+  target_map_id: number;
+  message: string;
+}
+
+export function exceptionLinkWarnings(
+  sourceHasItemsRow: boolean,
+  targets: readonly ExceptionTargetInput[],
+): ExceptionWarning[] {
+  const out: ExceptionWarning[] = [];
+  const seen = new Set<string>();
+  for (const t of targets) {
+    const key = `${t.stage_key}::${t.target_map_id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const base = {stage_key: t.stage_key, lens_key: t.lens_key, target_map_id: t.target_map_id};
+    const stage = t.stage_label;
+    const target = t.target_title;
+    if (!t.published) {
+      out.push({
+        ...base,
+        code: 'exception_map_unpublished',
+        message: `${stage} sends work to ${target}, which has never been published. Performers won't be able to send work there until it is.`,
+      });
+    }
+    if (sourceHasItemsRow && !t.has_items_row) {
+      out.push({
+        ...base,
+        code: 'exception_map_has_no_items_row',
+        message: `Items sent from ${stage} to ${target} won't have an estimate there — ${target} has no Items row.`,
+      });
+    }
+    if (!t.same_architecture) {
+      out.push({
+        ...base,
+        code: 'exception_map_other_architecture',
+        message: `${stage} links to a map in a different architecture; keep exception maps in the same architecture.`,
+      });
+    }
+  }
+  return out;
+}

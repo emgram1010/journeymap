@@ -1,0 +1,222 @@
+{
+  "_comment": "EST-1 (US-EST-1-04) — golden cases for estimate_job, run identically by estimateJob.test.ts and workflow_tests/32_estimate.xs (FT-EST-1-01). The epic's own sample JSON uses illustrative numbers ('133', a 'mixed' source) that are not independently pinned anywhere else in the PRD; this fixture was built by hand from the stated rules (PRD §6.2) so every number here is a real, checked hand calculation, not a copy of the epic's example. Where the numbers happen to coincide with the epic's s8 sample (baseline 10, variable 52, total 62) that is by design, not coincidence — see simpleOrder below.",
+
+  "simpleOrder": {
+    "_comment": "UT-EST-1-01 and UT-EST-1-08. 8 stages, one actor row (lens-1) owning every stage. s2 is per_unit with a 19.5-minute stage sum (UT-EST-1-08's rounding case); s8 reproduces the epic's own worked example exactly: baseline 10 + (20x2.0 + 3x4.0) = 10+52 = 62.",
+    "snapshot": {
+      "schema_version": 2,
+      "stages": [
+        {"key": "s1", "owner_lens_key": "lens-1"},
+        {"key": "s2", "owner_lens_key": "lens-1"},
+        {"key": "s3", "owner_lens_key": "lens-1"},
+        {"key": "s4", "owner_lens_key": "lens-1"},
+        {"key": "s5", "owner_lens_key": "lens-1"},
+        {"key": "s6", "owner_lens_key": "lens-1"},
+        {"key": "s7", "owner_lens_key": "lens-1"},
+        {"key": "s8", "owner_lens_key": "lens-1"}
+      ],
+      "cells": [
+        {"stage_key": "s1", "lens_key": "lens-1", "duration_minutes": 15},
+        {"stage_key": "s2", "lens_key": "lens-1", "duration_minutes": 5},
+        {"stage_key": "s3", "lens_key": "lens-1", "duration_minutes": 10},
+        {"stage_key": "s4", "lens_key": "lens-1", "duration_minutes": 8},
+        {"stage_key": "s5", "lens_key": "lens-1", "duration_minutes": 12},
+        {"stage_key": "s6", "lens_key": "lens-1", "duration_minutes": 6},
+        {"stage_key": "s8", "lens_key": "lens-1", "duration_minutes": 10}
+      ],
+      "scaling": [
+        {"stage_key": "s1", "scales_with": "per_order"},
+        {"stage_key": "s2", "scales_with": "per_unit"},
+        {"stage_key": "s3", "scales_with": "per_order"},
+        {"stage_key": "s4", "scales_with": "per_order"},
+        {"stage_key": "s5", "scales_with": "per_order"},
+        {"stage_key": "s6", "scales_with": "per_order"},
+        {"stage_key": "s7", "scales_with": "per_order"},
+        {"stage_key": "s8", "scales_with": "per_unit"}
+      ],
+      "rates": [
+        {"stage_key": "s2", "quantity_key": "chair-resin", "method_key": "basic", "minutes_per_unit": 0.5, "source": "seed"},
+        {"stage_key": "s2", "quantity_key": "table-6ft", "method_key": "basic", "minutes_per_unit": 1.5, "source": "seed"},
+        {"stage_key": "s8", "quantity_key": "chair-resin", "method_key": "hard-goods", "minutes_per_unit": 2.0, "source": "seed"},
+        {"stage_key": "s8", "quantity_key": "table-6ft", "method_key": "hard-goods", "minutes_per_unit": 4.0, "source": "seed"}
+      ]
+    },
+    "lines": [
+      {"quantity_key": "chair-resin", "quantity": 20, "flagged_quantity": 0},
+      {"quantity_key": "table-6ft", "quantity": 3, "flagged_quantity": 0}
+    ],
+    "expected": {
+      "has_items_row": true,
+      "complete": true,
+      "total_minutes": 133,
+      "reasons": [],
+      "missing": [],
+      "stage_totals": {"s1": 15, "s2": 20, "s3": 10, "s4": 8, "s5": 12, "s6": 6, "s7": 0, "s8": 62},
+      "s2": {"baseline_minutes": 5, "variable_minutes": 15, "total_minutes": 20},
+      "s8": {"baseline_minutes": 10, "variable_minutes": 52, "total_minutes": 62, "by_method": [{"method_key": "hard-goods", "minutes": 52}], "source": "seed"},
+      "s7_no_cell_baseline": 0
+    }
+  },
+
+  "twoOrders": {
+    "_comment": "UT-EST-1-02 — same map (s8 only), two different orders, same rates as simpleOrder.",
+    "snapshot": {
+      "schema_version": 2,
+      "stages": [{"key": "s8", "owner_lens_key": "lens-1"}],
+      "cells": [{"stage_key": "s8", "lens_key": "lens-1", "duration_minutes": 10}],
+      "scaling": [{"stage_key": "s8", "scales_with": "per_unit"}],
+      "rates": [
+        {"stage_key": "s8", "quantity_key": "chair-resin", "method_key": "hard-goods", "minutes_per_unit": 2.0, "source": "seed"},
+        {"stage_key": "s8", "quantity_key": "table-6ft", "method_key": "hard-goods", "minutes_per_unit": 4.0, "source": "seed"}
+      ]
+    },
+    "orderA": {
+      "lines": [{"quantity_key": "chair-resin", "quantity": 12, "flagged_quantity": 0}],
+      "expected_s8_total": 34
+    },
+    "orderB": {
+      "lines": [
+        {"quantity_key": "chair-resin", "quantity": 20, "flagged_quantity": 0},
+        {"quantity_key": "table-6ft", "quantity": 8, "flagged_quantity": 0}
+      ],
+      "expected_s8_total": 82
+    }
+  },
+
+  "twoMethods": {
+    "_comment": "UT-EST-1-03 — PRD §6.3's cushioned chair: frame (hard-goods, 2.0) + cushion (textiles, 6.0) = 8.0 for one chair.",
+    "snapshot": {
+      "schema_version": 2,
+      "stages": [{"key": "s8", "owner_lens_key": null}],
+      "cells": [],
+      "scaling": [{"stage_key": "s8", "scales_with": "per_unit"}],
+      "rates": [
+        {"stage_key": "s8", "quantity_key": "cushioned-chair", "method_key": "hard-goods", "minutes_per_unit": 2.0, "source": "seed"},
+        {"stage_key": "s8", "quantity_key": "cushioned-chair", "method_key": "textiles", "minutes_per_unit": 6.0, "source": "seed"}
+      ]
+    },
+    "lines": [{"quantity_key": "cushioned-chair", "quantity": 1, "flagged_quantity": 0}],
+    "expected": {
+      "s8_total_minutes": 8,
+      "s8_variable_minutes": 8,
+      "by_method": [
+        {"method_key": "hard-goods", "minutes": 2},
+        {"method_key": "textiles", "minutes": 6}
+      ]
+    }
+  },
+
+  "missingRate": {
+    "_comment": "UT-EST-1-04 — a line with no matching rate at a per-unit stage.",
+    "snapshot": {
+      "schema_version": 2,
+      "stages": [{"key": "s2", "owner_lens_key": "lens-1"}],
+      "cells": [{"stage_key": "s2", "lens_key": "lens-1", "duration_minutes": 5}],
+      "scaling": [{"stage_key": "s2", "scales_with": "per_unit"}],
+      "rates": [{"stage_key": "s2", "quantity_key": "chair-resin", "method_key": "basic", "minutes_per_unit": 0.5, "source": "seed"}]
+    },
+    "lines": [{"quantity_key": "ghost-item", "quantity": 2, "flagged_quantity": 0}],
+    "expected": {
+      "complete": false,
+      "s2_total_minutes": 5,
+      "missing": [{"stage_key": "s2", "quantity_key": "ghost-item"}]
+    }
+  },
+
+  "noLines": {
+    "_comment": "UT-EST-1-05 — an Items-row map, zero lines on the job.",
+    "snapshot": {
+      "schema_version": 2,
+      "stages": [{"key": "s2", "owner_lens_key": "lens-1"}],
+      "cells": [{"stage_key": "s2", "lens_key": "lens-1", "duration_minutes": 5}],
+      "scaling": [{"stage_key": "s2", "scales_with": "per_unit"}],
+      "rates": [{"stage_key": "s2", "quantity_key": "chair-resin", "method_key": "basic", "minutes_per_unit": 0.5, "source": "seed"}]
+    },
+    "lines": [],
+    "expected": {
+      "complete": false,
+      "reasons": ["no_lines"],
+      "missing": [],
+      "s2_total_minutes": 5
+    }
+  },
+
+  "noItemsRow": {
+    "_comment": "UT-EST-1-06 — a v1 snapshot (no Items row). Every stage is per_order, lines (if any) are ignored.",
+    "snapshot": {
+      "schema_version": 1,
+      "stages": [{"key": "s1", "owner_lens_key": "lens-1"}],
+      "cells": [{"stage_key": "s1", "lens_key": "lens-1", "duration_minutes": 15}]
+    },
+    "lines": [{"quantity_key": "chair-resin", "quantity": 999, "flagged_quantity": 0}],
+    "expected": {
+      "has_items_row": false,
+      "complete": true,
+      "total_minutes": 15
+    }
+  },
+
+  "perFlagged": {
+    "_comment": "UT-EST-1-07 — per_flagged_unit: 0 flagged contributes 0 and is not missing (D-IR-16); 3 flagged contributes 3x the rate.",
+    "snapshot": {
+      "schema_version": 2,
+      "stages": [{"key": "s3", "owner_lens_key": null}],
+      "cells": [],
+      "scaling": [{"stage_key": "s3", "scales_with": "per_flagged_unit"}],
+      "rates": [{"stage_key": "s3", "quantity_key": "flaggable-item", "method_key": "x", "minutes_per_unit": 2.0, "source": "seed"}]
+    },
+    "zeroFlagged": {
+      "lines": [{"quantity_key": "flaggable-item", "quantity": 5, "flagged_quantity": 0}],
+      "expected": {"s3_total_minutes": 0, "missing": [], "complete": true}
+    },
+    "threeFlagged": {
+      "lines": [{"quantity_key": "flaggable-item", "quantity": 5, "flagged_quantity": 3}],
+      "expected": {"s3_total_minutes": 6, "missing": [], "complete": true}
+    },
+    "zeroFlaggedNoRate": {
+      "_comment": "D-IR-16 also covers an item with NO rate at all, while flagged_quantity is 0 — still not missing.",
+      "lines": [{"quantity_key": "no-rate-item", "quantity": 5, "flagged_quantity": 0}],
+      "expected": {"s3_total_minutes": 0, "missing": [], "complete": true}
+    }
+  },
+
+  "source": {
+    "_comment": "UT-EST-1-09 — measured / seed / n/a.",
+    "allMeasured": {
+      "snapshot": {
+        "schema_version": 2,
+        "stages": [{"key": "s1", "owner_lens_key": null}],
+        "cells": [],
+        "scaling": [{"stage_key": "s1", "scales_with": "per_unit"}],
+        "rates": [{"stage_key": "s1", "quantity_key": "chair-resin", "method_key": "basic", "minutes_per_unit": 1.0, "source": "measured"}]
+      },
+      "lines": [{"quantity_key": "chair-resin", "quantity": 1, "flagged_quantity": 0}],
+      "expected_source": "measured"
+    },
+    "oneSeed": {
+      "snapshot": {
+        "schema_version": 2,
+        "stages": [{"key": "s1", "owner_lens_key": null}],
+        "cells": [],
+        "scaling": [{"stage_key": "s1", "scales_with": "per_unit"}],
+        "rates": [
+          {"stage_key": "s1", "quantity_key": "chair-resin", "method_key": "hard-goods", "minutes_per_unit": 1.0, "source": "measured"},
+          {"stage_key": "s1", "quantity_key": "chair-resin", "method_key": "textiles", "minutes_per_unit": 1.0, "source": "seed"}
+        ]
+      },
+      "lines": [{"quantity_key": "chair-resin", "quantity": 1, "flagged_quantity": 0}],
+      "expected_source": "seed"
+    },
+    "none": {
+      "snapshot": {
+        "schema_version": 2,
+        "stages": [{"key": "s1", "owner_lens_key": null}],
+        "cells": [],
+        "scaling": [{"stage_key": "s1", "scales_with": "per_order"}],
+        "rates": []
+      },
+      "lines": [],
+      "expected_source": "n/a"
+    }
+  }
+}

@@ -17,11 +17,26 @@ function "pub/evaluate_gate" {
     json snapshot {
       description = "From pub/build_map_snapshot."
     }
+
+    // ITEM-1 (US-ITEM-1-05) — additive passthrough to evaluate_readiness.
+    json items_cells? {
+      description = "Optional. See pub/evaluate_readiness's own input for the shape."
+    }
+
+    // RATE-1 (US-RATE-1-04) — the map's account, for the inactive-item
+    // rule. 0 (omitted) skips that rule, so older callers are unchanged.
+    int account_id? {
+      description = "Optional. The map's account_id; enables the E-RATE-001 inactive-item check."
+    }
+
+    // EXC-1 (US-EXC-1-01) — optional passthrough to evaluate_readiness
+    // (from exceptions/exception_targets). Warnings only; never a gate failure.
+    json exception_targets?
   }
 
   stack {
     function.run "pub/evaluate_readiness" {
-      input = {snapshot: $input.snapshot}
+      input = {snapshot: $input.snapshot, items_cells: $input.items_cells, exception_targets: $input.exception_targets}
     } as $readiness
 
     var $gate_failures {
@@ -48,6 +63,52 @@ function "pub/evaluate_gate" {
             stage_key: null
             lens_key : null
             message  : "Give this map a real name before publishing it."
+          }
+        }
+      }
+    }
+
+    // RATE-1 (US-RATE-1-04, PRD EC-3) — a NEW version may not pin a rate
+    // for an item that has since been deactivated. Old versions keep
+    // theirs. Checks snapshot.rates (what would actually be frozen); a
+    // line with an empty minutes box pins nothing and stays ITEM-1's
+    // warning. One query with `in`, no conditional inside a loop.
+    var $rate_item_keys {
+      value = ["__none__"]
+    }
+
+    var $gate_rates {
+      value = $input.snapshot.rates ?? []
+    }
+
+    foreach ($gate_rates) {
+      each as $gate_rate {
+        array.push $rate_item_keys {
+          value = $gate_rate.quantity_key
+        }
+      }
+    }
+
+    conditional {
+      if ($input.account_id != 0 && ($gate_rates|count) > 0) {
+        db.query item_type {
+          where = $db.item_type.account_id == $input.account_id && $db.item_type.key in $rate_item_keys && $db.item_type.is_active == false
+          sort = {key: "asc"}
+          return = {type: "list"}
+        } as $inactive_items
+
+        foreach ($inactive_items) {
+          each as $inactive_item {
+            array.push $gate_failures {
+              value = {
+                code      : "INACTIVE_ITEM"
+                error_code: "E-RATE-001"
+                stage_key : null
+                lens_key  : null
+                item_key  : $inactive_item.key
+                message   : "An item on this map was deactivated: " ~ ($inactive_item.label ?? $inactive_item.key) ~ ". Remove its line or reactivate it, then publish."
+              }
+            }
           }
         }
       }

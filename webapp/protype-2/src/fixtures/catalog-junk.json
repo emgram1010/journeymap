@@ -1,0 +1,35 @@
+{
+  "_comment": "CAT-1 (US-CAT-1-05) — junk corpus for the item-type/method catalog validators. Shared by catalogValidation.test.ts (frontend) and workflow_tests/29_catalog.xs (backend, driven live via runWorkspaceFunction per CLAUDE.md).",
+  "keys": [
+    {"value": "chair resin", "expectValid": false, "why": "space, not a hyphen"},
+    {"value": "Chair-Resin", "expectValid": true, "why": "uppercase is fine, stored() lowercases it first"},
+    {"value": "café-chair", "expectValid": false, "why": "unicode combining accent, not [a-z0-9-]"},
+    {"value": "a", "expectValid": false, "why": "1 char, below the 2 minimum"},
+    {"value": "ab", "expectValid": true, "why": "2 chars, the minimum"},
+    {"value": "a1234567890123456789012345678901234567890", "expectValid": false, "why": "41 chars, over the 40 maximum"},
+    {"value": "a123456789012345678901234567890123456789", "expectValid": true, "why": "40 chars, the maximum"},
+    {"value": "-chair-resin", "expectValid": false, "why": "leading hyphen, must start alphanumeric"},
+    {"value": "chair-resin-", "expectValid": true, "why": "trailing hyphen is allowed by the pattern (only the START is constrained)"},
+    {"value": "chair'; drop table item_type;--", "expectValid": false, "why": "sql-ish text, spaces/quotes/semicolons not [a-z0-9-]"},
+    {"value": "<script>alert(1)</script>", "expectValid": false, "why": "html, angle brackets not [a-z0-9-]"},
+    {"value": "", "expectValid": false, "why": "empty, below the 2 minimum"},
+    {"value": "   ", "expectValid": false, "why": "whitespace only, trims to empty"}
+  ],
+  "labels": [
+    {"value": "", "expectValid": false, "why": "empty"},
+    {"value": "   ", "expectValid": false, "why": "whitespace only, trims to empty"},
+    {"value": "6-ft Banquet Table", "expectValid": true, "why": "ordinary label"},
+    {"value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "expectValid": false, "why": "81 chars, over the 80 maximum"},
+    {"value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "expectValid": true, "why": "80 chars, the maximum"},
+    {"value": "<script>alert(1)</script>", "expectValid": false, "why": "html tag"},
+    {"value": "Backyard chair <b>(cushioned)</b>", "expectValid": false, "why": "html tag embedded mid-label"}
+  ],
+  "units": [
+    {"value": "each", "expectValid": true},
+    {"value": "set", "expectValid": true},
+    {"value": "pair", "expectValid": true},
+    {"value": "box", "expectValid": false, "why": "not one of each/set/pair"},
+    {"value": "", "expectValid": false, "why": "omitted optional enum arrives as empty string, never null, per CLAUDE.md -- must still be rejected, not silently defaulted"},
+    {"value": null, "expectValid": false, "why": "explicit null, should never reach storage as a real unit"}
+  ]
+}

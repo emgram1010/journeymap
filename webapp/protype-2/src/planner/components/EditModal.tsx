@@ -227,7 +227,22 @@ export function EditModal({
     if (field === 'color') setAgentColor(value);
     if (field === 'capacity') setAgentCapacity(Number(value) || 8);
     if (field === 'modelId') setAgentModelId(value);
-    if (field === 'userId') setAgentUserId(value);
+    if (field === 'userId') {
+      setAgentUserId(value);
+      // Picking the person names the agent. Before this, adding a colleague
+      // to a plan meant choosing them from this dropdown AND separately
+      // inventing a name for them — two steps for one fact, and the invented
+      // name is what the whole plan then showed instead of the person.
+      //
+      // Only fills a name the admin has not written themselves: an empty box,
+      // or one still holding the previously picked person's name. Anything
+      // typed by hand ("Tony — nights") survives the switch, because a plan
+      // that needs the same person twice needs to tell them apart.
+      const picked = teamMembers.find((m) => String(m.id) === String(value));
+      const previous = teamMembers.find((m) => String(m.id) === String(agentUserId));
+      const nameIsOurs = agentName.trim() === '' || (previous != null && agentName.trim() === previous.name.trim());
+      if (picked && nameIsOurs) setAgentName(picked.name);
+    }
   };
 
   // Track changes for Task
@@ -307,8 +322,37 @@ export function EditModal({
     const newErrors: Record<string, string> = {};
 
     if (entity.type === 'agent') {
-      if (!agentName.trim()) {
+      // A PERSON IS IDENTIFIED BY WHO THEY ARE, NOT BY A NAME SOMEBODY TYPES.
+      // Writing "Tony" in a box and then separately choosing Tony from a list
+      // is two statements of one fact, and the typed one is what the plan
+      // then displays — so a typo silently renames a colleague for everyone.
+      // The person picker is the required field now; the name comes from the
+      // user record. An AI agent still needs a typed name: there is no user
+      // record to take one from.
+      const pickedMember = teamMembers.find((m) => String(m.id) === String(agentUserId));
+      const resolvedName = agentKind === 'person'
+        ? (pickedMember?.name?.trim() || agentName.trim())
+        : agentName.trim();
+
+      // 🔴 REQUIRED WHEN CREATING, NOT WHEN EDITING. 13 of the 20
+      // person-agents that exist today have no login behind them (counted
+      // live, 2026-10-22) and they sit in real plans. Requiring a pick on
+      // every save would refuse an ordinary edit to any of them — a rename,
+      // a capacity change — until somebody is linked, which is the exact
+      // failure USR-3 is written to avoid: enforce on what is being SET, not
+      // on the row being touched. A new row has nothing to break.
+      const isNewAgent = entity.isNew || !entity.agent?.name;
+      if (agentKind === 'person' && !pickedMember && isNewAgent) {
+        newErrors.userId = 'Choose who does this work.';
+      }
+      if (agentKind === 'ai' && !agentName.trim()) {
         newErrors.name = 'Agent name is required.';
+      }
+      // A person whose user record has a blank name would otherwise save an
+      // empty agent name, which the backend requires and which would read as
+      // a nameless row on the board.
+      if (agentKind === 'person' && pickedMember && resolvedName === '') {
+        newErrors.userId = 'That person has no name on their account yet. Fix it on Manage users first.';
       }
       if (Object.keys(newErrors).length > 0) {
         setErrors(newErrors);
@@ -316,7 +360,7 @@ export function EditModal({
       }
       setIsSaving(true);
       const result = await onSaveAgent?.(entity.agent?.id || null, {
-        name: agentName.trim(),
+        name: resolvedName,
         kind: agentKind,
         color: agentColor,
         dailyCapacityHours: agentCapacity,
@@ -588,7 +632,13 @@ export function EditModal({
           {/* Header */}
           <div className="h-14 px-6 border-b border-neutral-200 flex items-center justify-between bg-neutral-50 shrink-0">
             <h2 className="text-sm font-bold text-neutral-900">
-              {entity.isNew ? 'Add Agent to Roster' : `Edit Agent — ${entity.agent?.name}`}
+              {/* `entity.agent?.name` is undefined for a row that does not
+                  exist yet, and the header read "Edit Agent — undefined" on
+                  screen. Fall back on the name rather than on the flag, so it
+                  is right whether or not `isNew` was set. */}
+              {entity.isNew || !entity.agent?.name
+                ? 'Add Agent to Roster'
+                : `Edit Agent — ${entity.agent.name}`}
             </h2>
             <button
               type="button"
@@ -601,7 +651,15 @@ export function EditModal({
 
           {/* Form */}
           <div className="p-6 flex flex-col gap-4">
-            {/* Name */}
+            {/* NAME — AI AGENTS ONLY.
+                A person's name comes from their user record, because that is
+                where it already lives and where Manage users keeps it
+                correct. Typing "Tony" and then picking Tony from a list below
+                is the same fact twice, and the typed copy is the one the
+                board shows — so it can drift from the person it names, with
+                nothing to notice. An AI agent has no user record, so it still
+                names itself here. */}
+            {agentKind === 'ai' && (
             <div>
               <label className="block text-xs font-semibold text-neutral-700 mb-1">
                 Agent Name <span className="text-red-500">*</span>
@@ -620,6 +678,7 @@ export function EditModal({
                 <p className="text-[11px] text-red-600 mt-1">{errors.name}</p>
               )}
             </div>
+            )}
 
             {/* Kind (Person vs AI) */}
             <div>
@@ -663,7 +722,7 @@ export function EditModal({
             {agentKind === 'person' && (
               <div>
                 <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                  Who does this work?
+                  Who does this work? <span className="text-red-500">*</span>
                 </label>
                 {teamError ? (
                   <p className="text-[11px] text-amber-700">
@@ -676,7 +735,7 @@ export function EditModal({
                     onChange={(e) => handleAgentFieldChange('userId', e.target.value)}
                     className="w-full text-xs px-3 py-2 border border-neutral-200 rounded-md focus:outline-none focus:border-neutral-900 bg-white"
                   >
-                    <option value="">Nobody yet — this work won't appear in Execution</option>
+                    <option value="">Choose someone…</option>
                     {teamMembers.map((m) => (
                       <option key={m.id} value={String(m.id)}>
                         {m.name} ({m.email})
@@ -684,10 +743,19 @@ export function EditModal({
                     ))}
                   </select>
                 )}
-                {!teamError && agentUserId === '' && (
+                {errors.userId && (
+                  <p className="text-[11px] text-red-600 mt-1">{errors.userId}</p>
+                )}
+                {/* Still a warning and not a blocked save when the list is
+                    unreachable — planning ahead of a hire is legitimate.
+                    What changed is that an EMPTY pick is now an error rather
+                    than a shrug: a person-agent with nobody behind it reaches
+                    nobody in Execution, which is the failure this whole
+                    screen exists to prevent. */}
+                {!teamError && agentUserId === '' && !errors.userId && (
                   <p id="agent-no-login-warning" className="text-[11px] text-amber-700 mt-1 flex items-start gap-1">
                     <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
-                    Nobody will see this agent's work in Execution until a login is linked.
+                    Their name and their day in Execution both come from this.
                   </p>
                 )}
               </div>

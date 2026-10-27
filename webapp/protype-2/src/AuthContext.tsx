@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { loginUser, signupUser, getAuthMe, XanoHttpError, type XanoUser } from './xano';
+import { resetModuleGrantsCache } from './team/moduleGrantsCache';
 
 interface AuthState {
   user: XanoUser | null;
@@ -75,6 +76,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('userId');
+    // USR-2: module grants are cached per user id for the life of the tab, so
+    // one page load does not fetch them five times. Signing out has to drop
+    // that cache, or signing back in serves whatever was true before — which
+    // matters most in the case somebody signs out BECAUSE their access
+    // changed.
+    resetModuleGrantsCache();
     setState({ user: null, token: null, isLoading: false });
   }, []);
 

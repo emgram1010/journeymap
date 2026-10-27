@@ -100,11 +100,80 @@ query "journey_map/{journey_map_id}/publish" verb=POST {
         }
 
         function.run "pub/evaluate_gate" {
-          input = {snapshot: $snapshot_result.snapshot}
+          input = {snapshot: $snapshot_result.snapshot, account_id: $journey_map.account_id}
         } as $gate_result
 
         var.update $gate {
           value = $gate_result
+        }
+
+        // RATE-1 (US-RATE-1-04) — an inactive item pinned by a rate gets
+        // its own code, message and event (E-RATE-001), ahead of the
+        // generic "not ready" refusal, so the user is told exactly which
+        // item to fix. The condition reads the loop item only.
+        var $inactive_item_count {
+          value = 0
+        }
+
+        var $inactive_item_message {
+          value = ""
+        }
+
+        var $inactive_item_keys {
+          value = []
+        }
+
+        var $gate_failure_list {
+          value = $gate_result.gate_failures ?? []
+        }
+
+        foreach ($gate_failure_list) {
+          each as $gate_failure {
+            conditional {
+              if ($gate_failure.code == "INACTIVE_ITEM") {
+                var.update $inactive_item_count {
+                  value = $inactive_item_count + 1
+                }
+
+                var.update $inactive_item_message {
+                  value = $gate_failure.message
+                }
+
+                array.push $inactive_item_keys {
+                  value = $gate_failure.item_key
+                }
+              }
+            }
+          }
+        }
+
+        conditional {
+          if ($inactive_item_count > 0) {
+            function.run "ops/log_event" {
+              input = {
+                feature    : "RATE-1"
+                step       : "publish_blocked_inactive_item"
+                outcome    : "rejected"
+                severity   : "info"
+                error_code : "E-RATE-001"
+                message    : $inactive_item_message
+                user_id    : $auth.id
+                account_id : $journey_map.account_id
+                entity_type: "journey_map"
+                entity_id  : $input.journey_map_id
+                metadata   : {item_keys: $inactive_item_keys}
+              }
+            } as $_inactive_logged
+          }
+        }
+
+        var $inactive_item_error {
+          value = $inactive_item_message ~ " (E-RATE-001)"
+        }
+
+        precondition ($inactive_item_count == 0) {
+          error_type = "inputerror"
+          error = $inactive_item_error
         }
 
         conditional {
@@ -341,6 +410,13 @@ query "journey_map/{journey_map_id}/publish" verb=POST {
       value = null
     }
 
+    // RATE-1 — the rows stage_rate gets, taken from the SAME frozen
+    // snapshot that is hashed (one fact, two shapes). Empty for a v1
+    // snapshot and whenever the gate flag is off.
+    var $rates_to_write {
+      value = []
+    }
+
     conditional {
       if ($gate_flag.enabled == true) {
         db.query journey_map_version {
@@ -379,7 +455,15 @@ query "journey_map/{journey_map_id}/publish" verb=POST {
         var.update $map_version_hash {
           value = $hash_result.hash
         }
+
+        var.update $rates_to_write {
+          value = $frozen_snapshot.rates ?? []
+        }
       }
+    }
+
+    var $rates_written {
+      value = $rates_to_write|count
     }
 
     var $map_version {
@@ -387,7 +471,7 @@ query "journey_map/{journey_map_id}/publish" verb=POST {
     }
 
     db.transaction {
-      description = "PUB-1: the status change, the automation snapshot and the frozen version all land, or none do"
+      description = "PUB-1: the status change, the automation snapshot and the frozen version all land, or none do. RATE-1: plus the stage_rate rows."
       stack {
         db.patch journey_map {
           field_name = "id"
@@ -444,8 +528,44 @@ query "journey_map/{journey_map_id}/publish" verb=POST {
             var.update $map_version {
               value = $written_version
             }
+
+            // RATE-1 (US-RATE-1-04) — the rate card, in the same
+            // transaction as its version: both land or neither does.
+            foreach ($rates_to_write) {
+              each as $rate_row {
+                db.add stage_rate {
+                  data = {
+                    created_at            : "now"
+                    journey_map_version_id: $written_version.id
+                    stage_key             : $rate_row.stage_key
+                    quantity_key          : $rate_row.quantity_key
+                    method_key            : $rate_row.method_key
+                    minutes_per_unit      : $rate_row.minutes_per_unit
+                    source                : $rate_row.source
+                  }
+                } as $_rate_added
+              }
+            }
           }
         }
+      }
+    }
+
+    conditional {
+      if ($gate_flag.enabled == true) {
+        function.run "ops/log_event" {
+          input = {
+            feature    : "RATE-1"
+            step       : "rates_materialized"
+            outcome    : "success"
+            severity   : "info"
+            user_id    : $auth.id
+            account_id : $journey_map.account_id
+            entity_type: "journey_map_version"
+            entity_id  : $map_version.id
+            metadata   : {rates_written: $rates_written, journey_map_id: $input.journey_map_id, map_version_no: $map_version_no}
+          }
+        } as $_rates_logged
       }
     }
 
@@ -644,5 +764,8 @@ query "journey_map/{journey_map_id}/publish" verb=POST {
     // existing callers see the same four fields they always did.
     map_version : $map_version
     gate        : $gate
+    // RATE-1 — stage_rate rows written with this version (0 when the gate
+    // flag is off or the map has no Items row).
+    rates_written: $rates_written
   }
 }

@@ -4,7 +4,17 @@
 // code, no stack traces. Acknowledge is deferred (US-OBS-1-06); every
 // issue found in the window is shown.
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
-import {getOpsBundle, getOpsHealth, getOpsIssues, type OpsHealthResponse, type OpsIssue} from '../xano';
+import {
+  getOpsBundle,
+  getOpsHealth,
+  getOpsIssues,
+  getOpsEstimates,
+  getOpsExceptions,
+  type OpsExceptionsResponse,
+  type OpsHealthResponse,
+  type OpsIssue,
+  type OpsEstimateJobRow,
+} from '../xano';
 import {healthStatus, type HealthStatusLevel} from '../ops/healthStatus';
 
 const STATUS_COLORS: Record<HealthStatusLevel, string> = {
@@ -44,9 +54,14 @@ async function copyBundleToClipboard(issue: OpsIssue) {
   }
 }
 
+import {openChildSentence, reasonWords} from '../exceptions/healthText';
+
 export default function HealthPage() {
   const [health, setHealth] = useState<OpsHealthResponse | null>(null);
   const [issues, setIssues] = useState<OpsIssue[]>([]);
+  const [estimateJobs, setEstimateJobs] = useState<OpsEstimateJobRow[]>([]);
+  // EXC-1 (US-EXC-1-07) — additive; never blanks the rest of the page.
+  const [exceptions, setExceptions] = useState<OpsExceptionsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copiedFingerprint, setCopiedFingerprint] = useState<string | null>(null);
@@ -55,9 +70,18 @@ export default function HealthPage() {
     setLoading(true);
     setError(null);
     try {
-      const [healthData, issuesData] = await Promise.all([getOpsHealth(), getOpsIssues()]);
+      const [healthData, issuesData, estimatesData, exceptionsData] = await Promise.all([
+        getOpsHealth(),
+        getOpsIssues(),
+        // EST-1's own panel; a failure here should never blank the rest
+        // of the page — it's additive, not load-bearing.
+        getOpsEstimates().catch(() => ({since: '', count: 0, jobs: []})),
+        getOpsExceptions().catch(() => null),
+      ]);
       setHealth(healthData);
       setIssues(issuesData.issues);
+      setEstimateJobs(estimatesData.jobs);
+      setExceptions(exceptionsData);
     } catch (e) {
       setError('We could not load the Health page right now. Try reloading.');
     } finally {
@@ -118,6 +142,109 @@ export default function HealthPage() {
           </div>
         </div>
       )}
+
+      <div>
+        <h2 className="text-sm font-medium text-zinc-700 mb-2">Estimates</h2>
+        {estimateJobs.length === 0 ? (
+          <div className="text-sm text-zinc-500">No open order has an incomplete estimate.</div>
+        ) : (
+          <ul className="space-y-3">
+            {estimateJobs.map((row) => (
+              <li key={row.work_item_id} className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <div className="font-medium text-zinc-900">{row.job_title ?? `Order #${row.work_item_id}`}</div>
+                <div className="text-sm text-zinc-700 mt-1">
+                  {row.reasons.includes('no_lines')
+                    ? "No items have been added to this order yet."
+                    : row.missing
+                        .map((m) => `No rate for ${m.quantity_key} at ${m.stage_key}`)
+                        .join('; ')}
+                  {' '}(map {row.map_title || 'untitled'}
+                  {row.version_no != null ? ` v${row.version_no}` : ''}).
+                </div>
+                <div className="text-xs text-zinc-500 mt-1">
+                  Fix: add the item to the map's Items row and publish a new version; new jobs will pick it up.
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* EXC-1 (US-EXC-1-07) — work that left the happy path */}
+      <div data-testid="health-exceptions">
+        <h2 className="text-sm font-medium text-zinc-700 mb-2">Exceptions</h2>
+        {!exceptions ? (
+          <div className="text-sm text-zinc-500">Couldn't load exceptions right now.</div>
+        ) : (
+          <div className="space-y-4">
+            {(exceptions.needs_attention.parent_cancelled.length > 0 ||
+              exceptions.needs_attention.unpublished_targets.length > 0 ||
+              exceptions.needs_attention.recent_rejections.length > 0) && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4 space-y-2" data-testid="health-exceptions-attention">
+                <div className="font-medium text-red-900">Needs attention</div>
+                {exceptions.needs_attention.parent_cancelled.map((r) => (
+                  <div key={`pc-${r.exception_id}`} className="text-sm text-red-800">
+                    Order #{r.parent_work_item_id} was cancelled, but the work it sent to {r.target_map_title} (#{r.child_work_item_id}) is still open.
+                    Decide whether to finish or cancel #{r.child_work_item_id}.
+                  </div>
+                ))}
+                {exceptions.needs_attention.unpublished_targets.map((t) => (
+                  <div key={`up-${t.source_map_id}-${t.target_map_id}`} className="text-sm text-red-800">
+                    {t.source_map_title} sends work to {t.target_map_title}, which has never been published — nobody can send work there yet. Publish {t.target_map_title}.
+                  </div>
+                ))}
+                {exceptions.needs_attention.recent_rejections.length > 0 && (
+                  <div className="text-sm text-red-800">
+                    Refused sends in the last 7 days:{' '}
+                    {exceptions.needs_attention.recent_rejections.map((r) => `${r.error_code} × ${r.count}`).join(', ')}. Look a code up in the catalog for what it means.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {exceptions.open_children.length === 0 ? (
+              <div className="text-sm text-zinc-500">No work is waiting on a linked map.</div>
+            ) : (
+              <ul className="space-y-2">
+                {exceptions.open_children.map((r) => (
+                  <li key={r.exception_id} className="rounded-lg border border-amber-200 bg-amber-50 p-3" data-testid="health-exception-row">
+                    <div className="text-sm text-zinc-900">{openChildSentence(r)}</div>
+                    <div className="text-xs text-zinc-600 mt-0.5">
+                      Why: {reasonWords(r.reason_code)}
+                      {r.note ? ` — “${r.note}”` : ''}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div className="rounded-lg border border-zinc-200 p-3">
+                <div className="text-zinc-500 mb-1">Last 30 days, by stage</div>
+                {exceptions.by_stage.length === 0 ? (
+                  <div className="text-zinc-400">None.</div>
+                ) : (
+                  exceptions.by_stage.map((s) => (
+                    <div key={s.stage_label} className="flex justify-between">
+                      <span>{s.stage_label}</span>
+                      <span className="font-medium">{s.count}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="rounded-lg border border-zinc-200 p-3">
+                <div className="text-zinc-500 mb-1">Last 30 days, by reason</div>
+                {exceptions.by_reason.map((r) => (
+                  <div key={r.reason_code} className="flex justify-between">
+                    <span>{reasonWords(r.reason_code)}</span>
+                    <span className="font-medium">{r.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div>
         <h2 className="text-sm font-medium text-zinc-700 mb-2">Open issues</h2>

@@ -61,6 +61,19 @@ query "journey_cell/update/{journey_cell_id}" verb=PATCH {
       error = "Cell target is stale — stage or lens has been deleted"
     }
   
+    // RATE-1 review #4 (D-R2) — an Items cell's actor_fields are written
+    // only by its own endpoint (605), which runs validate_items_cell
+    // (E-ITM-002..006), empties per_order lines and reconciles links.
+    // Writing them here would skip all of that.
+    var $writes_actor_fields {
+      value = $raw_input|has:"actor_fields"
+    }
+
+    precondition ($cell_lens.template_key != "items-v1" || $writes_actor_fields == false) {
+      error_type = "inputerror"
+      error = "Edit an Items cell with the Items cell editor. (E-ITM-010)"
+    }
+
     precondition (($raw_input|keys|count) > 0) {
       error = "Provide at least one of content, status, is_locked, or actor_fields"
     }

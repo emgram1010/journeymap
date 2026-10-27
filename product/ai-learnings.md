@@ -134,3 +134,153 @@ the absence of something in a narrow lookup.** A negative claim needs
 the query that would have found it — list the table, not one row;
 check the count, not one id. If that query has not been run, the
 honest form is "I did not find X", not "X does not exist".
+
+---
+
+## A REQUIRED input makes your own validation unreachable (USR-1, 2026-10-22)
+
+`admin/user_create` was written with `text name` / `text email` /
+`text password` — required, as the three things you obviously cannot
+create a person without. Underneath each one sat a precondition with a
+friendly sentence and a catalogued code (`E-USR-011`, `E-USR-012`).
+
+Not one of them could ever fire. Xano validates required inputs
+**itself, before the stack runs and before auth is even checked**, so a
+blank name came back as:
+
+```
+HTTP 400 {"code":"ERROR_CODE_INPUT_ERROR","message":"Missing param: name"}
+```
+
+No error code, no sentence the admin can act on, nothing the Health
+page can explain, and a `""` treated as missing rather than as blank.
+The endpoint's own careful validation was dead code from the moment it
+was written.
+
+Found by probing the live endpoint with a blank field — not by reading
+it, which is the point. **The epic already claimed those codes worked.**
+
+**The rule:** if an input has a precondition of its own, declare it
+**optional**. An omitted optional text input arrives as `""`, which is
+exactly what the precondition tests for, and the refusal is then the
+endpoint's own — code, wording and log line. Required inputs are for
+values with no friendlier refusal available than Xano's.
+
+This is the same family as the existing `?? fallback` and
+`!= null` traps: the engine answers first, in its own words, and the
+code written downstream never gets a turn.
+
+---
+
+## `db.del` on a row that is not there is not a no-op (USR-1, 2026-10-22)
+
+It raises `ERROR_CODE_NOT_FOUND` with an **empty message** — no code, no
+sentence, nothing to look up in the catalog.
+
+`admin/user_delete` destroys two rows: the person's `user_status` row
+and their `user` row, together in a `db.transaction`. But a
+`user_status` row only exists for somebody whose status has been
+touched — **absence of a row means active**, which is the entire design
+of that side table. So for the ordinary case, the first `db.del` found
+nothing, threw a bare 404, and the transaction correctly rolled the
+whole delete back.
+
+The result was an endpoint that returned
+
+```
+HTTP 404 {"code":"ERROR_CODE_NOT_FOUND","message":""}
+```
+
+and deleted nobody, ever, while every refusal path around it worked
+perfectly. The transaction did its job. The delete simply never
+happened.
+
+**Found on the very first real delete.** Reading the code would not
+have shown it: the two `db.del` calls look symmetrical, and nothing in
+the docs says a delete requires a match.
+
+**The rule:** before `db.del` on anything whose existence is optional —
+and a side table row is always optional, that is what a side table is —
+count it first and wrap the delete in a `conditional`. Do not reason
+about whether the row "should" be there.
+
+**Two things confirmed working while fixing it:** a `conditional` nests
+inside a `db.transaction`, and its condition may read a `var` computed
+before the transaction block (the silent-discard trap needs a loop,
+which this is not).
+
+---
+
+## `error_type = "input"` pushes cleanly and then fails at runtime
+
+**USR-2, 2026-10-23.** A `precondition` written as:
+
+```xs
+precondition ($keys.valid == true) {
+  error_type = "input"
+  error = "We don't recognise that module. (E-USR-007)"
+}
+```
+
+pushed with no parse error and then threw, on every call, with:
+
+```
+Param: error_type - Input "input" is not one of the allowable values.
+ERROR_CODE_INPUT_ERROR
+```
+
+The precondition never refused the thing it exists to refuse — it raised an
+unrelated error instead, and the catalogued message never appeared. The
+correct value is **`inputerror`**.
+
+The values actually in use across this codebase, counted: `notfound` (189),
+`inputerror` (169), `accessdenied` (86), `badrequest` (5), `unauthorized` (1).
+`input` appeared twice and both were mine, written the same hour.
+
+**The lesson is not "remember the spelling".** It is that `error_type` is
+validated at RUNTIME and not at push time, exactly like `exception_policy` on
+a middleware, which silently stores `"silent"` for any value it does not
+recognise. A guard whose refusal path has never been executed is a guard with
+an untested branch, and the untested branch is the one that matters. Smoke-test
+the REFUSAL, not just the success.
+
+---
+
+## A revoke that erases who granted it — and the `output` list that would have hidden the fix
+
+**USR-2, 2026-10-23.** `user_module_access` keeps a `granted` bool rather than
+deleting the row, and the table's own header says why: *"revoking by deleting
+the row would throw away who granted it and when."*
+
+The first version of `admin/user_module_access` then threw it away anyway. It
+seeded all four audit columns before branching:
+
+```xs
+var $granted_by { value = 0 }
+var $granted_at { value = null }
+var $revoked_by { value = 0 }
+var $revoked_at { value = null }
+```
+
+and let the grant branch fill the first pair and the revoke branch the second.
+Every revoke therefore patched `granted_by_user_id` back to `0` and
+`granted_at` to null. The endpoint returned 200, the UI showed the right
+thing, and the row quietly lost half its history. It was caught only by
+reading the row back out of the table after the call — not by the response,
+which was correct.
+
+The fix is to seed each pair from the row that already exists and overwrite
+only the pair the call is about.
+
+**The second half is the part worth remembering.** The lookup that feeds those
+defaults was:
+
+```xs
+output = ["id", "granted"]
+```
+
+A column left out of `output` comes back **absent**, so
+`$existing|get:"granted_by_user_id":0` would have returned its default `0` —
+and the fix would have read correctly, reviewed correctly, and done exactly
+nothing. Whenever a value is read back in order to be written forward, check
+that the read actually asked for it.

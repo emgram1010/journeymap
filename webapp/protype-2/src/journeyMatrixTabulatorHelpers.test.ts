@@ -65,6 +65,27 @@ test('formatMatrixCellMarkup renders selected confirmed cells with escaped conte
   assert.ok(markup.includes('jm-status-indicator confirmed'));
 });
 
+test('formatMatrixCellMarkup shows the link marker on an Items-row cell too (EXC-1)', () => {
+  const linked = formatMatrixCellMarkup({
+    content: '',
+    meta: {...baseCell, xanoId: 10173, actorFields: {scales_with: 'per_order', lines: []} as never},
+    selectedCellId: null,
+    linkedCells: new Map([[10173, {linkType: 'exception', targetMapId: 224}]]),
+    templateKey: 'items-v1',
+  });
+  assert.ok(linked.includes('jm-items-summary'));
+  assert.ok(linked.includes('data-link-target="224"'));
+
+  const unlinked = formatMatrixCellMarkup({
+    content: '',
+    meta: {...baseCell, xanoId: 10174, actorFields: {scales_with: 'per_order', lines: []} as never},
+    selectedCellId: null,
+    linkedCells: new Map([[10173, {linkType: 'exception', targetMapId: 224}]]),
+    templateKey: 'items-v1',
+  });
+  assert.ok(!unlinked.includes('jm-link-indicator'));
+});
+
 test('formatMatrixCellMarkup shows lock indicator for locked cells', () => {
   const markup = formatMatrixCellMarkup({
     content: '',
@@ -405,4 +426,18 @@ test('UT-ORD-1-05q: rows draw row seams and up/down arrows, and escape the id', 
   assert.ok(m.includes('data-insert-lens-at="0"') && m.includes('data-insert-lens-at="1"'));
   assert.ok(m.includes('data-move-lens-id="&quot;x&quot;"'));
   assert.equal((m.match(/ disabled/g) ?? []).length, 2);
+});
+
+// ── EXC-1 (US-EXC-1-01) — the stage header names where work can leave ─────
+
+test('EXC-1: a stage with exception targets shows one chip naming them (escaped)', () => {
+  const m = formatStageHeaderMarkup({label: 'Triage', stageId: '11', exceptionTargets: ['Repair', '<b>Legal</b>']});
+  assert.ok(m.includes('jm-stage-exception-chip'));
+  assert.ok(m.includes('exception → Repair, &lt;b&gt;Legal&lt;/b&gt;'));
+  assert.ok(!m.includes('<b>Legal</b>'));
+});
+
+test('EXC-1: no targets (or omitted) draws no chip — existing headers are unchanged', () => {
+  assert.ok(!formatStageHeaderMarkup({label: 'A', stageId: '11'}).includes('jm-stage-exception-chip'));
+  assert.ok(!formatStageHeaderMarkup({label: 'A', stageId: '11', exceptionTargets: []}).includes('jm-stage-exception-chip'));
 });

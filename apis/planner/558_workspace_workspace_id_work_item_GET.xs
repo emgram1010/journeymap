@@ -158,6 +158,36 @@ query "workspace/{workspace_id}/work_item" verb=GET {
       }
     }
 
+    // EXC-1 (US-EXC-1-05) — child jobs per job (any status), one query.
+    var $child_counts {
+      value = {}
+    }
+
+    conditional {
+      if (($ids|count) > 0) {
+        db.query work_item {
+          where = $db.work_item.parent_work_item_id in $ids
+          return = {type: "list"}
+        } as $children
+
+        foreach ($children) {
+          each as $ch {
+            var $ch_parent_key {
+              value = $ch.parent_work_item_id|to_text
+            }
+
+            var $ch_prev {
+              value = ($child_counts|get:$ch_parent_key:null) ?? 0
+            }
+
+            var.update $child_counts {
+              value = $child_counts|set:$ch_parent_key:($ch_prev + 1)
+            }
+          }
+        }
+      }
+    }
+
     var $result {
       value = []
     }
@@ -184,9 +214,14 @@ query "workspace/{workspace_id}/work_item" verb=GET {
           value = $finished|get:$key:0
         }
 
+        var $j_child_count {
+          value = ($child_counts|get:$key:null) ?? 0
+        }
+
         array.push $result {
           value = {
             work_item     : $j
+            child_count   : $j_child_count
             task_count    : $total_n
             finished_count: $fin_n
             has_blocked   : (($blocked|get:$key:0) == 1)

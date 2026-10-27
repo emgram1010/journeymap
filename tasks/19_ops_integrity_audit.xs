@@ -56,6 +56,14 @@ task ops_integrity_audit {
         } as $_logged_clean
       }
     }
+
+    // RATE-1 (US-RATE-1-05) — version integrity: every version's hash
+    // re-verifies, and v2 stage_rate counts match snapshot.rates. Logs its
+    // own RATE-1 `rate_integrity_mismatch` failure (E-RATE-003) when it
+    // finds any; separate function for the size reason in its header.
+    function.run "ops/audit_rates" {
+      input = {}
+    } as $rate_audit
   }
 
   schedule = [{starts_on: 2026-10-14 04:00:00+0000, freq: 86400}]

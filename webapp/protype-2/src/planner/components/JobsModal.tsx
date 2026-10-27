@@ -54,6 +54,9 @@ import {
 } from '../plannerApi';
 import {formatMinutes, formatGap, gapTone, summariseJob, reasonLabel, eventLabel} from '../varianceDisplay';
 import {groupStepsBySlot} from '../../scheduleModel';
+import {JobLinesEditor} from './JobLinesEditor';
+import ExceptionSendPanel from '../../exceptions/ExceptionSendPanel';
+import {EstimateBadge} from './EstimateBadge';
 
 interface JobsModalProps {
   isOpen: boolean;
@@ -330,6 +333,13 @@ export function JobsModal({
     }
   };
 
+  // EXC-1 — the "from #…" / "sent on" chips are links, not toggles: they
+  // open the other job (never close it) and bring it on screen.
+  const showJob = (workItemId: number) => {
+    if (openJobId !== workItemId) void openReport(workItemId);
+    requestAnimationFrame(() => document.getElementById(`job-row-${workItemId}`)?.scrollIntoView({block: 'center'}));
+  };
+
   const handleCancel = async (workItemId: number) => {
     setError(null);
     setNotice(null);
@@ -464,8 +474,8 @@ export function JobsModal({
               <p className="text-[11px] text-neutral-500">No jobs yet.</p>
             ) : (
               <ul className="divide-y divide-neutral-100 border border-neutral-200 rounded-md">
-                {jobs.map(({work_item: job, task_count, finished_count, has_blocked}) => (
-                  <li key={job.id} className="px-3 py-2 flex flex-col gap-2">
+                {jobs.map(({work_item: job, task_count, finished_count, has_blocked, child_count}) => (
+                  <li key={job.id} id={`job-row-${job.id}`} className="px-3 py-2 flex flex-col gap-2">
                   <div className="flex items-center justify-between gap-3">
                     {/* W3 — the whole row opens the report. Everything the
                         performer reported was already in the database and
@@ -490,6 +500,29 @@ export function JobsModal({
                         </span>
                       </span>
                     </button>
+                    {/* EXC-1 (US-EXC-1-05) — the link both ways. Clicking opens the other job. */}
+                    {job.parent_work_item_id > 0 && (
+                      <button
+                        type="button"
+                        data-testid="job-parent-chip"
+                        onClick={() => showJob(job.parent_work_item_id)}
+                        className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-800 hover:bg-amber-100"
+                        title="Opens the job this one came from"
+                      >
+                        from #{job.parent_work_item_id}
+                      </button>
+                    )}
+                    {(child_count ?? 0) > 0 && (
+                      <button
+                        type="button"
+                        data-testid="job-children-chip"
+                        onClick={() => showJob(job.id)}
+                        className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-800 hover:bg-amber-100"
+                        title="Jobs started from this one"
+                      >
+                        {child_count} sent on
+                      </button>
+                    )}
                     {job.status !== 'cancelled' && (
                       confirmCancelId === job.id ? (
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -531,6 +564,30 @@ export function JobsModal({
                         <p className="text-[11px] text-red-600">{reportError}</p>
                       ) : (
                         <>
+                          {/* EXC-1 (US-EXC-1-05) — what was sent off this job, and the planner's own "Send to…" */}
+                          {job.status !== 'cancelled' && job.status !== 'completed' && (
+                            <div>
+                              <p className="text-[11px] font-semibold text-neutral-800 mb-1">Exceptions</p>
+                              <ExceptionSendPanel
+                                workItemId={job.id}
+                                variant="planner"
+                                onSent={() => {
+                                  if (workspaceId) void load(workspaceId);
+                                  onChanged();
+                                }}
+                              />
+                            </div>
+                          )}
+
+                          <div>
+                            <JobLinesEditor
+                              workItemId={job.id}
+                              onEstimateChanged={() => {
+                                if (workspaceId) void load(workspaceId);
+                              }}
+                            />
+                          </div>
+
                           <div>
                             <p className="text-[11px] font-semibold text-neutral-800 flex items-center gap-1">
                               <TrendingUp className="w-3 h-3 text-neutral-500" />
@@ -625,13 +682,39 @@ export function JobsModal({
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-xs text-neutral-900 truncate">{card.job_title ?? 'Job'}</p>
-                          <p className="text-[10px] text-neutral-500 truncate">
+                          <p className="text-[10px] text-neutral-500 truncate flex items-center gap-1">
                             {card.lens_label || card.lens_key} · {card.step_count} {stepWord} ·{' '}
                             {formatMinutes(card.expected_minutes)}
+                            <EstimateBadge status={card.estimate_status} />
                           </p>
                           {card.step_count > 1 && (
                             <p className="text-[10px] text-neutral-400 truncate">
                               {card.first_stage_label} → {card.last_stage_label}
+                            </p>
+                          )}
+                          {/* EXC-1 (US-EXC-1-05) — the card says where it came from / what left it. */}
+                          {((card.parent_work_item_id ?? 0) > 0 || (card.child_count ?? 0) > 0) && (
+                            <p className="flex flex-wrap gap-1 mt-0.5">
+                              {(card.parent_work_item_id ?? 0) > 0 && (
+                                <button
+                                  type="button"
+                                  data-testid="card-parent-chip"
+                                  onClick={() => showJob(card.parent_work_item_id!)}
+                                  className="rounded-full border border-amber-200 bg-amber-50 px-1.5 text-[10px] text-amber-800 hover:bg-amber-100"
+                                >
+                                  from #{card.parent_work_item_id}
+                                </button>
+                              )}
+                              {(card.child_count ?? 0) > 0 && (
+                                <button
+                                  type="button"
+                                  data-testid="card-children-chip"
+                                  onClick={() => showJob(card.work_item_id)}
+                                  className="rounded-full border border-amber-200 bg-amber-50 px-1.5 text-[10px] text-amber-800 hover:bg-amber-100"
+                                >
+                                  {card.child_count} sent on
+                                </button>
+                              )}
                             </p>
                           )}
                         </div>
@@ -675,8 +758,9 @@ export function JobsModal({
                                   )}
                                 </div>
                               </div>
-                              <span className="shrink-0 text-[10px] text-neutral-500 font-mono">
+                              <span className="shrink-0 text-[10px] text-neutral-500 font-mono flex items-center gap-1">
                                 {formatMinutes(step.expected_minutes)}
+                                <EstimateBadge status={step.estimate_status} source={step.estimate_source} />
                               </span>
                             </li>
                           ))}

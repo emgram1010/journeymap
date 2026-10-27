@@ -39,6 +39,14 @@ type Props = {
   onMoveStage?: (stageId: string, dir: -1 | 1) => void;
   onInsertLensAt?: (seamIndex: number) => void;
   onMoveLens?: (lensId: string, dir: -1 | 1) => void;
+  // ITEM-1 (D-1) — the Items row's own header controls. Omitted = the
+  // matrix renders the Items row (if present) with no controls, same
+  // read-only-use convention as the ordering props above.
+  onChooseItems?: (lensId: string) => void;
+  onRemoveItemsRow?: (lensId: string) => void;
+  // EXC-1 (US-EXC-1-01) — stage id → titles of the maps its exception links
+  // hand work to; drawn as a chip in the stage header. Omitted = no chips.
+  stageExceptionTargets?: Record<string, string[]>;
 };
 
 export default function JourneyMatrixTabulator({
@@ -59,6 +67,9 @@ export default function JourneyMatrixTabulator({
   onMoveStage,
   onInsertLensAt,
   onMoveLens,
+  onChooseItems,
+  onRemoveItemsRow,
+  stageExceptionTargets,
 }: Props) {
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -78,6 +89,8 @@ export default function JourneyMatrixTabulator({
   const onUpdateLensLabelRef = useRef(onUpdateLensLabel);
   const onUpdateStageLabelRef = useRef(onUpdateStageLabel);
   const onEditLensRef = useRef(onEditLens);
+  const onChooseItemsRef = useRef(onChooseItems);
+  const onRemoveItemsRowRef = useRef(onRemoveItemsRow);
   const onEditStageRef = useRef(onEditStage);
   const onTogglePlannedWorkRef = useRef(onTogglePlannedWork);
   const onInsertStageAtRef = useRef(onInsertStageAt);
@@ -87,22 +100,43 @@ export default function JourneyMatrixTabulator({
   // Decided once per render: the formatters read it when they draw.
   const orderingEnabled = Boolean(onInsertStageAt || onMoveStage || onInsertLensAt || onMoveLens);
   const orderingEnabledRef = useRef(orderingEnabled);
+  // EXC-1 — read by the header formatter at draw time; its content is part
+  // of columnsSignature, so a new link redraws the headers.
+  const stageExceptionTargetsRef = useRef(stageExceptionTargets);
+  stageExceptionTargetsRef.current = stageExceptionTargets;
 
   const cellMap = useMemo(
     () => new Map(cells.map((cell) => [`${cell.stageId}:${cell.lensId}`, cell])),
     [cells],
   );
 
+  // ITEM-1 (D-1) — the Items row always renders LAST, regardless of its
+  // raw display_order (a later insert elsewhere in the map could in
+  // principle still land a higher number than it; this is the
+  // defensive, always-true guarantee). Ordering (seams/arrows) only
+  // ever applies to the OTHER rows, so lensIndex/lensCount below are
+  // computed against that subset, not the full list.
+  const orderedLenses = useMemo(() => {
+    const others = lenses.filter((l) => l.templateKey !== 'items-v1');
+    const itemsRows = lenses.filter((l) => l.templateKey === 'items-v1');
+    return {others, all: [...others, ...itemsRows]};
+  }, [lenses]);
+
   const tableData = useMemo(
     () =>
-      lenses.map((lens, lensIndex) => {
+      orderedLenses.all.map((lens) => {
+        const isItemsRow = lens.templateKey === 'items-v1';
+        const lensIndex = isItemsRow ? orderedLenses.others.length : orderedLenses.others.indexOf(lens);
         const row: Record<string, string | boolean | number> = {
           id: lens.id,
           // ORD-1 — row position, so the row header can draw its seams and arrows.
+          // Meaningless for the Items row (ordering is suppressed for it), so
+          // it gets a value past the end rather than -1.
           lensIndex,
-          lensCount: lenses.length,
+          lensCount: orderedLenses.others.length,
           lensLabel: lens.label,
           lensActorType: lens.actorType ?? '',
+          lensTemplateKey: lens.templateKey ?? '',
           // STAGE-1 (US-STAGE-1-06) — resolved value (override or actor_type default), same rule as stageOwnerModel/readiness.
           lensDoesPlannedWork: doesPlannedWork(lens.actorType ?? null, lens.plannedWorkOverride ?? null),
         };
@@ -111,15 +145,15 @@ export default function JourneyMatrixTabulator({
         });
         return row;
       }),
-    [cellMap, lenses, stages],
+    [cellMap, orderedLenses, stages],
   );
 
   const columnsSignature = useMemo(
     () =>
       stages
-        .map((s) => `${s.id}:${s.label}:${s.stageGoal ?? ''}:${s.primaryActorLens ?? ''}:${stageReadiness?.[s.key ?? s.id] ?? ''}`)
+        .map((s) => `${s.id}:${s.label}:${s.stageGoal ?? ''}:${s.primaryActorLens ?? ''}:${stageReadiness?.[s.key ?? s.id] ?? ''}:${(stageExceptionTargets?.[s.id] ?? []).join(',')}`)
         .join('|'),
-    [stages, stageReadiness],
+    [stages, stageReadiness, stageExceptionTargets],
   );
 
   const tableDataSignature = useMemo(() => JSON.stringify(tableData), [tableData]);
@@ -152,6 +186,14 @@ export default function JourneyMatrixTabulator({
   useEffect(() => {
     onEditLensRef.current = onEditLens;
   }, [onEditLens]);
+
+  useEffect(() => {
+    onChooseItemsRef.current = onChooseItems;
+  }, [onChooseItems]);
+
+  useEffect(() => {
+    onRemoveItemsRowRef.current = onRemoveItemsRow;
+  }, [onRemoveItemsRow]);
 
   useEffect(() => {
     onEditStageRef.current = onEditStage;
@@ -248,6 +290,28 @@ export default function JourneyMatrixTabulator({
         return;
       }
 
+      // ITEM-1 — "Choose items" on the Items row header.
+      const chooseItemsBtn = (event.target as HTMLElement).closest?.('[data-choose-items-lens-id]') as HTMLElement | null;
+      if (chooseItemsBtn && container.contains(chooseItemsBtn)) {
+        event.stopPropagation();
+        const lensId = chooseItemsBtn.dataset.chooseItemsLensId;
+        if (lensId) {
+          onChooseItemsRef.current?.(lensId);
+        }
+        return;
+      }
+
+      // ITEM-1 — "Remove row" on the Items row header.
+      const removeItemsRowBtn = (event.target as HTMLElement).closest?.('[data-remove-items-row-lens-id]') as HTMLElement | null;
+      if (removeItemsRowBtn && container.contains(removeItemsRowBtn)) {
+        event.stopPropagation();
+        const lensId = removeItemsRowBtn.dataset.removeItemsRowLensId;
+        if (lensId) {
+          onRemoveItemsRowRef.current?.(lensId);
+        }
+        return;
+      }
+
       // Breakpoint indicator click — navigate to the linked map
       const linkIndicator = (event.target as Element).closest?.('.jm-link-indicator') as HTMLElement | null;
       if (linkIndicator) {
@@ -297,6 +361,7 @@ export default function JourneyMatrixTabulator({
             position: orderingEnabledRef.current
               ? {index: Number(rowData.lensIndex), count: Number(rowData.lensCount)}
               : undefined,
+            isItemsRow: rowData.lensTemplateKey === 'items-v1',
           });
         },
       },
@@ -314,6 +379,7 @@ export default function JourneyMatrixTabulator({
             stageId: stage.id,
             isReady: currentStageReadiness ? currentStageReadiness[stageReadinessKey] : undefined,
             position: orderingEnabledRef.current ? {index: stageIndex, count: currentStages.length} : undefined,
+            exceptionTargets: stageExceptionTargetsRef.current?.[stage.id],
           }),
           field: stage.id,
           width: 240,
@@ -329,6 +395,7 @@ export default function JourneyMatrixTabulator({
               selectedCellId: selectedCellIdRef.current,
               linkedCells: linkedCellsRef.current,
               actorType: rowData.lensActorType || undefined,
+              templateKey: rowData.lensTemplateKey || undefined,
             });
           },
         };

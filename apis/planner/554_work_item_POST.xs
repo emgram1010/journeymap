@@ -19,6 +19,13 @@
 // The job row and all its tasks are one `db.transaction`: a job with
 // half its tasks would look complete-able while silently missing
 // steps.
+//
+// EXC-1 (US-EXC-1-04): an optional `parent_work_item_id` puts this job
+// UNDER another one — the planner saying "this belongs with that". No
+// counts move and no work_item_exception row is written (that is the
+// exception spawn, endpoint 610). The parent must exist, be in this
+// account AND this plan (E-EXC-009), and not be cancelled (E-EXC-001).
+// 0 / omitted = an ordinary job, exactly as before.
 query "work_item" verb=POST {
   api_group = "planner"
   auth = "user"
@@ -28,6 +35,8 @@ query "work_item" verb=POST {
     int journey_map_id filters=min:1
     text title filters=trim
     json attributes?
+    // EXC-1 — 0 (omitted) = no parent. An optional int arrives as 0, never null.
+    int parent_work_item_id?
     text correlation_id? filters=trim
   }
 
@@ -161,6 +170,62 @@ query "work_item" verb=POST {
       }
     }
 
+    // EXC-1 (US-EXC-1-04) — the optional parent. Read only when given.
+    var $parent_id {
+      value = $input.parent_work_item_id
+    }
+
+    conditional {
+      if ($reject_code == "" && $parent_id != 0) {
+        db.get work_item {
+          field_name = "id"
+          field_value = $parent_id
+        } as $parent_job
+
+        conditional {
+          if ($parent_job == null || $parent_job.account_id != $actor.account_id || $parent_job.workspace_id != $input.workspace_id) {
+            var.update $reject_code {
+              value = "E-EXC-009"
+            }
+
+            var.update $reject_msg {
+              value = "That parent job is in a different plan. (E-EXC-009)"
+            }
+          }
+
+          elseif ($parent_job.status == "cancelled") {
+            var.update $reject_code {
+              value = "E-EXC-001"
+            }
+
+            var.update $reject_msg {
+              value = "That job is finished or cancelled, so nothing can be sent from it or added under it. (E-EXC-001)"
+            }
+          }
+        }
+
+        conditional {
+          if ($reject_code != "") {
+            function.run "ops/log_event" {
+              input = {
+                feature       : "EXC-1"
+                step          : "child_job_created"
+                outcome       : "rejected"
+                severity      : "info"
+                user_id       : $actor.user_id
+                account_id    : $actor.account_id
+                entity_type   : "work_item"
+                entity_id     : $parent_id
+                correlation_id: $input.correlation_id
+                error_code    : $reject_code
+                message       : "Add job under a parent refused."
+              }
+            }
+          }
+        }
+      }
+    }
+
     precondition ($reject_code == "") {
       error_type = "inputerror"
       error = $reject_msg
@@ -174,33 +239,25 @@ query "work_item" verb=POST {
       input = {snapshot: $version.snapshot}
     } as $plan
 
+    // EXC-1 (2026-10-26): the job + task writes live in ONE place,
+    // `jobs/create_job`, shared with the exception spawn's child job.
+    // It writes only; this transaction is still what makes "a job with
+    // half its tasks" impossible (a function.run inside db.transaction
+    // rolls back with it — verified live).
     db.transaction {
       stack {
-        db.add work_item {
-          data = {
+        function.run "jobs/create_job" {
+          input = {
             account_id            : $actor.account_id
             workspace_id          : $input.workspace_id
             journey_map_version_id: $version.id
             title                 : $input.title
-            status                : "open"
             attributes            : ($input.attributes ?? {})
-            parent_work_item_id   : 0
+            parent_work_item_id   : $parent_id
             created_by            : $actor.user_id
+            tasks                 : $plan.tasks
           }
         } as $job
-
-        foreach ($plan.tasks) {
-          each as $t {
-            db.add work_task {
-              data = {
-                work_item_id: $job.id
-                stage_key   : $t.stage_key
-                lens_key    : $t.lens_key
-                status      : "not_started"
-              }
-            } as $task
-          }
-        }
       }
     }
 
@@ -221,6 +278,26 @@ query "work_item" verb=POST {
           skipped_count: ($plan.skipped|count)
           version_id   : $version.id
           version_no   : $version.version_no
+        }
+      }
+    }
+
+    conditional {
+      if ($parent_id != 0) {
+        function.run "ops/log_event" {
+          input = {
+            feature       : "EXC-1"
+            step          : "child_job_created"
+            outcome       : "success"
+            severity      : "info"
+            user_id       : $actor.user_id
+            account_id    : $actor.account_id
+            entity_type   : "work_item"
+            entity_id     : $job.id
+            correlation_id: $input.correlation_id
+            message       : "Job added under a parent job."
+            metadata      : {parent_work_item_id: $parent_id, journey_map_version_id: $version.id, task_count: ($plan.tasks|count)}
+          }
         }
       }
     }

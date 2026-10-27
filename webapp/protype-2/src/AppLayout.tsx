@@ -1,6 +1,9 @@
-import React, {useState} from 'react';
+import React, {useMemo, useState} from 'react';
 import {NavLink, useLocation} from 'react-router-dom';
-import {Sparkles, CalendarRange, PlayCircle, Menu, X} from 'lucide-react';
+import {useAuth} from './AuthContext';
+import {canManageTeam, hasModule, type ModuleKey} from './team/teamModel';
+import {useMyModules} from './team/useMyModules';
+import {Sparkles, CalendarRange, PlayCircle, Users, Boxes, Menu, X} from 'lucide-react';
 
 /**
  * Persistent app chrome for every signed-in route.
@@ -10,7 +13,24 @@ import {Sparkles, CalendarRange, PlayCircle, Menu, X} from 'lucide-react';
  * inside it, so the menu never disappears as the user drills in.
  */
 
-const NAV_ITEMS = [
+interface NavItem {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{className?: string}>;
+  to: string;
+  matches: (pathname: string) => boolean;
+  /* Omitted means everyone. Only the team item sets it, and the route guard
+     and the endpoints enforce the same rule — this flag only decides
+     whether the menu shows a door the person cannot open. */
+  adminOnly?: boolean;
+  /* USR-2. The module this item belongs to, if any. Same status as
+     `adminOnly`: it decides what the menu SHOWS, and nothing else. The
+     route guard turns a direct URL away and the endpoints behind it refuse
+     on their own — hiding a menu item is not a permission. */
+  module?: ModuleKey;
+}
+
+const NAV_ITEMS: NavItem[] = [
   {
     id: 'nav-intelligent-layer',
     label: 'Intelligent Layer',
@@ -20,6 +40,7 @@ const NAV_ITEMS = [
        journey map), so its highlight is prefix-based rather than exact. */
     matches: (p: string) =>
       p.startsWith('/architectures') || p.startsWith('/maps') || p.startsWith('/dashboard'),
+    module: 'intelligence',
   },
   {
     id: 'nav-planner',
@@ -27,6 +48,7 @@ const NAV_ITEMS = [
     icon: CalendarRange,
     to: '/planner',
     matches: (p: string) => p.startsWith('/planner'),
+    module: 'planning',
   },
   /* The third layer of the product. `/perform` has existed and worked
      since APP-1, but was reachable only by typing the URL — it was
@@ -37,12 +59,69 @@ const NAV_ITEMS = [
     icon: PlayCircle,
     to: '/perform',
     matches: (p: string) => p.startsWith('/perform'),
+    module: 'execution',
+  },
+  /* USR-1 (2026-10-22): manage the people in the account.
+     ADMIN-ONLY, changed the same day it was built. It first shipped visible
+     to everyone, on the reasoning that the page renders no controls for a
+     member so hiding the item would only cost an admin their own team until
+     they learned the URL. The founder's instruction overrides that: "the
+     only difference is that admins can have access to the user management
+     module in their web interface." So the item is hidden for a member, the
+     route turns them away, and — because hiding a menu item is not a
+     permission — the five endpoints behind it each still enforce the admin
+     check server-side, through `usr/assert_team_admin`. */
+  {
+    id: 'nav-team',
+    label: 'Manage users',
+    icon: Users,
+    to: '/team',
+    matches: (p: string) => p.startsWith('/team'),
+    adminOnly: true,
+  },
+  /* CAT-1 (phase-6): the item-type / method catalog. No module gate and
+     no adminOnly here — same reasoning /account uses: any signed-in
+     member can see it and add to it (D-1); deactivate/delete are gated
+     inside the page itself, by canManageTeam, not by hiding the menu
+     item. Hiding the item would also hide it from the one person who
+     set it up for someone else. */
+  {
+    id: 'nav-catalog',
+    label: 'Catalog',
+    icon: Boxes,
+    to: '/settings/catalog',
+    matches: (p: string) => p.startsWith('/settings/catalog'),
   },
 ];
 
 export default function AppLayout({children}: {children: React.ReactNode}) {
   const {pathname} = useLocation();
+  const {user} = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  /* `role` arrives on every page load from `auth/me` and, until USR-1, was
+     never read. `canManageTeam` is the same function the Team page and its
+     route guard use, so the three cannot drift into disagreeing about who
+     counts as an admin. An untouched enum column reads back as "" rather
+     than null, which is why that test lives in one place. */
+  const isAdmin = canManageTeam(user);
+
+  /* USR-2. `isLoading` matters: filtering before the answer arrives would
+     draw an empty sidebar for a fraction of a second on every page load, and
+     a menu that flickers is read as a bug. Everything shows until the answer
+     is known, and the endpoints refuse anything that should not have been
+     offered. */
+  const {modules, isLoading: modulesLoading} = useMyModules();
+
+  const navItems = useMemo(
+    () =>
+      NAV_ITEMS.filter((item) => {
+        if (item.adminOnly && !isAdmin) return false;
+        if (item.module == null || modulesLoading) return true;
+        return hasModule({modules}, item.module);
+      }),
+    [isAdmin, modules, modulesLoading],
+  );
 
   return (
     <div className="h-screen flex flex-col md:flex-row overflow-hidden bg-zinc-50 font-sans">
@@ -55,7 +134,7 @@ export default function AppLayout({children}: {children: React.ReactNode}) {
            bar below replaces it so the other layers stay reachable. */
         className="hidden md:flex w-52 shrink-0 border-r border-zinc-200 bg-white px-3 py-4 flex-col gap-1"
       >
-        {NAV_ITEMS.map(({id, label, icon: Icon, to, matches}) => {
+        {navItems.map(({id, label, icon: Icon, to, matches}) => {
           const isActive = matches(pathname);
           return (
             <NavLink
@@ -99,7 +178,7 @@ export default function AppLayout({children}: {children: React.ReactNode}) {
           role="dialog"
           aria-label="Navigation"
         >
-          {NAV_ITEMS.map(({id, label, icon: Icon, to, matches}) => {
+          {navItems.map(({id, label, icon: Icon, to, matches}) => {
             const isActive = matches(pathname);
             return (
               <NavLink

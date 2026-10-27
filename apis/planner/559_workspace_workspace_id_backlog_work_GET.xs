@@ -58,8 +58,14 @@ query "workspace/{workspace_id}/backlog_work" verb=GET {
       value = []
     }
 
+    // EST-1 Opus review fix — seeded with a sentinel (CLAUDE.md: `in`
+    // against an empty array is untested; `in [-1]` correctly matches
+    // nothing). Needed now because the schema-version pre-check below
+    // runs this `in $version_ids` query UNCONDITIONALLY, including for
+    // a plan with zero jobs — the original code only ever queried
+    // $versions inside the `$job_ids|count > 0` guard.
     var $version_ids {
-      value = []
+      value = [-1]
     }
 
     var $key {
@@ -67,6 +73,32 @@ query "workspace/{workspace_id}/backlog_work" verb=GET {
     }
 
     var $job_by_id {
+      value = {}
+    }
+
+    // EST-1 (US-EST-1-05) — one estimate per job (not per task), looked
+    // up below by "job_id::stage_key" so Pass 1 can override a job's
+    // raw cell duration with its real per-stage estimate when the
+    // job's map has an Items row. A map with no Items row is untouched:
+    // $items_row_by_job stays false and nothing downstream changes.
+    var $items_row_by_job {
+      value = {}
+    }
+
+    // EST-1 Opus review fix — job_id -> estimate.complete, so a stage
+    // can be marked incomplete for a job-wide reason (no lines at all)
+    // and not only for its own `missing`. Read with `|has` to test
+    // presence, never `== null`/`!= null` — `complete` is legitimately
+    // `false` for an incomplete job, and this engine's null comparison
+    // is PHP-style loose equality where `false == null` is TRUE
+    // (CLAUDE.md), so a null-check here would silently discard every
+    // real `false`. Defaults to "complete" (true) for any job this map
+    // was never built for (i.e. its map has no Items row).
+    var $job_complete_by_job {
+      value = {}
+    }
+
+    var $stage_est_by_jobstage {
       value = {}
     }
 
@@ -90,6 +122,107 @@ query "workspace/{workspace_id}/backlog_work" verb=GET {
       }
     }
 
+    // EXC-1 (US-EXC-1-05) — how many open child jobs each job has. The
+    // children are in $jobs already (same plan, not cancelled). The branch
+    // reads only the loop item; the lookup's null (a variable-key |get
+    // ignores its default — CLAUDE.md) is turned into 0 with ??.
+    var $child_counts {
+      value = {}
+    }
+
+    foreach ($jobs) {
+      each as $cj {
+        conditional {
+          if ($cj.parent_work_item_id != 0) {
+            var $cj_parent_key {
+              value = $cj.parent_work_item_id|to_text
+            }
+
+            var $cj_prev {
+              value = ($child_counts|get:$cj_parent_key:null) ?? 0
+            }
+
+            var.update $child_counts {
+              value = $child_counts|set:$cj_parent_key:($cj_prev + 1)
+            }
+          }
+        }
+      }
+    }
+
+    // CHEAP PRE-CHECK before paying for `estimate/estimate_job` (which
+    // re-reads the same version plus the job's lines): read just
+    // schema_version for every distinct version this plan's jobs point
+    // at, ONE query, and only call the real formula for a job whose map
+    // actually has an Items row. In a plan with many jobs and few (or
+    // no) Items-row maps — true of every plan that predates RATE-1 —
+    // this keeps the backlog's cost close to what it was before EST-1,
+    // instead of one extra round trip per job regardless of need.
+    db.query journey_map_version {
+      where = $db.journey_map_version.id in $version_ids
+      return = {type: "list"}
+    } as $prelim_versions
+
+    var $schema_version_by_version_id {
+      value = {}
+    }
+
+    foreach ($prelim_versions) {
+      each as $pv {
+        var $pv_id_key {
+          value = $pv.id|to_text
+        }
+
+        var.update $schema_version_by_version_id {
+          value = $schema_version_by_version_id|set:$pv_id_key:($pv.snapshot.schema_version ?? 1)
+        }
+      }
+    }
+
+    foreach ($jobs) {
+      each as $j3 {
+        var $j3_key {
+          value = $j3.id|to_text
+        }
+
+        var $j3_version_key {
+          value = $j3.journey_map_version_id|to_text
+        }
+
+        var $j3_schema_version {
+          value = $schema_version_by_version_id|get:$j3_version_key:1
+        }
+
+        conditional {
+          if ($j3_schema_version >= 2) {
+            function.run "estimate/estimate_job" {
+              input = {work_item_id: $j3.id}
+            } as $job_estimate
+
+            var.update $items_row_by_job {
+              value = $items_row_by_job|set:$j3_key:$job_estimate.has_items_row
+            }
+
+            var.update $job_complete_by_job {
+              value = $job_complete_by_job|set:$j3_key:$job_estimate.complete
+            }
+
+            foreach ($job_estimate.stages) {
+              each as $jes {
+                var $jobstage_key {
+                  value = $j3_key ~ "::" ~ $jes.stage_key
+                }
+
+                var.update $stage_est_by_jobstage {
+                  value = $stage_est_by_jobstage|set:$jobstage_key:$jes
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     var $cards {
       value = []
     }
@@ -102,10 +235,11 @@ query "workspace/{workspace_id}/backlog_work" verb=GET {
           return = {type: "list"}
         } as $work_tasks
 
-        db.query journey_map_version {
-          where = $db.journey_map_version.id in $version_ids
-          return = {type: "list"}
-        } as $versions
+        // Reuses $prelim_versions (queried above for the schema-version
+        // pre-check) instead of a second, identical query.
+        var $versions {
+          value = $prelim_versions
+        }
 
         // Cell text and minutes, keyed version~stage~lens.
         var $cell_map {
@@ -238,6 +372,113 @@ query "workspace/{workspace_id}/backlog_work" verb=GET {
               value = $wt.id|to_text
             }
 
+            // EST-1 (US-EST-1-05) — override the raw cell duration with
+            // the job's real per-stage estimate, only when its map has
+            // an Items row. $job_item_key was set above when the job
+            // was indexed, before this (or any) task loop started.
+            var $job_item_key {
+              value = $wt.work_item_id|to_text
+            }
+
+            var $job_has_items_row {
+              value = $items_row_by_job|get:$job_item_key:false
+            }
+
+            var $cand_expected_minutes {
+              value = ($cell.duration_minutes ?? null)
+            }
+
+            var $cand_estimate_status {
+              value = "n/a"
+            }
+
+            var $cand_estimate_source {
+              value = "n/a"
+            }
+
+            // EST-1 Opus review fixes (2026-10-25): the override only
+            // applies to the task whose lens_key is the stage's OWNER
+            // — a second actor at the same stage keeps its own cell
+            // duration, never the combined number (double-counting
+            // otherwise). And a stage also counts as incomplete when
+            // the WHOLE job is incomplete for a reason that isn't this
+            // stage's own (no lines at all), not just when this
+            // stage's own `missing` is non-empty.
+            conditional {
+              if ($job_has_items_row == true) {
+                var $jobstage_lookup {
+                  value = $job_item_key ~ "::" ~ $wt.stage_key
+                }
+
+                var $cand_stage_est {
+                  value = $stage_est_by_jobstage|get:$jobstage_lookup:null
+                }
+
+                conditional {
+                  if ($cand_stage_est != null && $cand_stage_est.owner_lens_key == $wt.lens_key) {
+                    var.update $cand_estimate_source {
+                      value = $cand_stage_est.source
+                    }
+
+                    // EST-1 Opus review fix, round 2 — `$x != null` is
+                    // unsafe here: `complete` can legitimately be `false`,
+                    // and this engine's `==`/`!=` against `null` is
+                    // PHP-style loose equality where `false == null` is
+                    // TRUE (CLAUDE.md). That made the first version of
+                    // this check silently skip the update whenever a job
+                    // was genuinely incomplete, leaving the default
+                    // `true` in place. `|has` checks presence without
+                    // ever comparing the value itself to `null`.
+                    var $cand_job_complete {
+                      value = true
+                    }
+
+                    conditional {
+                      if ($job_complete_by_job|has:$job_item_key) {
+                        var.update $cand_job_complete {
+                          value = $job_complete_by_job|get:$job_item_key:true
+                        }
+                      }
+                    }
+
+                    var $cand_incomplete {
+                      value = (($cand_stage_est.missing|count) > 0)
+                    }
+
+                    conditional {
+                      if ($cand_stage_est.scales_with != "per_order" && $cand_job_complete == false) {
+                        var.update $cand_incomplete {
+                          value = true
+                        }
+                      }
+                    }
+
+                    conditional {
+                      if ($cand_incomplete == true) {
+                        var.update $cand_expected_minutes {
+                          value = $cand_stage_est.baseline_minutes
+                        }
+
+                        var.update $cand_estimate_status {
+                          value = "incomplete"
+                        }
+                      }
+
+                      else {
+                        var.update $cand_expected_minutes {
+                          value = $cand_stage_est.total_minutes
+                        }
+
+                        var.update $cand_estimate_status {
+                          value = "complete"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
             array.push $candidates {
               value = {
                 work_task_id    : $wt.id
@@ -249,7 +490,9 @@ query "workspace/{workspace_id}/backlog_work" verb=GET {
                 status          : $wt.status
                 task            : ($cell.task ?? null)
                 done_when       : ($cell.done_when ?? null)
-                expected_minutes: ($cell.duration_minutes ?? null)
+                expected_minutes: $cand_expected_minutes
+                estimate_status : $cand_estimate_status
+                estimate_source : $cand_estimate_source
                 is_linked       : ($linked|get:$key:null)
               }
             }
@@ -330,6 +573,14 @@ query "workspace/{workspace_id}/backlog_work" verb=GET {
           value = 0
         }
 
+        var $card_any_incomplete {
+          value = false
+        }
+
+        var $card_any_estimated {
+          value = false
+        }
+
         var $first_step {
           value = null
         }
@@ -376,6 +627,14 @@ query "workspace/{workspace_id}/backlog_work" verb=GET {
               value = 0
             }
 
+            var.update $card_any_incomplete {
+              value = false
+            }
+
+            var.update $card_any_estimated {
+              value = false
+            }
+
             var.update $first_step {
               value = null
             }
@@ -405,6 +664,8 @@ query "workspace/{workspace_id}/backlog_work" verb=GET {
                         task            : $step.task
                         done_when       : $step.done_when
                         expected_minutes: $step.expected_minutes
+                        estimate_status : $step.estimate_status
+                        estimate_source : $step.estimate_source
                       }
                     }
 
@@ -414,6 +675,22 @@ query "workspace/{workspace_id}/backlog_work" verb=GET {
 
                     var.update $minutes {
                       value = $minutes + ($step.expected_minutes ?? 0)
+                    }
+
+                    conditional {
+                      if ($step.estimate_status == "incomplete") {
+                        var.update $card_any_incomplete {
+                          value = true
+                        }
+                      }
+                    }
+
+                    conditional {
+                      if ($step.estimate_status != "n/a") {
+                        var.update $card_any_estimated {
+                          value = true
+                        }
+                      }
                     }
 
                     var.update $last_label {
@@ -432,6 +709,43 @@ query "workspace/{workspace_id}/backlog_work" verb=GET {
               value = $steps|first
             }
 
+            var $card_estimate_status {
+              value = "n/a"
+            }
+
+            conditional {
+              if ($card_any_estimated == true) {
+                var.update $card_estimate_status {
+                  value = "complete"
+                }
+
+                conditional {
+                  if ($card_any_incomplete == true) {
+                    var.update $card_estimate_status {
+                      value = "incomplete"
+                    }
+                  }
+                }
+              }
+            }
+
+            // EXC-1 (US-EXC-1-05) — the link both ways, on the card.
+            var $card_job_key {
+              value = $card.work_item_id|to_text
+            }
+
+            var $card_job {
+              value = $job_by_id|get:$card_job_key:null
+            }
+
+            var $card_parent_id {
+              value = $card_job.parent_work_item_id ?? 0
+            }
+
+            var $card_child_count {
+              value = ($child_counts|get:$card_job_key:null) ?? 0
+            }
+
             array.push $cards {
               value = {
                 card_key         : $card.card_key
@@ -441,10 +755,13 @@ query "workspace/{workspace_id}/backlog_work" verb=GET {
                 lens_label       : $lens_label
                 step_count       : ($steps|count)
                 expected_minutes : $minutes
+                estimate_status  : $card_estimate_status
                 first_stage_label: ($first_step|get:"stage_label":"")
                 last_stage_label : $last_label
                 work_task_ids    : $ids
                 steps            : $steps
+                parent_work_item_id: $card_parent_id
+                child_count      : $card_child_count
               }
             }
           }

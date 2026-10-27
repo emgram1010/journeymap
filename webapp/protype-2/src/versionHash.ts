@@ -48,6 +48,22 @@ export interface SnapshotLink {
   target_map_id: number;
 }
 
+/** RATE-1 (schema v2) — how one stage's time scales, from the Items row. */
+export interface SnapshotScaling {
+  stage_key: string;
+  scales_with: 'per_order' | 'per_unit' | 'per_flagged_unit';
+}
+
+/** RATE-1 (schema v2) — one frozen rate: minutes per unit of an item, by a method, at a stage. */
+export interface SnapshotRate {
+  stage_key: string;
+  quantity_key: string;
+  method_key: string;
+  /** At most 2 decimals — the Items cell validator (E-ITM-004) and build_map_snapshot both enforce it. */
+  minutes_per_unit: number;
+  source: 'seed' | 'measured';
+}
+
 export interface MapSnapshot {
   schema_version: number;
   title: string;
@@ -55,6 +71,10 @@ export interface MapSnapshot {
   lenses: SnapshotLens[];
   cells: SnapshotCell[];
   links: SnapshotLink[];
+  /** Schema v2 only. Absent on every v1 snapshot. */
+  scaling?: SnapshotScaling[];
+  /** Schema v2 only. Absent on every v1 snapshot. */
+  rates?: SnapshotRate[];
 }
 
 /**
@@ -75,6 +95,20 @@ export function escapeField(value: string | null | undefined): string {
 function minutesField(minutes: number | null | undefined): string {
   if (minutes === null || minutes === undefined) return '';
   return String(minutes);
+}
+
+/**
+ * RATE-1 — a rate's minutes, always fixed 2 decimals with no thousands
+ * separator (`0.00`, `0.50`, `12.25`, `1440.00`). Xano renders the same
+ * value with `number_format:2:".":""`; the two agree on every value with
+ * at most 2 decimals, which is all a snapshot can hold. (They can differ
+ * on a half-cent like 2.005 — float vs. PHP rounding — which is exactly
+ * why build_map_snapshot rounds before storing.)
+ */
+export function formatRateMinutes(minutes: number | null | undefined): string {
+  // A missing value renders 0.00, exactly like canonical_hash.xs's
+  // `($rt.minutes_per_unit ?? 0)` — only a malformed snapshot has one.
+  return (minutes ?? 0).toFixed(2);
 }
 
 /**
@@ -101,6 +135,18 @@ export function canonicalizeSnapshot(snapshot: MapSnapshot): string {
 
   for (const link of snapshot.links) {
     out += `link|${escapeField(link.stage_key)}|${escapeField(link.lens_key)}|${escapeField(link.link_type)}|${link.target_map_id}\n`;
+  }
+
+  // RATE-1 — schema v2 adds the Items row's scaling and rates. Gated on
+  // the snapshot's OWN schema_version, so a stored v1 snapshot still
+  // re-serialises to exactly the bytes it was hashed with.
+  if (snapshot.schema_version >= 2) {
+    for (const s of snapshot.scaling ?? []) {
+      out += `scale|${escapeField(s.stage_key)}|${escapeField(s.scales_with)}\n`;
+    }
+    for (const r of snapshot.rates ?? []) {
+      out += `rate|${escapeField(r.stage_key)}|${escapeField(r.quantity_key)}|${escapeField(r.method_key)}|${formatRateMinutes(r.minutes_per_unit)}|${escapeField(r.source)}\n`;
+    }
   }
 
   return out;

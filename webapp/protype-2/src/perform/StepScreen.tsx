@@ -3,6 +3,7 @@
 // button, never a dropdown (same rule APP-1 already enforces).
 import {ChevronLeft} from 'lucide-react';
 import {availableActions, type PerformerAction, type PerformerSubStep, type TaskStatus} from './performerView';
+import ExceptionSendPanel from '../exceptions/ExceptionSendPanel';
 
 const REASON_LABELS: Record<string, string> = {
   waiting_on_someone: 'Waiting on someone',
@@ -86,6 +87,8 @@ export default function StepScreen({
   onCancelReason,
   onChangeNoteDraft,
   onSaveNote,
+  workItemId,
+  onExceptionSent,
 }: {
   sub: PerformerSubStep;
   expectedMinutes: number;
@@ -102,6 +105,10 @@ export default function StepScreen({
   onCancelReason: () => void;
   onChangeNoteDraft: (text: string) => void;
   onSaveNote: () => void;
+  /** EXC-1 — the step's job; enables "Send to…" when its pinned version links this stage somewhere. */
+  workItemId?: number;
+  /** EXC-1 — re-fetch the step after a send: "This step is stuck" changes its status on the server. */
+  onExceptionSent?: () => void;
 }) {
   const actions = availableActions(sub.status);
   const primary = PRIMARY_ACTION[sub.status];
@@ -140,6 +147,9 @@ export default function StepScreen({
         </div>
 
         {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
+
+        {/* EXC-1 (US-EXC-1-06) — shown only when this stage links somewhere. */}
+        {workItemId != null && <ExceptionSendPanel workItemId={workItemId} workTaskId={sub.workTaskId} variant="performer" onSent={onExceptionSent} />}
 
         {/* US-APP-2-06 — notes */}
         <div className="rounded-xl border border-zinc-200 bg-white p-3">

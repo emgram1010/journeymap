@@ -1,0 +1,95 @@
+{
+  "_about": "EXC-1 golden fixtures for the line split. Shared by webapp/protype-2/src/exceptions/splitLines.ts (UT-EXC-1-01..04) and functions/exceptions/split_lines.xs (FT-EXC-1-01). Keep both sides in step: if a rule changes, change it here first.",
+  "parentLines": [
+    {"item_type_id": 11, "item_key": "table", "quantity": 3},
+    {"item_type_id": 12, "item_key": "chair", "quantity": 100}
+  ],
+  "cases": [
+    {
+      "id": "UT-EXC-1-01",
+      "name": "move 2 of 3 tables",
+      "moved": [{"item_type_id": 11, "quantity": 2}],
+      "expected": {
+        "ok": true,
+        "parentAfter": [{"item_type_id": 11, "item_key": "table", "quantity": 1}, {"item_type_id": 12, "item_key": "chair", "quantity": 100}],
+        "childLines": [{"item_type_id": 11, "item_key": "table", "quantity": 2}],
+        "removed": []
+      }
+    },
+    {
+      "id": "UT-EXC-1-02",
+      "name": "move 3 of 3 tables removes the parent line",
+      "moved": [{"item_type_id": 11, "quantity": 3}],
+      "expected": {
+        "ok": true,
+        "parentAfter": [{"item_type_id": 12, "item_key": "chair", "quantity": 100}],
+        "childLines": [{"item_type_id": 11, "item_key": "table", "quantity": 3}],
+        "removed": [11]
+      }
+    },
+    {
+      "id": "UT-EXC-1-04",
+      "name": "two items, one in full; output follows the parent's line order, not the request's",
+      "moved": [{"item_type_id": 12, "quantity": 5}, {"item_type_id": 11, "quantity": 3}],
+      "expected": {
+        "ok": true,
+        "parentAfter": [{"item_type_id": 12, "item_key": "chair", "quantity": 95}],
+        "childLines": [{"item_type_id": 11, "item_key": "table", "quantity": 3}, {"item_type_id": 12, "item_key": "chair", "quantity": 5}],
+        "removed": [11]
+      }
+    },
+    {
+      "id": "UT-EXC-1-03a",
+      "name": "more than the parent has",
+      "moved": [{"item_type_id": 11, "quantity": 4}],
+      "expected": {"ok": false, "code": "E-EXC-006", "item_type_id": 11}
+    },
+    {
+      "id": "UT-EXC-1-03b",
+      "name": "zero",
+      "moved": [{"item_type_id": 11, "quantity": 0}],
+      "expected": {"ok": false, "code": "E-EXC-006", "item_type_id": 11}
+    },
+    {
+      "id": "UT-EXC-1-03c",
+      "name": "a decimal",
+      "moved": [{"item_type_id": 11, "quantity": 2.5}],
+      "expected": {"ok": false, "code": "E-EXC-006", "item_type_id": 11}
+    },
+    {
+      "id": "UT-EXC-1-03d",
+      "name": "the same item twice",
+      "moved": [{"item_type_id": 11, "quantity": 1}, {"item_type_id": 11, "quantity": 1}],
+      "expected": {"ok": false, "code": "E-EXC-007", "item_type_id": 11}
+    },
+    {
+      "id": "UT-EXC-1-03e",
+      "name": "an item that is not on the order",
+      "moved": [{"item_type_id": 99, "quantity": 1}],
+      "expected": {"ok": false, "code": "E-EXC-005", "item_type_id": 99}
+    },
+    {
+      "id": "UT-EXC-1-03f",
+      "name": "negative",
+      "moved": [{"item_type_id": 12, "quantity": -1}],
+      "expected": {"ok": false, "code": "E-EXC-006", "item_type_id": 12}
+    },
+    {
+      "id": "UT-EXC-1-03g",
+      "name": "first bad line wins: unknown item before a later over-quantity",
+      "moved": [{"item_type_id": 99, "quantity": 1}, {"item_type_id": 11, "quantity": 9}],
+      "expected": {"ok": false, "code": "E-EXC-005", "item_type_id": 99}
+    },
+    {
+      "id": "UT-EXC-1-03h",
+      "name": "nothing moved is a whole-job exception, not an error",
+      "moved": [],
+      "expected": {
+        "ok": true,
+        "parentAfter": [{"item_type_id": 11, "item_key": "table", "quantity": 3}, {"item_type_id": 12, "item_key": "chair", "quantity": 100}],
+        "childLines": [],
+        "removed": []
+      }
+    }
+  ]
+}

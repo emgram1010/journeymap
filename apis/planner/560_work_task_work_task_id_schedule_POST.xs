@@ -143,6 +143,63 @@ query "work_task/{work_task_id}/schedule" verb=POST {
       }
     }
 
+    // EST-1 (US-EST-1-05) — on a map WITH an Items row, the step's
+    // real expected minutes are its stage's estimate (baseline only
+    // when that stage has a missing rate), not the raw cell scan
+    // above. A map with no Items row keeps the scan untouched.
+    //
+    // EST-1 Opus review fixes (2026-10-25), mirrored from 555: the
+    // override only applies when $wt's own lens_key is the stage's
+    // OWNER — a second actor at the same stage keeps the raw cell
+    // scan's number, never the combined stage total (double-counting
+    // otherwise). And the stage also counts as incomplete when the
+    // WHOLE job is incomplete for a reason that isn't this stage's
+    // own (no lines at all), not only when this stage's own `missing`
+    // is non-empty. Reads `$step_estimate.complete` directly (not
+    // through a map), so `== false` is a plain, safe comparison — no
+    // `|has`/null-check needed here (unlike 559's job_complete map).
+    function.run "estimate/estimate_job" {
+      input = {work_item_id: $job.id}
+    } as $step_estimate
+
+    conditional {
+      if ($step_estimate.has_items_row == true) {
+        foreach ($step_estimate.stages) {
+          each as $se {
+            conditional {
+              if ($se.stage_key == $wt.stage_key && $se.owner_lens_key == $wt.lens_key) {
+                var $se_incomplete {
+                  value = (($se.missing|count) > 0)
+                }
+
+                conditional {
+                  if ($se.scales_with != "per_order" && $step_estimate.complete == false) {
+                    var.update $se_incomplete {
+                      value = true
+                    }
+                  }
+                }
+
+                conditional {
+                  if ($se_incomplete == true) {
+                    var.update $expected {
+                      value = $se.baseline_minutes
+                    }
+                  }
+
+                  else {
+                    var.update $expected {
+                      value = $se.total_minutes
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     util.get_raw_input {
       encoding = "json"
       exclude_middleware = false

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {canonicalizeSnapshot, escapeField, hashSnapshot} from './versionHash';
+import {canonicalizeSnapshot, escapeField, formatRateMinutes, hashSnapshot} from './versionHash';
+import goldenV2Json from './fixtures/version-hash-golden-v2.json';
 import type {MapSnapshot} from './versionHash';
 
 const base: MapSnapshot = {
@@ -189,4 +190,87 @@ test('golden: non-ASCII text hashes identically on both sides', async () => {
     await hashSnapshot(unicode),
     'dc1dc9e52f44dae0230d378944a3e6b8aaccd285d130a4b9d026f38a2748e7c0',
   );
+});
+
+// ── RATE-1 — schema v2 (scaling + rates) ─────────────────────────────
+
+const goldenV2 = goldenV2Json as unknown as {snapshot: MapSnapshot; expected_canonical: string; expected_hash: string};
+
+test('UT-RATE-1-01: the v1 golden is untouched by the v2 serialiser', async () => {
+  // Same pinned hash as the PUB-1 golden above, asserted again here so a
+  // v2 change that leaks into v1 output fails under RATE-1's own name.
+  assert.equal(
+    await hashSnapshot(base),
+    '0c62343204f24db1f11a906693f342101ee41122eaa7402f25cb3d3db9c97109',
+  );
+  // A v1 snapshot that happens to carry rates still ignores them — the
+  // serialiser follows the snapshot's own schema_version, nothing else.
+  const v1WithRates = {...clone(base), scaling: goldenV2.snapshot.scaling, rates: goldenV2.snapshot.rates};
+  assert.equal(await hashSnapshot(v1WithRates), await hashSnapshot(base));
+});
+
+test('UT-RATE-1-02: the v2 golden is pinned (Xano must match byte for byte)', async () => {
+  assert.equal(canonicalizeSnapshot(goldenV2.snapshot), goldenV2.expected_canonical);
+  assert.equal(await hashSnapshot(goldenV2.snapshot), goldenV2.expected_hash);
+});
+
+test('UT-RATE-1-03: rate minutes render as fixed 2 decimals', () => {
+  assert.deepEqual(
+    [0, 0.5, 2, 12.25, 1440].map(formatRateMinutes),
+    ['0.00', '0.50', '2.00', '12.25', '1440.00'],
+  );
+});
+
+test('UT-RATE-1-04: two snapshots differing in one rate hash differently', async () => {
+  const changed = clone(goldenV2.snapshot);
+  changed.rates![0].minutes_per_unit = 2.75;
+  assert.notEqual(await hashSnapshot(changed), goldenV2.expected_hash);
+
+  const source = clone(goldenV2.snapshot);
+  source.rates![0].source = 'measured';
+  assert.notEqual(await hashSnapshot(source), goldenV2.expected_hash);
+
+  const scaling = clone(goldenV2.snapshot);
+  scaling.scaling![0].scales_with = 'per_unit';
+  assert.notEqual(await hashSnapshot(scaling), goldenV2.expected_hash);
+});
+
+test('UT-RATE-1-05: a v2 snapshot with no Items row still hashes, with only the header changed', async () => {
+  const noItems: MapSnapshot = {...clone(base), schema_version: 2, scaling: [], rates: []};
+  const canonical = canonicalizeSnapshot(noItems);
+  assert.equal(canonical, canonicalizeSnapshot(base).replace(/^v1\n/, 'v2\n'));
+  assert.match(await hashSnapshot(noItems), /^[0-9a-f]{64}$/);
+  // scaling/rates absent entirely behaves the same as empty.
+  const absent: MapSnapshot = {...clone(base), schema_version: 2};
+  assert.equal(canonicalizeSnapshot(absent), canonical);
+});
+
+// Confirmed byte-identical against live pub/canonical_hash on 2026-10-25
+// (RATE-1 review pass) — the spec asked for 0 / 0.5 / 2 / 12.25 / 1440 to
+// be proven on BOTH sides, not just here.
+test('UT-RATE-1-03b: rate minutes 0..1440 hash identically on both sides (pinned)', async () => {
+  const snap: MapSnapshot = {
+    schema_version: 2,
+    title: 'm',
+    stages: [],
+    lenses: [],
+    cells: [],
+    links: [],
+    scaling: [],
+    rates: (
+      [
+        ['a', 0, 'seed'],
+        ['b', 0.5, 'seed'],
+        ['c', 2, 'seed'],
+        ['d', 12.25, 'seed'],
+        ['e', 1440, 'measured'],
+      ] as const
+    ).map(([q, m, src]) => ({stage_key: 's', quantity_key: q, method_key: 'm', minutes_per_unit: m, source: src})),
+  };
+  assert.equal(
+    canonicalizeSnapshot(snap),
+    'v2\ntitle|m\nrate|s|a|m|0.00|seed\nrate|s|b|m|0.50|seed\nrate|s|c|m|2.00|seed\nrate|s|d|m|12.25|seed\nrate|s|e|m|1440.00|measured\n',
+  );
+  assert.equal(await hashSnapshot(snap), 'a1b42ddc4d22e4a4b291e8b438ade1f0c272435c4534a4e21d75660c7909ce77');
+  assert.equal(formatRateMinutes(null), '0.00');
 });

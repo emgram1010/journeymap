@@ -641,6 +641,15 @@ export const getAuthToken = () => (typeof localStorage !== 'undefined' ? localSt
 const DEFAULT_XANO_OPS_BASE_URL = 'https://xdjc-i7zz-jhm2.n7e.xano.io/api:-2MhtESP:v1';
 export const getXanoOpsBaseUrl = () => trimTrailingSlash(import.meta.env.VITE_XANO_OPS_BASE_URL?.trim() || DEFAULT_XANO_OPS_BASE_URL);
 
+// CAT-1 (phase-6) — the catalog group (item-type/method) lives in its OWN
+// API group, same reason Ops needed its own base URL: a single app-wide
+// base URL would silently 404 every call (CLAUDE.md, APP-1's learning).
+// Canonical confirmed live via getApiGroupSwagger after the CAT-1 push
+// (2026-10-24): Xano assigns its own canonical regardless of what the
+// createApiGroup call requests, so this is NOT "catalog" as named locally.
+const DEFAULT_XANO_CATALOG_BASE_URL = 'https://xdjc-i7zz-jhm2.n7e.xano.io/api:FB308vAe';
+export const getXanoCatalogBaseUrl = () => trimTrailingSlash(import.meta.env.VITE_XANO_CATALOG_BASE_URL?.trim() || DEFAULT_XANO_CATALOG_BASE_URL);
+
 type RequestOptions = {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: Record<string, unknown>;
@@ -1533,6 +1542,191 @@ export async function getAuthMe(): Promise<XanoUser> {
   return authXanoRequest<XanoUser>('/auth/me');
 }
 
+// ── USR-1: Members & Accounts API group ─────────────────────────────────────
+//
+// Its OWN group, with its own base URL. Not an optimisation — APP-1 lost
+// weeks to exactly this: every `/ops/*` call in this file targeted the
+// journey-map group and 404'd silently, because one base URL was assumed to
+// cover everything. Confirmed over real HTTP on 2026-10-22 that this group
+// answers at `api:Fcgmwc6Y` with NO `:v1` suffix (unlike Ops, which needs
+// one). Verify the group before wiring any newly-pushed endpoint.
+const DEFAULT_XANO_MEMBERS_BASE_URL = 'https://xdjc-i7zz-jhm2.n7e.xano.io/api:Fcgmwc6Y';
+export const getXanoMembersBaseUrl = () =>
+  trimTrailingSlash(import.meta.env.VITE_XANO_MEMBERS_BASE_URL?.trim() || DEFAULT_XANO_MEMBERS_BASE_URL);
+
+/** A user as `GET account/my_team_members` returns them. `role` was added in USR-1. */
+export interface XanoTeamMember {
+  id: number;
+  created_at?: number | string | null;
+  name: string;
+  email: string;
+  account_id?: number | null;
+  role?: string | null;
+}
+
+/**
+ * A row of the `user_status` side table.
+ *
+ * Rows exist only for users whose status has been touched. Absence means
+ * active — see `team/teamModel.ts`, which does the merge.
+ */
+export interface XanoUserStatus {
+  id: number;
+  user_id: number;
+  account_id?: number | null;
+  is_active: boolean;
+  deactivated_at?: number | string | null;
+  deactivated_by_user_id?: number | null;
+}
+
+export async function listTeamMembers(): Promise<XanoTeamMember[]> {
+  return xanoRequest<XanoTeamMember[]>('/account/my_team_members', {baseUrl: getXanoMembersBaseUrl()});
+}
+
+export async function listUserStatuses(): Promise<XanoUserStatus[]> {
+  return xanoRequest<XanoUserStatus[]>('/user_status', {baseUrl: getXanoMembersBaseUrl()});
+}
+
+export async function setUserRole(userId: number, newRole: 'admin' | 'member'): Promise<XanoTeamMember> {
+  return xanoRequest<XanoTeamMember>('/admin/user_role', {
+    method: 'POST',
+    body: {user_id: userId, new_role: newRole},
+    baseUrl: getXanoMembersBaseUrl(),
+  });
+}
+
+export async function setUserActive(userId: number, isActive: boolean): Promise<{user_id: number; is_active: boolean}> {
+  return xanoRequest<{user_id: number; is_active: boolean}>('/admin/user_status', {
+    method: 'POST',
+    body: {user_id: userId, is_active: isActive},
+    baseUrl: getXanoMembersBaseUrl(),
+  });
+}
+
+/**
+ * USR-1 (US-USR-1-02) — add a person to the caller's own account.
+ *
+ * There is no `account_id` in this body and there never may be: the server
+ * reads it from the acting admin's own record. An account id in a request
+ * body is a cross-tenant write waiting to happen.
+ *
+ * `password` is the initial one the admin chooses, per the founder's decision
+ * of 2026-10-22. It is hashed by the `password`-typed column on write, it is
+ * never logged, and the response is shaped so nothing sensitive comes back.
+ * It is also NOT kept in this module — the caller holds it only as long as the
+ * form is open.
+ */
+export async function createUser(draft: {
+  name: string;
+  email: string;
+  password: string;
+  role: 'admin' | 'member';
+}): Promise<XanoTeamMember> {
+  return xanoRequest<XanoTeamMember>('/admin/user_create', {
+    method: 'POST',
+    body: {name: draft.name, email: draft.email, password: draft.password, new_role: draft.role},
+    baseUrl: getXanoMembersBaseUrl(),
+  });
+}
+
+/**
+ * USR-1 (US-USR-1-07) — correct somebody's name or email.
+ *
+ * An empty string means "leave this one alone", which is what the server
+ * reads too: an omitted optional text input arrives as `""` and never as
+ * null, so `""` is the only available signal for "not supplied".
+ *
+ * Not to be confused with `PATCH user/edit_profile`, which edits the CALLER'S
+ * own record, takes no user id, and is untouched by USR-1.
+ */
+export async function updateUserInfo(
+  userId: number,
+  fields: {name?: string; email?: string},
+): Promise<XanoTeamMember> {
+  return xanoRequest<XanoTeamMember>('/admin/user_update', {
+    method: 'POST',
+    body: {user_id: userId, name: fields.name ?? '', email: fields.email ?? ''},
+    baseUrl: getXanoMembersBaseUrl(),
+  });
+}
+
+/**
+ * USR-1 (US-USR-1-08) — remove a person outright.
+ *
+ * POST, not DELETE, and a static path: `admin/user/{user_id}` would be
+ * shadowed by any earlier dynamic sibling in the same group and verb, the
+ * trap that left endpoint 210 dead from the day it was created (PLN-9).
+ *
+ * The server refuses with `E-USR-013` if the person has work in the system,
+ * and that refusal cannot be predicted here — the client cannot see the
+ * architectures, planner agents, agent profiles and performed steps it
+ * depends on.
+ */
+export async function deleteUser(userId: number): Promise<{deleted_user_id: number; deleted: boolean}> {
+  return xanoRequest<{deleted_user_id: number; deleted: boolean}>('/admin/user_delete', {
+    method: 'POST',
+    body: {user_id: userId},
+    baseUrl: getXanoMembersBaseUrl(),
+  });
+}
+
+/**
+ * A row of the `user_module_access` side table (USR-2).
+ *
+ * Rows exist only where access has been decided, and ABSENCE MEANS NOT
+ * GRANTED — the opposite default to `user_status`, where absence means active.
+ * The merge is in `team/teamModel.ts`; nothing here infers anything.
+ */
+export interface XanoUserModuleAccess {
+  id: number;
+  user_id: number;
+  account_id?: number | null;
+  module: string;
+  granted: boolean;
+  granted_at?: number | string | null;
+  granted_by_user_id?: number | null;
+}
+
+/**
+ * USR-2 — every grant in the caller's own account.
+ *
+ * Account-scoped by the server from the caller's own record; there is no
+ * parameter, so nothing the client sends can widen what comes back.
+ *
+ * This is deliberately the source for the SIGNED-IN USER'S own grants too,
+ * rather than adding them to `auth/me`. `auth/me` is the highest-volume
+ * response in the app and has already been fixed once for carrying more than
+ * it needed; one more fetch on the pages that gate themselves is the cheaper
+ * mistake. The caller picks their own row out of the account's rows.
+ */
+export async function listUserModuleAccess(): Promise<XanoUserModuleAccess[]> {
+  return xanoRequest<XanoUserModuleAccess[]>('/user_module_access', {baseUrl: getXanoMembersBaseUrl()});
+}
+
+/**
+ * USR-2 (US-USR-2-02) — grant or revoke ONE module for one person.
+ *
+ * One module per call, matching the endpoint: the Team page sends one request
+ * per checkbox, so a batch body would never have arrived with more than one
+ * item in it, and supporting one would have meant a `foreach` inside a
+ * `db.transaction` — a construct not proven in this workspace — to solve a
+ * problem the UI cannot produce.
+ *
+ * No `account_id` in the body, ever. The server reads it from the acting
+ * admin's own record.
+ */
+export async function setUserModuleAccess(
+  userId: number,
+  module: string,
+  granted: boolean,
+): Promise<{user_id: number; module: string; granted: boolean}> {
+  return xanoRequest<{user_id: number; module: string; granted: boolean}>('/admin/user_module_access', {
+    method: 'POST',
+    body: {user_id: userId, module, granted},
+    baseUrl: getXanoMembersBaseUrl(),
+  });
+}
+
 // ── OBS-1: Health page (admin-only) ─────────────────────────────────────────
 
 export interface OpsHealthResponse {
@@ -1596,6 +1790,69 @@ export const getOpsIssues = (params: {accountId?: number; since?: string} = {}) 
   const qs = query.toString();
   return xanoRequest<OpsIssuesResponse>(`/ops/issues${qs ? `?${qs}` : ''}`, {baseUrl: getXanoOpsBaseUrl()});
 };
+
+// EST-1 (US-EST-1-07) — the Health page's Estimates panel: open jobs
+// whose latest estimate is incomplete (a stage missing a rate, or no
+// lines at all). See functions/ops/estimates_panel.xs.
+export interface OpsEstimateJobRow {
+  work_item_id: number;
+  job_title: string | null;
+  job_status: string;
+  map_title: string;
+  version_no: number | null;
+  missing: {stage_key: string; quantity_key: string}[];
+  reasons: string[];
+  found_at: string;
+}
+
+export interface OpsEstimatesResponse {
+  since: string;
+  count: number;
+  jobs: OpsEstimateJobRow[];
+}
+
+export const getOpsEstimates = (params: {since?: string} = {}) => {
+  const query = new URLSearchParams();
+  if (params.since) query.set('since', params.since);
+  const qs = query.toString();
+  return xanoRequest<OpsEstimatesResponse>(`/ops/estimates${qs ? `?${qs}` : ''}`, {baseUrl: getXanoOpsBaseUrl()});
+};
+
+// EXC-1 (US-EXC-1-07) — Health page Exceptions panel (`ops/exceptions`, Ops group).
+export interface OpsExceptionRow {
+  exception_id: number;
+  account_id: number;
+  created_at: number;
+  age_days: number;
+  child_work_item_id: number;
+  child_title: string;
+  child_status: string;
+  parent_work_item_id: number;
+  parent_title: string;
+  parent_status: string;
+  stage_key: string;
+  stage_label: string;
+  reason_code: string;
+  note: string;
+  target_map_id: number;
+  target_map_title: string;
+  moved_count: number;
+  depth: number;
+  source: string;
+}
+
+export interface OpsExceptionsResponse {
+  open_children: OpsExceptionRow[];
+  by_stage: {stage_label: string; count: number}[];
+  by_reason: {reason_code: string; count: number}[];
+  needs_attention: {
+    parent_cancelled: OpsExceptionRow[];
+    unpublished_targets: {source_map_id: number; source_map_title: string; target_map_id: number; target_map_title: string}[];
+    recent_rejections: {error_code: string; count: number}[];
+  };
+}
+
+export const getOpsExceptions = () => xanoRequest<OpsExceptionsResponse>('/ops/exceptions', {baseUrl: getXanoOpsBaseUrl()});
 
 export const getOpsBundle = (params: {correlationId?: string; entityType?: string; entityId?: number; accountId?: number}) => {
   const query = new URLSearchParams();

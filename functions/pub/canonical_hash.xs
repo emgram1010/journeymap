@@ -21,7 +21,7 @@ function "pub/canonical_hash" {
 
   input {
     json snapshot {
-      description = "{schema_version, title, stages[], lenses[], cells[], links[]}"
+      description = "{schema_version, title, stages[], lenses[], cells[], links[]}, plus scaling[] and rates[] when schema_version >= 2"
     }
   }
 
@@ -84,8 +84,13 @@ function "pub/canonical_hash" {
           value = "0"
         }
 
+        // Same `??` guard as duration below: a missing key must not throw.
+        var $l_works_raw {
+          value = $lens.does_planned_work ?? false
+        }
+
         conditional {
-          if ($lens.does_planned_work == true) {
+          if ($l_works_raw == true) {
             var.update $l_work {
               value = "1"
             }
@@ -124,10 +129,20 @@ function "pub/canonical_hash" {
           value = ""
         }
 
+        // RATE-1: read through `??` first. A bare `$cell.duration_minutes`
+        // in a condition THROWS when the key is absent ("Unable to locate
+        // var"), which made version 5 (a hand-built PUB-1 fixture whose
+        // cells have no duration key) unverifiable. Output is unchanged for
+        // every cell that has the key; an absent key renders "" exactly as
+        // versionHash.ts does for undefined.
+        var $c_duration_raw {
+          value = $cell.duration_minutes ?? null
+        }
+
         conditional {
-          if ($cell.duration_minutes != null) {
+          if ($c_duration_raw != null) {
             var.update $c_minutes {
-              value = $cell.duration_minutes|to_text
+              value = $c_duration_raw|to_text
             }
           }
         }
@@ -162,6 +177,68 @@ function "pub/canonical_hash" {
 
         var.update $out {
           value = $out ~ "link|" ~ $k_stage ~ "|" ~ $k_lens ~ "|" ~ $k_type ~ "|" ~ $k_target ~ "\n"
+        }
+      }
+    }
+
+    // ── RATE-1 (US-RATE-1-03) — schema v2: scaling + rates ─────────────
+    // Gated on the snapshot's OWN schema_version (read before any loop),
+    // so a stored v1 snapshot re-serialises to exactly its old bytes.
+    // Minutes are always fixed 2 decimals via number_format, which is
+    // identical to JS toFixed(2) for every value with at most 2 decimals —
+    // all a snapshot can hold (E-ITM-004 + build_map_snapshot's rounding).
+    var $scaling {
+      value = $input.snapshot.scaling ?? []
+    }
+
+    var $rates {
+      value = $input.snapshot.rates ?? []
+    }
+
+    conditional {
+      if ($schema_version >= 2) {
+        foreach ($scaling) {
+          each as $sc {
+            var $sc_stage {
+              value = ($sc.stage_key ?? "")|replace:"\\":"\\\\"|replace:"|":"\\p"|replace:"\r":""|replace:"\n":"\\n"
+            }
+
+            var $sc_with {
+              value = ($sc.scales_with ?? "")|replace:"\\":"\\\\"|replace:"|":"\\p"|replace:"\r":""|replace:"\n":"\\n"
+            }
+
+            var.update $out {
+              value = $out ~ "scale|" ~ $sc_stage ~ "|" ~ $sc_with ~ "\n"
+            }
+          }
+        }
+
+        foreach ($rates) {
+          each as $rt {
+            var $rt_stage {
+              value = ($rt.stage_key ?? "")|replace:"\\":"\\\\"|replace:"|":"\\p"|replace:"\r":""|replace:"\n":"\\n"
+            }
+
+            var $rt_qty {
+              value = ($rt.quantity_key ?? "")|replace:"\\":"\\\\"|replace:"|":"\\p"|replace:"\r":""|replace:"\n":"\\n"
+            }
+
+            var $rt_method {
+              value = ($rt.method_key ?? "")|replace:"\\":"\\\\"|replace:"|":"\\p"|replace:"\r":""|replace:"\n":"\\n"
+            }
+
+            var $rt_minutes {
+              value = ($rt.minutes_per_unit ?? 0)|number_format:2:".":""
+            }
+
+            var $rt_source {
+              value = ($rt.source ?? "")|replace:"\\":"\\\\"|replace:"|":"\\p"|replace:"\r":""|replace:"\n":"\\n"
+            }
+
+            var.update $out {
+              value = $out ~ "rate|" ~ $rt_stage ~ "|" ~ $rt_qty ~ "|" ~ $rt_method ~ "|" ~ $rt_minutes ~ "|" ~ $rt_source ~ "\n"
+            }
+          }
         }
       }
     }

@@ -4,6 +4,7 @@
 // into the existing frontend types (`src/types.ts`), which this epic
 // deliberately keeps unchanged where possible.
 import {performRequest, getJourneyMapBaseUrl, getAccountsBaseUrl} from '../perform/performApi';
+import {getXanoCatalogBaseUrl} from '../xano';
 
 // ── Workspaces (plans) ──────────────────────────────────────────────────
 
@@ -450,6 +451,8 @@ export interface RawWorkItem {
 
 export interface WorkItemListEntry {
   work_item: RawWorkItem;
+  /** EXC-1 — jobs started from this one (exception spawns and jobs added under it), any status. */
+  child_count?: number;
   task_count: number;
   finished_count: number;
   has_blocked: boolean;
@@ -505,6 +508,10 @@ export interface BacklogCardStep {
   task: string | null;
   done_when: string | null;
   expected_minutes: number | null;
+  /** EST-1 — 'n/a' on a map with no Items row; 'incomplete' when this stage is missing a rate for something in the order. */
+  estimate_status?: 'n/a' | 'complete' | 'incomplete';
+  /** EST-1 — 'n/a' / 'seed' / 'measured'. A guess (seed) still shows the number; the badge just says so. */
+  estimate_source?: 'n/a' | 'seed' | 'measured';
 }
 
 export interface BacklogCard {
@@ -515,12 +522,18 @@ export interface BacklogCard {
   lens_key: string;
   lens_label: string;
   step_count: number;
-  /** Summed over the card's steps, from the pinned version. */
+  /** Summed over the card's steps, from the pinned version (or the real estimate, EST-1). */
   expected_minutes: number;
+  /** EST-1 — the worst of the card's steps: 'incomplete' if any step is, else 'complete' if any step was estimated, else 'n/a'. */
+  estimate_status?: 'n/a' | 'complete' | 'incomplete';
   first_stage_label: string;
   last_stage_label: string;
   work_task_ids: number[];
   steps: BacklogCardStep[];
+  /** EXC-1 — 0 unless this card's job was started from another job. */
+  parent_work_item_id?: number;
+  /** EXC-1 — open jobs started from this card's job. */
+  child_count?: number;
 }
 
 export const listBacklogWork = (workspaceId: number) =>
@@ -675,3 +688,183 @@ export const getWorkItemActivity = (workItemId: number) =>
     skipped_count: number;
     events: ActivityEvent[];
   }>(`/work_item/${workItemId}/activity`);
+
+// ── EST-1: what's in this order ─────────────────────────────────────────
+//
+// `work_item_line` — the counts on a job. The map owns the per-unit
+// RATE (stage_rate, RATE-1); this is the only place the COUNT lives.
+// `estimate_job` (the one formula) turns the two into the real
+// per-stage minutes the rest of the planner now reads.
+
+export interface EstimateStage {
+  stage_key: string;
+  scales_with: 'per_order' | 'per_unit' | 'per_flagged_unit';
+  baseline_minutes: number;
+  variable_minutes: number;
+  total_minutes: number;
+  source: 'measured' | 'seed' | 'n/a';
+  by_method: {method_key: string; minutes: number}[];
+  missing: string[];
+}
+
+export interface JobEstimate {
+  work_item_id?: number;
+  journey_map_version_id?: number;
+  has_items_row: boolean;
+  complete: boolean;
+  total_minutes: number;
+  stages: EstimateStage[];
+  missing: {stage_key: string; quantity_key: string}[];
+  reasons: string[];
+}
+
+export interface WorkItemLine {
+  id: number;
+  item_type_id: number;
+  item_key: string;
+  item_label: string;
+  unit: string;
+  is_active: boolean;
+  quantity: number;
+  flagged_quantity: number;
+  by_stage: {stage_key: string; minutes: number}[];
+}
+
+/** EST-1 Opus review fix (finding #8a) — the version's own priceable items, read from `stage_rate`, not the account's whole catalog. */
+export interface AvailableItem {
+  item_type_id: number;
+  key: string;
+  label: string;
+  unit: string;
+  is_active: boolean;
+}
+
+/** US-EST-1-02 — this job's lines, each with its own per-stage contribution, plus the job's whole estimate. */
+export const getWorkItemLines = (workItemId: number) =>
+  performRequest<{
+    work_item_id: number;
+    lines: WorkItemLine[];
+    estimate: JobEstimate;
+    available_items: AvailableItem[];
+    frozen: boolean;
+  }>(`/work-item/${workItemId}/lines`);
+
+/**
+ * Replace the job's whole set of lines. The server REJECTS a repeated
+ * item with E-EST-006 ("change its quantity instead") — it does not
+ * merge duplicate lines into one quantity. (Opus review pass, 2026-10-25:
+ * an earlier version of this comment claimed a merge; it does not exist.)
+ * Refuses once any of the job's steps has started (E-EST-007). Returns
+ * the fresh estimate so the caller can repaint without a second request.
+ */
+export const putWorkItemLines = (workItemId: number, lines: {item_type_id: number; quantity: number}[]) =>
+  performRequest<{
+    work_item_id: number;
+    line_count: number;
+    estimate: JobEstimate;
+    refreshed_count: number;
+    tweaked_skipped_count: number;
+  }>(`/work-item/${workItemId}/lines`, {method: 'PUT', body: {lines}});
+
+// ── CAT-1's catalog, read-only here ──────────────────────────────────────
+// The item picker needs the account's active items. CAT-1's own group
+// (getXanoCatalogBaseUrl) is a different base URL from the planner's.
+
+export interface CatalogItemType {
+  id: number;
+  account_id: number;
+  key: string;
+  label: string;
+  unit: string;
+  is_active: boolean;
+}
+
+export const listCatalogItemTypes = () =>
+  performRequest<{items: CatalogItemType[]}>('/item-type', {baseUrl: getXanoCatalogBaseUrl()});
+
+// ── EXC-1 — exceptions: work leaves this journey for a linked map ────────
+
+/** Where a job came from (null for an ordinary job). `via` says whether it was an exception or added by hand. */
+export interface JobParentLink {
+  work_item_id: number;
+  title: string;
+  status: string;
+  stage_key: string;
+  stage_label: string;
+  reason_code: string;
+  note: string;
+  moved_lines: {item_type_id: number; item_key: string; quantity: number}[];
+  created_at: number;
+  via: 'exception' | 'manual';
+}
+
+export interface JobChildLink {
+  work_item_id: number;
+  title: string;
+  status: string;
+  target_map_title: string;
+  stage_key: string;
+  stage_label: string;
+  reason_code: string;
+  note: string;
+  moved_lines: {item_type_id: number; item_key: string; quantity: number}[];
+  parent_blocked: boolean;
+  created_at: number;
+  via: 'exception' | 'manual';
+}
+
+export interface JobSendOption {
+  work_task_id: number;
+  stage_key: string;
+  stage_label: string;
+  target_map_id: number;
+  target_map_title: string;
+  published: boolean;
+}
+
+/** GET work_item/{id}/links (611) — where a job came from, what was sent off it, and what each step can send. */
+export const getWorkItemLinks = (workItemId: number) =>
+  performRequest<{
+    work_item_id: number;
+    parent: JobParentLink | null;
+    children: JobChildLink[];
+    send_options: JobSendOption[];
+  }>(`/work_item/${workItemId}/links`);
+
+export interface RaiseExceptionResult {
+  exception_id: number;
+  child: {
+    work_item_id: number;
+    title: string;
+    journey_map_version_id: number;
+    version_no: number;
+    status: string;
+    task_count: number;
+    lines: {item_type_id: number; item_key: string; quantity: number}[];
+  };
+  parent: {work_item_id: number; lines_after: {item_type_id: number; quantity: number}[]; refreshed_count: number; tweaked_skipped_count: number};
+  parent_blocked: boolean;
+  block_refusal: string;
+  /** True when the send saved but a follow-up (estimate, slots, feed note, block) failed — logged for Health. */
+  followup_failed?: boolean;
+}
+
+/**
+ * Endpoint 610 — "this part of the job is leaving the happy path". Starts a
+ * child job on the linked map (its latest published version), moves the
+ * counts that left, records why. The parent keeps going unless
+ * `also_block_parent` is set, and then it goes through LOG-1's engine; a
+ * refused block does not fail the send (`parent_blocked` says what happened).
+ */
+export const raiseException = (
+  workTaskId: number,
+  body: {
+    target_map_id: number;
+    reason_code: string;
+    note?: string;
+    lines: {item_type_id: number; quantity: number}[];
+    also_block_parent: boolean;
+    correlation_id?: string;
+  },
+) => performRequest<RaiseExceptionResult>(`/work-task/${workTaskId}/exception`, {method: 'POST', body});
+

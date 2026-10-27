@@ -11,6 +11,27 @@ function "set_lens_planned_work" {
   }
 
   stack {
+    // ITEM-1 (US-ITEM-1-06, audit finding P-1) — does_planned_work
+    // honours any explicit override, including true, and nothing else in
+    // the shared predicate stops the Items row being switched on. Writing
+    // `does_planned_work: false` for the Items row (ITEM-1's own create
+    // endpoint) stays allowed; only an explicit TRUE on an items-v1 lens
+    // is refused.
+    db.get journey_lens {
+      field_name = "id"
+      field_value = $input.journey_lens_id
+    } as $target_lens
+
+    precondition ($target_lens != null) {
+      error_type = "notfound"
+      error = "Lens not found"
+    }
+
+    precondition ($target_lens.template_key != "items-v1" || $input.does_planned_work != true) {
+      error_type = "inputerror"
+      error = "The Items row doesn't do planned work; that switch stays off. (E-ITM-008)"
+    }
+
     db.query journey_lens_planned_work {
       where = $db.journey_lens_planned_work.journey_lens == $input.journey_lens_id
       return = {type: "list"}

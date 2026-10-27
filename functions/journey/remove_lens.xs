@@ -45,6 +45,15 @@ function "journey/remove_lens" {
       error = "Journey lens not found"
     }
 
+    // RATE-1 review #4 (D-R2) — the Items row has its own delete (endpoint
+    // 603), which also removes its journey_lens_item rows, its planned-work
+    // row and its links, and refuses once rates are published (E-RATE-002).
+    // This generic path would orphan all of that and skip the guard.
+    precondition ($journey_lens.template_key != "items-v1") {
+      error_type = "inputerror"
+      error = "The Items row is removed with its own Remove row button. (E-ITM-009)"
+    }
+
     db.query journey_lens {
       where = $db.journey_lens.journey_map == $journey_lens.journey_map
       return = {type: "count"}

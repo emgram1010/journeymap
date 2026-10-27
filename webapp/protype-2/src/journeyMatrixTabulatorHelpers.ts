@@ -85,6 +85,7 @@ export const formatLensCellMarkup = ({
   lensId,
   doesPlannedWork,
   position,
+  isItemsRow,
 }: {
   label: string;
   actorType?: string;
@@ -93,7 +94,16 @@ export const formatLensCellMarkup = ({
   doesPlannedWork?: boolean;
   /** ORD-1 — row position; when given (and lensId is), draws the insert seams and move arrows. */
   position?: MatrixPosition;
+  /** ITEM-1 (D-1) — the Items row (template_key = "items-v1"): never draggable, no edit/planned-work
+   * controls (neither applies), "Choose items" + "Remove row" instead. */
+  isItemsRow?: boolean;
 }) => {
+  if (isItemsRow && lensId) {
+    const chooseBtn = `<button class="jm-items-choose-btn" data-choose-items-lens-id="${escapeHtml(lensId)}" title="Choose which items this map uses" type="button">Choose items</button>`;
+    const removeBtn = `<button class="jm-items-remove-btn" data-remove-items-row-lens-id="${escapeHtml(lensId)}" title="Remove the Items row" type="button">Remove row</button>`;
+    return `<div class="jm-lens-cell jm-items-row"><div class="jm-lens-cell-body"><span class="jm-lens-label">${escapeHtml(label)}</span><span class="jm-lens-actor-pill">items</span>${chooseBtn}${removeBtn}</div></div>`;
+  }
+
   const pill = actorType
     ? `<span class="jm-lens-actor-pill">${escapeHtml(actorType.replace('_', ' '))}</span>`
     : '';
@@ -116,6 +126,7 @@ export const formatStageHeaderMarkup = ({
   stageId,
   isReady,
   position,
+  exceptionTargets,
 }: {
   label: string;
   stageGoal?: string;
@@ -126,6 +137,8 @@ export const formatStageHeaderMarkup = ({
   isReady?: boolean;
   /** ORD-1 — column position; when given, draws the insert seams and move arrows. */
   position?: MatrixPosition;
+  /** EXC-1 (US-EXC-1-01) — titles of the maps this stage's exception links hand work to. Empty/omitted = no chip. */
+  exceptionTargets?: string[];
 }): string => {
   const editBtn = `<button class="jm-stage-edit-btn" data-edit-stage-id="${escapeHtml(stageId)}" title="Edit stage" type="button">✎</button>`;
 
@@ -144,8 +157,13 @@ export const formatStageHeaderMarkup = ({
     ? `<span class="jm-stage-goal">${escapeHtml(goalText)}</span>`
     : `<span class="jm-stage-goal is-empty">\u26a0 No goal set</span>`;
 
+  const exceptionChip =
+    exceptionTargets && exceptionTargets.length > 0
+      ? `<span class="jm-stage-exception-chip" title="Work can leave this journey here">⚠ exception → ${escapeHtml(exceptionTargets.join(', '))}</span>`
+      : '';
+
   const ordering = position ? orderingControlsMarkup('stage', stageId, position) : null;
-  return `<div class="jm-stage-header">${ordering ? ordering.seams : ''}${editBtn}${readyMark}<span class="jm-stage-label">${escapeHtml(label)}</span><div class="jm-stage-meta">${actorPill}${goalEl}</div>${ordering ? ordering.arrows : ''}</div>`;
+  return `<div class="jm-stage-header">${ordering ? ordering.seams : ''}${editBtn}${readyMark}<span class="jm-stage-label">${escapeHtml(label)}</span><div class="jm-stage-meta">${actorPill}${goalEl}${exceptionChip}</div>${ordering ? ordering.arrows : ''}</div>`;
 };
 
 const LINK_TYPE_ICON: Record<string, string> = {
@@ -366,12 +384,15 @@ export const formatMatrixCellMarkup = ({
   selectedCellId,
   linkedCells,
   actorType,
+  templateKey,
 }: {
   content: unknown;
   meta?: MatrixCell;
   selectedCellId: string | null;
   linkedCells?: Map<number, CellLinkInfo>;
   actorType?: string;
+  /** ITEM-1 — "items-v1" renders the compact scaling summary instead of actor content. */
+  templateKey?: string;
 }) => {
   const contentText = String(content ?? '');
   const selectedClass = meta?.id === selectedCellId ? 'is-selected' : '';
@@ -387,6 +408,28 @@ export const formatMatrixCellMarkup = ({
     const info = linkedCells.get(meta.xanoId)!;
     const icon = LINK_TYPE_ICON[info.linkType] ?? '→';
     linkIndicator = `<span class="jm-link-indicator" data-link-target="${info.targetMapId}" title="View linked map →" style="position:absolute;bottom:4px;right:20px;font-size:11px;cursor:pointer;opacity:0.7;line-height:1">${icon}</span>`;
+  }
+
+  // ITEM-1 — the Items row's compact scaling summary ("per order" /
+  // "per unit · N items"), never the generic badge/text path below.
+  if (templateKey === 'items-v1') {
+    const fields = (meta?.actorFields ?? {}) as {scales_with?: string; lines?: Array<{item_key?: string}>};
+    const scalesWith = fields.scales_with ?? 'per_order';
+    const lines = Array.isArray(fields.lines) ? fields.lines : [];
+    const summary =
+      scalesWith === 'per_order'
+        ? 'per order'
+        : `${scalesWith === 'per_flagged_unit' ? 'per flagged unit' : 'per unit'} · ${lines.length} ${lines.length === 1 ? 'line' : 'lines'}`;
+    const isIncomplete = scalesWith !== 'per_order' && (lines.length === 0 || lines.some((l) => !l.item_key));
+    return `
+      <div class="jm-grid-cell jm-items-cell ${selectedClass}"${cellIdAttribute} style="position:relative">
+        <div class="jm-grid-content" style="overflow:visible">
+          <span class="jm-items-summary ${isIncomplete ? 'is-incomplete' : ''}">${escapeHtml(summary)}</span>
+        </div>
+        ${linkIndicator}
+        <div class="jm-grid-meta">${indicator}</div>
+      </div>
+    `;
   }
 
   // Metrics actor — render compact scorecard instead of text + badge.
