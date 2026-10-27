@@ -3,10 +3,13 @@
 // next one highlighted (D-4: order is a guide, not a lock); Start/Finish
 // at the bottom. "Finish session" is pure navigation (D-1/D-2 — neither
 // is its own server event), gated by `canFinishSession`.
-import {ChevronLeft} from 'lucide-react';
+import {ChevronLeft, ChevronRight} from 'lucide-react';
+import {useEffect, useState} from 'react';
 import type {Session} from './sessionModel';
 import {nextSubStepToWork, canFinishSession} from './sessionModel';
 import type {TaskStatus} from './performerView';
+import {getWorkItemLinks, type JobParentLink} from '../planner/plannerApi';
+import JobPeekSheet from '../exceptions/JobPeekSheet';
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   not_started: 'Not started',
@@ -43,6 +46,28 @@ export default function SessionScreen({
   const canFinish = canFinishSession(session);
   const notStarted = session.status === 'not_started';
 
+  // EXC-2 (US-EXC-2-03) — "Came from", for a job that itself was sent
+  // here from another one. This screen makes no other request today,
+  // so one getWorkItemLinks call on open is the whole cost (never a
+  // second one — this effect re-fires only when the job itself changes).
+  const [parentLink, setParentLink] = useState<JobParentLink | null>(null);
+  const [peekId, setPeekId] = useState<number | null>(null);
+  useEffect(() => {
+    setParentLink(null);
+    let cancelled = false;
+    void getWorkItemLinks(session.workItemId)
+      .then((links) => {
+        if (!cancelled) setParentLink(links.parent ?? null);
+      })
+      .catch(() => {
+        // Best effort: no "Came from" chip is a quiet degrade, not a
+        // blocking failure — the session still works without it.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [session.workItemId]);
+
   return (
     <div className="min-h-screen bg-zinc-50 pb-28">
       <header className="sticky top-0 bg-white border-b border-zinc-200 px-3 py-3 flex items-start gap-2">
@@ -63,6 +88,22 @@ export default function SessionScreen({
       </header>
 
       <main className="px-4 py-4">
+        {/* EXC-2 (US-EXC-2-03) — this job came from a send; follow it back read-only. */}
+        {parentLink && (
+          <button
+            type="button"
+            data-testid="session-came-from-chip"
+            aria-label={`See where this job came from: #${parentLink.work_item_id}`}
+            onClick={() => setPeekId(parentLink.work_item_id)}
+            className="mb-3 flex min-h-[44px] w-full items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-left"
+          >
+            <div className="min-w-0 flex-1 text-sm text-zinc-700">
+              Came from <span className="font-medium">#{parentLink.work_item_id} · {parentLink.stage_label || parentLink.stage_key}</span>
+            </div>
+            <ChevronRight className="h-4 w-4 flex-shrink-0 text-zinc-400" />
+          </button>
+        )}
+
         {/*
           BLK-1 (US-BLK-1-04) — a card can hold a whole order's work for
           one actor row, so EVERY stage inside it is listed and tappable.
@@ -186,6 +227,8 @@ export default function SessionScreen({
           </>
         )}
       </div>
+
+      <JobPeekSheet workItemId={peekId ?? 0} open={peekId != null} onClose={() => setPeekId(null)} onOpenJob={setPeekId} />
     </div>
   );
 }

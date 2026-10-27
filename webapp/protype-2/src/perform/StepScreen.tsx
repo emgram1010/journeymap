@@ -1,9 +1,12 @@
 // APP-2 (US-APP-2-05, -06, -07) — Full-screen view of one step: status,
 // instructions, notes, and the only way a status ever changes — a
 // button, never a dropdown (same rule APP-1 already enforces).
-import {ChevronLeft} from 'lucide-react';
+import {ChevronLeft, ChevronRight} from 'lucide-react';
+import {useState} from 'react';
 import {availableActions, type PerformerAction, type PerformerSubStep, type TaskStatus} from './performerView';
 import ExceptionSendPanel from '../exceptions/ExceptionSendPanel';
+import JobPeekSheet from '../exceptions/JobPeekSheet';
+import type {JobParentLink} from '../planner/plannerApi';
 
 const REASON_LABELS: Record<string, string> = {
   waiting_on_someone: 'Waiting on someone',
@@ -113,6 +116,11 @@ export default function StepScreen({
   const actions = availableActions(sub.status);
   const primary = PRIMARY_ACTION[sub.status];
   const now = Date.now();
+  // EXC-2 (US-EXC-2-03) — "Came from", fed by ExceptionSendPanel's own
+  // fetch (onLinksLoaded) so this never issues a second getWorkItemLinks
+  // call for the same screen.
+  const [parentLink, setParentLink] = useState<JobParentLink | null>(null);
+  const [peekId, setPeekId] = useState<number | null>(null);
 
   return (
     <div className="min-h-screen bg-zinc-50 pb-40">
@@ -129,6 +137,22 @@ export default function StepScreen({
       </header>
 
       <main className="px-4 py-4 space-y-5">
+        {/* EXC-2 (US-EXC-2-03) — this job came from a send; follow it back read-only. */}
+        {parentLink && (
+          <button
+            type="button"
+            data-testid="step-came-from-chip"
+            aria-label={`See where this job came from: #${parentLink.work_item_id}`}
+            onClick={() => setPeekId(parentLink.work_item_id)}
+            className="flex min-h-[44px] w-full items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-left"
+          >
+            <div className="min-w-0 flex-1 text-sm text-zinc-700">
+              Came from <span className="font-medium">#{parentLink.work_item_id} · {parentLink.stage_label || parentLink.stage_key}</span>
+            </div>
+            <ChevronRight className="h-4 w-4 flex-shrink-0 text-zinc-400" />
+          </button>
+        )}
+
         {sub.stageLabel && <p className="text-xs font-medium text-zinc-500">{sub.stageLabel}</p>}
 
         {sub.task && <p className="text-lg text-zinc-900 leading-snug">{sub.task}</p>}
@@ -149,7 +173,15 @@ export default function StepScreen({
         {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
 
         {/* EXC-1 (US-EXC-1-06) — shown only when this stage links somewhere. */}
-        {workItemId != null && <ExceptionSendPanel workItemId={workItemId} workTaskId={sub.workTaskId} variant="performer" onSent={onExceptionSent} />}
+        {workItemId != null && (
+          <ExceptionSendPanel
+            workItemId={workItemId}
+            workTaskId={sub.workTaskId}
+            variant="performer"
+            onSent={onExceptionSent}
+            onLinksLoaded={setParentLink}
+          />
+        )}
 
         {/* US-APP-2-06 — notes */}
         <div className="rounded-xl border border-zinc-200 bg-white p-3">
@@ -235,6 +267,8 @@ export default function StepScreen({
           </div>
         )}
       </div>
+
+      <JobPeekSheet workItemId={peekId ?? 0} open={peekId != null} onClose={() => setPeekId(null)} onOpenJob={setPeekId} />
     </div>
   );
 }

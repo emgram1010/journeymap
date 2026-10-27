@@ -23,8 +23,10 @@
 // server's own sentence (CLAUDE.md UI rule).
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {Minus, Plus, Send, X} from 'lucide-react';
-import {getWorkItemLines, getWorkItemLinks, raiseException, type JobChildLink, type JobSendOption} from '../planner/plannerApi';
+import {getWorkItemLines, getWorkItemLinks, raiseException, type JobChildLink, type JobParentLink, type JobSendOption} from '../planner/plannerApi';
 import {newCorrelationId} from '../ops/correlationId';
+import {progressShortLabel} from './jobProgress';
+import JobPeekSheet from './JobPeekSheet';
 import {
   REASON_CODES,
   REASON_LABELS,
@@ -46,9 +48,22 @@ type Props = {
   variant: 'performer' | 'planner';
   /** Called after a successful send (e.g. to reload the job or the step). */
   onSent?: () => void;
+  /**
+   * EXC-2 (US-EXC-2-03) — surfaces this job's parent, once loaded, so the
+   * caller can show its own "Came from" chip without a second
+   * `getWorkItemLinks` call (this panel already makes one).
+   */
+  onLinksLoaded?: (parent: JobParentLink | null) => void;
+  /**
+   * EXC-2 (US-EXC-2-04) — when supplied, tapping a sent chip calls this
+   * instead of the panel opening its own `JobPeekSheet` (the planner
+   * decides whether to scroll to an existing row or open the peek view;
+   * this panel must not know about the job list).
+   */
+  onOpenJob?: (workItemId: number) => void;
 };
 
-export default function ExceptionSendPanel({workItemId, workTaskId, variant, onSent}: Props) {
+export default function ExceptionSendPanel({workItemId, workTaskId, variant, onSent, onLinksLoaded, onOpenJob}: Props) {
   const [options, setOptions] = useState<JobSendOption[]>([]);
   const [children, setChildren] = useState<JobChildLink[]>([]);
   const [lines, setLines] = useState<SheetLine[]>([]);
@@ -61,6 +76,7 @@ export default function ExceptionSendPanel({workItemId, workTaskId, variant, onS
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [requestId, setRequestId] = useState<string>('');
+  const [peekId, setPeekId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -69,12 +85,15 @@ export default function ExceptionSendPanel({workItemId, workTaskId, variant, onS
       setOptions(links.send_options ?? []);
       setChildren(links.children ?? []);
       setLines((lineData.lines ?? []).map((l) => ({item_type_id: l.item_type_id, label: l.item_label || l.item_key, quantity: l.quantity})));
+      onLinksLoaded?.(links.parent ?? null);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Couldn't load where this work can be sent.");
     } finally {
       setLoaded(true);
     }
-  }, [workItemId]);
+  }, [workItemId, onLinksLoaded]);
+
+  const openJob = useCallback((id: number) => (onOpenJob ? onOpenJob(id) : setPeekId(id)), [onOpenJob]);
 
   useEffect(() => {
     void load();
@@ -174,15 +193,19 @@ export default function ExceptionSendPanel({workItemId, workTaskId, variant, onS
           {sentFromHere.map((c) => {
             const n = c.moved_lines.reduce((sum, l) => sum + l.quantity, 0);
             return (
-              <span
+              <button
                 key={c.work_item_id}
+                type="button"
                 data-testid="exception-chip"
+                aria-label={`Open sent job #${c.work_item_id}`}
                 title={`${c.title} — ${REASON_LABELS[c.reason_code as keyof typeof REASON_LABELS] ?? c.reason_code}`}
+                onClick={() => openJob(c.work_item_id)}
                 className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] text-amber-800"
               >
                 {n > 0 ? `${n} → #${c.work_item_id}` : `→ #${c.work_item_id}`}
                 {variant === 'planner' && c.stage_label ? ` · ${c.stage_label}` : ''}
-              </span>
+                {c.progress ? ` · ${progressShortLabel(c.progress)}` : ''}
+              </button>
             );
           })}
         </div>
@@ -355,6 +378,9 @@ export default function ExceptionSendPanel({workItemId, workTaskId, variant, onS
           </footer>
         </div>
       )}
+
+      {/* Only when the caller didn't take ownership via onOpenJob (US-EXC-2-04's planner wiring). */}
+      {!onOpenJob && <JobPeekSheet workItemId={peekId ?? 0} open={peekId != null} onClose={() => setPeekId(null)} onOpenJob={setPeekId} />}
     </div>
   );
 }
