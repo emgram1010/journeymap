@@ -360,6 +360,15 @@ export function JobsModal({
       showJob(kids[0].work_item.id);
       return;
     }
+    // The Exceptions block lists them all — but it only renders on a job that
+    // can still send, so on a finished or cancelled parent there is nothing
+    // to scroll to and the chip would do nothing at all. Its read-only view
+    // lists the same sent work (D-2), so that is the fallback.
+    const status = entry?.work_item.status;
+    if (status === 'completed' || status === 'cancelled') {
+      setPeekId(parentId);
+      return;
+    }
     if (openJobId !== parentId) void openReport(parentId);
     const scrollToExceptions = (triesLeft: number) =>
       requestAnimationFrame(() => {
@@ -423,7 +432,10 @@ export function JobsModal({
     <div
       id="jobs-modal-overlay"
       className="fixed inset-0 z-50 bg-neutral-950/40 backdrop-blur-xs flex items-center justify-center p-4"
-      onClick={onClose}
+      // With the job view open, a click beside it closes just that view — the
+      // sheet renders inside this overlay, so the old `onClose` threw away the
+      // whole Jobs modal (and the expanded job) instead of the sheet.
+      onClick={() => (peekId != null ? setPeekId(null) : onClose())}
     >
       <div
         id="jobs-modal"

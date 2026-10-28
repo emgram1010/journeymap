@@ -22,7 +22,7 @@ import {getWorkItem, type WorkItemTask} from '../planner/plannerApi';
 import {PerformRequestError} from '../perform/performApi';
 import {getCatalogEntry} from '../ops/errorCatalog';
 import {logEvent} from '../ops/logEvent';
-import {progressLabel} from './jobProgress';
+import {progressFromTasks, progressLabel} from './jobProgress';
 import {REASON_LABELS} from './exceptionSheet';
 
 type LoadedJob = Awaited<ReturnType<typeof getWorkItem>>;
@@ -101,6 +101,11 @@ export default function JobPeekSheet({workItemId, open, onClose, onOpenJob}: Pro
   if (!open) return null;
 
   const tasksInOrder = job?.tasks ?? [];
+  // One rule, shared with the backend twin and the chips (jobProgress.ts).
+  const progress = progressFromTasks(tasksInOrder);
+  const currentStepId = tasksInOrder.find(
+    (t) => t.stage_key === progress.current_stage_key && t.status !== 'done' && t.status !== 'skipped',
+  )?.id;
 
   return (
     <div
@@ -157,8 +162,8 @@ export default function JobPeekSheet({workItemId, open, onClose, onOpenJob}: Pro
           <>
             <section data-testid="job-peek-progress">
               <p className="text-sm font-medium text-zinc-800">{job.derived_status}</p>
-              <ProgressBar finishedCount={countFinished(tasksInOrder)} taskCount={tasksInOrder.length} />
-              <p className="mt-1 text-xs text-zinc-500">{progressLabelForTasks(tasksInOrder)}</p>
+              <ProgressBar finishedCount={progress.finished_count} taskCount={progress.task_count} />
+              <p className="mt-1 text-xs text-zinc-500">{progressLabel(progress)}</p>
             </section>
 
             {job.parent && (
@@ -185,7 +190,7 @@ export default function JobPeekSheet({workItemId, open, onClose, onOpenJob}: Pro
               <p className="mb-2 text-sm font-medium text-zinc-700">Steps</p>
               <ul className="space-y-1.5" data-testid="job-peek-steps">
                 {tasksInOrder.map((t) => {
-                  const isCurrent = isCurrentStep(t, tasksInOrder);
+                  const isCurrent = t.id === currentStepId;
                   const isOpen = expandedStep === t.id;
                   return (
                     <li key={t.id} data-testid="job-peek-step" className="rounded-lg border border-zinc-200">
@@ -196,7 +201,7 @@ export default function JobPeekSheet({workItemId, open, onClose, onOpenJob}: Pro
                       >
                         <div className="min-w-0 flex-1">
                           <p className="text-sm text-zinc-800">
-                            {t.stage_label ?? t.stage_key}
+                            {t.stage_label || t.stage_key}
                             {isCurrent && <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">Now</span>}
                           </p>
                           {t.owner_lens_label && <p className="text-xs text-zinc-500">{t.owner_lens_label}</p>}
@@ -245,32 +250,6 @@ export default function JobPeekSheet({workItemId, open, onClose, onOpenJob}: Pro
       </footer>
     </div>
   );
-}
-
-function countFinished(tasks: readonly WorkItemTask[]): number {
-  return tasks.filter((t) => t.status === 'done' || t.status === 'skipped').length;
-}
-
-function progressLabelForTasks(tasks: readonly WorkItemTask[]): string {
-  // Stage order/labels for THIS job are implicit in the tasks' own order
-  // (555 returns them in the pinned version's stage order already), so
-  // the sheet derives the label straight from the loaded tasks rather
-  // than re-deriving stage positions the server already resolved.
-  const total = tasks.length;
-  const finished = countFinished(tasks);
-  if (total === 0) return 'No steps';
-  if (finished === total) return 'Done';
-  const current = tasks.find((t) => isCurrentStep(t, tasks));
-  const blocked = tasks.some((t) => t.status === 'blocked');
-  const stageLabel = current?.stage_label ?? current?.stage_key ?? '';
-  const base = `${finished} of ${total} done`;
-  return blocked ? `${base} · blocked at ${stageLabel}` : `${base} · at ${stageLabel}`;
-}
-
-/** The first unfinished task, in the order 555 already returns (pinned stage order). */
-function isCurrentStep(t: WorkItemTask, all: readonly WorkItemTask[]): boolean {
-  const firstUnfinished = all.find((x) => x.status !== 'done' && x.status !== 'skipped');
-  return firstUnfinished?.id === t.id;
 }
 
 function ProgressBar({finishedCount, taskCount}: {finishedCount: number; taskCount: number}) {

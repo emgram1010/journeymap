@@ -84,7 +84,49 @@ export function progressLabel(p: JobProgress): string {
   return `${base} · at ${p.current_stage_label}`;
 }
 
-/** "2 of 6" — the short form used in chips (US-EXC-2-03/04), never built twice. */
+/**
+ * The same counting rule, for a job loaded from 555, which returns its tasks
+ * and NO stage list. Counts (`task_count`, `finished_count`, `has_blocked`)
+ * are order-independent, so they match the backend exactly.
+ *
+ * `current_stage_*` DOES NOT always match the backend, and cannot from the
+ * client alone. 555 sorts tasks by `work_task.id asc`
+ * (`555_work_item_work_item_id_GET.xs`), not by the snapshot's stage order,
+ * so this falls back to "first unfinished in the order 555 returned". The
+ * backend uses real snapshot positions and sorts an unknown stage LAST, so
+ * for a job whose task ids run out of stage order — or one carrying a step
+ * whose stage is gone from its snapshot (golden case 07) — the sheet can
+ * name a different current stage than the parent's chip does.
+ *
+ * The fix is for 555 to return the job's stage order (or its own progress);
+ * that is a backend change, flagged in the epic's Test Results, not worked
+ * around here with a second guess at stage order.
+ */
+export function progressFromTasks(
+  tasks: readonly {stage_key: string; status: string; stage_label?: string | null}[],
+): JobProgress {
+  const stageOrder: StageOrderEntry[] = [];
+  const seen = new Set<string>();
+  for (const t of tasks) {
+    if (seen.has(t.stage_key)) continue;
+    seen.add(t.stage_key);
+    // `||`, not `??`: an untouched label is "" in live data, and `??` lets it
+    // through, which renders "2 of 6 done · at " with nothing after it.
+    stageOrder.push({key: t.stage_key, label: t.stage_label || t.stage_key});
+  }
+  return jobProgress(
+    tasks.map((t) => ({stage_key: t.stage_key, status: t.status})),
+    stageOrder,
+  );
+}
+
+/**
+ * "2 of 6" — the short form used in chips (US-EXC-2-03/04), never built twice.
+ * A job with no steps says so: "0 of 0" reads as a job underway that has done
+ * nothing, which is the opposite of what it means, and the full `progressLabel`
+ * already says "No steps" for the same job in the job view.
+ */
 export function progressShortLabel(p: JobProgress): string {
+  if (p.task_count === 0) return 'No steps';
   return `${p.finished_count} of ${p.task_count}`;
 }
