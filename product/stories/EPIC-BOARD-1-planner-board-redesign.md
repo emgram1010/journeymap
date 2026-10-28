@@ -1,6 +1,6 @@
 # EPIC-BOARD-1 — The planner board: jobs on the left, days on the right, drag between them
 
-**Status:** 📝 **Designed 2026-10-28. Nothing built.**
+**Status:** ✅ **Built 2026-10-28** (same day, founder's "now execute"). Test Results in §9.
 **Default model:** **Sonnet 5.5** to build; **Opus 5.5** review pass on US-02 (the drag → schedule
 wiring) before calling the epic done, and for any bug that fails twice.
 **Depends on:** BLK-1 (cards, endpoint 559/583 — live), EST-1 (estimate badge — live),
@@ -192,3 +192,40 @@ the new specs get written and run the day a test login exists.
 2. The modal no longer schedules anything, and the two e2e specs that asserted it are updated.
 3. A browser pass by the founder on the real plan: find work, drag it, see the day, take it back off.
 4. Founder answers Q-1..Q-3 (Q-1 before US-01 is built; the others can land as follow-ups).
+
+---
+
+## 9. Test Results (run 2026-10-28, build session — Fable 5, founder said "execute" in place of the Sonnet switch)
+
+**Q-1 was built on the recommendation** (grouped under job titles) — the founder said "execute"
+without picking, and the epic named grouped as the recommendation. One flag: changing to a flat
+list is a `groupCardsByJob` swap, nothing else. **Q-3 rode along** as recommended: the column
+header's "New job" opens the Jobs modal (no duplicated form). **Q-2 untouched** — the plain-task
+BacklogDrawer still sits below the board, as before.
+
+| ID | What | Result |
+|---|---|---|
+| UT-BOARD-1-01..04 | `groupCardsByJob`: grouping, newest job first, untitled job named "#N", arrival order kept, no mutation | ✅ PASS |
+| UT-BOARD-1-05 | `waitingJobsCount` counts jobs, not cards | ✅ PASS |
+| UT-BOARD-1-06 | `jobCardDropRefusal`: published → sentence; draft/missing day → allowed | ✅ PASS |
+| UT-BOARD-1-07 | `jobSlotProvenance`: job title, "· N steps" only on a card, null for a plain task | ✅ PASS |
+| REG-01 | Full unit suite | ✅ PASS — 643/643 (7 new) |
+| REG-02 | `npx tsc --noEmit -p .` | ✅ PASS — 0 errors |
+| REG-03 | `npm run build` | ✅ PASS |
+| REG-04 | Affected Playwright specs (planner-board, card-scheduling, jobs-and-day-navigation, exceptions, follow-sent-work, perform-sessions-mobile) | ✅ 13/13 skip cleanly without a token (repo baseline); 0 failures |
+| E2E-BOARD-1-01/02 | Drag onto a day; published-day refusal with the sentence | 📝 Written (`e2e/planner-board.spec.ts`); runs when a token exists |
+| E2E (updated) | `jobs-and-day-navigation` E2E-W1-01 and `card-scheduling` E2E-BLK-1-07-01 rewritten to the board flow (Place… + day-card Unschedule); API assertions (one slot, positions 1..n, no orphan link) unchanged | 📝 Updated; run when a token exists |
+
+**Built beyond the letter of the spec, each one line to revert:**
+- `loadActiveBoard(…, preserveView)` — a refresh after a write used to snap the board back to the
+  first timeline's day, so a card dropped on Tuesday seemed to vanish. Refreshes now keep the view;
+  only the initial load / plan switch moves it.
+- `#day-board-view[data-active-day]` — machine-readable active day, used by the specs and anyone
+  else who needs the day the board is showing without parsing the title.
+- Day-column menus: a JOB slot now offers "Unschedule (back to Jobs)" and hides "Return to
+  backlog"/"Delete" (those two would strand or destroy the card's links); plain tasks unchanged.
+
+**Not covered, honestly:**
+- No e2e has ever RUN (repo-wide: every spec skips without `E2E_AUTH_TOKEN`).
+- Nobody has opened the board in a real browser — the drag gesture especially wants a human pass.
+- Q-2 (fold plain tasks into the Jobs column) deferred as scoped.

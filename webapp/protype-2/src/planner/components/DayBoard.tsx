@@ -21,6 +21,7 @@ import {
   Clock
 } from 'lucide-react';
 import { Agent, Timeline, Task, Workspace } from '../types';
+import { jobCardDropRefusal, jobSlotProvenance } from '../boardModel';
 import { formatShortDate, formatMonthDayYear, generateDaysList } from '../utils/dateUtils';
 import { calculateAgentDayLoad } from '../utils/agentUtils';
 import { getTimelineReadiness } from '../utils/planningLogic';
@@ -70,6 +71,14 @@ interface DayBoardProps {
   onEditAgent: (agentId: string) => void;
   onTimelineTaskDragStart?: (taskId: string) => void;
   onTimelineTaskDragEnd?: () => void;
+  /** BOARD-1 (US-02) — a Jobs-column card dropped on an existing day. */
+  onDropJobCard: (payload: {workItemId: number; lensKey: string}, timelineId: string) => void;
+  /** BOARD-1 — the same drop on an agent whose day doesn't exist yet (it is created). */
+  onDropJobCardOnNewDay: (payload: {workItemId: number; lensKey: string}, agentId: string) => void;
+  /** BOARD-1 — the drop-intent rule said no (published day); the sentence to surface. */
+  onJobCardDropRefused: (message: string) => void;
+  /** BOARD-1 (US-03) — release a job slot's whole card back to the Jobs column. */
+  onUnscheduleJobSlot: (workTaskId: number) => void;
 }
 
 export function DayBoard({
@@ -105,6 +114,10 @@ export function DayBoard({
   onEditAgent,
   onTimelineTaskDragStart,
   onTimelineTaskDragEnd,
+  onDropJobCard,
+  onDropJobCardOnNewDay,
+  onJobCardDropRefused,
+  onUnscheduleJobSlot,
 }: DayBoardProps) {
   // Drag state across columns
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
@@ -225,20 +238,47 @@ export function DayBoard({
     setDraggedTaskId(null);
     onTimelineTaskDragEnd?.();
 
-    if (targetTimeline.status === 'published') {
-      return; // Locked
-    }
-
     try {
       const dataStr = e.dataTransfer.getData('application/json') || e.dataTransfer.getData('text/plain');
       if (!dataStr) return;
       const data = JSON.parse(dataStr);
+
+      // BOARD-1 (US-02) — a card from the Jobs column. A published day
+      // refuses WITH A SENTENCE (D-3): a drop that silently does nothing
+      // reads as a bug, and the server enforces the same rule again.
+      if (data.type === 'job-card') {
+        const refusal = jobCardDropRefusal(targetTimeline.status);
+        if (refusal) onJobCardDropRefused(refusal);
+        else onDropJobCard({workItemId: data.workItemId, lensKey: data.lensKey}, targetTimeline.id);
+        return;
+      }
+
+      if (targetTimeline.status === 'published') {
+        return; // Locked — plain-task drops keep their silent no-op behaviour.
+      }
 
       if (data.taskId) {
         onMoveTaskToAgentDayTimeline(data.taskId, targetTimeline.id, targetIndex);
       }
     } catch (err) {
       console.error('Failed to parse dropped task on DayBoard column:', err);
+    }
+  };
+
+  // BOARD-1 — a card dropped on an agent with no day yet: the day is
+  // created idempotently upstream, then the card is scheduled onto it.
+  const handleDropOnEmptyAgent = (e: React.DragEvent, agentId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const dataStr = e.dataTransfer.getData('application/json') || e.dataTransfer.getData('text/plain');
+      if (!dataStr) return;
+      const data = JSON.parse(dataStr);
+      if (data.type === 'job-card') {
+        onDropJobCardOnNewDay({workItemId: data.workItemId, lensKey: data.lensKey}, agentId);
+      }
+    } catch (err) {
+      console.error('Failed to parse dropped card on empty agent day:', err);
     }
   };
 
@@ -389,6 +429,7 @@ export function DayBoard({
             onMoveTaskToBacklog={() => {}}
             onMoveTaskToTimeline={() => {}}
             onDeleteTask={onDeleteTask}
+            onUnscheduleJobSlot={onUnscheduleJobSlot}
             onReopenTimeline={onReopenTimeline}
             onDropFromBacklog={(taskId, targetIndex) => onMoveTaskToAgentDayTimeline(taskId, focusedTimeline.id, targetIndex)}
             onTimelineTaskDragStart={onTimelineTaskDragStart}
@@ -416,7 +457,14 @@ export function DayBoard({
   // DEFAULT PLAN VIEW: DAY BOARD (Side-by-side agent columns) (§6)
   // ══════════════════════════════════════════════════════════════════════
   return (
-    <div id="day-board-view" className="flex-1 flex flex-col h-full bg-neutral-100/60 overflow-hidden select-none">
+    <div
+      id="day-board-view"
+      /* BOARD-1 — machine-readable active day, so a test (or the Place…
+         form) can target the day the board is actually showing instead
+         of parsing the human date title. */
+      data-active-day={activeDay}
+      className="flex-1 flex flex-col h-full bg-neutral-100/60 overflow-hidden select-none"
+    >
       {/* Day Bar with Date Stepper & Bulk "Publish Day" (§6, §7) */}
       <div className="h-12 px-4 border-b border-neutral-200 bg-white flex items-center justify-between shrink-0">
         {/* Left zone — flex-1, paired with a flex-1 right zone so the view
@@ -683,6 +731,11 @@ export function DayBoard({
                         setPendingAutoAddAgentId(agent.id);
                         onStartTimelineForAgentDay(agent.id, activeDay);
                       }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                      }}
+                      onDrop={(e) => handleDropOnEmptyAgent(e, agent.id)}
                       className="w-full h-full min-h-[160px] flex flex-col items-center justify-center gap-2 py-10 px-4 text-center rounded-md border-2 border-dashed border-neutral-200 text-neutral-500 hover:text-neutral-900 hover:border-neutral-400 hover:bg-neutral-50 transition-colors"
                     >
                       <Plus className="w-4 h-4" />
@@ -773,6 +826,15 @@ export function DayBoard({
                               {task.title}
                             </p>
 
+                            {/* BOARD-1 (US-03) — a job slot says which job it
+                                belongs to and, for a card, how many steps it
+                                covers. A plain task shows nothing here. */}
+                            {jobSlotProvenance(task) && (
+                              <p data-testid="dayboard-job-provenance" className="mt-1 text-[10px] text-amber-800 truncate">
+                                {jobSlotProvenance(task)}
+                              </p>
+                            )}
+
                             {/* Blocked reason: the task's own chip, full reason, never truncated */}
                             {task.status === 'needs_info' && (
                               <div className="mt-1.5 flex items-start gap-1 px-1.5 py-1 text-[10px] font-medium text-red-700 bg-red-50 border border-red-200 rounded">
@@ -823,30 +885,52 @@ export function DayBoard({
                                   <ArrowRightLeft className="w-3.5 h-3.5 text-neutral-500" />
                                   Move…
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => { onMoveTaskToBacklog(task.id); setActiveTaskMenuId(null); }}
-                                  className="w-full px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100 flex items-center gap-2 text-left font-medium"
-                                >
-                                  <ArrowDownToLine className="w-3.5 h-3.5 text-neutral-500" />
-                                  Return to backlog
-                                </button>
+                                {/* BOARD-1 (US-03) — a JOB slot is released back to the
+                                    Jobs column as a whole card (BLK-1: the slot is the
+                                    unit). "Return to backlog" and "Delete" are for plain
+                                    tasks only — a job slot is linked work, and the plain
+                                    paths would strand or destroy the link. */}
+                                {task.workItemId ? (
+                                  <button
+                                    type="button"
+                                    data-testid="dayboard-unschedule-card"
+                                    onClick={() => {
+                                      if (task.workTaskId) onUnscheduleJobSlot(Number(task.workTaskId));
+                                      setActiveTaskMenuId(null);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100 flex items-center gap-2 text-left font-medium"
+                                  >
+                                    <ArrowDownToLine className="w-3.5 h-3.5 text-neutral-500" />
+                                    Unschedule (back to Jobs)
+                                  </button>
+                                ) : (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => { onMoveTaskToBacklog(task.id); setActiveTaskMenuId(null); }}
+                                      className="w-full px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100 flex items-center gap-2 text-left font-medium"
+                                    >
+                                      <ArrowDownToLine className="w-3.5 h-3.5 text-neutral-500" />
+                                      Return to backlog
+                                    </button>
 
-                                <div className="border-t border-neutral-100 my-1"></div>
+                                    <div className="border-t border-neutral-100 my-1"></div>
 
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (confirm(`Delete task "${task.title}"?`)) {
-                                      onDeleteTask(task.id);
-                                    }
-                                    setActiveTaskMenuId(null);
-                                  }}
-                                  className="w-full px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 text-left"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                                  Delete
-                                </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (confirm(`Delete task "${task.title}"?`)) {
+                                          onDeleteTask(task.id);
+                                        }
+                                        setActiveTaskMenuId(null);
+                                      }}
+                                      className="w-full px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 text-left"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                                      Delete
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             )}
                           </div>

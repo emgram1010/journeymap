@@ -9,12 +9,14 @@
  * passed its own tests and the loop still did not join up, because
  * nobody had clicked the buttons.
  *
- * WHAT IT PROVES, in one pass:
- *   - a job's steps for one actor row arrive as ONE backlog row
- *   - the row can be expanded to read every stage it covers
- *   - Place creates ONE slot covering every step, positioned 1..n
- *   - the placed card leaves the backlog
- *   - "Already on a day" lists it ONCE, with one Unschedule
+ * WHAT IT PROVES, in one pass (BOARD-1 moved the screen: the backlog is
+ * the Jobs COLUMN beside the board now, and Unschedule lives on the
+ * day's own card — the semantics being proven are unchanged):
+ *   - a job's steps for one actor row arrive as ONE card in the Jobs column
+ *   - the card can be expanded to read every stage it covers
+ *   - Place… creates ONE slot covering every step, positioned 1..n
+ *   - the placed card leaves the Jobs column
+ *   - the day board shows it ONCE, with one Unschedule
  *   - Unschedule releases EVERY step and leaves no orphan link
  *
  * The orphan check is the one that matters most. Before story 03 the
@@ -159,54 +161,59 @@ test('E2E-BLK-1-07-01: place a whole card on a day from the Jobs screen, then re
   const multi = card as BacklogCard;
   const stepCount = multi.step_count;
 
-  // ── The backlog offers ONE row for those steps ───────────────────────
+  // ── BOARD-1: scheduling lives on the board, not in the modal ─────────
+  await modal.getByRole('button', {name: 'Close'}).click();
+  await expect(modal).toBeHidden();
+  await page.waitForLoadState('networkidle');
+
+  // ── The Jobs column offers ONE card for those steps, under its job ───
   //
-  // Identified by the step-count button, because the same job also
-  // produces a one-step card for its other actor row — and telling
-  // those two apart IS the (job, actor row) rule being tested.
+  // Identified by its "N steps" text, because the same job also produces
+  // a one-step card for its other actor row — and telling those two
+  // apart IS the (job, actor row) rule being tested.
   const stepWord = stepCount === 1 ? 'step' : 'steps';
-  const cardRow = modal
-    .locator('li')
-    .filter({hasText: jobTitle})
-    .filter({has: page.getByRole('button', {name: `${stepCount} ${stepWord}`})})
+  const column = page.locator('#jobs-column');
+  const jobGroup = column.getByTestId('jobs-column-job').filter({hasText: jobTitle}).first();
+  await expect(jobGroup).toBeVisible();
+  const cardRow = jobGroup
+    .getByTestId('jobs-column-card')
+    .filter({hasText: `${stepCount} ${stepWord}`})
     .first();
   await expect(cardRow).toBeVisible();
-  // The row names the ACTOR ROW, not just the job: "Clerk · 2 steps ·
+  // The card names the ACTOR ROW, not just the job: "Clerk · 2 steps ·
   // 1 hr 44 min". That is the (job, actor row) rule showing on screen.
   await expect(
     cardRow.getByText(`${multi.lens_label || multi.lens_key} · ${stepCount} ${stepWord}`, {exact: false}),
   ).toBeVisible();
 
-  // THE SAME JOB'S OTHER ACTOR ROW IS A SEPARATE, ONE-STEP CARD. Its
-  // presence is the (job, actor row) rule: grouping by job alone would
-  // have offered one row mixing two roles. It also guards the
-  // pluralisation, which is the kind of thing that only ever reads
-  // wrong in production.
-  const otherRows = modal
-    .locator('li')
-    .filter({hasText: jobTitle})
-    .filter({has: page.getByRole('button', {name: '1 step', exact: true})});
+  // THE SAME JOB'S OTHER ACTOR ROW IS A SEPARATE, ONE-STEP CARD under
+  // the same job header. Grouping by job alone would have offered one
+  // row mixing two roles; it also guards the pluralisation.
   if ((await readBacklog(planId as number)).filter((c) => c.job_title === jobTitle).length > 1) {
-    await expect(otherRows.first()).toBeVisible();
+    await expect(jobGroup.getByTestId('jobs-column-card').filter({hasText: '1 step ·'}).first()).toBeVisible();
   }
 
   // Expanding it reads every stage the card covers, from the job's
-  // PINNED version — this is the part that was simply unreachable
-  // before, since a card rendered as one row with one stage's text.
-  await cardRow.getByRole('button', {name: `${stepCount} ${stepWord}`}).click();
+  // PINNED version.
+  await cardRow.getByRole('button', {name: "Show this card's steps"}).click();
   for (const step of multi.steps) {
     await expect(cardRow.getByText(step.stage_label, {exact: false}).first()).toBeVisible();
   }
 
   // ── Place it: ONE call, ONE slot, every step ─────────────────────────
+  //
+  // The click path (D-4). The day is set to the one the board is
+  // showing, so the placed slot is on screen for the release below.
+  const activeDay = await page.locator('#day-board-view').getAttribute('data-active-day');
   const linksBefore = await readLinkedSteps(planId as number);
-  await cardRow.getByRole('button', {name: 'Schedule'}).click();
+  await cardRow.getByTestId('jobs-column-place').click();
   await expect(cardRow.getByText(`All ${stepCount} ${stepWord} go onto that day as one card.`)).toBeVisible();
-  await cardRow.getByRole('button', {name: 'Place'}).click();
+  await cardRow.locator('input[type=date]').fill(activeDay!);
+  await cardRow.getByTestId('jobs-column-place-confirm').click();
 
-  await expect(
-    modal.getByText(new RegExp(`${stepCount} ${stepWord} placed on .* as one card`)),
-  ).toBeVisible();
+  await expect(page.locator('#board-notice-toast')).toContainText(
+    new RegExp(`${stepCount} ${stepWord} placed as one card`),
+  );
   await page.waitForLoadState('networkidle');
 
   // One slot, not `stepCount` slots — and positioned 1..n, which is
@@ -227,50 +234,35 @@ test('E2E-BLK-1-07-01: place a whole card on a day from the Jobs screen, then re
     'exactly the steps the card named',
   ).toEqual(new Set(multi.work_task_ids));
 
-  // The placed card leaves the backlog — all of it, not part of it.
+  // The placed card leaves the Jobs column — all of it, not part of it.
   const backlogAfter = await readBacklog(planId as number);
   expect(
     backlogAfter.some((c) => c.card_key === multi.card_key),
     'a scheduled card should not still be offered for scheduling',
   ).toBe(false);
+  await expect(jobGroup.getByTestId('jobs-column-card').filter({hasText: `${stepCount} ${stepWord}`})).toHaveCount(0);
 
-  // ── The board card says what it is ──────────────────────────────────
+  // ── The day board shows it ONCE, saying what it is ───────────────────
   //
-  // 🔴 This is the `adaptBoard` bug from the counter-measures: its
-  // linked-steps Map was keyed by slot id and `set` once per step, so a
-  // card kept only whichever step came back last and the board showed
-  // one arbitrary stage as though it were the whole slot.
-  // Closed by the header's X: the footer's "Done" button shares its
-  // accessible name with every job row whose status reads "Done".
-  await modal.getByRole('button', {name: 'Close'}).click();
-  await expect(modal).toBeHidden();
-  await page.waitForLoadState('networkidle');
-  await expect(
-    page.getByText(`${jobTitle} · ${stepCount} ${stepWord}`, {exact: false}).first(),
-  ).toBeVisible();
-
-  await page.locator('#jobs-btn').click();
-  await expect(modal).toBeVisible();
-  await page.waitForLoadState('networkidle');
-
-  // ── Already on a day: listed ONCE, with one Unschedule ───────────────
-  //
-  // Listed once per STEP it would offer two buttons for one slot, and
-  // pressing either would release both — so the second would always
-  // refer to something that no longer existed.
+  // 🔴 The provenance line is the `adaptBoard` lesson from BLK-1: its
+  // linked-steps Map once kept only whichever step came back last, so a
+  // card rendered one arbitrary stage as though it were the whole slot.
+  // One slot = one card on the board = one Unschedule; a card listed
+  // once per step would offer two buttons for one slot, and pressing
+  // either would release both.
   const slotId = newLinks[0].planner_task_id;
-  const scheduledRow = modal
-    .locator('li')
-    .filter({hasText: jobTitle})
-    .filter({has: page.getByRole('button', {name: 'Unschedule'})});
-  await expect(scheduledRow).toHaveCount(1);
-  await expect(scheduledRow.first().getByText(`${stepCount} ${stepWord}`)).toBeVisible();
+  const provenance = page
+    .getByTestId('dayboard-job-provenance')
+    .filter({hasText: `${jobTitle} · ${stepCount} ${stepWord}`});
+  await expect(provenance).toHaveCount(1);
+  const slotCard = page.locator('[id^="dayboard-task-"]').filter({has: provenance}).first();
 
   // ── Release it: every step comes back, no orphan link ────────────────
-  await scheduledRow.first().getByRole('button', {name: 'Unschedule'}).click();
-  await expect(
-    modal.getByText(new RegExp(`${stepCount} ${stepWord} back in .Work waiting for a day.`)),
-  ).toBeVisible();
+  await slotCard.getByTitle('Task actions').click();
+  await page.getByTestId('dayboard-unschedule-card').click();
+  await expect(page.locator('#board-notice-toast')).toContainText(
+    new RegExp(`${stepCount} ${stepWord} back in the Jobs column`),
+  );
   await page.waitForLoadState('networkidle');
 
   const linksReleased = await readLinkedSteps(planId as number);

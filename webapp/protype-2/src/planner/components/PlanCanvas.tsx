@@ -20,6 +20,7 @@ import {
   Sliders
 } from 'lucide-react';
 import { Timeline, Task } from '../types';
+import { jobSlotProvenance } from '../boardModel';
 import { isDateOutOfWindow, formatShortDate } from '../utils/dateUtils';
 
 interface PlanCanvasProps {
@@ -37,6 +38,8 @@ interface PlanCanvasProps {
   onMoveTaskToBacklog: (taskId: string) => void;
   onMoveTaskToTimeline: (taskId: string, targetTimelineId: string) => void;
   onDeleteTask: (taskId: string) => void;
+  /** BOARD-1 (US-03) — release a job slot's whole card back to the Jobs column. */
+  onUnscheduleJobSlot: (workTaskId: number) => void;
   onReopenTimeline: (timelineId: string) => void;
   onDropFromBacklog: (taskId: string, targetIndex: number) => void;
   onTimelineTaskDragStart?: (taskId: string) => void;
@@ -58,6 +61,7 @@ export function PlanCanvas({
   onMoveTaskToBacklog,
   onMoveTaskToTimeline,
   onDeleteTask,
+  onUnscheduleJobSlot,
   onReopenTimeline,
   onDropFromBacklog,
   onTimelineTaskDragStart,
@@ -467,6 +471,10 @@ export function PlanCanvas({
                       <div className="font-medium text-neutral-900 truncate">
                         {task.title}
                       </div>
+                      {/* BOARD-1 (US-03) — a job slot names its job; a card says how many steps. */}
+                      {jobSlotProvenance(task) && (
+                        <div className="text-[10px] text-amber-800 truncate mt-0.5">{jobSlotProvenance(task)}</div>
+                      )}
                       {task.notes && (
                         <div className="text-[11px] text-neutral-400 truncate flex items-center gap-1 mt-0.5">
                           <FileText className="w-2.5 h-2.5 shrink-0" />
@@ -550,7 +558,21 @@ export function PlanCanvas({
 
                               <div className="border-t border-neutral-100 my-1"></div>
 
-                              {/* Section 5: Return to backlog */}
+                              {/* BOARD-1 (US-03): a JOB slot releases its whole card
+                                  (BLK-1 — the slot is the unit); "Return to backlog"
+                                  is for plain tasks only. */}
+                              {task.workItemId ? (
+                                <button
+                                  onClick={() => {
+                                    if (task.workTaskId) onUnscheduleJobSlot(Number(task.workTaskId));
+                                    setMenuTaskId(null);
+                                  }}
+                                  className="w-full px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100 flex items-center gap-2 text-left font-medium"
+                                >
+                                  <ArrowDownToLine className="w-3.5 h-3.5 text-neutral-500" />
+                                  Unschedule (back to Jobs)
+                                </button>
+                              ) : (
                               <button
                                 onClick={() => {
                                   onMoveTaskToBacklog(task.id);
@@ -561,6 +583,7 @@ export function PlanCanvas({
                                 <ArrowDownToLine className="w-3.5 h-3.5 text-neutral-500" />
                                 Return to backlog
                               </button>
+                              )}
 
                               {timelinesInWorkspace.filter(t => t.id !== timeline.id).length > 0 && (
                                 <div className="border-t border-neutral-100 my-1">
@@ -585,20 +608,27 @@ export function PlanCanvas({
                                 </div>
                               )}
 
-                              <div className="border-t border-neutral-100 my-1"></div>
+                              {/* Deleting is for plain tasks; a job slot's steps live on
+                                  in the job either way, so the honest control above is
+                                  Unschedule, not a delete that implies otherwise. */}
+                              {!task.workItemId && (
+                                <>
+                                  <div className="border-t border-neutral-100 my-1"></div>
 
-                              <button
-                                onClick={() => {
-                                  if (confirm(`Delete task "${task.title}"?`)) {
-                                    onDeleteTask(task.id);
-                                  }
-                                  setMenuTaskId(null);
-                                }}
-                                className="w-full px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 text-left"
-                              >
-                                <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                                Delete Task
-                              </button>
+                                  <button
+                                    onClick={() => {
+                                      if (confirm(`Delete task "${task.title}"?`)) {
+                                        onDeleteTask(task.id);
+                                      }
+                                      setMenuTaskId(null);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 text-left"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                                    Delete Task
+                                  </button>
+                                </>
+                              )}
                             </div>
                           )}
                         </>

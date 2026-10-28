@@ -83,42 +83,48 @@ test('E2E-W1-01 / E2E-O4-01: create a job from a map, schedule a step, and take 
   // The job appears in this plan's job list…
   await expect(modal.getByText(title, {exact: false}).first()).toBeVisible();
 
-  // …and its steps appear as real, schedulable work carrying the map's
-  // own text and minutes — the thing "Add task" could never produce.
-  //
-  // Identified by the Schedule button, not by "Done when:": a map's
-  // cells may legitimately have no done-when yet, and a test that
-  // assumes they do fails on a perfectly valid map (it did, on "test
-  // 123").
-  const stepRow = modal
-    .locator('li')
-    .filter({hasText: title})
-    .filter({has: page.getByRole('button', {name: 'Schedule'})})
-    .first();
-  await expect(stepRow).toBeVisible();
+  // BOARD-1 — scheduling left the modal. Close it; the job's work now
+  // sits in the Jobs COLUMN beside the board, as a card carrying the
+  // map's own words and minutes — the thing "Add task" could never
+  // produce.
+  await modal.getByRole('button', {name: 'Done'}).click();
+  await expect(modal).toHaveCount(0);
+
+  const column = page.locator('#jobs-column');
+  const jobGroup = column.getByTestId('jobs-column-job').filter({hasText: title}).first();
+  await expect(jobGroup).toBeVisible();
+  const card = jobGroup.getByTestId('jobs-column-card').first();
   // The minutes come from the pinned version, not from anything typed here.
-  await expect(stepRow.getByText(/\d+ min/)).toBeVisible();
+  await expect(card.getByText(/\d+ min/)).toBeVisible();
 
-  await stepRow.getByRole('button', {name: 'Schedule'}).click();
-  await stepRow.getByRole('button', {name: 'Place'}).click();
+  // The click path (US-BOARD-1-02's "Place…"): who defaults to the first
+  // agent; the day is set to the one the board is showing, so the placed
+  // card is immediately visible for the round trip below.
+  const activeDay = await page.locator('#day-board-view').getAttribute('data-active-day');
+  await card.getByTestId('jobs-column-place').click();
+  await card.locator('input[type=date]').fill(activeDay!);
+  await card.getByTestId('jobs-column-place-confirm').click();
 
-  await expect(modal.getByText(/Publish the day to send it to Execution/)).toBeVisible();
+  await expect(page.locator('#board-notice-toast')).toContainText(/Publish the day to send it to Execution/);
 
-  // O4 — and back off again. Scheduling used to be a one-way door:
-  // a step could be moved to another day but never returned to
-  // "waiting for a day". The round trip is the test, not the placement.
+  // The card leaves the Jobs column, and the day column now carries a
+  // slot naming its job (US-BOARD-1-03's provenance line).
   await page.waitForLoadState('networkidle');
-  const scheduledRow = modal
-    .locator('li')
+  await expect(jobGroup.getByTestId('jobs-column-card')).toHaveCount(0, {timeout: 20_000});
+  const slot = page
+    .locator('[id^="dayboard-task-"]')
+    .filter({has: page.getByTestId('dayboard-job-provenance')})
     .filter({hasText: title})
-    .filter({has: page.getByRole('button', {name: 'Unschedule'})})
     .first();
-  await expect(scheduledRow).toBeVisible();
-  await scheduledRow.getByRole('button', {name: 'Unschedule'}).click();
-  // BLK-1 (US-BLK-1-07) reworded this: a slot now holds a whole card,
-  // so the notice reports how many steps actually came back instead of
-  // implying one step moved.
-  await expect(modal.getByText(/step(s)? back in .Work waiting for a day./)).toBeVisible();
+  await expect(slot).toBeVisible();
+
+  // O4 — and back off again. Scheduling used to be a one-way door; the
+  // round trip is the test, not the placement. BLK-1: releasing the slot
+  // releases the whole card, and the notice says how many steps came back.
+  await slot.getByTitle('Task actions').click();
+  await page.getByTestId('dayboard-unschedule-card').click();
+  await expect(page.locator('#board-notice-toast')).toContainText(/step(s)? back in the Jobs column/);
+  await expect(jobGroup.getByTestId('jobs-column-card').first()).toBeVisible({timeout: 20_000});
 });
 
 test('E2E-W4-01: the performer can move off today and back', async ({page}) => {

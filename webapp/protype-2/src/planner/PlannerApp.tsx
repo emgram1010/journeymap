@@ -8,8 +8,11 @@ import {
   createTimeline, updateTimeline, publishTimeline as publishTimelineApi, reorderTimeline,
   createTask, updateTask, placeTask, deleteAgent, deleteTimeline,
   listTemplates, createWorkspaceFromTemplate, createWorkspace, TemplateListEntry, SkippedAgent,
-  updateWorkspace, LinkedStep,
+  updateWorkspace,
+  scheduleCard, unscheduleWorkTask, BacklogCard,
 } from './plannerApi';
+import { logEvent } from '../ops/logEvent';
+import { formatMinutes } from './varianceDisplay';
 import { adaptWorkspace, adaptBoard } from './plannerAdapter';
 import { windowEnd } from '../planTemplate';
 import { SettingsModal } from './components/SettingsModal';
@@ -18,6 +21,7 @@ import { AgentProfilesModal } from './components/AgentProfilesModal';
 import { TemplatesModal } from './components/TemplatesModal';
 import { CreateWorkspaceModal } from './components/CreateWorkspaceModal';
 import { JobsModal } from './components/JobsModal';
+import { JobsColumn } from './components/JobsColumn';
 import { Header } from './components/Header';
 import { ScheduleGrid } from './components/ScheduleGrid';
 import { DayBoard } from './components/DayBoard';
@@ -33,9 +37,6 @@ export default function PlannerApp() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [timelines, setTimelines] = useState<Timeline[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
-  // O4 — which job steps already have a slot, so the Jobs screen can
-  // offer to take one back off. The board already computes this.
-  const [linkedSteps, setLinkedSteps] = useState<LinkedStep[]>([]);
 
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>('');
   const [activeTimelineId, setActiveTimelineId] = useState<string | null>(null);
@@ -63,7 +64,15 @@ export default function PlannerApp() {
   const [isAgentProfilesOpen, setIsAgentProfilesOpen] = useState(false);
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   // GAP-FIX W1 — the screen that turns a map into real work.
+  // BOARD-1 — the modal is per-job detail now; `jobsFocusId` opens it on
+  // one job when a Jobs-column title is clicked.
   const [isJobsOpen, setIsJobsOpen] = useState(false);
+  const [jobsFocusId, setJobsFocusId] = useState<number | null>(null);
+  // BOARD-1 — the Jobs column refetches 559 whenever this changes; bumped
+  // after every mutation that can move work on or off a day.
+  const [jobsReloadNonce, setJobsReloadNonce] = useState(0);
+  // BOARD-1 — the green twin of `actionError`: what a successful drop did.
+  const [boardNotice, setBoardNotice] = useState<string | null>(null);
 
   // Drag tracking state across components
   const [isDraggingTaskFromTimeline, setIsDraggingTaskFromTimeline] = useState(false);
@@ -116,20 +125,26 @@ export default function PlannerApp() {
   // backlog), settings, models. Re-runs whenever the active plan
   // changes, which is also how a refresh-after-mutation will work
   // later: refetch the board, don't hand-patch local state.
-  const loadActiveBoard = useCallback((workspaceId: string) => {
+  const loadActiveBoard = useCallback((workspaceId: string, preserveView = false) => {
     setIsLoadingBoard(true);
     setLoadError(null);
     return getBoard(Number(workspaceId))
       .then((board) => {
-        const { agents: a, timelines: tl, tasks: tk, settings: s, linkedSteps: ls } = adaptBoard(board);
+        // BOARD-1: the board's linkedSteps are no longer kept here — the
+        // slimmed Jobs modal stopped reading them, and each slot's own
+        // job fields (jobTitle/workTaskId) already ride on the tasks.
+        const { agents: a, timelines: tl, tasks: tk, settings: s } = adaptBoard(board);
         setAgents(a);
         setTimelines(tl);
         setTasks(tk);
         setSettings(s);
-        setLinkedSteps(ls);
 
+        // BOARD-1: only the INITIAL load (or a plan switch) may move the
+        // view. A refresh after a write used to snap the board back to
+        // the first timeline's day — so dropping a card on Tuesday
+        // yanked the view to Monday and the card seemed to vanish.
         const firstTl = tl[0];
-        if (firstTl) {
+        if (firstTl && !preserveView) {
           setActiveTimelineId(firstTl.id);
           if (firstTl.plannedDate) setActiveDay(firstTl.plannedDate);
           if (firstTl.agentId) setActiveAgentId(firstTl.agentId);
@@ -155,7 +170,7 @@ export default function PlannerApp() {
   // appears, so a save doesn't blank the screen the user is looking at.
   const refreshBoard = useCallback(() => {
     if (!activeWorkspaceId) return Promise.resolve();
-    return loadActiveBoard(activeWorkspaceId);
+    return loadActiveBoard(activeWorkspaceId, true);
   }, [activeWorkspaceId, loadActiveBoard]);
 
   // Derived current workspace & agents
@@ -751,6 +766,95 @@ export default function PlannerApp() {
     }
   };
 
+  // ── BOARD-1 — the Jobs column's one write path ─────────────────────
+  //
+  // Drag and the "Place…" button both end here (D-3/D-4: one rule, two
+  // gestures): the SAME `scheduleCard` (583) the old modal form called,
+  // through the SAME idempotent ensure-day. The server re-checks every
+  // refusal (published day, already scheduled, tenancy) regardless of
+  // what the drop target believed.
+  const bumpJobsColumn = () => setJobsReloadNonce((n) => n + 1);
+
+  const showBoardNotice = (message: string) => {
+    setBoardNotice(message);
+    setTimeout(() => setBoardNotice(null), 6000);
+  };
+
+  const scheduleCardOnTimeline = async (workItemId: number, lensKey: string, timelineId: string): Promise<boolean> => {
+    try {
+      const result = await scheduleCard({
+        work_item_id: workItemId,
+        lens_key: lensKey,
+        timeline_id: Number(timelineId),
+      });
+      showBoardNotice(
+        `${result.step_count} step${result.step_count === 1 ? '' : 's'} placed as one card (${formatMinutes(result.scheduled_minutes)}). Publish the day to send it to Execution.`,
+      );
+      bumpJobsColumn();
+      await refreshBoard();
+      return true;
+    } catch (err) {
+      // E-BLK-001 / E-SCHED-001/002/008 already say what to do — shown as-is.
+      reportActionError(err);
+      // OBS-1: a drop that fell over is an event, not just a toast.
+      void logEvent({
+        feature: 'BOARD-1',
+        step: 'card_drop',
+        outcome: 'failure',
+        severity: 'warn',
+        message: err instanceof Error ? err.message : String(err),
+        entityType: 'work_item',
+        entityId: workItemId,
+      });
+      return false;
+    }
+  };
+
+  const handleDropJobCard = (payload: {workItemId: number; lensKey: string}, timelineId: string) => {
+    void scheduleCardOnTimeline(payload.workItemId, payload.lensKey, timelineId);
+  };
+
+  // A drop on an agent with no day yet: the board shows one day at a
+  // time, so the day is the active one, created idempotently first.
+  const handleDropJobCardOnNewDay = (payload: {workItemId: number; lensKey: string}, agentId: string) => {
+    void (async () => {
+      const timelineId = await handleEnsureTimeline(agentId, activeDay);
+      if (timelineId) await scheduleCardOnTimeline(payload.workItemId, payload.lensKey, timelineId);
+    })();
+  };
+
+  // The click path (US-02's "Place…"), with the card's own who/day picks.
+  const handlePlaceJobCard = async (card: BacklogCard, agentId: string, day: string): Promise<boolean> => {
+    const timelineId = await handleEnsureTimeline(agentId, day);
+    if (!timelineId) return false;
+    return scheduleCardOnTimeline(card.work_item_id, card.lens_key, timelineId);
+  };
+
+  // The drop-intent rule said no before anything was sent (published day).
+  const handleJobCardDropRefused = (message: string) => {
+    setActionError(message);
+    setTimeout(() => setActionError(null), 6000);
+    void logEvent({feature: 'BOARD-1', step: 'card_drop', outcome: 'rejected', severity: 'info', message});
+  };
+
+  // US-03 — release a slot's whole card back to the Jobs column. The
+  // server refuses on a published day (E-SCHED-006) or once anything was
+  // recorded (E-SCHED-007); both sentences shown as-is.
+  const handleUnscheduleJobSlot = (workTaskId: number) => {
+    unscheduleWorkTask(workTaskId)
+      .then((result) => {
+        const released = result.released_count ?? 0;
+        showBoardNotice(
+          result.already_unscheduled
+            ? 'That work was already waiting for a day.'
+            : `${released} step${released === 1 ? '' : 's'} back in the Jobs column. Nothing about the work itself changed.`,
+        );
+        bumpJobsColumn();
+        return refreshBoard();
+      })
+      .catch(reportActionError);
+  };
+
   // Create Backlog Task
   const handleCreateBacklogTask = (title: string, duration: number, assignee?: string) => {
     if (!activeWorkspaceId) return;
@@ -1076,6 +1180,15 @@ export default function PlannerApp() {
           {actionError}
         </div>
       )}
+      {/* BOARD-1 — what a successful drop/place/unschedule actually did. */}
+      {boardNotice && !actionError && (
+        <div
+          id="board-notice-toast"
+          className="absolute top-3 left-1/2 -translate-x-1/2 z-50 max-w-md rounded-lg bg-emerald-50 border border-emerald-200 shadow-sm px-3.5 py-2 text-xs text-emerald-900"
+        >
+          {boardNotice}
+        </div>
+      )}
 
       {/* MAIN VIEW AREA */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
@@ -1097,8 +1210,24 @@ export default function PlannerApp() {
           {/* Center Column: Day Board (Plan View) or Schedule Grid (Schedule View) + Backlog Drawer */}
           <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-white">
             {viewMode === 'plan' ? (
-              /* DAY BOARD (Section 5: One Day, All Agents Side-by-Side) */
-              <DayBoard
+              /* BOARD-1 — the whole loop on one screen: jobs waiting on
+                 the left, the day's columns on the right, drag between
+                 them. The reference design's shape, minus its map. */
+              <div className="flex-1 flex min-h-0 overflow-hidden">
+                <JobsColumn
+                  workspaceId={activeWorkspaceId || null}
+                  agents={agentsInActiveWs}
+                  timelines={timelinesInActiveWs}
+                  planningWindowStart={activeWorkspace?.planningWindowStart ?? ''}
+                  reloadNonce={jobsReloadNonce}
+                  onOpenJobs={(focusJobId) => {
+                    setJobsFocusId(focusJobId ?? null);
+                    setIsJobsOpen(true);
+                  }}
+                  onPlaceCard={handlePlaceJobCard}
+                />
+                {/* DAY BOARD (Section 5: One Day, All Agents Side-by-Side) */}
+                <DayBoard
                 workspace={activeWorkspace}
                 agents={agentsInActiveWs}
                 timelines={timelinesInActiveWs}
@@ -1135,7 +1264,12 @@ export default function PlannerApp() {
                 onEditAgent={handleOpenEditAgentModal}
                 onTimelineTaskDragStart={() => setIsDraggingTaskFromTimeline(true)}
                 onTimelineTaskDragEnd={() => setIsDraggingTaskFromTimeline(false)}
-              />
+                onDropJobCard={handleDropJobCard}
+                onDropJobCardOnNewDay={handleDropJobCardOnNewDay}
+                onJobCardDropRefused={handleJobCardDropRefused}
+                onUnscheduleJobSlot={handleUnscheduleJobSlot}
+                />
+              </div>
             ) : (
               /* SCHEDULE GRID (Section 4: Agents × Days Matrix) */
               <ScheduleGrid
@@ -1249,19 +1383,22 @@ export default function PlannerApp() {
         onCreateBlank={handleCreateBlankWorkspace}
       />
 
-      {/* Jobs (GAP-FIX W1): create real work from a map and put its steps on a day */}
+      {/* Jobs (GAP-FIX W1, slimmed by BOARD-1): create a job from a map and
+          read one job's detail — lines, exceptions, activity. Scheduling
+          lives on the board now (JobsColumn + drag). */}
       <JobsModal
         isOpen={isJobsOpen}
         workspaceId={activeWorkspaceId || null}
         workspaceName={activeWorkspace?.name ?? ''}
-        agents={agentsInActiveWs}
-        timelines={timelinesInActiveWs}
-        tasks={tasks}
-        linkedSteps={linkedSteps}
-        planningWindowStart={activeWorkspace?.planningWindowStart ?? ''}
-        onClose={() => setIsJobsOpen(false)}
-        onEnsureTimeline={handleEnsureTimeline}
-        onChanged={() => { void refreshBoard(); }}
+        focusJobId={jobsFocusId}
+        onClose={() => {
+          setIsJobsOpen(false);
+          setJobsFocusId(null);
+        }}
+        onChanged={() => {
+          bumpJobsColumn();
+          void refreshBoard();
+        }}
       />
 
       {/* Component Sheet & Deliverables Modal (§11 & §8) */}
