@@ -33,7 +33,7 @@
 // (`work_item_id::lens_key`) precisely because `work_task_id` is no
 // longer one row's identity.
 import {useCallback, useEffect, useState} from 'react';
-import {X, Briefcase, Plus, CalendarPlus, CalendarX, Ban, AlertTriangle, Lock, ChevronRight, ChevronDown, TrendingUp} from 'lucide-react';
+import {X, Briefcase, Plus, CalendarPlus, CalendarX, Ban, AlertTriangle, Lock, ChevronRight, ChevronDown} from 'lucide-react';
 import type {Agent, Task, Timeline} from '../types';
 import {
   listWorkspaceMaps,
@@ -43,16 +43,15 @@ import {
   cancelWorkItem,
   scheduleCard,
   unscheduleWorkTask,
-  getWorkItemVariance,
   getWorkItemActivity,
   type ActivityEvent,
   type LinkedStep,
-  type TaskVarianceRow,
   type RawWorkspaceMap,
   type WorkItemListEntry,
   type BacklogCard,
 } from '../plannerApi';
-import {formatMinutes, formatGap, gapTone, summariseJob, reasonLabel, eventLabel} from '../varianceDisplay';
+import {formatMinutes, reasonLabel, eventLabel} from '../varianceDisplay';
+import {jobStatusLabel} from '../../jobModel';
 import {groupStepsBySlot} from '../../scheduleModel';
 import {JobLinesEditor} from './JobLinesEditor';
 import ExceptionSendPanel from '../../exceptions/ExceptionSendPanel';
@@ -85,14 +84,6 @@ interface JobsModalProps {
   /** Refetch the board after anything here changes it. */
   onChanged: () => void;
 }
-
-const JOB_STATUS_LABELS: Record<string, string> = {
-  open: 'Not started',
-  in_progress: 'In progress',
-  blocked: 'Blocked',
-  completed: 'Done',
-  cancelled: 'Cancelled',
-};
 
 export function JobsModal({
   isOpen,
@@ -128,11 +119,14 @@ export function JobsModal({
   const [isScheduling, setIsScheduling] = useState(false);
   const [unschedulingId, setUnschedulingId] = useState<number | null>(null);
   // W3 — what came back from Execution, fetched per job only when the
-  // planner opens it. Two reads that nothing in this app had ever
-  // called: the variance report (568) and the activity log (577).
+  // planner opens it: the activity log (577).
+  //
+  // RPT-1 (2026-10-27) — the variance report (568) used to be fetched
+  // here too, for the "Planned vs actual" block. That block is now its
+  // own page (Reports → Plan vs Action), so opening a job no longer
+  // pulls a report nobody asked to read.
   const [openJobId, setOpenJobId] = useState<number | null>(null);
   const [reportFor, setReportFor] = useState<number | null>(null);
-  const [variance, setVariance] = useState<TaskVarianceRow[]>([]);
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [isLoadingReport, setIsLoadingReport] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
@@ -322,12 +316,10 @@ export function JobsModal({
     setOpenJobId(workItemId);
     setIsLoadingReport(true);
     setReportError(null);
-    setVariance([]);
     setActivity([]);
     try {
-      const [v, a] = await Promise.all([getWorkItemVariance(workItemId), getWorkItemActivity(workItemId)]);
+      const a = await getWorkItemActivity(workItemId);
       setReportFor(workItemId);
-      setVariance(v.tasks);
       setActivity(a.events);
     } catch (err) {
       setReportError(err instanceof Error ? err.message : "Couldn't load what came back for this job.");
@@ -536,7 +528,7 @@ export function JobsModal({
                       <span className="min-w-0">
                         <span className="block text-xs font-medium text-neutral-900 truncate">{job.title}</span>
                         <span className="block text-[10px] text-neutral-500">
-                          {JOB_STATUS_LABELS[job.status] ?? job.status} · {finished_count} of {task_count} step
+                          {jobStatusLabel(job.status)} · {finished_count} of {task_count} step
                           {task_count === 1 ? '' : 's'} done
                           {has_blocked && <span className="text-red-600"> · blocked</span>}
                         </span>
@@ -632,46 +624,6 @@ export function JobsModal({
                           </div>
 
                           <div>
-                            <p className="text-[11px] font-semibold text-neutral-800 flex items-center gap-1">
-                              <TrendingUp className="w-3 h-3 text-neutral-500" />
-                              Planned vs actual
-                            </p>
-                            <p className="text-[10px] text-neutral-500 mb-1.5">{summariseJob(variance)}</p>
-                            {variance.length === 0 ? (
-                              <p className="text-[10px] text-neutral-500">No steps to compare yet.</p>
-                            ) : (
-                              <ul className="flex flex-col gap-1">
-                                {variance.map((row) => {
-                                  const tone = gapTone(row.expected_gap_minutes, row.expected_gap_pct);
-                                  const toneClass =
-                                    tone === 'over'
-                                      ? 'text-amber-700'
-                                      : tone === 'under'
-                                        ? 'text-sky-700'
-                                        : tone === 'on_track'
-                                          ? 'text-emerald-700'
-                                          : 'text-neutral-400';
-                                  return (
-                                    <li
-                                      key={row.work_task_id}
-                                      className="flex items-center justify-between gap-2 text-[10px] bg-white border border-neutral-200 rounded px-2 py-1"
-                                    >
-                                      <span className="text-neutral-700 truncate">{row.stage_key}</span>
-                                      <span className="text-neutral-500 shrink-0 font-mono">
-                                        {formatMinutes(row.expected_minutes)} → {formatMinutes(row.actual_minutes)}
-                                      </span>
-                                      <span className={`shrink-0 font-medium ${toneClass}`}>
-                                        {formatGap(row.expected_gap_minutes, row.expected_gap_pct)}
-                                        {row.is_outlier && ' ⚠'}
-                                      </span>
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            )}
-                          </div>
-
-                          <div>
                             <p className="text-[11px] font-semibold text-neutral-800">What the performer reported</p>
                             {activity.length === 0 ? (
                               <p className="text-[10px] text-neutral-500 mt-1">
@@ -693,6 +645,14 @@ export function JobsModal({
                               </ul>
                             )}
                           </div>
+
+                          {/* RPT-1 (2026-10-27) — where Planned vs actual went.
+                              A sentence, not a link: this is a modal over the
+                              planner, and navigating away would throw away
+                              everything the planner has open behind it. */}
+                          <p className="text-[10px] text-neutral-400">
+                            Planned vs actual now lives in Reports → Plan vs Action.
+                          </p>
                         </>
                       )}
                     </div>

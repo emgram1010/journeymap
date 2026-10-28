@@ -125,6 +125,7 @@ import React from 'react';
 import AppLayout from './AppLayout';
 import PlannerApp from './planner/PlannerApp';
 import PerformToday from './perform/PerformToday';
+import PlanVsActionPage from './reports/PlanVsActionPage';
 import {PerformErrorBoundary} from './perform/PerformErrorBoundary';
 
 createRoot(document.getElementById('root')!).render(
@@ -152,6 +153,12 @@ createRoot(document.getElementById('root')!).render(
               itself hides below `md`, so a performer on a phone still gets
               the full-width focused screen the original decision protected. */}
           <Route path="/perform" element={<ProtectedRoute><ModuleRoute module="execution"><AppLayout><PerformErrorBoundary><PerformToday /></PerformErrorBoundary></AppLayout></ModuleRoute></ProtectedRoute>} />
+          {/* RPT-1 (2026-10-27): Reports. Planned vs actual moved here out
+              of the planner's Jobs modal — same `planning` gate it had in
+              there, so the move did not widen who can read it. `/reports`
+              alone lands on the only report rather than a bare shell. */}
+          <Route path="/reports" element={<Navigate to="/reports/plan-vs-action" replace />} />
+          <Route path="/reports/plan-vs-action" element={<ProtectedRoute><ModuleRoute module="planning"><AppLayout><PlanVsActionPage /></AppLayout></ModuleRoute></ProtectedRoute>} />
           <Route path="/account" element={<ProtectedRoute><AppLayout><AccountSettings /></AppLayout></ProtectedRoute>} />
           {/* CAT-1 (phase-6): the item-type / method catalog. Same gate
               shape as /account — no module/admin route guard, because any

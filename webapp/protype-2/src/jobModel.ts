@@ -13,6 +13,28 @@ export type TaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'done' | 's
 /** A job's status. `cancelled` is set explicitly; the rest are derived. */
 export type JobStatus = 'open' | 'in_progress' | 'blocked' | 'completed' | 'cancelled';
 
+const JOB_STATUS_LABELS: Record<string, string> = {
+  open: 'Not started',
+  in_progress: 'In progress',
+  blocked: 'Blocked',
+  completed: 'Done',
+  cancelled: 'Cancelled',
+};
+
+/**
+ * The words a planner reads for a job's status.
+ *
+ * ONE PLACE (CLAUDE.md: a shared rule lives in its own function, not a
+ * copy in each reader). The jobs list and the Plan vs Action report
+ * both name the same job, and two copies of this map would eventually
+ * call the same status different things. A status this doesn't know is
+ * shown exactly as it arrived rather than blanked — a new status added
+ * server-side should look unfamiliar, not invisible.
+ */
+export function jobStatusLabel(status: string): string {
+  return JOB_STATUS_LABELS[status] ?? status;
+}
+
 export interface VersionLens {
   key: string;
   label?: string;

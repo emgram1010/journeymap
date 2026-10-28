@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {deriveJobStatus, tasksFromVersion, type TaskStatus, type VersionSnapshot} from './jobModel';
+import {deriveJobStatus, jobStatusLabel, tasksFromVersion, type TaskStatus, type VersionSnapshot} from './jobModel';
 
 const t = (status: TaskStatus) => ({status});
 
@@ -151,4 +151,19 @@ test('UT-JOB-1-08: three stages each with a working owner yield exactly three ta
 
 test('tasksFromVersion: an empty version produces nothing and reports nothing', () => {
   assert.deepEqual(tasksFromVersion({stages: [], lenses: [], cells: []}), {tasks: [], skipped: []});
+});
+
+// ── jobStatusLabel ─────────────────────────────────────────────────
+
+test('jobStatusLabel: every derived status has planner words', () => {
+  assert.equal(jobStatusLabel('open'), 'Not started');
+  assert.equal(jobStatusLabel('in_progress'), 'In progress');
+  assert.equal(jobStatusLabel('blocked'), 'Blocked');
+  assert.equal(jobStatusLabel('completed'), 'Done');
+  assert.equal(jobStatusLabel('cancelled'), 'Cancelled');
+});
+
+test('jobStatusLabel: an unknown status is shown as it arrived, never blanked', () => {
+  assert.equal(jobStatusLabel('awaiting_parts'), 'awaiting_parts');
+  assert.equal(jobStatusLabel(''), '');
 });
