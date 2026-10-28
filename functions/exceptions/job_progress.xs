@@ -14,6 +14,11 @@
 // is missing from the snapshot sorts last (position 999999). All
 // steps finished → current_stage_key = "".
 //
+// A stage at position 0 (the FIRST stage) is safe here even though it
+// is read through `?? 999999`: XanoScript's `??` is strict, unlike its
+// `==`/`!=`. Probed live 2026-10-27 (`0 ?? 999999` → 0) and confirmed
+// on real data (jobs 125/126 correctly report s1, position 0).
+//
 // Every tally below is var.update + |get/|set + a plain ternary —
 // never a conditional branching on a var updated earlier in the same
 // foreach iteration (CLAUDE.md's silent-write-loss trap). Rows are
@@ -130,8 +135,16 @@ function "exceptions/job_progress" {
               value = $stage_pos_by_key|set:$vs_key:$pos_counter
             }
 
+            // `??` alone is not enough: it is STRICT (probed live 2026-10-27
+            // — `0 ?? x` is 0, `"" ?? x` is ""), and an untouched label is ""
+            // in live data, which would render "at " with nothing after it.
+            // The `!= ""` test catches null too, because ==/!= ARE loose.
+            var $vs_label_raw {
+              value = $vs.label ?? ""
+            }
+
             var $vs_label {
-              value = $vs.label ?? $vs.key
+              value = ($vs_label_raw != "") ? $vs_label_raw : $vs.key
             }
 
             var.update $stage_label_by_key {
@@ -147,8 +160,13 @@ function "exceptions/job_progress" {
     }
 
     // ── One row per task, unconditional ───────────────────────────────
+    // SORTED, deliberately. Two owner rows at one stage share a position, so
+    // without an order the winner of that tie is whatever order the rows came
+    // back in — `current_stage_key` could differ between two identical calls.
+    // Matches 555's own `work_task.id asc`.
     db.query work_task {
       where = $db.work_task.work_item_id in $input.work_item_ids
+      sort = {work_task.id: "asc"}
       return = {type: "list"}
     } as $tasks
 
@@ -307,8 +325,12 @@ function "exceptions/job_progress" {
           value = $stage_label_by_key|get:$out_label_lookup:null
         }
 
+        var $out_label_safe {
+          value = ($out_label_raw != "") ? $out_label_raw : $out_stage_key
+        }
+
         var $out_stage_label {
-          value = $out_all_finished ? "" : ($out_label_raw ?? $out_stage_key)
+          value = $out_all_finished ? "" : $out_label_safe
         }
 
         var $out_progress {
