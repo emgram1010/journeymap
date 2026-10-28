@@ -56,6 +56,7 @@ import {formatMinutes, formatGap, gapTone, summariseJob, reasonLabel, eventLabel
 import {groupStepsBySlot} from '../../scheduleModel';
 import {JobLinesEditor} from './JobLinesEditor';
 import ExceptionSendPanel from '../../exceptions/ExceptionSendPanel';
+import JobPeekSheet from '../../exceptions/JobPeekSheet';
 import {EstimateBadge} from './EstimateBadge';
 
 interface JobsModalProps {
@@ -136,8 +137,10 @@ export function JobsModal({
   const [isLoadingReport, setIsLoadingReport] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
   const [confirmCancelId, setConfirmCancelId] = useState<number | null>(null);
+  // EXC-2 (US-EXC-2-04) — sent work that is not in this plan opens in the read-only view.
+  const [peekId, setPeekId] = useState<number | null>(null);
 
-  const load = useCallback(async (wsId: string, isPlanChange = false) => {
+  const load =useCallback(async (wsId: string, isPlanChange = false) => {
     setIsLoading(true);
     setError(null);
     // Switching plans must CLEAR first. Leaving the previous plan's jobs
@@ -340,6 +343,33 @@ export function JobsModal({
     requestAnimationFrame(() => document.getElementById(`job-row-${workItemId}`)?.scrollIntoView({block: 'center'}));
   };
 
+  // EXC-2 (US-EXC-2-04) — a chip for sent work: in this plan's list →
+  // expand and scroll to its row; otherwise the read-only job view.
+  const openSentJob = (childId: number) => {
+    if (jobs.some((j) => j.work_item.id === childId)) showJob(childId);
+    else setPeekId(childId);
+  };
+
+  // "N sent on": one child in this plan → that child. Otherwise (several,
+  // or the one child lives elsewhere) → open the parent and bring its
+  // Exceptions block into view, where each child has its own chip.
+  const openSentWork = (parentId: number) => {
+    const kids = jobs.filter((j) => j.work_item.parent_work_item_id === parentId);
+    const entry = jobs.find((j) => j.work_item.id === parentId);
+    if (kids.length === 1 && (entry?.child_count ?? 0) === 1) {
+      showJob(kids[0].work_item.id);
+      return;
+    }
+    if (openJobId !== parentId) void openReport(parentId);
+    const scrollToExceptions = (triesLeft: number) =>
+      requestAnimationFrame(() => {
+        const el = document.getElementById(`job-exceptions-${parentId}`);
+        if (el) el.scrollIntoView({block: 'center'});
+        else if (triesLeft > 0) setTimeout(() => scrollToExceptions(triesLeft - 1), 150);
+      });
+    scrollToExceptions(10);
+  };
+
   const handleCancel = async (workItemId: number) => {
     setError(null);
     setNotice(null);
@@ -516,9 +546,9 @@ export function JobsModal({
                       <button
                         type="button"
                         data-testid="job-children-chip"
-                        onClick={() => showJob(job.id)}
+                        onClick={() => openSentWork(job.id)}
                         className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-800 hover:bg-amber-100"
-                        title="Jobs started from this one"
+                        title="Opens the work sent from this job"
                       >
                         {child_count} sent on
                       </button>
@@ -566,11 +596,12 @@ export function JobsModal({
                         <>
                           {/* EXC-1 (US-EXC-1-05) — what was sent off this job, and the planner's own "Send to…" */}
                           {job.status !== 'cancelled' && job.status !== 'completed' && (
-                            <div>
+                            <div id={`job-exceptions-${job.id}`}>
                               <p className="text-[11px] font-semibold text-neutral-800 mb-1">Exceptions</p>
                               <ExceptionSendPanel
                                 workItemId={job.id}
                                 variant="planner"
+                                onOpenJob={openSentJob}
                                 onSent={() => {
                                   if (workspaceId) void load(workspaceId);
                                   onChanged();
@@ -709,7 +740,7 @@ export function JobsModal({
                                 <button
                                   type="button"
                                   data-testid="card-children-chip"
-                                  onClick={() => showJob(card.work_item_id)}
+                                  onClick={() => openSentWork(card.work_item_id)}
                                   className="rounded-full border border-amber-200 bg-amber-50 px-1.5 text-[10px] text-amber-800 hover:bg-amber-100"
                                 >
                                   {card.child_count} sent on
@@ -903,6 +934,10 @@ export function JobsModal({
             Done
           </button>
         </div>
+      </div>
+      {/* The sheet sits inside the overlay; its clicks must not reach the overlay's close-on-click. */}
+      <div onClick={(e) => e.stopPropagation()}>
+        <JobPeekSheet workItemId={peekId ?? 0} open={peekId != null} onClose={() => setPeekId(null)} onOpenJob={setPeekId} />
       </div>
     </div>
   );

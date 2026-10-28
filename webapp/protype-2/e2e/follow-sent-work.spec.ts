@@ -139,6 +139,26 @@ test.describe('EXC-2 — sent chip opens the read-only view (US-EXC-2-03/04)', (
     // Closing returns to the planner exactly where it was (nothing changed).
     await expect(row.getByTestId('exception-chip')).toBeVisible();
 
+    // US-EXC-2-04 / E2E-EXC-2-03: "1 sent on" opens the SENT work (not the parent again).
+    await row.locator('button[aria-expanded]').first().click(); // collapse the parent
+    const sentOn = row.getByTestId('job-children-chip');
+    await expect(sentOn).toHaveAttribute('title', 'Opens the work sent from this job');
+    await expectHittable(sentOn);
+    await sentOn.click();
+    const childRow = modal.locator(`#job-row-${childId}`);
+    await expect(childRow.locator('button[aria-expanded]').first()).toHaveAttribute('aria-expanded', 'true');
+    await expect(childRow).toBeInViewport();
+
+    // US-EXC-2-05 / E2E-EXC-2-06: a failed load shows the friendly message, then Try again works.
+    await page.route(`**/work_item/${childId}`, (route) => route.fulfill({status: 500, contentType: 'application/json', body: '{"message":"boom"}', headers: {'access-control-allow-origin': '*'}}));
+    await row.locator('button[aria-expanded]').first().click(); // expand the parent again
+    await row.getByTestId('exception-chip').click();
+    await expect(page.getByTestId('job-peek-error')).toBeVisible();
+    await page.unroute(`**/work_item/${childId}`);
+    await page.getByTestId('job-peek-retry').click();
+    await expect(page.getByTestId('job-peek-steps')).toBeVisible();
+    await page.getByTestId('job-peek-footer-close').click();
+
     for (const id of [childId, parentId]) {
       await page.request.post(`${PLANNER_API}/work_item/${id}/cancel`, {headers: auth, data: {}});
     }
