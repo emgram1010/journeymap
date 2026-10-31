@@ -52,7 +52,10 @@ export function AgentsPopover({
   );
 
   return (
-    <div className="relative" ref={ref}>
+    // shrink-0: in a tight toolbar this wrapper was the only flexible
+    // item, so it got crushed to zero width and its button painted over
+    // the view switcher. The toolbar now sheds its captions instead.
+    <div className="relative shrink-0" ref={ref}>
       <button
         id="grid-agents-popover-btn"
         type="button"

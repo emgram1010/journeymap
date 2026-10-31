@@ -142,6 +142,43 @@ function hasText(value: string | null | undefined): boolean {
 }
 
 /**
+ * QUE-1 (US-QUE-1-04) — the disclosure rule for a job's steps: flat, or
+ * grouped under the role (actor row) that does them.
+ *
+ * ONE ROLE (the normal case) → `null`. The caller renders the tasks
+ * directly; a single-item group would be an extra tier for nothing.
+ *
+ * MORE THAN ONE ROLE → one group per distinct `lens_key`, first-seen
+ * order, each group's tasks kept in the job's own order (the pinned
+ * version's stage order — never re-sorted here).
+ */
+export interface RoleStepGroup<T> {
+  lensKey: string;
+  lensLabel: string;
+  tasks: T[];
+}
+
+export function groupTasksByRole<T extends {lens_key: string; owner_lens_label?: string | null}>(
+  tasks: readonly T[],
+): RoleStepGroup<T>[] | null {
+  const distinctLenses = new Set(tasks.map((t) => t.lens_key));
+  if (distinctLenses.size <= 1) return null;
+
+  const order: string[] = [];
+  const byLens = new Map<string, RoleStepGroup<T>>();
+  for (const t of tasks) {
+    let group = byLens.get(t.lens_key);
+    if (!group) {
+      group = {lensKey: t.lens_key, lensLabel: t.owner_lens_label || t.lens_key, tasks: []};
+      byLens.set(t.lens_key, group);
+      order.push(t.lens_key);
+    }
+    group.tasks.push(t);
+  }
+  return order.map((key) => byLens.get(key)!);
+}
+
+/**
  * A job's status, derived from its tasks.
  *
  * NEVER STORED AS THE SOURCE OF TRUTH. `work_item.status` is a cached

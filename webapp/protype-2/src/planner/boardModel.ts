@@ -70,3 +70,27 @@ export function jobSlotProvenance(task: {jobTitle?: string; jobStepCount?: numbe
   const steps = task.jobStepCount ?? 1;
   return steps > 1 ? `${task.jobTitle} · ${steps} steps` : task.jobTitle;
 }
+
+/**
+ * QUE-1 (US-QUE-1-05/06) — what happens when a scheduled task is pulled
+ * off its day, apart from the DOM.
+ *
+ * A JOB slot (it has `workItemId`) always needs the confirmation —
+ * taking it off a day is a real decision, not a tidy-up, and it is
+ * linked work (BLK-1: the slot covers several steps as one unit). A
+ * PLAIN task keeps its existing, already-visible behaviour — it was
+ * never silent about what it does, and the confirmation this epic adds
+ * is scoped to the thing that is new: a job's role line (Q-4).
+ *
+ * A job slot with no `workTaskId` is a defensive `invalid` — there is
+ * nothing to call `unscheduleWorkTask` with, so the caller must not
+ * even open the confirmation (it would have nothing to confirm into).
+ */
+export type UnscheduleIntent = 'confirm-job-slot' | 'plain-task' | 'invalid';
+
+export function classifyUnscheduleTarget(task: {workItemId?: number; workTaskId?: number}): UnscheduleIntent {
+  if ((task.workItemId ?? 0) > 0) {
+    return (task.workTaskId ?? 0) > 0 ? 'confirm-job-slot' : 'invalid';
+  }
+  return 'plain-task';
+}

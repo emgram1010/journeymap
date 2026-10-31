@@ -69,7 +69,7 @@ test('E2E-W1-01 / E2E-O4-01: create a job from a map, schedule a step, and take 
   await page.locator(`#workspace-item-${planWithMap}`).click();
 
   const modal = page.locator('#jobs-modal');
-  await page.locator('#jobs-btn').click();
+  await page.locator('[data-testid="jobs-column-new-job"]').click();
   await expect(modal).toBeVisible();
   await expect(modal.locator('#new-job-map-select')).toBeVisible();
 
@@ -83,34 +83,38 @@ test('E2E-W1-01 / E2E-O4-01: create a job from a map, schedule a step, and take 
   // The job appears in this plan's job list…
   await expect(modal.getByText(title, {exact: false}).first()).toBeVisible();
 
-  // BOARD-1 — scheduling left the modal. Close it; the job's work now
-  // sits in the Jobs COLUMN beside the board, as a card carrying the
-  // map's own words and minutes — the thing "Add task" could never
-  // produce.
+  // BOARD-1 put scheduling on the board; QUE-1 (2026-10-30) moved WHERE
+  // on the board: a role line with no day shows automatically in
+  // Unscheduled (Q-1) — the Jobs column is now a view-only registry of
+  // every job (US-QUE-1-03/04), so this job is found in Unscheduled, not
+  // the column.
   await modal.getByRole('button', {name: 'Done'}).click();
   await expect(modal).toHaveCount(0);
 
-  const column = page.locator('#jobs-column');
-  const jobGroup = column.getByTestId('jobs-column-job').filter({hasText: title}).first();
+  const unscheduled = page.locator('#backlog-drawer-container');
+  const jobGroup = unscheduled.getByTestId('unscheduled-job-group').filter({hasText: title}).first();
   await expect(jobGroup).toBeVisible();
-  const card = jobGroup.getByTestId('jobs-column-card').first();
+  const card = jobGroup.getByTestId('unscheduled-card').first();
   // The minutes come from the pinned version, not from anything typed here.
   await expect(card.getByText(/\d+ min/)).toBeVisible();
 
-  // The click path (US-BOARD-1-02's "Place…"): who defaults to the first
-  // agent; the day is set to the one the board is showing, so the placed
-  // card is immediately visible for the round trip below.
+  // The click path (US-BOARD-1-02's "Place…", relocated to Unscheduled
+  // by US-QUE-1-02): who defaults to the first agent; the day is set to
+  // the one the board is showing, so the placed card is immediately
+  // visible for the round trip below.
   const activeDay = await page.locator('#day-board-view').getAttribute('data-active-day');
-  await card.getByTestId('jobs-column-place').click();
-  await card.locator('input[type=date]').fill(activeDay!);
-  await card.getByTestId('jobs-column-place-confirm').click();
+  // The Place… form (grid, QUE-1) renders as its own detail row, a
+  // sibling of the card's row — scoped to jobGroup, not card itself.
+  await card.getByTestId('unscheduled-place').click();
+  await jobGroup.locator('input[type=date]').fill(activeDay!);
+  await jobGroup.getByTestId('unscheduled-place-confirm').click();
 
   await expect(page.locator('#board-notice-toast')).toContainText(/Publish the day to send it to Execution/);
 
-  // The card leaves the Jobs column, and the day column now carries a
-  // slot naming its job (US-BOARD-1-03's provenance line).
+  // The card leaves Unscheduled, and the day column now carries a slot
+  // naming its job (US-BOARD-1-03's provenance line).
   await page.waitForLoadState('networkidle');
-  await expect(jobGroup.getByTestId('jobs-column-card')).toHaveCount(0, {timeout: 20_000});
+  await expect(jobGroup.getByTestId('unscheduled-card')).toHaveCount(0, {timeout: 20_000});
   const slot = page
     .locator('[id^="dayboard-task-"]')
     .filter({has: page.getByTestId('dayboard-job-provenance')})
@@ -120,11 +124,17 @@ test('E2E-W1-01 / E2E-O4-01: create a job from a map, schedule a step, and take 
 
   // O4 — and back off again. Scheduling used to be a one-way door; the
   // round trip is the test, not the placement. BLK-1: releasing the slot
-  // releases the whole card, and the notice says how many steps came back.
+  // releases the whole card. QUE-1 (US-QUE-1-06) now confirms first —
+  // the founder's "are you sure" — before the notice says how many
+  // steps came back.
   await slot.getByTitle('Task actions').click();
   await page.getByTestId('dayboard-unschedule-card').click();
-  await expect(page.locator('#board-notice-toast')).toContainText(/step(s)? back in the Jobs column/);
-  await expect(jobGroup.getByTestId('jobs-column-card').first()).toBeVisible({timeout: 20_000});
+  const confirm = page.locator('#unschedule-confirm-modal');
+  await expect(confirm).toBeVisible();
+  await expect(confirm).toContainText(title);
+  await page.locator('#unschedule-confirm-confirm').click();
+  await expect(page.locator('#board-notice-toast')).toContainText(/step(s)? back in Unscheduled/);
+  await expect(jobGroup.getByTestId('unscheduled-card').first()).toBeVisible({timeout: 20_000});
 });
 
 test('E2E-W4-01: the performer can move off today and back', async ({page}) => {

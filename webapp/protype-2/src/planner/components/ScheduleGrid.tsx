@@ -247,12 +247,6 @@ export function ScheduleGrid({
             <span>Agent × Day Schedule Grid</span>
           </div>
 
-          <span className="text-neutral-300">|</span>
-
-          <span className="text-[11px] text-neutral-500">
-            Showing {visibleAgents.length} {visibleAgents.length === 1 ? 'agent' : 'agents'} across {spanWeeks === 1 ? '7 days (1 week)' : '14 days (2 weeks)'}
-          </span>
-
           {/* Story E1: drag-reorder hint preserved as a tooltip instead of a permanent legend strip */}
           <span
             className="text-neutral-300 cursor-help"
@@ -265,7 +259,9 @@ export function ScheduleGrid({
         {/* Centre: view switcher */}
         <div className="shrink-0">{viewSwitcher}</div>
 
-        <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
+        {/* No min-w-0: same rule as the Day Board — this zone never
+            shrinks below its buttons; the left caption gives way. */}
+        <div className="flex-1 flex items-center justify-end gap-2">
           {buildPlanButton}
 
           <AgentsPopover

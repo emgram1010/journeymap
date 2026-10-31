@@ -89,7 +89,7 @@ test.describe('EXC-2 — sent chip opens the read-only view (US-EXC-2-03/04)', (
     await page.goto('/planner');
     await page.locator('#workspace-switcher-btn').click();
     await page.locator(`#workspace-item-${PLAN_ID}`).click();
-    await page.locator('#jobs-btn').click();
+    await page.locator('[data-testid="jobs-column-new-job"]').click();
     const modal = page.locator('#jobs-modal');
     await expect(modal).toBeVisible();
     await page.waitForLoadState('networkidle');

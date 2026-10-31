@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {deriveJobStatus, jobStatusLabel, tasksFromVersion, type TaskStatus, type VersionSnapshot} from './jobModel';
+import {deriveJobStatus, groupTasksByRole, jobStatusLabel, tasksFromVersion, type TaskStatus, type VersionSnapshot} from './jobModel';
 
 const t = (status: TaskStatus) => ({status});
 
@@ -166,4 +166,32 @@ test('jobStatusLabel: every derived status has planner words', () => {
 test('jobStatusLabel: an unknown status is shown as it arrived, never blanked', () => {
   assert.equal(jobStatusLabel('awaiting_parts'), 'awaiting_parts');
   assert.equal(jobStatusLabel(''), '');
+});
+
+// ── groupTasksByRole (US-QUE-1-04) ────────────────────────────────────
+
+const step = (lensKey: string, label: string | null = null) => ({lens_key: lensKey, owner_lens_label: label});
+
+test('UT-QUE-1-04-01: one role -> null (flat, no extra tier)', () => {
+  assert.equal(groupTasksByRole([step('tech'), step('tech'), step('tech')]), null);
+  assert.equal(groupTasksByRole([]), null, 'zero roles is still "flat" — nothing to group');
+});
+
+test('UT-QUE-1-04-02: two roles -> one group per role, first-seen order', () => {
+  const groups = groupTasksByRole([step('tech'), step('inspector'), step('tech')]);
+  assert.deepEqual(groups?.map((g) => g.lensKey), ['tech', 'inspector']);
+});
+
+test('UT-QUE-1-04-03: each group keeps its tasks in the order they arrived', () => {
+  const a = {lens_key: 'tech', owner_lens_label: null, id: 1};
+  const b = {lens_key: 'tech', owner_lens_label: null, id: 2};
+  const c = {lens_key: 'inspector', owner_lens_label: null, id: 3};
+  const groups = groupTasksByRole([a, c, b]);
+  assert.deepEqual(groups?.find((g) => g.lensKey === 'tech')?.tasks.map((t) => t.id), [1, 2]);
+});
+
+test('UT-QUE-1-04-04: a group\'s label is the owner label, falling back to the key', () => {
+  const groups = groupTasksByRole([step('tech', 'Repair Tech'), step('inspector', null)]);
+  assert.equal(groups?.find((g) => g.lensKey === 'tech')?.lensLabel, 'Repair Tech');
+  assert.equal(groups?.find((g) => g.lensKey === 'inspector')?.lensLabel, 'inspector');
 });

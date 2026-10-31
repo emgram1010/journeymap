@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {groupCardsByJob, jobCardDropRefusal, jobSlotProvenance, waitingJobsCount} from './boardModel';
+import {classifyUnscheduleTarget, groupCardsByJob, jobCardDropRefusal, jobSlotProvenance, waitingJobsCount} from './boardModel';
 
 const card = (workItemId: number, lensKey: string, jobTitle: string | null = `Job ${workItemId}`) => ({
   card_key: `${workItemId}::${lensKey}`,
@@ -64,4 +64,20 @@ test('UT-BOARD-1-07: a job slot names its job, a card says how many steps it cov
   assert.equal(jobSlotProvenance({jobTitle: 'Repair for Garcia', jobStepCount: 1}), 'Repair for Garcia');
   assert.equal(jobSlotProvenance({jobTitle: 'Repair for Garcia'}), 'Repair for Garcia');
   assert.equal(jobSlotProvenance({}), null, 'a plain task has no provenance line');
+});
+
+// ── classifyUnscheduleTarget (US-QUE-1-05/06) ─────────────────────────
+
+test('UT-QUE-1-05-01: a job slot always needs confirmation', () => {
+  assert.equal(classifyUnscheduleTarget({workItemId: 7, workTaskId: 42}), 'confirm-job-slot');
+});
+
+test('UT-QUE-1-05-02: a plain task keeps its existing, un-confirmed path', () => {
+  assert.equal(classifyUnscheduleTarget({}), 'plain-task');
+  assert.equal(classifyUnscheduleTarget({workItemId: 0}), 'plain-task');
+});
+
+test('UT-QUE-1-05-03: a job slot missing its work_task_id is invalid, not confirmable', () => {
+  assert.equal(classifyUnscheduleTarget({workItemId: 7}), 'invalid');
+  assert.equal(classifyUnscheduleTarget({workItemId: 7, workTaskId: 0}), 'invalid');
 });

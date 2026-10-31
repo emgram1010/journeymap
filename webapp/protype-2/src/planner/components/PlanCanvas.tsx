@@ -38,8 +38,10 @@ interface PlanCanvasProps {
   onMoveTaskToBacklog: (taskId: string) => void;
   onMoveTaskToTimeline: (taskId: string, targetTimelineId: string) => void;
   onDeleteTask: (taskId: string) => void;
-  /** BOARD-1 (US-03) — release a job slot's whole card back to the Jobs column. */
-  onUnscheduleJobSlot: (workTaskId: number) => void;
+  /** QUE-1 (US-QUE-1-05/06) — open the "are you sure" before a job slot's
+      whole card comes off this day. The caller (DayBoard) supplies the
+      day label; this component only knows `jobTitle`. */
+  onRequestUnscheduleJobSlot: (workTaskId: number, jobTitle: string) => void;
   onReopenTimeline: (timelineId: string) => void;
   onDropFromBacklog: (taskId: string, targetIndex: number) => void;
   onTimelineTaskDragStart?: (taskId: string) => void;
@@ -61,7 +63,7 @@ export function PlanCanvas({
   onMoveTaskToBacklog,
   onMoveTaskToTimeline,
   onDeleteTask,
-  onUnscheduleJobSlot,
+  onRequestUnscheduleJobSlot,
   onReopenTimeline,
   onDropFromBacklog,
   onTimelineTaskDragStart,
@@ -125,12 +127,29 @@ export function PlanCanvas({
 
   const needsInfoTasks = tasks.filter(t => t.status === 'needs_info');
 
-  // Drag handlers for reordering within timeline
+  // Drag handlers for reordering within timeline. QUE-1 (US-QUE-1-05) —
+  // the same row can ALSO be dragged out, onto Unscheduled; the payload
+  // carries a job slot's identity so that drop target can tell it apart
+  // from a plain task (no agent name available in this component, so the
+  // day label is date-only — Unscheduled falls back gracefully).
   const handleDragStart = (e: React.DragEvent, index: number, taskId: string) => {
     if (isLocked) return;
     setDraggedIndex(index);
     setIsDraggingBacklog(false);
-    const payload = JSON.stringify({ type: 'timeline-task', taskId, index });
+    const task = tasks.find((t) => t.id === taskId);
+    const payload = JSON.stringify({
+      type: 'timeline-task',
+      taskId,
+      index,
+      ...(task?.workItemId
+        ? {
+            workItemId: Number(task.workItemId),
+            workTaskId: task.workTaskId ? Number(task.workTaskId) : undefined,
+            jobTitle: task.jobTitle,
+            dayLabel: timeline ? formatShortDate(timeline.plannedDate) : undefined,
+          }
+        : {}),
+    });
     e.dataTransfer.setData('text/plain', payload);
     e.dataTransfer.setData('application/json', payload);
     e.dataTransfer.effectAllowed = 'move';
@@ -362,7 +381,7 @@ export function PlanCanvas({
           >
             <p className="text-sm font-medium text-neutral-600">No tasks in this timeline</p>
             <p className="text-xs text-neutral-400 mt-1 max-w-sm mx-auto">
-              Drop an unplanned task from the backlog here, or use the inline row below to add tasks sequentially.
+              Drop an unplanned task from Unscheduled here, or use the inline row below to add tasks sequentially.
             </p>
           </div>
         ) : (
@@ -558,19 +577,25 @@ export function PlanCanvas({
 
                               <div className="border-t border-neutral-100 my-1"></div>
 
-                              {/* BOARD-1 (US-03): a JOB slot releases its whole card
-                                  (BLK-1 — the slot is the unit); "Return to backlog"
-                                  is for plain tasks only. */}
+                              {/* BOARD-1 (US-03), confirmation added QUE-1 (US-QUE-1-05/06):
+                                  a JOB slot releases its whole card (BLK-1 — the slot is
+                                  the unit), behind the "are you sure" the founder asked
+                                  for; "Return to Unscheduled" is for plain tasks only. */}
                               {task.workItemId ? (
                                 <button
                                   onClick={() => {
-                                    if (task.workTaskId) onUnscheduleJobSlot(Number(task.workTaskId));
+                                    if (task.workTaskId) {
+                                      onRequestUnscheduleJobSlot(
+                                        Number(task.workTaskId),
+                                        task.jobTitle || `Job #${task.workItemId}`,
+                                      );
+                                    }
                                     setMenuTaskId(null);
                                   }}
                                   className="w-full px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100 flex items-center gap-2 text-left font-medium"
                                 >
                                   <ArrowDownToLine className="w-3.5 h-3.5 text-neutral-500" />
-                                  Unschedule (back to Jobs)
+                                  Unschedule (back to Unscheduled)
                                 </button>
                               ) : (
                               <button
@@ -581,7 +606,7 @@ export function PlanCanvas({
                                 className="w-full px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100 flex items-center gap-2 text-left font-medium"
                               >
                                 <ArrowDownToLine className="w-3.5 h-3.5 text-neutral-500" />
-                                Return to backlog
+                                Return to Unscheduled
                               </button>
                               )}
 
@@ -741,7 +766,7 @@ export function PlanCanvas({
                 }`}
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Add Task to Timeline (or drop backlog task to append)</span>
+                <span>Add Task to Timeline (or drop a task from Unscheduled to append)</span>
               </button>
             )}
           </div>

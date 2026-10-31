@@ -26,6 +26,7 @@ import { Header } from './components/Header';
 import { ScheduleGrid } from './components/ScheduleGrid';
 import { DayBoard } from './components/DayBoard';
 import { BacklogDrawer } from './components/BacklogDrawer';
+import { UnscheduleConfirmModal, type UnscheduleConfirmTarget } from './components/UnscheduleConfirmModal';
 import { EditModal, ModalEntity } from './components/EditModal';
 import { ComponentSheetModal } from './components/ComponentSheetModal';
 import { getTimelineReadiness, formatMinutesToTime, parseTimeToMinutes } from './utils/planningLogic';
@@ -452,7 +453,7 @@ export default function PlannerApp() {
         setActiveModalEntity(null);
         if (tasks_returned > 0) {
           setBacklogPlacementConfirmation(
-            `${tasks_returned} task${tasks_returned === 1 ? '' : 's'} moved to the backlog`
+            `${tasks_returned} task${tasks_returned === 1 ? '' : 's'} moved to Unscheduled`
           );
           setTimeout(() => setBacklogPlacementConfirmation(null), 4000);
         }
@@ -462,7 +463,7 @@ export default function PlannerApp() {
   };
 
   // PLN-6 (US-PLN-6-05) — same approval, same guarantee: the day goes,
-  // its tasks return to the backlog. A published day is refused by the
+  // its tasks return to Unscheduled. A published day is refused by the
   // server (E-P3A-003).
   const handleDeleteTimeline = (timelineId: string) => {
     deleteTimeline(Number(timelineId))
@@ -471,7 +472,7 @@ export default function PlannerApp() {
         setActiveModalEntity(null);
         if (tasks_returned > 0) {
           setBacklogPlacementConfirmation(
-            `${tasks_returned} task${tasks_returned === 1 ? '' : 's'} moved to the backlog`
+            `${tasks_returned} task${tasks_returned === 1 ? '' : 's'} moved to Unscheduled`
           );
           setTimeout(() => setBacklogPlacementConfirmation(null), 4000);
         }
@@ -837,22 +838,49 @@ export default function PlannerApp() {
     void logEvent({feature: 'BOARD-1', step: 'card_drop', outcome: 'rejected', severity: 'info', message});
   };
 
-  // US-03 — release a slot's whole card back to the Jobs column. The
-  // server refuses on a published day (E-SCHED-006) or once anything was
-  // recorded (E-SCHED-007); both sentences shown as-is.
+  // US-03 — release a slot's whole card back to Unscheduled. The server
+  // refuses on a published day (E-SCHED-006) or once anything was
+  // recorded (E-SCHED-007); both sentences shown as-is. Returns the
+  // promise so `handleConfirmUnschedule` (QUE-1) can await it and hold
+  // the confirmation dialog open until the server actually answers —
+  // one rule, not a copy of it.
   const handleUnscheduleJobSlot = (workTaskId: number) => {
-    unscheduleWorkTask(workTaskId)
-      .then((result) => {
-        const released = result.released_count ?? 0;
-        showBoardNotice(
-          result.already_unscheduled
-            ? 'That work was already waiting for a day.'
-            : `${released} step${released === 1 ? '' : 's'} back in the Jobs column. Nothing about the work itself changed.`,
-        );
-        bumpJobsColumn();
-        return refreshBoard();
-      })
-      .catch(reportActionError);
+    return unscheduleWorkTask(workTaskId).then((result) => {
+      const released = result.released_count ?? 0;
+      showBoardNotice(
+        result.already_unscheduled
+          ? 'That work was already waiting for a day.'
+          : `${released} step${released === 1 ? '' : 's'} back in Unscheduled. Nothing about the work itself changed.`,
+      );
+      bumpJobsColumn();
+      return refreshBoard();
+    });
+  };
+
+  // QUE-1 (US-QUE-1-05/06) — the "are you sure" the founder asked for
+  // before a job slot leaves a day, whether that came from a drag back
+  // onto Unscheduled or the day slot's own "Unschedule" menu item. Both
+  // paths end here; see `UnscheduleConfirmModal` and `classifyUnscheduleTarget`.
+  const [unscheduleConfirmTarget, setUnscheduleConfirmTarget] = useState<UnscheduleConfirmTarget | null>(null);
+  const [isUnscheduling, setIsUnscheduling] = useState(false);
+
+  const handleRequestUnscheduleJobSlot = (workTaskId: number, jobTitle: string, dayLabel: string) => {
+    setUnscheduleConfirmTarget({workTaskId, jobTitle, dayLabel});
+  };
+
+  const handleCancelUnscheduleConfirm = () => setUnscheduleConfirmTarget(null);
+
+  const handleConfirmUnschedule = async () => {
+    if (!unscheduleConfirmTarget) return;
+    setIsUnscheduling(true);
+    try {
+      await handleUnscheduleJobSlot(unscheduleConfirmTarget.workTaskId);
+    } catch (err) {
+      reportActionError(err);
+    } finally {
+      setIsUnscheduling(false);
+      setUnscheduleConfirmTarget(null);
+    }
   };
 
   // Create Backlog Task
@@ -1111,9 +1139,11 @@ export default function PlannerApp() {
     </div>
   );
 
-  // Width is passed per view so each toolbar's right-hand cluster can span
-  // the same 366px as the header cluster above it: Plan pairs it with
-  // "Publish day", Schedule with Agents + the week toggle.
+  // No fixed width any more: the pixel widths that aligned this cluster
+  // with the header's were what crushed the Agents button whenever the
+  // board pane got narrow (the pane shrinks with the sidebar and Jobs
+  // column open even on a wide monitor, so viewport breakpoints can't
+  // catch it). Natural widths always fit or truncate the left caption.
   const renderBuildPlanButton = (widthClass = '') => (
     <button
       id="build-plan-btn"
@@ -1202,7 +1232,6 @@ export default function PlannerApp() {
           onOpenWorkspaceSettings={() => setIsWorkspaceSettingsOpen(true)}
           onOpenAgentProfiles={() => setIsAgentProfilesOpen(true)}
           onOpenTemplates={() => setIsTemplatesOpen(true)}
-          onOpenJobs={() => setIsJobsOpen(true)}
         />
 
         {/* Workspace Body: Board/Grid + Backlog */}
@@ -1216,15 +1245,11 @@ export default function PlannerApp() {
               <div className="flex-1 flex min-h-0 overflow-hidden">
                 <JobsColumn
                   workspaceId={activeWorkspaceId || null}
-                  agents={agentsInActiveWs}
-                  timelines={timelinesInActiveWs}
-                  planningWindowStart={activeWorkspace?.planningWindowStart ?? ''}
                   reloadNonce={jobsReloadNonce}
                   onOpenJobs={(focusJobId) => {
                     setJobsFocusId(focusJobId ?? null);
                     setIsJobsOpen(true);
                   }}
-                  onPlaceCard={handlePlaceJobCard}
                 />
                 {/* DAY BOARD (Section 5: One Day, All Agents Side-by-Side) */}
                 <DayBoard
@@ -1256,7 +1281,7 @@ export default function PlannerApp() {
                 onOpenBulkPublishModal={handleOpenBulkPublishModal}
                 onRequestPublishConfirm={handleRequestPublishConfirm}
                 viewSwitcher={viewSwitcher}
-                buildPlanButton={renderBuildPlanButton('w-[229px]')}
+                buildPlanButton={renderBuildPlanButton()}
                 onToggleAgentVisibility={handleToggleAgentVisibility}
                 onShowAllAgents={handleShowAllAgents}
                 onHideAllAgents={handleHideAllAgents}
@@ -1267,7 +1292,7 @@ export default function PlannerApp() {
                 onDropJobCard={handleDropJobCard}
                 onDropJobCardOnNewDay={handleDropJobCardOnNewDay}
                 onJobCardDropRefused={handleJobCardDropRefused}
-                onUnscheduleJobSlot={handleUnscheduleJobSlot}
+                onRequestUnscheduleJobSlot={handleRequestUnscheduleJobSlot}
                 />
               </div>
             ) : (
@@ -1306,7 +1331,11 @@ export default function PlannerApp() {
               workspace={activeWorkspace}
               timelinesInWorkspace={timelinesInActiveWs}
               visibleDates={visibleDates}
-              showCapacityPanel
+              /* Plan Health (cost / capacity / blocked tiles) parked
+                 2026-10-30 — the numbers are being rethought. The panel
+                 and its maths are intact in BacklogDrawer; flip this back
+                 to `showCapacityPanel` to bring them back. */
+              showCapacityPanel={false}
               compactMetrics={viewMode === 'plan'}
               settings={settings}
               throughput={activeThroughput}
@@ -1320,6 +1349,10 @@ export default function PlannerApp() {
               onCreateBacklogTask={handleCreateBacklogTask}
               onDeleteTask={handleDeleteTask}
               onDropTaskIntoBucket={handleMoveTaskToBacklog}
+              onRequestUnscheduleJobSlot={handleRequestUnscheduleJobSlot}
+              workspaceId={activeWorkspaceId || null}
+              jobsReloadNonce={jobsReloadNonce}
+              onPlaceCard={handlePlaceJobCard}
             />
           </div>
         </div>
@@ -1406,6 +1439,14 @@ export default function PlannerApp() {
         isOpen={isComponentSheetOpen}
         onClose={() => setIsComponentSheetOpen(false)}
         onSelectScenario={handleSelectScenario}
+      />
+
+      {/* QUE-1 (US-QUE-1-06) — confirm before a job slot leaves its day. */}
+      <UnscheduleConfirmModal
+        target={unscheduleConfirmTarget}
+        isWorking={isUnscheduling}
+        onCancel={handleCancelUnscheduleConfirm}
+        onConfirm={() => void handleConfirmUnschedule()}
       />
     </div>
   );

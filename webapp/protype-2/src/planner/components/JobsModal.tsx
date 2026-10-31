@@ -48,12 +48,14 @@ import {
   createWorkItem,
   cancelWorkItem,
   getWorkItemActivity,
+  getWorkItem,
   type ActivityEvent,
   type RawWorkspaceMap,
   type WorkItemListEntry,
+  type WorkItemTask,
 } from '../plannerApi';
-import {reasonLabel, eventLabel} from '../varianceDisplay';
-import {jobStatusLabel} from '../../jobModel';
+import {reasonLabel, eventLabel, formatMinutes} from '../varianceDisplay';
+import {jobStatusLabel, groupTasksByRole} from '../../jobModel';
 import {JobLinesEditor} from './JobLinesEditor';
 import ExceptionSendPanel from '../../exceptions/ExceptionSendPanel';
 import JobPeekSheet from '../../exceptions/JobPeekSheet';
@@ -102,6 +104,15 @@ export function JobsModal({
   const [confirmCancelId, setConfirmCancelId] = useState<number | null>(null);
   // EXC-2 (US-EXC-2-04) — sent work that is not in this plan opens in the read-only view.
   const [peekId, setPeekId] = useState<number | null>(null);
+  // QUE-1 (US-QUE-1-04) — a job's own steps, fetched alongside activity
+  // when its row opens. The founder's own analogy: a Trello card opening
+  // to its checklist. Read-only — 555 (getWorkItem) is the same endpoint
+  // JobPeekSheet reads for someone else's job; here it is the planner's
+  // own, shown inline instead of in a separate sheet.
+  const [steps, setSteps] = useState<WorkItemTask[]>([]);
+  const [isLoadingSteps, setIsLoadingSteps] = useState(false);
+  const [stepsError, setStepsError] = useState<string | null>(null);
+  const [expandedStepId, setExpandedStepId] = useState<number | null>(null);
 
   const load =useCallback(async (wsId: string, isPlanChange = false) => {
     setIsLoading(true);
@@ -197,7 +208,9 @@ export function JobsModal({
   };
 
   // W3 — loaded on demand, not with the list: a plan with twenty jobs
-  // should not fetch twenty reports nobody asked for.
+  // should not fetch twenty reports nobody asked for. QUE-1 (US-QUE-1-04)
+  // adds the job's own steps to this same on-demand fetch, via the same
+  // endpoint JobPeekSheet uses for someone else's job (555).
   const openReport = async (workItemId: number) => {
     if (openJobId === workItemId) {
       setOpenJobId(null);
@@ -207,6 +220,10 @@ export function JobsModal({
     setIsLoadingReport(true);
     setReportError(null);
     setActivity([]);
+    setIsLoadingSteps(true);
+    setStepsError(null);
+    setSteps([]);
+    setExpandedStepId(null);
     try {
       const a = await getWorkItemActivity(workItemId);
       setReportFor(workItemId);
@@ -215,6 +232,14 @@ export function JobsModal({
       setReportError(err instanceof Error ? err.message : "Couldn't load what came back for this job.");
     } finally {
       setIsLoadingReport(false);
+    }
+    try {
+      const w = await getWorkItem(workItemId);
+      setSteps(w.tasks);
+    } catch (err) {
+      setStepsError(err instanceof Error ? err.message : "Couldn't load this job's steps.");
+    } finally {
+      setIsLoadingSteps(false);
     }
   };
 
@@ -301,13 +326,7 @@ export function JobsModal({
         </div>
 
         <div className="p-6 overflow-y-auto flex flex-col gap-6">
-          <p className="text-[11px] text-neutral-500">
-            A job is one real run of a map's work — "Quote for the Garcia party", not "Quoting". Its steps come from the
-            map's published version and carry the real instructions, so the person doing it sees what to do and how they
-            know it's done. A plain task (the "Add task" button on the board) carries none of that.
-          </p>
-
-          {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</p>}
+          {error &&<p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</p>}
           {notice && <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2">{notice}</p>}
 
           {/* ── New job ─────────────────────────────────────────────── */}
@@ -447,6 +466,76 @@ export function JobsModal({
                   {/* ── W3: what came back ──────────────────────────── */}
                   {openJobId === job.id && (
                     <div className="rounded-md border border-neutral-200 bg-neutral-50/60 p-2.5 flex flex-col gap-3">
+                      {/* QUE-1 (US-QUE-1-04) — the job's own steps, the
+                          Trello-checklist-under-the-card piece. Its own
+                          loading/error state (555 is a separate call from
+                          the activity fetch below, so one finishing first
+                          should not block the other from showing). */}
+                      <div>
+                        <p className="text-[11px] font-semibold text-neutral-800 mb-1">Steps</p>
+                        {isLoadingSteps ? (
+                          <p className="text-[11px] text-neutral-400">Loading…</p>
+                        ) : stepsError ? (
+                          <p className="text-[11px] text-red-600">{stepsError}</p>
+                        ) : steps.length === 0 ? (
+                          <p className="text-[11px] text-neutral-500">This job has no steps yet.</p>
+                        ) : (
+                          (() => {
+                            const roleGroups = groupTasksByRole(steps);
+                            const stepRow = (t: WorkItemTask) => {
+                              const isOpen = expandedStepId === t.id;
+                              return (
+                                <li key={t.id} className="rounded border border-neutral-200 bg-white">
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedStepId(isOpen ? null : t.id)}
+                                    aria-expanded={isOpen}
+                                    className="w-full px-2 py-1.5 flex items-center justify-between gap-2 text-left hover:bg-neutral-50"
+                                  >
+                                    <span className="min-w-0">
+                                      <span className="block text-[11px] text-neutral-800 truncate">
+                                        {t.stage_label || t.stage_key}
+                                      </span>
+                                      {!roleGroups && t.owner_lens_label && (
+                                        <span className="block text-[10px] text-neutral-500">{t.owner_lens_label}</span>
+                                      )}
+                                    </span>
+                                    <span className="shrink-0 flex items-center gap-1.5">
+                                      {t.expected_minutes != null && (
+                                        <span className="text-[10px] text-neutral-500 font-mono">{formatMinutes(t.expected_minutes)}</span>
+                                      )}
+                                      <span className="text-[10px] font-medium text-neutral-600">{t.status.replace('_', ' ')}</span>
+                                    </span>
+                                  </button>
+                                  {isOpen && (t.task || t.done_when) && (
+                                    <div className="border-t border-neutral-100 px-2 py-1.5 text-[10px] text-neutral-600 space-y-0.5">
+                                      {t.task && <p>{t.task}</p>}
+                                      {t.done_when && <p className="text-neutral-500">Done when: {t.done_when}</p>}
+                                    </div>
+                                  )}
+                                </li>
+                              );
+                            };
+                            return roleGroups ? (
+                              // More than one role — a group per role line (US-QUE-1-04).
+                              <div className="flex flex-col gap-2">
+                                {roleGroups.map((g) => (
+                                  <div key={g.lensKey}>
+                                    <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-1">
+                                      {g.lensLabel} · {g.tasks.length} step{g.tasks.length === 1 ? '' : 's'}
+                                    </p>
+                                    <ul className="flex flex-col gap-1">{g.tasks.map(stepRow)}</ul>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              // One role — steps directly, no extra tier.
+                              <ul className="flex flex-col gap-1">{steps.map(stepRow)}</ul>
+                            );
+                          })()
+                        )}
+                      </div>
+
                       {isLoadingReport && reportFor !== job.id ? (
                         <p className="text-[11px] text-neutral-400">Loading…</p>
                       ) : reportError ? (

@@ -139,7 +139,7 @@ test.describe('EXC-1 — send part of a job to a linked map (US-EXC-1-03/05/06)'
     await page.goto('/planner');
     await page.locator('#workspace-switcher-btn').click();
     await page.locator(`#workspace-item-${PLAN_ID}`).click();
-    await page.locator('#jobs-btn').click();
+    await page.locator('[data-testid="jobs-column-new-job"]').click();
     const modal = page.locator('#jobs-modal');
     await expect(modal).toBeVisible();
     await page.waitForLoadState('networkidle');

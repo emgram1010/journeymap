@@ -3,7 +3,7 @@ import {NavLink, useLocation} from 'react-router-dom';
 import {useAuth} from './AuthContext';
 import {canManageTeam, hasModule, type ModuleKey} from './team/teamModel';
 import {useMyModules} from './team/useMyModules';
-import {Sparkles, CalendarRange, PlayCircle, Users, Boxes, BarChart3, Menu, X, ChevronDown, ChevronRight} from 'lucide-react';
+import {Sparkles, CalendarRange, PlayCircle, Users, Boxes, BarChart3, Menu, X, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen} from 'lucide-react';
 
 /**
  * Persistent app chrome for every signed-in route.
@@ -145,10 +145,29 @@ const NAV_ITEMS: NavItem[] = [
  * and cost a click every visit — and stays however the user last left
  * it, because the sidebar never unmounts.
  */
-function NavGroup({item, pathname}: {item: NavItem; pathname: string}) {
-  const {id, label, icon: Icon, matches, children = []} = item;
+function NavGroup({item, pathname, collapsed}: {item: NavItem; pathname: string; collapsed: boolean}) {
+  const {id, label, icon: Icon, to, matches, children = []} = item;
   const [open, setOpen] = useState(true);
   const isActive = matches(pathname);
+
+  /* Collapsed rail: no room for a disclosure, so the group's icon simply
+     goes to its first report — the same place the header's `to` points.
+     The highlight still covers the whole group's routes via `matches`. */
+  if (collapsed) {
+    return (
+      <NavLink
+        id={id}
+        to={to}
+        title={label}
+        aria-current={isActive ? 'page' : undefined}
+        className={`w-full flex items-center justify-center rounded-lg px-0 py-2 transition-colors ${
+          isActive ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
+        }`}
+      >
+        <Icon className="w-4 h-4 shrink-0" />
+      </NavLink>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-1">
@@ -196,10 +215,33 @@ function NavGroup({item, pathname}: {item: NavItem; pathname: string}) {
   );
 }
 
+/* The collapsed/expanded choice survives a reload: a layout preference the
+   user set once should not reset every morning. localStorage, not the
+   server — it is per-device chrome, not account data. */
+const SIDEBAR_COLLAPSED_KEY = 'emgram.sidebar-collapsed';
+
 export default function AppLayout({children}: {children: React.ReactNode}) {
   const {pathname} = useLocation();
   const {user} = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      try {
+        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, c ? '0' : '1');
+      } catch {
+        /* Private mode without storage: the toggle still works for the session. */
+      }
+      return !c;
+    });
+  };
 
   /* `role` arrives on every page load from `auth/me` and, until USR-1, was
      never read. `canManageTeam` is the same function the Team page and its
@@ -234,28 +276,56 @@ export default function AppLayout({children}: {children: React.ReactNode}) {
            inside this layout, so on a phone the performer gets the full
            width and none of the desktop authoring chrome. The mobile top
            bar below replaces it so the other layers stay reachable. */
-        className="hidden md:flex w-52 shrink-0 border-r border-zinc-200 bg-white px-3 py-4 flex-col gap-1"
+        className={`hidden md:flex shrink-0 border-r border-zinc-200 bg-white py-4 flex-col gap-1 transition-[width] duration-150 ${
+          collapsed ? 'w-14 px-2' : 'w-52 px-3'
+        }`}
       >
+        {/* First thing in the rail, so it sits in the same spot whether
+            the menu is open or shut. */}
+        <button
+          type="button"
+          id="sidebar-collapse-btn"
+          onClick={toggleCollapsed}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? 'Expand menu' : 'Collapse menu'}
+          title={collapsed ? 'Expand menu' : 'Collapse menu'}
+          className={`w-full flex items-center rounded-lg py-2 mb-1 text-sm font-medium text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition-colors ${
+            collapsed ? 'justify-center px-0' : 'gap-2.5 px-3'
+          }`}
+        >
+          {collapsed ? (
+            <PanelLeftOpen className="w-4 h-4 shrink-0" />
+          ) : (
+            <>
+              <PanelLeftClose className="w-4 h-4 shrink-0" />
+              <span>Collapse</span>
+            </>
+          )}
+        </button>
+
         {navItems.map((item) => {
           const {id, label, icon: Icon, to, matches, children} = item;
           const isActive = matches(pathname);
           if (children && children.length > 0) {
-            return <NavGroup key={id} item={item} pathname={pathname} />;
+            return <NavGroup key={id} item={item} pathname={pathname} collapsed={collapsed} />;
           }
           return (
             <NavLink
               key={id}
               id={id}
               to={to}
+              title={collapsed ? label : undefined}
               aria-current={isActive ? 'page' : undefined}
-              className={`w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              className={`w-full flex items-center rounded-lg py-2 text-sm font-medium transition-colors ${
+                collapsed ? 'justify-center px-0' : 'gap-2.5 px-3'
+              } ${
                 isActive
                   ? 'bg-zinc-900 text-white'
                   : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
               }`}
             >
               <Icon className="w-4 h-4 shrink-0" />
-              <span>{label}</span>
+              {!collapsed && <span>{label}</span>}
             </NavLink>
           );
         })}

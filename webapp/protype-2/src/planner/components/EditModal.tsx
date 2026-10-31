@@ -840,7 +840,7 @@ export function EditModal({
               <div className="mr-auto flex items-center gap-2">
                 {confirmRemoveAgent ? (
                   <>
-                    <span className="text-xs text-red-700">Tasks return to backlog.</span>
+                    <span className="text-xs text-red-700">Tasks return to Unscheduled.</span>
                     <button
                       id="confirm-remove-agent-btn"
                       type="button"
@@ -913,8 +913,8 @@ export function EditModal({
         <div className="h-14 px-6 border-b border-neutral-200 flex items-center justify-between bg-neutral-50 shrink-0">
           <div className="flex items-center gap-2">
             <h2 id="modal-title" className="text-sm font-bold text-neutral-900">
-              {entity.type === 'task' 
-                ? (isBacklogTask ? 'Edit Backlog Task' : `Edit Step #${entity.task.seq}`)
+              {entity.type === 'task'
+                ? (isBacklogTask ? 'Edit Unscheduled Task' : `Edit Step #${entity.task.seq}`)
                 : `Edit Timeline — ${entity.timeline.name}`
               }
             </h2>
@@ -1172,7 +1172,7 @@ export function EditModal({
                 <div className="mr-auto flex items-center gap-2">
                   {confirmDeleteTimeline ? (
                     <>
-                      <span className="text-xs text-red-700">Tasks return to backlog.</span>
+                      <span className="text-xs text-red-700">Tasks return to Unscheduled.</span>
                       <button
                         id="confirm-delete-timeline-btn"
                         type="button"

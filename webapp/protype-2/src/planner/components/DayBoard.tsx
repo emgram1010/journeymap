@@ -77,8 +77,10 @@ interface DayBoardProps {
   onDropJobCardOnNewDay: (payload: {workItemId: number; lensKey: string}, agentId: string) => void;
   /** BOARD-1 — the drop-intent rule said no (published day); the sentence to surface. */
   onJobCardDropRefused: (message: string) => void;
-  /** BOARD-1 (US-03) — release a job slot's whole card back to the Jobs column. */
-  onUnscheduleJobSlot: (workTaskId: number) => void;
+  /** QUE-1 (US-QUE-1-05/06) — open the "are you sure" before a job slot's
+      whole card comes off this day. `jobTitle`/`dayLabel` are the words
+      the confirmation names — never an id. */
+  onRequestUnscheduleJobSlot: (workTaskId: number, jobTitle: string, dayLabel: string) => void;
 }
 
 export function DayBoard({
@@ -117,7 +119,7 @@ export function DayBoard({
   onDropJobCard,
   onDropJobCardOnNewDay,
   onJobCardDropRefused,
-  onUnscheduleJobSlot,
+  onRequestUnscheduleJobSlot,
 }: DayBoardProps) {
   // Drag state across columns
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
@@ -195,13 +197,26 @@ export function DayBoard({
     onChangeDay(nextStr);
   };
 
-  // Drag task from column
-  const handleTaskDragStart = (e: React.DragEvent, taskId: string, sourceTimelineId: string) => {
+  // Drag task from column. QUE-1 (US-QUE-1-05) — a JOB slot carries its
+  // `workItemId`/`workTaskId`/`jobTitle` and the day it's leaving in the
+  // payload too, so a drop onto Unscheduled can tell a job slot from a
+  // plain task (and open the confirmation with the right words) without
+  // a second lookup.
+  const handleTaskDragStart = (
+    e: React.DragEvent,
+    taskId: string,
+    sourceTimelineId: string,
+    workItemId?: number,
+    workTaskId?: number,
+    jobTitle?: string,
+    dayLabel?: string,
+  ) => {
     setDraggedTaskId(taskId);
     const payload = JSON.stringify({
       type: 'timeline-task',
       taskId,
       sourceTimelineId,
+      ...(workItemId ? {workItemId, workTaskId, jobTitle, dayLabel} : {}),
     });
     e.dataTransfer.setData('application/json', payload);
     e.dataTransfer.setData('text/plain', payload);
@@ -429,7 +444,13 @@ export function DayBoard({
             onMoveTaskToBacklog={() => {}}
             onMoveTaskToTimeline={() => {}}
             onDeleteTask={onDeleteTask}
-            onUnscheduleJobSlot={onUnscheduleJobSlot}
+            onRequestUnscheduleJobSlot={(workTaskId, jobTitle) =>
+              onRequestUnscheduleJobSlot(
+                workTaskId,
+                jobTitle,
+                `${focusedAgent?.name ?? 'This agent'} · ${formatShortDate(focusedTimeline.plannedDate)}`,
+              )
+            }
             onReopenTimeline={onReopenTimeline}
             onDropFromBacklog={(taskId, targetIndex) => onMoveTaskToAgentDayTimeline(taskId, focusedTimeline.id, targetIndex)}
             onTimelineTaskDragStart={onTimelineTaskDragStart}
@@ -507,18 +528,16 @@ export function DayBoard({
             </button>
           </div>
 
-          <span className="text-neutral-300">|</span>
-
-          <span className="text-xs text-neutral-500">
-            Day Board · {visibleAgents.length} visible agents
-          </span>
         </div>
 
         {/* Centre: view switcher */}
         <div className="shrink-0">{viewSwitcher}</div>
 
-        {/* Right zone: Build Plan + Bulk "Publish day" Action (§7) */}
-        <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
+        {/* Right zone: Build Plan + Bulk "Publish day" Action (§7).
+            No min-w-0 here: the zone must never shrink below its buttons,
+            or whatever can't fit paints over the view switcher. The left
+            zone keeps min-w-0 and gives way instead. */}
+        <div className="flex-1 flex items-center justify-end gap-2">
           <AgentsPopover
             agents={agents}
             onToggleAgentVisibility={onToggleAgentVisibility}
@@ -534,7 +553,7 @@ export function DayBoard({
             id="publish-day-bulk-btn"
             type="button"
             onClick={onOpenBulkPublishModal}
-            className="w-[161px] flex items-center justify-center gap-1.5 px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-md text-xs font-semibold transition-colors shadow-2xs shrink-0"
+            className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-md text-xs font-semibold transition-colors shadow-2xs shrink-0"
             title="Publish all ready timelines for this day"
           >
             <Send className="w-3.5 h-3.5" />
@@ -758,7 +777,7 @@ export function DayBoard({
                       <Plus className="w-4 h-4" />
                       <span className="text-xs font-medium">Add task</span>
                       <span className="text-[10px] text-neutral-400 mt-0.5">
-                        or drop tasks from backlog or other columns here
+                        or drop tasks from Unscheduled or other columns here
                       </span>
                     </button>
                   ) : (
@@ -776,7 +795,17 @@ export function DayBoard({
                           <div
                             id={`dayboard-task-${task.id}`}
                             draggable={!isTaskLocked}
-                            onDragStart={(e) => handleTaskDragStart(e, task.id, timeline.id)}
+                            onDragStart={(e) =>
+                              handleTaskDragStart(
+                                e,
+                                task.id,
+                                timeline.id,
+                                task.workItemId ? Number(task.workItemId) : undefined,
+                                task.workTaskId ? Number(task.workTaskId) : undefined,
+                                task.jobTitle,
+                                `${agent.name} · ${formatShortDate(timeline.plannedDate)}`,
+                              )
+                            }
                             onDragEnd={handleTaskDragEnd}
                             onDragOver={(e) => handleDragOverColumn(e, timeline.id, index)}
                             onDrop={(e) => handleDropOnColumn(e, timeline, index)}
@@ -885,23 +914,30 @@ export function DayBoard({
                                   <ArrowRightLeft className="w-3.5 h-3.5 text-neutral-500" />
                                   Move…
                                 </button>
-                                {/* BOARD-1 (US-03) — a JOB slot is released back to the
-                                    Jobs column as a whole card (BLK-1: the slot is the
-                                    unit). "Return to backlog" and "Delete" are for plain
-                                    tasks only — a job slot is linked work, and the plain
-                                    paths would strand or destroy the link. */}
+                                {/* BOARD-1 (US-03), confirmation added QUE-1 (US-QUE-1-05/06)
+                                    — a JOB slot is released back to Unscheduled as a whole
+                                    card (BLK-1: the slot is the unit), behind the "are you
+                                    sure" the founder asked for. "Return to Unscheduled" and
+                                    "Delete" are for plain tasks only — a job slot is linked
+                                    work, and the plain paths would strand or destroy the link. */}
                                 {task.workItemId ? (
                                   <button
                                     type="button"
                                     data-testid="dayboard-unschedule-card"
                                     onClick={() => {
-                                      if (task.workTaskId) onUnscheduleJobSlot(Number(task.workTaskId));
+                                      if (task.workTaskId) {
+                                        onRequestUnscheduleJobSlot(
+                                          Number(task.workTaskId),
+                                          task.jobTitle || `Job #${task.workItemId}`,
+                                          `${agent.name} · ${formatShortDate(timeline.plannedDate)}`,
+                                        );
+                                      }
                                       setActiveTaskMenuId(null);
                                     }}
                                     className="w-full px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100 flex items-center gap-2 text-left font-medium"
                                   >
                                     <ArrowDownToLine className="w-3.5 h-3.5 text-neutral-500" />
-                                    Unschedule (back to Jobs)
+                                    Unschedule (back to Unscheduled)
                                   </button>
                                 ) : (
                                   <>
@@ -911,7 +947,7 @@ export function DayBoard({
                                       className="w-full px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100 flex items-center gap-2 text-left font-medium"
                                     >
                                       <ArrowDownToLine className="w-3.5 h-3.5 text-neutral-500" />
-                                      Return to backlog
+                                      Return to Unscheduled
                                     </button>
 
                                     <div className="border-t border-neutral-100 my-1"></div>

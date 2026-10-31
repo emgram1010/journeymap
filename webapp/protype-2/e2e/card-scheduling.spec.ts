@@ -9,14 +9,16 @@
  * passed its own tests and the loop still did not join up, because
  * nobody had clicked the buttons.
  *
- * WHAT IT PROVES, in one pass (BOARD-1 moved the screen: the backlog is
- * the Jobs COLUMN beside the board now, and Unschedule lives on the
- * day's own card — the semantics being proven are unchanged):
- *   - a job's steps for one actor row arrive as ONE card in the Jobs column
+ * WHAT IT PROVES, in one pass (BOARD-1 moved the screen onto the board;
+ * QUE-1, 2026-10-30, moved the waiting card itself into Unscheduled —
+ * the Jobs column is now a view-only registry of every job — and added
+ * a confirmation before Unschedule. The semantics being proven, and the
+ * card-not-step unit, are unchanged):
+ *   - a job's steps for one actor row arrive as ONE card in Unscheduled
  *   - the card can be expanded to read every stage it covers
  *   - Place… creates ONE slot covering every step, positioned 1..n
- *   - the placed card leaves the Jobs column
- *   - the day board shows it ONCE, with one Unschedule
+ *   - the placed card leaves Unscheduled
+ *   - the day board shows it ONCE, with one Unschedule (behind a confirm)
  *   - Unschedule releases EVERY step and leaves no orphan link
  *
  * The orphan check is the one that matters most. Before story 03 the
@@ -102,7 +104,7 @@ test('E2E-BLK-1-07-01: place a whole card on a day from the Jobs screen, then re
   await page.locator(`#workspace-item-${planId}`).click();
 
   const modal = page.locator('#jobs-modal');
-  await page.locator('#jobs-btn').click();
+  await page.locator('[data-testid="jobs-column-new-job"]').click();
   await expect(modal).toBeVisible();
   await expect(modal.locator('#new-job-map-select')).toBeVisible();
   await page.waitForLoadState('networkidle');
@@ -166,38 +168,52 @@ test('E2E-BLK-1-07-01: place a whole card on a day from the Jobs screen, then re
   await expect(modal).toBeHidden();
   await page.waitForLoadState('networkidle');
 
-  // ── The Jobs column offers ONE card for those steps, under its job ───
+  // ── Unscheduled offers ONE card for those steps, under its job ───────
+  // (QUE-1, 2026-10-30: this list moved here from the Jobs column — a
+  // role line with no day shows automatically, Q-1 — the Jobs column
+  // itself is now view-only, every job in the plan, not just waiting
+  // ones.)
   //
-  // Identified by its "N steps" text, because the same job also produces
-  // a one-step card for its other actor row — and telling those two
-  // apart IS the (job, actor row) rule being tested.
+  // Identified by its Steps column (grid, QUE-1: role/task, steps,
+  // minutes and est. are now separate columns, not one combined line),
+  // because the same job also produces a one-step card for its other
+  // actor row — and telling those two apart IS the (job, actor row) rule
+  // being tested.
   const stepWord = stepCount === 1 ? 'step' : 'steps';
-  const column = page.locator('#jobs-column');
-  const jobGroup = column.getByTestId('jobs-column-job').filter({hasText: jobTitle}).first();
+  const unscheduled = page.locator('#backlog-drawer-container');
+  const jobGroup = unscheduled.getByTestId('unscheduled-job-group').filter({hasText: jobTitle}).first();
   await expect(jobGroup).toBeVisible();
   const cardRow = jobGroup
-    .getByTestId('jobs-column-card')
-    .filter({hasText: `${stepCount} ${stepWord}`})
+    .getByTestId('unscheduled-card')
+    .filter({has: page.locator(`td:nth-child(2):text-is("${stepCount}")`)})
     .first();
   await expect(cardRow).toBeVisible();
-  // The card names the ACTOR ROW, not just the job: "Clerk · 2 steps ·
-  // 1 hr 44 min". That is the (job, actor row) rule showing on screen.
-  await expect(
-    cardRow.getByText(`${multi.lens_label || multi.lens_key} · ${stepCount} ${stepWord}`, {exact: false}),
-  ).toBeVisible();
+  // The row's first cell names the ACTOR ROW, not just the job — the
+  // (job, actor row) rule showing on screen, split across its own
+  // columns rather than one combined string.
+  await expect(cardRow.getByText(multi.lens_label || multi.lens_key, {exact: false})).toBeVisible();
 
   // THE SAME JOB'S OTHER ACTOR ROW IS A SEPARATE, ONE-STEP CARD under
   // the same job header. Grouping by job alone would have offered one
-  // row mixing two roles; it also guards the pluralisation.
+  // row mixing two roles; the Steps column (grid, QUE-1) guards the
+  // (job, actor row) rule as surely as the old inline text did.
   if ((await readBacklog(planId as number)).filter((c) => c.job_title === jobTitle).length > 1) {
-    await expect(jobGroup.getByTestId('jobs-column-card').filter({hasText: '1 step ·'}).first()).toBeVisible();
+    const otherCard = jobGroup
+      .getByTestId('unscheduled-card')
+      .filter({has: page.locator('td:nth-child(2):text-is("1")')})
+      .first();
+    await expect(otherCard).toBeVisible();
   }
 
-  // Expanding it reads every stage the card covers, from the job's
-  // PINNED version.
-  await cardRow.getByRole('button', {name: "Show this card's steps"}).click();
+  // Clicking the row (grid, QUE-1 — the old per-card chevron is gone)
+  // reads every stage the card covers in the Stages panel on the right,
+  // from the job's PINNED version.
+  await cardRow.click();
+  const stagesPanel = page.locator('#unscheduled-stages-panel');
+  await expect(stagesPanel).toBeVisible();
+  await expect(stagesPanel).toContainText(jobTitle);
   for (const step of multi.steps) {
-    await expect(cardRow.getByText(step.stage_label, {exact: false}).first()).toBeVisible();
+    await expect(stagesPanel.getByText(step.stage_label, {exact: false}).first()).toBeVisible();
   }
 
   // ── Place it: ONE call, ONE slot, every step ─────────────────────────
@@ -206,10 +222,13 @@ test('E2E-BLK-1-07-01: place a whole card on a day from the Jobs screen, then re
   // showing, so the placed slot is on screen for the release below.
   const activeDay = await page.locator('#day-board-view').getAttribute('data-active-day');
   const linksBefore = await readLinkedSteps(planId as number);
-  await cardRow.getByTestId('jobs-column-place').click();
-  await expect(cardRow.getByText(`All ${stepCount} ${stepWord} go onto that day as one card.`)).toBeVisible();
-  await cardRow.locator('input[type=date]').fill(activeDay!);
-  await cardRow.getByTestId('jobs-column-place-confirm').click();
+  // The Place… form (grid, QUE-1) renders as its own detail row, a
+  // sibling of the card's row rather than nested inside it — scoped to
+  // jobGroup (the card's `<tbody>`), not cardRow itself.
+  await cardRow.getByTestId('unscheduled-place').click();
+  await expect(jobGroup.getByText(`All ${stepCount} ${stepWord} go onto that day as one card.`)).toBeVisible();
+  await jobGroup.locator('input[type=date]').fill(activeDay!);
+  await jobGroup.getByTestId('unscheduled-place-confirm').click();
 
   await expect(page.locator('#board-notice-toast')).toContainText(
     new RegExp(`${stepCount} ${stepWord} placed as one card`),
@@ -234,13 +253,15 @@ test('E2E-BLK-1-07-01: place a whole card on a day from the Jobs screen, then re
     'exactly the steps the card named',
   ).toEqual(new Set(multi.work_task_ids));
 
-  // The placed card leaves the Jobs column — all of it, not part of it.
+  // The placed card leaves Unscheduled — all of it, not part of it.
   const backlogAfter = await readBacklog(planId as number);
   expect(
     backlogAfter.some((c) => c.card_key === multi.card_key),
     'a scheduled card should not still be offered for scheduling',
   ).toBe(false);
-  await expect(jobGroup.getByTestId('jobs-column-card').filter({hasText: `${stepCount} ${stepWord}`})).toHaveCount(0);
+  await expect(
+    jobGroup.getByTestId('unscheduled-card').filter({has: page.locator(`td:nth-child(2):text-is("${stepCount}")`)}),
+  ).toHaveCount(0);
 
   // ── The day board shows it ONCE, saying what it is ───────────────────
   //
@@ -258,10 +279,16 @@ test('E2E-BLK-1-07-01: place a whole card on a day from the Jobs screen, then re
   const slotCard = page.locator('[id^="dayboard-task-"]').filter({has: provenance}).first();
 
   // ── Release it: every step comes back, no orphan link ────────────────
+  // QUE-1 (US-QUE-1-06) — a confirmation now sits between the menu click
+  // and the actual release; the founder's own "are you sure".
   await slotCard.getByTitle('Task actions').click();
   await page.getByTestId('dayboard-unschedule-card').click();
+  const confirm = page.locator('#unschedule-confirm-modal');
+  await expect(confirm).toBeVisible();
+  await expect(confirm).toContainText(jobTitle);
+  await page.locator('#unschedule-confirm-confirm').click();
   await expect(page.locator('#board-notice-toast')).toContainText(
-    new RegExp(`${stepCount} ${stepWord} back in the Jobs column`),
+    new RegExp(`${stepCount} ${stepWord} back in Unscheduled`),
   );
   await page.waitForLoadState('networkidle');
 
