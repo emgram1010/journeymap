@@ -19,7 +19,7 @@ import {
   X
 } from 'lucide-react';
 import { Task, Timeline, Agent, Workspace, AppSettings, Throughput } from '../types';
-import { generateDaysList, formatShortDate, isDateOutOfWindow } from '../utils/dateUtils';
+import { getWindowBounds, getWindowDays, formatShortDate, isDateOutOfWindow } from '../utils/dateUtils';
 import { calculateWorkspaceCapacitySummary } from '../utils/agentUtils';
 import { calculateWorkspaceCostSummary, formatMoney } from '../utils/costUtils';
 import { listBacklogWork, type BacklogCard } from '../plannerApi';
@@ -105,7 +105,17 @@ export function BacklogDrawer({
   const [targetDay, setTargetDay] = useState<string>(workspace?.planningWindowStart || '');
   const [targetPosition, setTargetPosition] = useState<'end' | 'start' | 'index'>('end');
   const [targetIndex, setTargetIndex] = useState<number>(0);
-  const modalDays = workspace ? generateDaysList(workspace.planningWindowStart, 14) : [];
+  // WIN-1 (US-WIN-1-02): the window's real days, not a fixed fortnight
+  // from its start. A 3-day plan offered 14 choosable days here, 11 of
+  // which the server now refuses.
+  const modalDays = workspace
+    ? getWindowDays(workspace.planningWindowStart, workspace.planningWindowEnd)
+    : [];
+  // min/max for every picker in this drawer that writes a planned date.
+  const windowBounds = getWindowBounds(
+    workspace?.planningWindowStart,
+    workspace?.planningWindowEnd
+  );
 
   // Drag over bucket state (for Section 3.E: Timeline -> Backlog)
   const [isDragOverBucket, setIsDragOverBucket] = useState(false);
@@ -126,6 +136,13 @@ export function BacklogDrawer({
   const [placeAgentId, setPlaceAgentId] = useState<string>('');
   const [placeDay, setPlaceDay] = useState<string>('');
   const [isPlacingCard, setIsPlacingCard] = useState(false);
+  // WIN-1 (US-WIN-1-02): a typed date can still land outside the picker's
+  // min/max in some browsers, so Place is also refused here.
+  const placeDayOutOfWindow = !!workspace && isDateOutOfWindow(
+    placeDay,
+    workspace.planningWindowStart,
+    workspace.planningWindowEnd
+  );
   // EXC chips open the shared read-only job view (D-2 of EXC-2), never a rebuild of it.
   const [peekId, setPeekId] = useState<number | null>(null);
 
@@ -178,11 +195,22 @@ export function BacklogDrawer({
   const openPlaceForm = (cardKey: string) => {
     setPlacingFor((prev) => (prev === cardKey ? null : cardKey));
     setPlaceAgentId((prev) => prev || agents[0]?.id || '');
-    setPlaceDay((prev) => prev || workspace?.planningWindowStart || new Date().toISOString().slice(0, 10));
+    // WIN-1 (US-WIN-1-02): never carry a day held over from another
+    // plan's window into this one.
+    setPlaceDay((prev) => {
+      const fallback = workspace?.planningWindowStart || new Date().toISOString().slice(0, 10);
+      if (!prev) return fallback;
+      const stale = !!workspace && isDateOutOfWindow(
+        prev,
+        workspace.planningWindowStart,
+        workspace.planningWindowEnd
+      );
+      return stale ? fallback : prev;
+    });
   };
 
   const handlePlaceCard = async (card: BacklogCard) => {
-    if (!placeAgentId || !placeDay) return;
+    if (!placeAgentId || !placeDay || placeDayOutOfWindow) return;
     setIsPlacingCard(true);
     const ok = await onPlaceCard(card, placeAgentId, placeDay);
     setIsPlacingCard(false);
@@ -706,23 +734,38 @@ export function BacklogDrawer({
                                     <input
                                       type="date"
                                       value={placeDay}
+                                      min={windowBounds.min}
+                                      max={windowBounds.max}
                                       onChange={(e) => setPlaceDay(e.target.value)}
-                                      className="text-[11px] px-1.5 py-1 border border-neutral-200 rounded font-mono bg-white"
+                                      className={`text-[11px] px-1.5 py-1 border rounded font-mono bg-white ${
+                                        placeDayOutOfWindow ? 'border-red-500 bg-red-50/30' : 'border-neutral-200'
+                                      }`}
                                     />
                                   </label>
                                   <button
                                     type="button"
                                     data-testid="unscheduled-place-confirm"
                                     onClick={() => void handlePlaceCard(card)}
-                                    disabled={isPlacingCard || agents.length === 0 || !placeAgentId || !placeDay}
+                                    disabled={isPlacingCard || agents.length === 0 || !placeAgentId || !placeDay || placeDayOutOfWindow}
                                     className="px-2.5 py-1.5 bg-neutral-900 text-white rounded text-[11px] font-semibold hover:bg-neutral-800 disabled:opacity-60"
                                   >
                                     {isPlacingCard ? 'Placing…' : 'Place'}
                                   </button>
-                                  <span className="text-[10px] text-neutral-500 basis-full">
-                                    All {card.step_count} {stepWord} go onto that day as one card.
-                                  </span>
-                                  {placeAgentId && placeDay && !dayHasTimeline(placeAgentId, placeDay) && (
+                                  {/* WIN-1 (US-WIN-1-02): min/max stops the picker reaching
+                                      outside the window, but a typed date can still land
+                                      there in some browsers — so say why Place is off and
+                                      keep what they typed (CLAUDE.md). */}
+                                  {placeDayOutOfWindow ? (
+                                    <span className="text-[10px] text-red-600 basis-full flex items-center gap-1">
+                                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                                      {placeDay} is outside this plan's window ({workspace?.planningWindowStart} to {workspace?.planningWindowEnd}). Pick a day inside it.
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-neutral-500 basis-full">
+                                      All {card.step_count} {stepWord} go onto that day as one card.
+                                    </span>
+                                  )}
+                                  {placeAgentId && placeDay && !placeDayOutOfWindow && !dayHasTimeline(placeAgentId, placeDay) && (
                                     <span className="text-[10px] text-neutral-500 basis-full">
                                       {agentName(placeAgentId)} has no day on {placeDay} yet — it will be created.
                                     </span>

@@ -1372,6 +1372,8 @@ export default function PlannerApp() {
         onConfirmBulkPublish={handleConfirmBulkPublish}
         onConfirmPublish={handlePublishTimeline}
         onReopenTimeline={handleReopenTimeline}
+        planningWindowStart={activeWorkspace?.planningWindowStart}
+        planningWindowEnd={activeWorkspace?.planningWindowEnd}
       />
 
       {/* Settings: cost rates & model pricing */}

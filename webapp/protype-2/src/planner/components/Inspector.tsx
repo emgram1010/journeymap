@@ -35,6 +35,11 @@ interface InspectorProps {
   onDeleteTimeline: (timelineId: string) => void;
   onPublishTimeline: (timelineId: string) => void;
   onReopenTimeline: (timelineId: string) => void;
+  // WIN-1 (US-WIN-1-02): bounds for the Planned Date picker. Optional —
+  // without them the field is unbounded as before, and the server stays
+  // the authority either way (D-5).
+  planningWindowStart?: string;
+  planningWindowEnd?: string;
 }
 
 export function Inspector({
@@ -53,6 +58,8 @@ export function Inspector({
   onDeleteTimeline,
   onPublishTimeline,
   onReopenTimeline,
+  planningWindowStart,
+  planningWindowEnd,
 }: InspectorProps) {
   if (!isOpen) return null;
 
@@ -115,6 +122,8 @@ export function Inspector({
             onDeleteTimeline={onDeleteTimeline}
             onPublishTimeline={onPublishTimeline}
             onReopenTimeline={onReopenTimeline}
+            planningWindowStart={planningWindowStart}
+            planningWindowEnd={planningWindowEnd}
           />
         ) : (
           <div className="py-8 text-center text-neutral-400">
@@ -430,6 +439,8 @@ interface TimelineInspectorBodyProps {
   onDeleteTimeline: (timelineId: string) => void;
   onPublishTimeline: (timelineId: string) => void;
   onReopenTimeline: (timelineId: string) => void;
+  planningWindowStart?: string;
+  planningWindowEnd?: string;
 }
 
 function TimelineInspectorBody({
@@ -439,6 +450,8 @@ function TimelineInspectorBody({
   onDeleteTimeline,
   onPublishTimeline,
   onReopenTimeline,
+  planningWindowStart,
+  planningWindowEnd,
 }: TimelineInspectorBodyProps) {
   const isPublished = timeline.status === 'published';
   const needsInfoTasks = tasksInTimeline.filter(t => t.status === 'needs_info');
@@ -475,6 +488,8 @@ function TimelineInspectorBody({
           type="date"
           disabled={isPublished}
           value={timeline.plannedDate}
+          min={planningWindowStart || undefined}
+          max={planningWindowEnd || undefined}
           onChange={(e) => onUpdateTimeline(timeline.id, { plannedDate: e.target.value })}
           className="w-full px-2.5 py-1.5 text-xs font-mono text-neutral-900 border border-neutral-300 rounded focus:outline-none focus:border-neutral-900 disabled:bg-neutral-100"
         />

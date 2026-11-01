@@ -60,6 +60,8 @@ picking up a working app.
 | Epic-15 (QUE-1) | Jobs list on the left, one "Unscheduled" queue at the bottom, confirm-before-unschedule | ✅ Built, Opus-reviewed, committed |
 | Epic-16 (ROW-1) | One row per role line; job name opens the read-only job view | ✅ Built, committed |
 | Epic-17 (QTY-1) | Unit quantities on a job, and what a split moved where. **Includes a live Xano change to endpoint 558** | ✅ Built, committed, **pushed live** |
+| Epic-18 (WIN-1) US-WIN-1-02 | The UI stops offering out-of-window days: grid columns follow the real window, pickers bounded | ✅ Built on **Opus 5**, committed. Frontend only, **no Xano push**. Unverified in a browser (UI-01) |
+| Epic-18 (WIN-1) -01 / -03 / -04 | Server refusal, shrink guard, cleanup of the 16 bad rows | 🔴 **Not started — need Opus 5.5.** Run `/model` first |
 
 ### 🔴 Things that are NOT done — do not assume otherwise
 

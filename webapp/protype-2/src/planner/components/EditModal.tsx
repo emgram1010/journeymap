@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { Task, Timeline, Agent, AgentKind, TaskPlanningStatus, ModalEntity, AppSettings } from '../types';
 export type { ModalEntity } from '../types';
-import { isDateOutOfWindow, formatShortDate } from '../utils/dateUtils';
+import { isDateOutOfWindow, formatShortDate, getWindowBounds } from '../utils/dateUtils';
 import { formatMinutesToTime, parseTimeToMinutes } from '../utils/planningLogic';
 import { AGENT_PALETTE } from '../data/initialData';
 import { getNextAgentColor } from '../utils/agentUtils';
@@ -48,6 +48,12 @@ interface EditModalProps {
   onConfirmBulkPublish?: (timelineIdsToPublish: string[]) => void;
   onConfirmPublish?: (timelineId: string) => void;
   onReopenTimeline: (timelineId: string) => void;
+  // WIN-1 (US-WIN-1-02): the active plan's window, used to bound the
+  // Planned Date picker. Optional because a caller that doesn't know the
+  // window should get the old unbounded field rather than a picker
+  // bounded to nothing — the server is still the authority (D-5).
+  planningWindowStart?: string;
+  planningWindowEnd?: string;
 }
 
 export function EditModal({
@@ -63,6 +69,8 @@ export function EditModal({
   onConfirmBulkPublish,
   onConfirmPublish,
   onReopenTimeline,
+  planningWindowStart,
+  planningWindowEnd,
 }: EditModalProps) {
   // Modal states
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
@@ -216,6 +224,16 @@ export function EditModal({
     : false;
 
   const isBacklogTask = entity.type === 'task' && !entity.task.timelineId;
+
+  // WIN-1 (US-WIN-1-02): bound the Planned Date picker to the plan's
+  // window. A timeline that is already outside it (17 such rows exist) is
+  // still shown and still flagged — enforcement is write-time only (D-2).
+  const windowBounds = getWindowBounds(planningWindowStart, planningWindowEnd);
+  const tlDateOutOfWindow =
+    entity.type === 'timeline' &&
+    !!planningWindowStart &&
+    !!planningWindowEnd &&
+    isDateOutOfWindow(tlDate, planningWindowStart, planningWindowEnd);
 
   // Track changes for Agent
   const handleAgentFieldChange = (field: string, value: any) => {
@@ -405,6 +423,11 @@ export function EditModal({
       // Timeline validation
       if (!tlDate) {
         newErrors.date = 'Planned date is required.';
+      } else if (tlDateOutOfWindow) {
+        // WIN-1 (US-WIN-1-02). The server refuses this too
+        // (US-WIN-1-01); catching it here keeps their typing instead of
+        // bouncing it off the API.
+        newErrors.date = `${tlDate} is outside this plan's window (${planningWindowStart} to ${planningWindowEnd}).`;
       }
       if (!tlStartTime) {
         newErrors.startTime = 'Start time is required.';
@@ -1106,9 +1129,26 @@ export function EditModal({
                   type="date"
                   disabled={isLocked}
                   value={tlDate}
+                  min={windowBounds.min}
+                  max={windowBounds.max}
                   onChange={(e) => handleTimelineFieldChange('date', e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-neutral-200 rounded-md focus:outline-none focus:border-neutral-900 disabled:bg-neutral-100 font-mono"
+                  className={`w-full text-xs px-3 py-2 border rounded-md focus:outline-none focus:border-neutral-900 disabled:bg-neutral-100 font-mono ${
+                    errors.date || tlDateOutOfWindow
+                      ? 'border-red-500 bg-red-50/20'
+                      : 'border-neutral-200'
+                  }`}
                 />
+                {/* WIN-1 (US-WIN-1-02): one of the 17 legacy rows can open
+                    here with a date its own plan no longer allows. Say so
+                    rather than silently showing an invalid field. */}
+                {errors.date ? (
+                  <p className="text-[11px] text-red-600 mt-1">{errors.date}</p>
+                ) : tlDateOutOfWindow ? (
+                  <p className="text-[11px] text-red-600 mt-1 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 shrink-0" />
+                    Outside this plan's window ({formatShortDate(planningWindowStart || '')} to {formatShortDate(planningWindowEnd || '')}). Pick a day inside it to save.
+                  </p>
+                ) : null}
               </div>
 
               {/* Start Time - anchors the cascade; every step's start is computed from this */}

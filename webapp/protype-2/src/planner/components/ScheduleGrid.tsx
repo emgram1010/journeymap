@@ -14,7 +14,7 @@ import {
   Eye
 } from 'lucide-react';
 import { Agent, Timeline, Task, Workspace } from '../types';
-import { formatShortDate, generateDaysList, isDateOutOfWindow } from '../utils/dateUtils';
+import { formatShortDate, getWindowPage, isDateOutOfWindow } from '../utils/dateUtils';
 import { calculateAgentDayLoad } from '../utils/agentUtils';
 import { AgentsPopover } from './AgentsPopover';
 
@@ -71,24 +71,29 @@ export function ScheduleGrid({
   const [isDropRefused, setIsDropRefused] = useState(false);
   const [refusalReason, setRefusalReason] = useState<string | null>(null);
 
-  const addDaysToDateStr = (dateStr: string, days: number): string => {
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const dt = new Date(y, m - 1, d);
-    dt.setDate(dt.getDate() + days);
-    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-  };
-
   const windowStart = workspace?.planningWindowStart || '2026-10-12';
   const windowEnd = workspace?.planningWindowEnd || '2026-10-25';
-  const startDate = spanWeeks === 1 ? addDaysToDateStr(windowStart, pageOffsetDays) : windowStart;
-  const totalDays = spanWeeks * 7;
-  const daysList = generateDaysList(startDate, totalDays);
-  const currentRangeEnd = addDaysToDateStr(startDate, totalDays - 1);
+
+  // WIN-1 (US-WIN-1-02): the columns are the plan's real window. This used
+  // to render a fixed spanWeeks * 7 days from the window start, so a 3-day
+  // plan still drew a fortnight of droppable columns outside its own
+  // window — days the server (US-WIN-1-01) now refuses. Paging is
+  // unchanged: it stays a 1-week-mode affordance, and the page is clamped
+  // to the window at both ends.
+  const page = getWindowPage(
+    windowStart,
+    windowEnd,
+    spanWeeks * 7,
+    spanWeeks === 1 ? pageOffsetDays : 0
+  );
+  const daysList = page.days;
+  const startDate = page.rangeStart;
+  const currentRangeEnd = page.rangeEnd;
 
   // Paging bounds: disabled (not hidden) once paging would move outside
   // the workspace's planning window.
-  const canPagePrev = spanWeeks === 1 && startDate > windowStart;
-  const canPageNext = spanWeeks === 1 && currentRangeEnd < windowEnd;
+  const canPagePrev = spanWeeks === 1 && page.canPagePrev;
+  const canPageNext = spanWeeks === 1 && page.canPageNext;
 
   const handleSetSpanWeeks = (weeks: 1 | 2) => {
     setSpanWeeks(weeks);

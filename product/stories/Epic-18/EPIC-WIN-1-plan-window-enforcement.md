@@ -121,7 +121,22 @@ Scenario: Existing out-of-window days still load
 ---
 
 ### US-WIN-1-02 — The UI stops offering a day it knows is invalid
-**Status:** 📋 Not started. **Model: Sonnet 5.5.**
+**Status:** ✅ **Built (Opus 5, 2026-11-01).** **Model: Sonnet 5.5** required — built on Opus 5,
+which is above that tier, not below it. Frontend only; no Xano push.
+
+Three pure functions went into `src/planner/utils/dateUtils.ts` (`getWindowDays`, `getWindowPage`,
+`getWindowBounds`) with 15 unit tests, and the components now read the window from them instead of
+counting days themselves. `ScheduleGrid` derives its columns from the window's real length rather
+than `spanWeeks * 7`; paging is unchanged but now clamps at both ends, and a stale page offset is
+pulled back inside a window that shrank. The Place… picker and the timeline Planned Date picker got
+`min`/`max`, and the keyboard-placement day list is the window's real days instead of a fixed 14.
+
+**Two things differed from the spec.** First, `min`/`max` alone is not a hard stop — a *typed* date
+can still land outside the bounds in some browsers — so the Place button is also disabled with a
+message naming the window, and EditModal refuses the save with a field error, keeping the typing
+either way. Without that, the story's own Gherkin ("will not accept") would have been false.
+Second, the spec named BacklogDrawer and EditModal; `Inspector.tsx` and `TimelineRail.tsx` have
+unbounded pickers too and were bounded as well — see §10, they are currently dead code.
 
 **As a** planner,
 **I want** the date pickers to only offer days in my plan's window,
@@ -340,8 +355,25 @@ Pure date logic goes in a tested function in `src/planner/utils/` or `boardModel
 
 ## 9. Test Results
 
-**Nothing built, nothing run.** Fill this in as you go, not at the end. One row per §7 ID, with
-"not run" where that is the truth.
+**US-WIN-1-02 only.** -01, -03 and -04 are not started (model, see §10).
+
+| ID | Result |
+|---|---|
+| UT-WIN-1-02-01 | **Pass.** A 3-day window returns 3 day columns. `src/planner/utils/dateUtils.test.ts`. |
+| UT-WIN-1-01-01 / -01-02 | **Not run** — they belong to US-WIN-1-01, not started. The window comparison they cover is pinned anyway by UT-WIN-1-02-15. |
+| UT-WIN-1-03-01 | **Not run** — US-WIN-1-03 not started. |
+| LIVE-01 / LIVE-02 / LIVE-03 | **Not run** — all three need a backend story. No Xano push was made in this session. |
+| REG-01 `npm test` | **Pass. 676 of 676** (661 at handoff + 15 new). |
+| REG-02 `npx tsc --noEmit` | **Pass**, clean. Two errors were found and fixed en route (`Inspector.tsx` — the date field is inside `TimelineInspectorBody`, a nested component, so the new props had to be threaded through it too). |
+| REG-03 `npm run build` | **Pass**, 1m21s. The >500 kB chunk warning is pre-existing and unrelated. |
+| REG-04 `npx playwright test --list` | **Pass — 47 tests in 18 files**, unchanged. **Not executed**: every spec still skips without `E2E_AUTH_TOKEN`. Listing is not passing. |
+| UI-01 | **Not run.** Needs the founder in a browser on plan 43. The grid and picker changes are unverified by human eye. |
+
+**14 extra unit tests beyond the one the spec asked for**, covering both inclusive ends (D-6), a
+one-day window, a month rollover, a missing window, a backwards window, paging in both directions,
+a short final page, a stale page offset after a window shrinks, and a pin on the legacy
+`isDateOutOfWindow` badges so -02 cannot quietly disable the only thing that makes the 17
+violations visible.
 
 ---
 
@@ -357,6 +389,37 @@ Pure date logic goes in a tested function in `src/planner/utils/` or `boardModel
 - **The cheapest part of this epic is the most valuable:** 538 being the sole writer of
   `planner_timeline` means one precondition closes every path. That was verified by grep, not
   assumed — re-verify it, because a second writer added later would silently reopen the hole.
+
+### Deviations and findings from US-WIN-1-02 (2026-11-01, Opus 5)
+
+- **-01, -03 and -04 are NOT started: they require Opus 5.5 and this session is Opus 5.** Per
+  README §5 the matching story was built instead of building a story below its model. The founder
+  needs to run `/model` and pick Opus 5.5 before the three backend stories; none of them has been
+  touched, and no Xano push was made.
+- **`min`/`max` is not enough on its own.** A date input's bounds constrain the *picker* but a
+  typed value can still be set in some browsers — it just renders as out-of-range. So the Place
+  button is disabled and EditModal's save is refused with a field error when the day is outside
+  the window. The user's typing is kept in both cases (CLAUDE.md). This is UI convenience only;
+  the server is still the authority (D-5) and will be once -01 lands.
+- **Two more unbounded pickers existed, and both are dead code.** `Inspector.tsx` and
+  `TimelineRail.tsx` each have a planned-date input and **neither component is mounted anywhere** —
+  grep across `src/` finds no usage at all. They were bounded anyway (cheap, and it closes the hole
+  if either is ever mounted), via optional props so no call site breaks. **Worth the founder
+  knowing two planner components are unreferenced**; deleting them was not asked for and was not
+  done.
+- **`CreateWorkspaceModal` and `WorkspaceSettingsModal` were deliberately left unbounded.** Those
+  pickers *set* the window; bounding a window by itself would make it uneditable. Protecting those
+  is US-WIN-1-03's job, not this story's.
+- **A pre-existing bug fixed in passing, disclosed because it was not in scope:** the
+  keyboard-placement form's day dropdown was `generateDaysList(windowStart, 14)` — a second
+  hardcoded fortnight, the same defect as the grid. It now uses the window's real days.
+- **One behaviour deliberately left as it was:** in 2-week mode the grid still shows at most 14
+  days and does not page, so a window longer than a fortnight is only partly visible there. That
+  is unchanged from before this story; the 1-week mode pages. Not a regression, but it is a gap.
+- **`EditModal.tsx` had an unused `isDateOutOfWindow` import** before this story — it is now
+  actually used, so that resolved itself.
+- **Not verified in a browser.** UI-01 needs the founder. The unit tests cover the date maths, not
+  the rendering.
 - **One more unenforced-rule smell to leave alone for now:** `ScheduleGrid` renders a fixed
   fortnight regardless of window length, which is how a day outside the window became *clickable*
   in the first place. -02 fixes the symptom. If you find other places that render days from

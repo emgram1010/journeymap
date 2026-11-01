@@ -191,9 +191,12 @@ export function TimelineRail({
           />
 
           <div className="flex items-center gap-2">
+            {/* WIN-1 (US-WIN-1-02): bounded to the plan's window. */}
             <input
               type="date"
               value={newDate}
+              min={planningWindowStart || undefined}
+              max={planningWindowEnd || undefined}
               onChange={(e) => setNewDate(e.target.value)}
               className="flex-1 px-2 py-1 text-xs border border-neutral-300 rounded text-neutral-700 bg-neutral-50/50"
             />
