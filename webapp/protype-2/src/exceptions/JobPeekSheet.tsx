@@ -18,12 +18,13 @@
 // 375 px, E2E-EXC-2-05).
 import {useCallback, useEffect, useState} from 'react';
 import {X, ChevronRight} from 'lucide-react';
-import {getWorkItem, type WorkItemTask} from '../planner/plannerApi';
+import {getWorkItem, getWorkItemLines, type WorkItemTask} from '../planner/plannerApi';
 import {PerformRequestError} from '../perform/performApi';
 import {getCatalogEntry} from '../ops/errorCatalog';
 import {logEvent} from '../ops/logEvent';
 import {progressFromTasks, progressLabel} from './jobProgress';
 import {REASON_LABELS} from './exceptionSheet';
+import {movedUnits, summarizeUnits, type UnitSummary} from '../jobModel';
 
 type LoadedJob = Awaited<ReturnType<typeof getWorkItem>>;
 
@@ -98,7 +99,54 @@ export default function JobPeekSheet({workItemId, open, onClose, onOpenJob}: Pro
     void load();
   }, [open, load]);
 
+  // QTY-1 (US-QTY-1-01) — the job's units, on their own request. Separate
+  // from `load` on purpose (D-4): the lines endpoint failing must not blank
+  // the steps, the status or the version, so the two have their own states
+  // and their own error. Keyed and cleared exactly like `load` above —
+  // that symmetry is the only thing stopping one job's units showing under
+  // another job's name when the sheet hops via a parent/child chip.
+  const [units, setUnits] = useState<UnitSummary | null>(null);
+  // An OBJECT, not a nullable reference string: a failure with no reference
+  // still has to read as a failure, and `null` already means "no error".
+  const [unitsError, setUnitsError] = useState<{reference: string | null} | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    if (!Number.isInteger(workItemId) || workItemId <= 0) return;
+    let current = true;
+    setUnits(null);
+    setUnitsError(null);
+    getWorkItemLines(workItemId)
+      .then((data) => {
+        if (current) setUnits(summarizeUnits(data.lines));
+      })
+      .catch((err) => {
+        if (!current) return;
+        const perr = err instanceof PerformRequestError ? err : null;
+        setUnitsError({reference: perr?.reference ?? null});
+        setUnits(null);
+        void logEvent({
+          feature: 'QTY-1',
+          step: 'job_units_load',
+          outcome: 'failure',
+          severity: 'warn',
+          entityType: 'work_item',
+          entityId: workItemId,
+          correlationId: perr?.reference ?? null,
+        });
+      });
+    return () => {
+      current = false;
+    };
+  }, [open, workItemId]);
+
   if (!open) return null;
+
+  // QTY-1 (US-QTY-1-02) — both read `moved_lines`, which the job request
+  // already returns on each link. A link that moved nothing is dropped, so
+  // an unsplit job renders no lineage at all.
+  const parentMoved = movedUnits(job?.parent ? [job.parent] : []);
+  const childrenMoved = movedUnits(job?.children ?? []);
 
   const tasksInOrder = job?.tasks ?? [];
   // One rule, shared with the backend twin and the chips (jobProgress.ts).
@@ -166,6 +214,36 @@ export default function JobPeekSheet({workItemId, open, onClose, onOpenJob}: Pro
               <p className="mt-1 text-xs text-zinc-500">{progressLabel(progress)}</p>
             </section>
 
+            {/* QTY-1 (US-QTY-1-01) — how many units this job is for. Sits
+                next to the pinned version and the lineage on purpose: a
+                parent job is NOT a template its children were stamped from
+                (the map version is), and keeping version, units and lineage
+                adjacent is what stops that misreading. See the epic's §10. */}
+            <section data-testid="job-peek-units">
+              <p className="mb-1 text-sm font-medium text-zinc-700">Units</p>
+              {unitsError ? (
+                <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <p>We couldn't load this job's units. The rest of the job is still accurate.</p>
+                  {unitsError.reference && <p className="mt-0.5 text-amber-700">Reference: {unitsError.reference}</p>}
+                </div>
+              ) : units === null ? (
+                <p className="text-xs text-zinc-400">Loading…</p>
+              ) : units.totalQuantity === null ? (
+                <p className="text-xs text-zinc-500">No units recorded on this job.</p>
+              ) : (
+                <>
+                  <p className="text-sm text-zinc-800">{units.totalQuantity} total</p>
+                  <ul className="mt-1 space-y-0.5">
+                    {units.lines.map((l) => (
+                      <li key={`${l.item_label}-${l.unit}`} className="text-xs text-zinc-600">
+                        {l.quantity} {l.unit} · {l.item_label}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </section>
+
             {job.parent && (
               <button
                 type="button"
@@ -180,6 +258,13 @@ export default function JobPeekSheet({workItemId, open, onClose, onOpenJob}: Pro
                   <p className="text-xs text-zinc-500">
                     Sent from {job.parent.stage_label || job.parent.stage_key} · {REASON_LABELS[job.parent.reason_code as keyof typeof REASON_LABELS] ?? job.parent.reason_code}
                   </p>
+                  {/* QTY-1 (US-QTY-1-02) — which units came across. Already in
+                      `moved_lines` on the link; nothing new is fetched. */}
+                  {parentMoved.length > 0 && (
+                    <p data-testid="job-peek-parent-moved" className="mt-0.5 text-xs font-medium text-zinc-700">
+                      {parentMoved[0].quantity} {parentMoved[0].quantity === 1 ? 'unit' : 'units'} came from this job
+                    </p>
+                  )}
                   {job.parent.note && <p className="mt-0.5 text-xs text-zinc-600">"{job.parent.note}"</p>}
                 </div>
                 <ChevronRight className="h-4 w-4 flex-shrink-0 text-zinc-400" />
@@ -223,6 +308,19 @@ export default function JobPeekSheet({workItemId, open, onClose, onOpenJob}: Pro
             {job.children.length > 0 && (
               <section>
                 <p className="mb-2 text-sm font-medium text-zinc-700">Sent on</p>
+                {/* QTY-1 (US-QTY-1-02) — what left this job and where it went,
+                    named rather than only numbered, so the planner can
+                    reconcile parent + children against the original order. */}
+                {childrenMoved.length > 0 && (
+                  <ul className="mb-2 space-y-0.5" data-testid="job-peek-children-moved">
+                    {childrenMoved.map((m) => (
+                      <li key={m.workItemId} className="text-xs text-zinc-600">
+                        {m.quantity} {m.quantity === 1 ? 'unit' : 'units'} moved to{' '}
+                        <span className="font-medium text-zinc-800">{m.title}</span> (#{m.workItemId})
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <div className="flex flex-wrap gap-1.5" data-testid="job-peek-children">
                   {job.children.map((c) => (
                     <button

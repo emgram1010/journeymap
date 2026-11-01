@@ -457,6 +457,14 @@ export interface WorkItemListEntry {
   finished_count: number;
   has_blocked: boolean;
   has_progress: boolean;
+  /**
+   * QTY-1 (US-QTY-1-03) — units this job holds NOW, and units that left it
+   * via exceptions. OPTIONAL on purpose: a response from before the endpoint
+   * change simply has no units to show, rather than breaking the column.
+   * The original order is the two added together — derived, never stored.
+   */
+  unit_total?: number;
+  units_moved_out?: number;
 }
 
 /**

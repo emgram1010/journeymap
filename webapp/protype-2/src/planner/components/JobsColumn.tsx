@@ -21,7 +21,7 @@
 import {useEffect, useMemo, useState} from 'react';
 import {Briefcase, Plus, Search, SlidersHorizontal} from 'lucide-react';
 import {listWorkItems, type WorkItemListEntry} from '../plannerApi';
-import {jobStatusLabel} from '../../jobModel';
+import {jobStatusLabel, unitRowLabel} from '../../jobModel';
 import JobPeekSheet from '../../exceptions/JobPeekSheet';
 
 interface JobsColumnProps {
@@ -138,7 +138,7 @@ export function JobsColumn({workspaceId, reloadNonce, onOpenJobs}: JobsColumnPro
           <p className="px-2 py-4 text-[11px] text-neutral-500">No job matches “{query}”.</p>
         )}
 
-        {visibleJobs.map(({work_item: job, task_count, finished_count, has_blocked, child_count}) => (
+        {visibleJobs.map(({work_item: job, task_count, finished_count, has_blocked, child_count, unit_total, units_moved_out}) => (
           <button
             type="button"
             key={job.id}
@@ -155,6 +155,15 @@ export function JobsColumn({workspaceId, reloadNonce, onOpenJobs}: JobsColumnPro
               )}
               {has_blocked && <span className="text-red-600"> · blocked</span>}
             </p>
+            {/* QTY-1 (US-QTY-1-03) — how big this job is without opening it,
+                and whether some of it went down an exception path. Null when
+                there is nothing honest to say, so an older response that has
+                no unit fields simply shows no line. */}
+            {unitRowLabel({unit_total, units_moved_out}) && (
+              <p data-testid="jobs-column-units" className="text-[10px] text-neutral-600">
+                {unitRowLabel({unit_total, units_moved_out})}
+              </p>
+            )}
             {(job.parent_work_item_id > 0 || (child_count ?? 0) > 0) && (
               <p className="flex flex-wrap gap-1 mt-1" onClick={(e) => e.stopPropagation()}>
                 {job.parent_work_item_id > 0 && (

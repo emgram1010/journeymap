@@ -213,3 +213,100 @@ export function deriveJobStatus(
 
   return 'open';
 }
+
+// ── QTY-1 — how many units, and which ones went down the exception path ──
+//
+// Every number these produce was already stored (ITEM-1's `work_item_line`)
+// and already returned (EXC-1's `moved_lines` on each parent/child link).
+// QTY-1 only puts them on screen, so there is nothing to derive here beyond
+// summing and phrasing — kept out of the JSX so both can be tested.
+
+export interface UnitLine {
+  item_label: string;
+  unit: string;
+  quantity: number;
+}
+
+export interface UnitSummary {
+  /** Null, not 0, when the job has no lines at all — D-6: a real zero reads differently. */
+  totalQuantity: number | null;
+  lines: UnitLine[];
+}
+
+/**
+ * QTY-1 (US-QTY-1-01). An untouched int column in this stack is `0`, never
+ * null (CLAUDE.md, repeatedly), so "nothing recorded" cannot be inferred
+ * from the total being falsy — it has to come from there being no lines.
+ * That is why `totalQuantity` is nullable and a zero-quantity line still
+ * counts as a line.
+ */
+export function summarizeUnits(
+  lines: readonly {item_label?: string | null; item_key?: string | null; unit?: string | null; quantity: number}[],
+): UnitSummary {
+  if (lines.length === 0) return {totalQuantity: null, lines: []};
+  return {
+    totalQuantity: lines.reduce((sum, l) => sum + l.quantity, 0),
+    lines: lines.map((l) => ({
+      // A line with no label still names itself, the same way a job with no
+      // title falls back to its number elsewhere in this codebase.
+      item_label: l.item_label || l.item_key || 'Unnamed item',
+      unit: l.unit || 'units',
+      quantity: l.quantity,
+    })),
+  };
+}
+
+export interface MovedUnits {
+  workItemId: number;
+  /** The other job's own title, so the sentence names it rather than only numbering it. */
+  title: string;
+  quantity: number;
+}
+
+/**
+ * QTY-1 (US-QTY-1-02) — what a link moved, per linked job. Used both ways:
+ * on a parent it reads "N units moved to <child>", on a child "N units came
+ * from <parent>". A link that moved nothing is dropped, so an unsplit job
+ * produces an empty list and the UI renders no lineage at all.
+ */
+export function movedUnits(
+  links: readonly {
+    work_item_id: number;
+    title?: string | null;
+    moved_lines?: readonly {quantity: number}[] | null;
+  }[],
+): MovedUnits[] {
+  const out: MovedUnits[] = [];
+  for (const link of links) {
+    const quantity = (link.moved_lines ?? []).reduce((sum, l) => sum + l.quantity, 0);
+    if (quantity <= 0) continue;
+    out.push({
+      workItemId: link.work_item_id,
+      title: link.title || `Job #${link.work_item_id}`,
+      quantity,
+    });
+  }
+  return out;
+}
+
+/**
+ * QTY-1 (US-QTY-1-03) — the Jobs column row's unit line, in the ERP
+ * work-order-split phrasing the founder arrived at: `10 ordered · 8 here ·
+ * 2 moved out`. "Ordered" is derived from the two parts, so it can never
+ * disagree with them.
+ *
+ * Returns null when there is nothing honest to say — either the endpoint
+ * predates the fields (both undefined) or the job genuinely has no units.
+ * Note the two are NOT interchangeable with 0: an absent field means
+ * "unknown", a 0 means "none", and CLAUDE.md's standing rule is that an
+ * untouched numeric column reads as 0, so the distinction has to be made
+ * on presence, not on truthiness.
+ */
+export function unitRowLabel(entry: {unit_total?: number; units_moved_out?: number}): string | null {
+  if (entry.unit_total === undefined && entry.units_moved_out === undefined) return null;
+  const here = entry.unit_total ?? 0;
+  const movedOut = entry.units_moved_out ?? 0;
+  if (here === 0 && movedOut === 0) return null;
+  if (movedOut === 0) return `${here} ordered`;
+  return `${here + movedOut} ordered · ${here} here · ${movedOut} moved out`;
+}

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {deriveJobStatus, groupTasksByRole, jobStatusLabel, tasksFromVersion, type TaskStatus, type VersionSnapshot} from './jobModel';
+import {deriveJobStatus, groupTasksByRole, jobStatusLabel, movedUnits, summarizeUnits, tasksFromVersion, unitRowLabel, type TaskStatus, type VersionSnapshot} from './jobModel';
 
 const t = (status: TaskStatus) => ({status});
 
@@ -194,4 +194,68 @@ test('UT-QUE-1-04-04: a group\'s label is the owner label, falling back to the k
   const groups = groupTasksByRole([step('tech', 'Repair Tech'), step('inspector', null)]);
   assert.equal(groups?.find((g) => g.lensKey === 'tech')?.lensLabel, 'Repair Tech');
   assert.equal(groups?.find((g) => g.lensKey === 'inspector')?.lensLabel, 'inspector');
+});
+
+// ── summarizeUnits / movedUnits (QTY-1) ───────────────────────────────
+
+test('UT-QTY-1-01-01: quantities across several item types sum to a total', () => {
+  const s = summarizeUnits([
+    {item_label: 'Bouncer', unit: 'units', quantity: 8},
+    {item_label: 'Blower', unit: 'units', quantity: 2},
+  ]);
+  assert.equal(s.totalQuantity, 10);
+  assert.deepEqual(s.lines.map((l) => `${l.quantity} ${l.unit} ${l.item_label}`), ['8 units Bouncer', '2 units Blower']);
+});
+
+test('UT-QTY-1-01-02: no lines is null, not zero — "none recorded" must not look like a real 0', () => {
+  assert.deepEqual(summarizeUnits([]), {totalQuantity: null, lines: []});
+});
+
+test('UT-QTY-1-01-03: a zero-quantity line is still a line, and totals to a real 0', () => {
+  const s = summarizeUnits([{item_label: 'Bouncer', unit: 'units', quantity: 0}]);
+  assert.equal(s.totalQuantity, 0, 'a genuine zero, distinguishable from null above');
+  assert.equal(s.lines.length, 1);
+});
+
+test('UT-QTY-1-01-04: a line with no label names itself rather than rendering blank', () => {
+  assert.equal(summarizeUnits([{item_key: 'bouncer', quantity: 1}]).lines[0].item_label, 'bouncer');
+  assert.equal(summarizeUnits([{quantity: 1}]).lines[0].item_label, 'Unnamed item');
+  assert.equal(summarizeUnits([{quantity: 1}]).lines[0].unit, 'units');
+});
+
+test('UT-QTY-1-02-01: a link reports how many units it moved, naming the other job', () => {
+  const moved = movedUnits([
+    {work_item_id: 141, title: 'Garcia party — damaged', moved_lines: [{quantity: 1}, {quantity: 1}]},
+  ]);
+  assert.deepEqual(moved, [{workItemId: 141, title: 'Garcia party — damaged', quantity: 2}]);
+});
+
+test('UT-QTY-1-02-02: nothing moved means no lineage to render', () => {
+  assert.deepEqual(movedUnits([]), []);
+  assert.deepEqual(movedUnits([{work_item_id: 141, moved_lines: []}]), [], 'a link that moved nothing is dropped');
+  assert.deepEqual(movedUnits([{work_item_id: 141, moved_lines: null}]), [], 'older data with no moved_lines at all');
+});
+
+test('UT-QTY-1-02-03: an untitled linked job is still named by its number', () => {
+  assert.equal(movedUnits([{work_item_id: 141, moved_lines: [{quantity: 3}]}])[0].title, 'Job #141');
+});
+
+// ── unitRowLabel (US-QTY-1-03) ────────────────────────────────────────
+
+test('UT-QTY-1-03-01: an unsplit job just states what it holds', () => {
+  assert.equal(unitRowLabel({unit_total: 10, units_moved_out: 0}), '10 ordered');
+});
+
+test('UT-QTY-1-03-02: a split job reconciles — ordered is derived from the parts', () => {
+  assert.equal(unitRowLabel({unit_total: 8, units_moved_out: 2}), '10 ordered · 8 here · 2 moved out');
+});
+
+test('UT-QTY-1-03-03: a job whose units ALL moved out still reconciles', () => {
+  // Job 125 live: holds 0, moved 1 to its child. The row must not read "0 ordered".
+  assert.equal(unitRowLabel({unit_total: 0, units_moved_out: 1}), '1 ordered · 0 here · 1 moved out');
+});
+
+test('UT-QTY-1-03-04: absent fields are unknown, not zero — an old response says nothing', () => {
+  assert.equal(unitRowLabel({}), null, 'endpoint predates the fields');
+  assert.equal(unitRowLabel({unit_total: 0, units_moved_out: 0}), null, 'genuinely no units');
 });
