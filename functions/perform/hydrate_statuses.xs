@@ -354,6 +354,23 @@ function "perform/hydrate_statuses" {
       return = {type: "list"}
     } as $note_rows
 
+    // EXEC-1 (US-EXEC-1-03) -- who completed (or skipped) each step, for
+    // the Steps checklist ("Done 10:42 AM . <name>"). Sorted ASCENDING
+    // and written unconditionally in loop order below, so a later event
+    // simply overwrites an earlier one in the map -- no per-iteration
+    // conditional needed (CLAUDE.md: branching on a var set earlier in
+    // the SAME iteration silently drops the write; this sidesteps it
+    // entirely). A reopened-then-recompleted task's later event wins.
+    var $completion_event_types {
+      value = ["completed", "skipped"]
+    }
+
+    db.query activity_log {
+      where = $db.activity_log.work_task_id in $input.work_task_ids && $db.activity_log.event_type in $completion_event_types
+      sort = {activity_log.occurred_at: "asc"}
+      return = {type: "list"}
+    } as $completion_rows
+
     var $note_author_ids {
       value = []
     }
@@ -386,6 +403,19 @@ function "perform/hydrate_statuses" {
               value = $seen_author|set:$author_key:true
             }
           }
+        }
+      }
+    }
+
+    // Completion performer ids are folded into the SAME array before the
+    // one user lookup below -- duplicates are harmless in an `in` filter
+    // (confirmed working elsewhere, CLAUDE.md), so no dedup needed. This
+    // keeps the query count at one, same discipline as the rest of this
+    // function.
+    foreach ($completion_rows) {
+      each as $c {
+        array.push $note_author_ids {
+          value = $c.performer_user_id
         }
       }
     }
@@ -467,6 +497,43 @@ function "perform/hydrate_statuses" {
       }
     }
 
+    // EXEC-1 (US-EXEC-1-03) -- same pre-seed discipline as $notes_by_task
+    // above (|get with a variable key silently drops its default on a
+    // miss, CLAUDE.md), then filled from $completion_rows in ASCENDING
+    // order so the last write per task is always the latest event --
+    // no conditional branch needed.
+    var $completed_by_task {
+      value = {}
+    }
+
+    foreach ($input.work_task_ids) {
+      each as $wtid {
+        var.update $note_task_key {
+          value = $wtid|to_text
+        }
+
+        var.update $completed_by_task {
+          value = $completed_by_task|set:$note_task_key:null
+        }
+      }
+    }
+
+    foreach ($completion_rows) {
+      each as $c {
+        var.update $note_task_key {
+          value = $c.work_task_id|to_text
+        }
+
+        var.update $author_key {
+          value = $c.performer_user_id|to_text
+        }
+
+        var.update $completed_by_task {
+          value = $completed_by_task|set:$note_task_key:($author_name_by_id|get:$author_key:null)
+        }
+      }
+    }
+
     var $statuses {
       value = {}
     }
@@ -508,6 +575,17 @@ function "perform/hydrate_statuses" {
     }
 
     var $session_version_no {
+      value = null
+    }
+
+    // EXEC-1 (US-EXEC-1-03) -- hoisted, same reason as the vars above:
+    // never a pipe/ternary nested inside the response object literal
+    // (CLAUDE.md). Gated on $t.status (the loop item -- the one safe
+    // thing to branch a conditional/ternary on) so a step that was
+    // completed, then reopened, and is not yet done/skipped again
+    // reports no completer, instead of a stale name from before the
+    // reopen.
+    var $completed_by {
       value = null
     }
 
@@ -557,6 +635,10 @@ function "perform/hydrate_statuses" {
           value = $t.id|to_text
         }
 
+        var.update $completed_by {
+          value = (($t.status == "done" || $t.status == "skipped") ? ($completed_by_task|get:$task_key:null) : null)
+        }
+
         var.update $statuses {
           value = $statuses|set:$task_key:({
             work_task_id    : $t.id
@@ -570,6 +652,7 @@ function "perform/hydrate_statuses" {
             task            : ($cell.task ?? null)
             done_when       : ($cell.done_when ?? null)
             expected_minutes: ($cell.duration_minutes ?? null)
+            completed_by    : $completed_by
             session         : {
               work_item_id: $t.work_item_id
               title       : $session_job_title

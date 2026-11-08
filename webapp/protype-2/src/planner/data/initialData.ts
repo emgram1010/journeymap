@@ -179,6 +179,8 @@ export const INITIAL_TIMELINES: Timeline[] = [
     assignee: 'Marcus Vance',
     status: 'draft',
     startTime: '08:00',
+    currentVersion: 0,
+    isSealed: false,
   },
   // Day 2 (2026-10-13) - Marcus Vance (5h / 8h Draft)
   {
@@ -190,6 +192,8 @@ export const INITIAL_TIMELINES: Timeline[] = [
     assignee: 'Marcus Vance',
     status: 'draft',
     startTime: '08:00',
+    currentVersion: 0,
+    isSealed: false,
   },
   // Day 2 (2026-10-13) - Kavita Patel (9h 30m / 8h ⚠ Over capacity + blocked)
   {
@@ -201,6 +205,8 @@ export const INITIAL_TIMELINES: Timeline[] = [
     assignee: 'Kavita Patel',
     status: 'draft',
     startTime: '08:00',
+    currentVersion: 0,
+    isSealed: false,
   },
   // Day 2 (2026-10-13) - Intake bot (2h / 8h Published)
   {
@@ -212,6 +218,8 @@ export const INITIAL_TIMELINES: Timeline[] = [
     assignee: 'Intake bot',
     status: 'published',
     startTime: '08:00',
+    currentVersion: 1,
+    isSealed: false,
   },
   // Day 2 (2026-10-13) - Elena Rostova (4h / 8h Draft)
   {
@@ -223,6 +231,8 @@ export const INITIAL_TIMELINES: Timeline[] = [
     assignee: 'Elena Rostova',
     status: 'draft',
     startTime: '08:00',
+    currentVersion: 0,
+    isSealed: false,
   },
   // Day 2 (2026-10-13) - Batch reconciler (3h / 8h Draft)
   {
@@ -234,6 +244,8 @@ export const INITIAL_TIMELINES: Timeline[] = [
     assignee: 'Batch reconciler',
     status: 'draft',
     startTime: '08:00',
+    currentVersion: 0,
+    isSealed: false,
   },
   // Day 2 (2026-10-13) - Tariq Al-Mansoor (5h / 8h Draft)
   {
@@ -245,6 +257,8 @@ export const INITIAL_TIMELINES: Timeline[] = [
     assignee: 'Tariq Al-Mansoor',
     status: 'draft',
     startTime: '08:00',
+    currentVersion: 0,
+    isSealed: false,
   },
   // Day 3 (2026-10-14) - Elena Rostova (Published)
   {
@@ -256,6 +270,8 @@ export const INITIAL_TIMELINES: Timeline[] = [
     assignee: 'Elena Rostova',
     status: 'published',
     startTime: '08:00',
+    currentVersion: 1,
+    isSealed: false,
   },
   // Day 4 (2026-10-15) - Batch reconciler (Draft)
   {
@@ -267,6 +283,8 @@ export const INITIAL_TIMELINES: Timeline[] = [
     assignee: 'Batch reconciler',
     status: 'draft',
     startTime: '08:00',
+    currentVersion: 0,
+    isSealed: false,
   },
   // Meridian timeline
   {
@@ -278,6 +296,8 @@ export const INITIAL_TIMELINES: Timeline[] = [
     assignee: 'David Chen',
     status: 'draft',
     startTime: '08:00',
+    currentVersion: 0,
+    isSealed: false,
   },
 ];
 

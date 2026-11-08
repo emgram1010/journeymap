@@ -5,7 +5,7 @@ import {
   ChevronRight,
   Plus,
   Lock,
-  RotateCcw,
+  RotateCw,
   AlertCircle,
   AlertTriangle,
   MoreVertical,
@@ -21,7 +21,10 @@ import {
   Clock
 } from 'lucide-react';
 import { Agent, Timeline, Task, Workspace } from '../types';
-import { jobCardDropRefusal, jobSlotProvenance } from '../boardModel';
+import { canRepublish, cardSubtitle, jobCardDropRefusal, versionBadge } from '../boardModel';
+import { isPlacementOutsideWindow, type TimeWindow } from '../timeWindowModel';
+import { CapacityHint } from './CapacityHint';
+import { TimeWindowChip } from './TimeWindowChip';
 import { formatShortDate, formatMonthDayYear, generateDaysList } from '../utils/dateUtils';
 import { calculateAgentDayLoad } from '../utils/agentUtils';
 import { getTimelineReadiness } from '../utils/planningLogic';
@@ -37,9 +40,18 @@ interface DayBoardProps {
   focusedAgentId: string | null;
   planningWindowStart: string;
   planningWindowEnd: string;
+  /** TW-1 (US-TW-1-03) — every window in the plan, keyed by work_item_id; drives the "outside time window" warning on a job card. */
+  windowsByJob: Map<number, TimeWindow & {work_item_id: number}>;
   onChangeDay: (newDay: string) => void;
   onFocusAgent: (agentId: string | null) => void;
   onOpenTaskEditModal: (taskId: string) => void;
+  /** PUX-1-03 — a job slot's title opens the job panel. */
+  onOpenJob?: (workItemId: number) => void;
+  /** PUX-2/-4 — the job being dragged right now (from Unscheduled or a card), for fit hints. */
+  dragJob?: {workItemId: number; minutes: number} | null;
+  onDragJob?: (job: {workItemId: number; minutes: number} | null) => void;
+  /** PUX-1-02 — ring this timeline briefly ("Where it's scheduled" jumped here). */
+  highlightTimelineId?: string | null;
   onOpenTimelineEditModal: (timelineId: string) => void;
   onStartTimelineForAgentDay: (agentId: string, day: string) => void;
   onReorderTasksInTimeline: (timelineId: string, reorderedTasks: Task[]) => void;
@@ -57,6 +69,8 @@ interface DayBoardProps {
   ) => void;
   onPublishTimeline: (timelineId: string) => void;
   onReopenTimeline: (timelineId: string) => void;
+  /** REPUB-1 — publish an already-published day again. Only ever called when `canRepublish(timeline)` is true. */
+  onRepublishTimeline: (timelineId: string) => void;
   onDeleteTask: (taskId: string) => void;
   onMoveTaskToBacklog: (taskId: string) => void;
   onMoveTaskToAgentDay: (taskId: string, agentId: string, day: string) => void;
@@ -92,9 +106,14 @@ export function DayBoard({
   focusedAgentId,
   planningWindowStart,
   planningWindowEnd,
+  windowsByJob,
   onChangeDay,
   onFocusAgent,
   onOpenTaskEditModal,
+  onOpenJob,
+  highlightTimelineId,
+  dragJob,
+  onDragJob,
   onOpenTimelineEditModal,
   onStartTimelineForAgentDay,
   onReorderTasksInTimeline,
@@ -102,6 +121,7 @@ export function DayBoard({
   onAddTaskToTimeline,
   onPublishTimeline,
   onReopenTimeline,
+  onRepublishTimeline,
   onDeleteTask,
   onMoveTaskToBacklog,
   onMoveTaskToAgentDay,
@@ -225,6 +245,7 @@ export function DayBoard({
   };
 
   const handleTaskDragEnd = () => {
+    onDragJob?.(null);
     setDraggedTaskId(null);
     setDragOverColTimelineId(null);
     setDragSlotIndex(null);
@@ -392,19 +413,31 @@ export function DayBoard({
             const focusedTlTasks = tasks.filter(t => t.timelineId === focusedTimeline.id);
             const readiness = getTimelineReadiness(focusedTimeline, focusedTlTasks, workspace);
             const isFocusPublished = focusedTimeline.status === 'published';
+            const focusVersion = versionBadge(focusedTimeline.currentVersion);
             return (
               <div className="flex items-center">
                 {isFocusPublished ? (
-                  <button
-                    type="button"
-                    id="focus-reopen-timeline-btn"
-                    onClick={() => onReopenTimeline(focusedTimeline.id)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-neutral-300 text-neutral-800 rounded-md text-xs font-medium hover:bg-neutral-50 transition-colors shadow-xs"
-                    title="Reopen published timeline for revision (returns to draft)"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5 text-neutral-600" />
-                    Reopen to edit
-                  </button>
+                  canRepublish(focusedTimeline) ? (
+                    <button
+                      type="button"
+                      id="focus-republish-timeline-btn"
+                      onClick={() => onRepublishTimeline(focusedTimeline.id)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-neutral-300 text-neutral-800 rounded-md text-xs font-medium hover:bg-neutral-50 transition-colors shadow-xs"
+                      title="Republish this day — the performer will see the updated plan instead of what they have now"
+                    >
+                      <RotateCw className="w-3.5 h-3.5 text-neutral-600" />
+                      Republish{focusVersion ? ` · currently ${focusVersion}` : ''}
+                    </button>
+                  ) : (
+                    <span
+                      id="focus-sealed-timeline-badge"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-neutral-100 text-neutral-400 rounded-md text-xs font-medium border border-neutral-200"
+                      title={`${focusedAgent?.name ?? 'This agent'} has already started this day — it can no longer be republished.`}
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      Started — can't republish
+                    </span>
+                  )
                 ) : (
                   <button
                     type="button"
@@ -528,6 +561,13 @@ export function DayBoard({
             </button>
           </div>
 
+          {/* PUX-2-02 — while a job with a window is dragged: is THIS day inside it? */}
+          {dragJob && windowsByJob.get(dragJob.workItemId) && (
+            <span data-testid="dayboard-drag-window" className="flex items-center gap-1 text-[10px] text-neutral-600 min-w-0">
+              <span className="shrink-0">{isPlacementOutsideWindow(windowsByJob.get(dragJob.workItemId), activeDay) ? 'This day is outside its window:' : 'This day fits its window:'}</span>
+              <TimeWindowChip window={windowsByJob.get(dragJob.workItemId)} placedDays={[activeDay]} />
+            </span>
+          )}
         </div>
 
         {/* Centre: view switcher */}
@@ -587,7 +627,10 @@ export function DayBoard({
               <div
                 key={agent.id}
                 id={`dayboard-col-${agent.id}`}
-                className="w-80 min-w-[300px] max-w-[320px] shrink-0 bg-white rounded-lg border border-neutral-200/90 shadow-2xs flex flex-col max-h-full"
+                data-highlighted={timeline && highlightTimelineId === timeline.id ? 'true' : undefined}
+                className={`w-80 min-w-[300px] max-w-[320px] shrink-0 bg-white rounded-lg border border-neutral-200/90 shadow-2xs flex flex-col max-h-full transition-shadow ${
+                  timeline && highlightTimelineId === timeline.id ? 'ring-2 ring-blue-400 ring-offset-2' : ''
+                }`}
                 style={{
                   borderTopWidth: '4px',
                   borderTopColor: agent.color,
@@ -664,6 +707,15 @@ export function DayBoard({
                           <span>⚠ Over</span>
                         </span>
                       )}
+                      {/* PUX-4-01 — while a job is dragged: would it fit here? */}
+                      {dragJob && (
+                        <CapacityHint
+                          // A card being moved off this day mustn't count twice here.
+                          loadMinutes={dayLoad.totalMinutes - (dayLoad.tasks.find(t => t.id === draggedTaskId)?.duration ?? 0)}
+                          capacityHours={dayLoad.capacityHours}
+                          addMinutes={dragJob.minutes}
+                        />
+                      )}
                     </div>
 
                     {/* Timeline Status */}
@@ -683,17 +735,28 @@ export function DayBoard({
                           <>
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-neutral-600 bg-neutral-200/70 rounded">
                               <Lock className="w-2.5 h-2.5" />
-                              <span>Published</span>
+                              <span>
+                                Published{versionBadge(timeline.currentVersion) ? ` · ${versionBadge(timeline.currentVersion)}` : ''}
+                              </span>
                             </span>
-                            <button
-                              type="button"
-                              id={`col-reopen-btn-${agent.id}`}
-                              onClick={(e) => { e.stopPropagation(); onReopenTimeline(timeline.id); }}
-                              className="p-0.5 rounded text-neutral-400 hover:text-neutral-800 hover:bg-neutral-200/60 transition-colors"
-                              title="Reopen for revision (returns to draft)"
-                            >
-                              <RotateCcw className="w-3 h-3" />
-                            </button>
+                            {canRepublish(timeline) ? (
+                              <button
+                                type="button"
+                                id={`col-republish-btn-${agent.id}`}
+                                onClick={(e) => { e.stopPropagation(); onRepublishTimeline(timeline.id); }}
+                                className="p-0.5 rounded text-neutral-400 hover:text-neutral-800 hover:bg-neutral-200/60 transition-colors"
+                                title="Republish — the performer will see the updated plan instead of what they have now"
+                              >
+                                <RotateCw className="w-3 h-3" />
+                              </button>
+                            ) : (
+                              <span
+                                className="p-0.5 text-neutral-300"
+                                title={`${agent.name} has already started this day — it can no longer be republished.`}
+                              >
+                                <Lock className="w-3 h-3" />
+                              </span>
+                            )}
                           </>
                         ) : (
                           <>
@@ -795,7 +858,8 @@ export function DayBoard({
                           <div
                             id={`dayboard-task-${task.id}`}
                             draggable={!isTaskLocked}
-                            onDragStart={(e) =>
+                            onDragStart={(e) => {
+                              onDragJob?.(task.workItemId ? {workItemId: Number(task.workItemId), minutes: task.duration} : null);
                               handleTaskDragStart(
                                 e,
                                 task.id,
@@ -804,8 +868,8 @@ export function DayBoard({
                                 task.workTaskId ? Number(task.workTaskId) : undefined,
                                 task.jobTitle,
                                 `${agent.name} · ${formatShortDate(timeline.plannedDate)}`,
-                              )
-                            }
+                              );
+                            }}
                             onDragEnd={handleTaskDragEnd}
                             onDragOver={(e) => handleDragOverColumn(e, timeline.id, index)}
                             onDrop={(e) => handleDropOnColumn(e, timeline, index)}
@@ -830,6 +894,16 @@ export function DayBoard({
                                 <span className="text-neutral-700">
                                   {task.planned_start || '--:--'}
                                 </span>
+                                {/* SCHED-2 — this step's start was set by hand. */}
+                                {task.startOverride && (
+                                  <span
+                                    data-testid="dayboard-start-set"
+                                    title="Start set by hand — steps after it follow on from it"
+                                    className="text-[9px] font-semibold uppercase tracking-wide text-blue-700"
+                                  >
+                                    set
+                                  </span>
+                                )}
                                 <span className="text-neutral-400">
                                   {task.duration}m
                                 </span>
@@ -850,18 +924,44 @@ export function DayBoard({
                               )}
                             </div>
 
-                            {/* Task Title */}
-                            <p className="text-xs font-medium text-neutral-900 leading-snug line-clamp-2">
-                              {task.title}
-                            </p>
-
-                            {/* BOARD-1 (US-03) — a job slot says which job it
-                                belongs to and, for a card, how many steps it
-                                covers. A plain task shows nothing here. */}
-                            {jobSlotProvenance(task) && (
-                              <p data-testid="dayboard-job-provenance" className="mt-1 text-[10px] text-amber-800 truncate">
-                                {jobSlotProvenance(task)}
+                            {/* Task Title — PUX-1-03: on a job slot the title opens the
+                                job panel; clicking anywhere else on the card still edits
+                                the step (the slot). */}
+                            {task.workItemId && onOpenJob ? (
+                              <button
+                                type="button"
+                                data-testid="dayboard-open-job"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenJob(Number(task.workItemId));
+                                }}
+                                title="Open this job"
+                                className="block w-full text-left text-xs font-medium text-neutral-900 leading-snug line-clamp-2 hover:underline"
+                              >
+                                {task.title}
+                              </button>
+                            ) : (
+                              <p className="text-xs font-medium text-neutral-900 leading-snug line-clamp-2">
+                                {task.title}
                               </p>
+                            )}
+
+                            {/* BOARD-1 (US-03) — which job a slot belongs to. PUX-3-04:
+                                hidden when it would only repeat the title. */}
+                            {cardSubtitle(task) && (
+                              <p data-testid="dayboard-job-provenance" className="mt-1 text-[10px] text-amber-800 truncate">
+                                {cardSubtitle(task)}
+                              </p>
+                            )}
+
+                            {/* TW-1 → PUX-2-01 — the window shows whenever the job has one,
+                                amber when this card's day is outside it. Date-only (TW-1). */}
+                            {task.workItemId && (
+                              <TimeWindowChip
+                                window={windowsByJob.get(Number(task.workItemId)) ?? null}
+                                placedDays={[timeline.plannedDate]}
+                                className="mt-1.5 max-w-full"
+                              />
                             )}
 
                             {/* Blocked reason: the task's own chip, full reason, never truncated */}

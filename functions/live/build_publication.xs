@@ -86,8 +86,169 @@ function "live/build_publication" {
       return = {type: "list"}
     } as $all_links
 
+    // --- TW-1: each slot's job and that job's time window -----------
+    // One query for the day's work tasks and one for their windows, then
+    // pre-seeded maps (a `|get` with a variable key drops its default, so
+    // every key read below is seeded first; "k:0" covers an unlinked slot).
+    var $day_wt_ids {
+      value = [-1]
+    }
+
+    foreach ($slots) {
+      each as $s {
+        foreach ($all_links) {
+          each as $l {
+            conditional {
+              if ($l.planner_task_id == $s.id) {
+                array.push $day_wt_ids {
+                  value = $l.work_task_id
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    db.query work_task {
+      where = $db.work_task.id in $day_wt_ids
+      return = {type: "list"}
+    } as $day_tasks
+
+    var $no_window {
+      value = {start_date: "", start_time: "", end_date: "", end_time: "", note: ""}
+    }
+
+    var $job_of_wt {
+      value = {}
+    }
+
+    var $win_by_job {
+      value = {}|set:"k:0":$no_window
+    }
+
+    var $day_job_ids {
+      value = [-1]
+    }
+
+    var $wkey {
+      value = ""
+    }
+
+    var $jkey {
+      value = ""
+    }
+
+    foreach ($day_tasks) {
+      each as $dt {
+        var.update $wkey {
+          value = "k:" ~ ($dt.id|to_text)
+        }
+
+        var.update $jkey {
+          value = "k:" ~ ($dt.work_item_id|to_text)
+        }
+
+        var.update $job_of_wt {
+          value = $job_of_wt|set:$wkey:$dt.work_item_id
+        }
+
+        var.update $win_by_job {
+          value = $win_by_job|set:$jkey:$no_window
+        }
+
+        array.push $day_job_ids {
+          value = $dt.work_item_id
+        }
+      }
+    }
+
+    db.query work_item_time_window {
+      where = $db.work_item_time_window.work_item_id in $day_job_ids
+      return = {type: "list"}
+    } as $day_windows
+
+    foreach ($day_windows) {
+      each as $dw {
+        var.update $jkey {
+          value = "k:" ~ ($dw.work_item_id|to_text)
+        }
+
+        var $wobj {
+          value = {start_date: $dw.start_date, start_time: $dw.start_time, end_date: $dw.end_date, end_time: $dw.end_time, note: ($dw.note ?? "")}
+        }
+
+        var.update $win_by_job {
+          value = $win_by_job|set:$jkey:$wobj
+        }
+      }
+    }
+
+    // --- SCHED-2: each slot's manual start, frozen into the item --------
+    // Pre-seeded with "" per slot so the read below never misses.
+    var $slot_ids {
+      value = [-1]
+    }
+
+    var $ov_by_slot {
+      value = {}
+    }
+
+    var $skey {
+      value = ""
+    }
+
+    foreach ($slots) {
+      each as $s0 {
+        array.push $slot_ids {
+          value = $s0.id
+        }
+
+        var.update $skey {
+          value = "k:" ~ ($s0.id|to_text)
+        }
+
+        var.update $ov_by_slot {
+          value = $ov_by_slot|set:$skey:""
+        }
+      }
+    }
+
+    db.query planner_task_start_override {
+      where = $db.planner_task_start_override.planner_task_id in $slot_ids
+      return = {type: "list"}
+    } as $day_overrides
+
+    foreach ($day_overrides) {
+      each as $ovr {
+        var.update $skey {
+          value = "k:" ~ ($ovr.planner_task_id|to_text)
+        }
+
+        var.update $ov_by_slot {
+          value = $ov_by_slot|set:$skey:$ovr.start_time
+        }
+      }
+    }
+
+    var $sov {
+      value = ""
+    }
+
     var $items {
       value = []
+    }
+
+    var $job_id {
+      value = 0
+    }
+
+    var $win {
+      value = null
+    }
+
+    var $tw_item {
+      value = null
     }
 
     var $eff {
@@ -137,6 +298,10 @@ function "live/build_publication" {
           value = []
         }
 
+        var.update $job_id {
+          value = 0
+        }
+
         foreach ($all_links) {
           each as $l {
             conditional {
@@ -144,9 +309,39 @@ function "live/build_publication" {
                 array.push $wt_ids {
                   value = $l.work_task_id
                 }
+
+                var.update $wkey {
+                  value = "k:" ~ ($l.work_task_id|to_text)
+                }
+
+                var.update $job_id {
+                  value = ($job_of_wt|get:$wkey:0) ?? 0
+                }
               }
             }
           }
+        }
+
+        var.update $jkey {
+          value = "k:" ~ ($job_id|to_text)
+        }
+
+        var.update $win {
+          value = $win_by_job|get:$jkey:$no_window
+        }
+
+        // A ternary in a var, not a `conditional`: a conditional whose
+        // condition reads a var updated in this same iteration loses its writes.
+        var.update $tw_item {
+          value = (($win.start_date != "") ? $win : null)
+        }
+
+        var.update $skey {
+          value = "k:" ~ ($s.id|to_text)
+        }
+
+        var.update $sov {
+          value = $ov_by_slot|get:$skey:""
         }
 
         array.push $items {
@@ -161,6 +356,9 @@ function "live/build_publication" {
             status            : $s.status
             work_task_ids     : $wt_ids
             title             : $s.title
+            work_item_id      : $job_id
+            time_window       : $tw_item
+            start_override    : $sov
           }
         }
       }
@@ -283,8 +481,28 @@ function "live/build_publication" {
     }
 
     // --- canonical string and hash ----------------------------------
+    // TW-1: v2 = the v1 line plus the job's window (start date, start
+    // time, end date, end time, note); no window = five empty fields.
+    // Twin: liveModel.ts::canonicalizePublicationV2. Pinned on both sides:
+    // the liveModel.test.ts fixture hashes to
+    // c0d594020ab9716cd40b30043268d79a9fa0f3f7e1816f16625a98bd5aa7093e.
+    // Stored v1 rows are never re-hashed.
+    //
+    // SCHED-2: v3 = the v2 line plus the slot's start override ("HH:MM",
+    // regex-validated on write, so it needs no escaping; "" = computed).
+    // Twin: liveModel.ts::canonicalizePublicationV3, fixture hash
+    // e80d17c578404311a100144b574bb9bb8bbe60f0c2ec4092da36be403f3f67ec.
+    // Stored v1/v2 rows are never re-hashed.
     var $canonical {
-      value = "publication|v1\n"
+      value = "publication|v3\n"
+    }
+
+    var $cw {
+      value = null
+    }
+
+    var $esc_note {
+      value = ""
     }
 
     var $esc_ref {
@@ -317,8 +535,20 @@ function "live/build_publication" {
           value = $i.work_task_ids|join:","
         }
 
+        var.update $jkey {
+          value = "k:" ~ ($i.work_item_id|to_text)
+        }
+
+        var.update $cw {
+          value = $win_by_job|get:$jkey:$no_window
+        }
+
+        var.update $esc_note {
+          value = ($cw.note ?? "")|replace:"\\":"\\\\"|replace:"|":"\\p"|replace:"\r":""|replace:"\n":"\\n"
+        }
+
         var.update $line {
-          value = "item|" ~ $esc_ref ~ "|" ~ ($i.seq|to_text) ~ "|" ~ ($i.scheduled_minutes|to_text) ~ "|" ~ ($i.assignee_agent_id|to_text) ~ "|" ~ $esc_title ~ "|" ~ $wt_joined ~ "\n"
+          value = "item|" ~ $esc_ref ~ "|" ~ ($i.seq|to_text) ~ "|" ~ ($i.scheduled_minutes|to_text) ~ "|" ~ ($i.assignee_agent_id|to_text) ~ "|" ~ $esc_title ~ "|" ~ $wt_joined ~ "|" ~ $cw.start_date ~ "|" ~ $cw.start_time ~ "|" ~ $cw.end_date ~ "|" ~ $cw.end_time ~ "|" ~ $esc_note ~ "|" ~ ($i.start_override ?? "") ~ "\n"
         }
 
         var.update $canonical {
@@ -338,7 +568,8 @@ function "live/build_publication" {
     item_count   : ($items|count)
     blockers     : $blockers
     can_publish  : (($blockers|count) == 0)
-    canonical    : $canonical
-    snapshot_hash: $hash
+    canonical        : $canonical
+    canonical_version: "publication|v3"
+    snapshot_hash    : $hash
   }
 }

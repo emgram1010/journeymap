@@ -22,6 +22,14 @@
 //
 // Agent names are resolved with one query for the whole container,
 // never one per task.
+//
+// SCHED-2 (2026-11-05) — START TIMES NOW COME FROM `planner/start_minutes`,
+// the one shared "pin + flow" rule: a task with a manual override
+// (`planner_task_start_override`, one query for the whole container)
+// starts at that time and everything after it flows on from there. With no
+// overrides the output is byte-identical to before (verified on a 23:00
+// day that wraps past midnight). `start_override` is returned per task
+// ("" = none) so the planner UI can say "manually set".
 function "planner/derive_tasks" {
   input {
     int workspace_id filters=min:1
@@ -39,8 +47,8 @@ function "planner/derive_tasks" {
       value = ($input.timeline_id == 0)
     }
 
-    var $cursor {
-      value = 0
+    var $day_start {
+      value = "00:00"
     }
 
     var $timeline_agent_id {
@@ -58,19 +66,83 @@ function "planner/derive_tasks" {
           value = $timeline.agent_id
         }
 
-        var $hh {
-          value = ($timeline.start_time|substr:0:2)|to_int
-        }
-
-        var $mm {
-          value = ($timeline.start_time|substr:3:2)|to_int
-        }
-
-        var.update $cursor {
-          value = ($hh * 60) + $mm
+        var.update $day_start {
+          value = $timeline.start_time
         }
       }
     }
+
+    // --- SCHED-2: overrides, then the shared start rule ---------------
+    // Every task key is pre-seeded with "" so a read never misses (`|get`
+    // with a variable key drops its default on a miss — CLAUDE.md).
+    var $task_ids {
+      value = [-1]
+    }
+
+    var $ov_by_key {
+      value = {}
+    }
+
+    var $k {
+      value = ""
+    }
+
+    foreach ($tasks) {
+      each as $t0 {
+        array.push $task_ids {
+          value = $t0.id
+        }
+
+        var.update $k {
+          value = "k:" ~ ($t0.id|to_text)
+        }
+
+        var.update $ov_by_key {
+          value = $ov_by_key|set:$k:""
+        }
+      }
+    }
+
+    db.query planner_task_start_override {
+      where = $db.planner_task_start_override.planner_task_id in $task_ids
+      return = {type: "list"}
+    } as $overrides
+
+    foreach ($overrides) {
+      each as $o {
+        var.update $k {
+          value = "k:" ~ ($o.planner_task_id|to_text)
+        }
+
+        var.update $ov_by_key {
+          value = $ov_by_key|set:$k:$o.start_time
+        }
+      }
+    }
+
+    var $start_items {
+      value = []
+    }
+
+    foreach ($tasks) {
+      each as $t1 {
+        var.update $k {
+          value = "k:" ~ ($t1.id|to_text)
+        }
+
+        var $ov1 {
+          value = $ov_by_key|get:$k:""
+        }
+
+        array.push $start_items {
+          value = {key: $k, minutes: $t1.duration_minutes, override: $ov1}
+        }
+      }
+    }
+
+    function.run "planner/start_minutes" {
+      input = {day_start: $day_start, items: $start_items}
+    } as $start_rule
 
     db.query planner_agent {
       where = $db.planner_agent.workspace_id == $input.workspace_id
@@ -125,6 +197,14 @@ function "planner/derive_tasks" {
       value = null
     }
 
+    var $start_min {
+      value = 0
+    }
+
+    var $start_override {
+      value = ""
+    }
+
     var $eff_id {
       value = 0
     }
@@ -140,8 +220,20 @@ function "planner/derive_tasks" {
           value = null
         }
 
+        var.update $k {
+          value = "k:" ~ ($t.id|to_text)
+        }
+
+        var.update $start_min {
+          value = $start_rule.starts|get:$k:0
+        }
+
+        var.update $start_override {
+          value = $ov_by_key|get:$k:""
+        }
+
         var.update $norm {
-          value = (($cursor % 1440) + 1440) % 1440
+          value = (($start_min % 1440) + 1440) % 1440
         }
 
         var.update $h {
@@ -166,10 +258,6 @@ function "planner/derive_tasks" {
               value = $hs ~ ":" ~ $ms
             }
           }
-        }
-
-        var.update $cursor {
-          value = $cursor + $t.duration_minutes
         }
 
         // --- effective assignee --------------------------------------
@@ -215,6 +303,7 @@ function "planner/derive_tasks" {
             tweak_reason      : $t.tweak_reason
             assignee_agent_id : $t.assignee_agent_id
             planned_start     : $planned_start
+            start_override    : $start_override
             effective_assignee: {agent_id: $eff_id, name: $eff_name}
           }
         }

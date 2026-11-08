@@ -27,6 +27,7 @@ import {
   type PerformerSubStep,
   type SessionInfo,
   type TaskStatus,
+  type TimeWindow,
 } from './performerView';
 
 export interface Session {
@@ -46,6 +47,8 @@ export interface Session {
   /** Done AND skipped both count as "no longer open" — the same rule canFinishSession uses. */
   doneCount: number;
   totalCount: number;
+  /** TW-1 — the job's window; every item in a session shares the same job, so the first item's is the session's. */
+  timeWindow: TimeWindow | null;
 }
 
 const UNTITLED_SESSION: SessionInfo = {
@@ -105,6 +108,7 @@ export function toSessions(items: PerformerItem[]): Session[] {
       totalScheduledMinutes: ordered.reduce((sum, i) => sum + i.scheduledMinutes, 0),
       doneCount,
       totalCount: ordered.length,
+      timeWindow: ordered[0].timeWindow,
     });
   }
 
@@ -153,4 +157,84 @@ export function nextSubStepToWork(session: Session): PerformerSubStep | null {
  */
 export function canFinishSession(session: Session): boolean {
   return session.doneCount === session.totalCount;
+}
+
+export interface TodaySummary {
+  jobCount: number;
+  inProgressCount: number;
+}
+
+/**
+ * EXEC-1 (US-EXEC-1-02) — the Today header's summary line ("4 jobs today ·
+ * 1 in progress"), pulled out as a pure function so it has its own test
+ * instead of being buried in JSX. `jobCount` counts every session for the
+ * day, same as the existing "N sessions" line did; `inProgressCount` reads
+ * `Session.status`, the same derived field the status pill already shows
+ * (not a re-derivation from items/sub-steps).
+ */
+export function todaySummary(sessions: Session[]): TodaySummary {
+  return {
+    jobCount: sessions.length,
+    inProgressCount: sessions.filter((s) => s.status === 'in_progress').length,
+  };
+}
+
+export interface JobProgress {
+  doneCount: number;
+  blockedCount: number;
+  skippedCount: number;
+  totalCount: number;
+  /** Rounded 0–100. Done and skipped both count as finished — same rule canFinishSession uses. 0 on a 0-step session, never NaN. */
+  percent: number;
+}
+
+/**
+ * EXEC-1 (US-EXEC-1-04) — the Overview tab's progress ring and counts.
+ *
+ * Deliberately counts individual STEPS (`PerformerSubStep`, one per
+ * `work_task_id`), not `Session.doneCount`/`totalCount` — those two
+ * count BLOCKS (`PerformerItem`), the unit `canFinishSession` gates
+ * the Finish button on. A block with several steps bundled under one
+ * card (SessionScreen's own nested-<ol> case) must not be undercounted
+ * as "1 of however-many" here.
+ */
+export function jobProgress(session: Session): JobProgress {
+  const steps = session.items.flatMap((item) => item.subSteps);
+  const doneCount = steps.filter((s) => s.status === 'done' || s.status === 'skipped').length;
+  const blockedCount = steps.filter((s) => s.status === 'blocked').length;
+  const skippedCount = steps.filter((s) => s.status === 'skipped').length;
+  const totalCount = steps.length;
+  const percent = totalCount === 0 ? 0 : Math.round((doneCount / totalCount) * 100);
+  return {doneCount, blockedCount, skippedCount, totalCount, percent};
+}
+
+export interface JobNote {
+  note: string;
+  occurredAt: number;
+  author: string | null;
+  /** Which step this note was left on — for the "tagged with its step" rule in the design prompt. */
+  workTaskId: number;
+  stepLabel: string;
+}
+
+/**
+ * EXEC-1 (US-EXEC-1-05) — every note across every step of a job, merged
+ * into one newest-first feed and tagged with its step's label. Notes
+ * are stored per step (`PerformerSubStep.notes`, already newest-first
+ * off the wire per `hydrate_statuses`'s own ordering) — there is no
+ * job-level note today (deferred, see the epic's README). This never
+ * drops a note: a step with no `stageLabel` falls back to its
+ * `stageKey`, the same fallback the Steps tab rows already use.
+ */
+export function jobNotes(session: Session): JobNote[] {
+  const all: JobNote[] = [];
+  for (const item of session.items) {
+    for (const sub of item.subSteps) {
+      const stepLabel = sub.stageLabel || sub.stageKey;
+      for (const n of sub.notes) {
+        all.push({note: n.note, occurredAt: n.occurredAt, author: n.author, workTaskId: sub.workTaskId, stepLabel});
+      }
+    }
+  }
+  return all.sort((a, b) => b.occurredAt - a.occurredAt);
 }

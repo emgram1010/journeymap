@@ -9,8 +9,8 @@
 // unbuilt, so every job step placed on the board showed as an empty
 // card. This is the reading half.
 //
-// ONE PASS FOR THE WHOLE PLAN, not one lookup per task. Four queries
-// total regardless of how many jobs or steps there are, in the same
+// ONE PASS FOR THE WHOLE PLAN, not one lookup per task. A fixed number
+// of queries regardless of how many jobs or steps there are, in the same
 // shape `apis/planner/559_..._backlog_work_GET.xs` already uses — which
 // is also why this is a FUNCTION and not inlined into the board: 559
 // and 548 would otherwise each hold their own copy of the same join,
@@ -32,6 +32,28 @@
 //
 // Composite keys use "::" — a literal "|" inside a quoted string
 // breaks the parser (CLAUDE.md).
+//
+// PERF-1 (US-PERF-1-04, 2026-11-02) — ONLY JOBS WITH A STEP ON A DAY
+// HAVE THEIR VERSIONS LOADED. This function only ever hydrates
+// SCHEDULED steps, so the links are read first and the jobs to load come
+// from a `db.query ... where id in $linked_job_ids` — the filter lives in
+// SQL rather than a branch inside a loop (CLAUDE.md's advice for this
+// exact shape).
+//
+// LOAD-1 (US-LOAD-1-01, 2026-11-02) — NO ESTIMATES HERE ANY MORE. The
+// board never read `expected_minutes`, `estimate_status` or
+// `estimate_source` from this function (checked by grep: the only caller
+// is the board, 548, and plannerAdapter uses only the job title, step
+// title, done-when, ids and step count), yet it ran
+// `estimate/estimate_job` (~0.35s each) for every job with a scheduled
+// step to produce them. Those three fields, and everything that only
+// existed to feed them (the schema_version pre-check, the per-job and
+// per-stage estimate maps), are removed. Every other field is
+// byte-identical (sha256 of each plan's response with the three fields
+// left out, before vs after). `estimate/estimate_job` is untouched and
+// still used by 555, 559, 560, 583, 607, 608, 610, variance/task_report
+// and estimate/refresh_job_slots — the backlog and a card's detail view
+// still show estimates; only this function stopped computing them.
 function "planner/job_step_hydration" {
   input {
     int workspace_id filters=min:1
@@ -47,10 +69,6 @@ function "planner/job_step_hydration" {
       value = []
     }
 
-    var $version_ids {
-      value = []
-    }
-
     var $job_by_id {
       value = {}
     }
@@ -59,37 +77,10 @@ function "planner/job_step_hydration" {
       value = ""
     }
 
-    // EST-1 (US-EST-1-05) — one estimate per job, looked up below by
-    // "job_id::stage_key" so a step's expected_minutes becomes its
-    // stage's real estimate (baseline only when that stage has a
-    // missing rate) on any map with an Items row. A map with no Items
-    // row is untouched: $items_row_by_job stays false for it.
-    var $items_row_by_job {
-      value = {}
-    }
-
-    // EST-1 Opus review fix — job_id -> estimate.complete, mirrored
-    // from 559. Read with `|has` to test presence, never `== null`/
-    // `!= null`: `complete` is legitimately `false` for an incomplete
-    // job, and this engine's null comparison is PHP-style loose
-    // equality where `false == null` is TRUE (CLAUDE.md), so a null
-    // check would silently discard every real `false`.
-    var $job_complete_by_job {
-      value = {}
-    }
-
-    var $stage_est_by_jobstage {
-      value = {}
-    }
-
     foreach ($jobs) {
       each as $j {
         array.push $job_ids {
           value = $j.id
-        }
-
-        array.push $version_ids {
-          value = $j.journey_map_version_id
         }
 
         var.update $key {
@@ -98,75 +89,6 @@ function "planner/job_step_hydration" {
 
         var.update $job_by_id {
           value = $job_by_id|set:$key:$j
-        }
-      }
-    }
-
-    // CHEAP PRE-CHECK before paying for `estimate/estimate_job` — see
-    // apis/planner/559_..._backlog_work_GET.xs's identical comment. One
-    // query for every distinct version instead of one estimate call
-    // per job regardless of need.
-    db.query journey_map_version {
-      where = $db.journey_map_version.id in $version_ids
-      return = {type: "list"}
-    } as $prelim_versions
-
-    var $schema_version_by_version_id {
-      value = {}
-    }
-
-    foreach ($prelim_versions) {
-      each as $pv {
-        var $pv_id_key {
-          value = $pv.id|to_text
-        }
-
-        var.update $schema_version_by_version_id {
-          value = $schema_version_by_version_id|set:$pv_id_key:($pv.snapshot.schema_version ?? 1)
-        }
-      }
-    }
-
-    foreach ($jobs) {
-      each as $j3 {
-        var $j3_key {
-          value = $j3.id|to_text
-        }
-
-        var $j3_version_key {
-          value = $j3.journey_map_version_id|to_text
-        }
-
-        var $j3_schema_version {
-          value = $schema_version_by_version_id|get:$j3_version_key:1
-        }
-
-        conditional {
-          if ($j3_schema_version >= 2) {
-            function.run "estimate/estimate_job" {
-              input = {work_item_id: $j3.id}
-            } as $job_estimate
-
-            var.update $items_row_by_job {
-              value = $items_row_by_job|set:$j3_key:$job_estimate.has_items_row
-            }
-
-            var.update $job_complete_by_job {
-              value = $job_complete_by_job|set:$j3_key:$job_estimate.complete
-            }
-
-            foreach ($job_estimate.stages) {
-              each as $jes {
-                var $jobstage_key {
-                  value = $j3_key ~ "::" ~ $jes.stage_key
-                }
-
-                var.update $stage_est_by_jobstage {
-                  value = $stage_est_by_jobstage|set:$jobstage_key:$jes
-                }
-              }
-            }
-          }
         }
       }
     }
@@ -206,11 +128,60 @@ function "planner/job_step_hydration" {
           }
         }
 
-        // Reuses $prelim_versions (queried above for the schema-version
-        // pre-check) instead of a second, identical query.
-        var $versions {
-          value = $prelim_versions
+        db.query planner_task_work_task {
+          where = $db.planner_task_work_task.work_task_id in $wt_ids
+          sort = {position: "asc"}
+          return = {type: "list"}
+        } as $links
+
+        // PERF-1 — the jobs that actually have a step on a day. Seeded
+        // with -1 so the `in` below never receives an empty array.
+        var $linked_job_ids {
+          value = [-1]
         }
+
+        var $lwt {
+          value = null
+        }
+
+        foreach ($links) {
+          each as $ll {
+            var.update $key {
+              value = $ll.work_task_id|to_text
+            }
+
+            var.update $lwt {
+              value = $wt_by_id|get:$key:null
+            }
+
+            array.push $linked_job_ids {
+              value = $lwt.work_item_id
+            }
+          }
+        }
+
+        db.query work_item {
+          where = $db.work_item.id in $linked_job_ids
+          return = {type: "list"}
+        } as $linked_jobs
+
+        var $version_ids {
+          value = [-1]
+        }
+
+        foreach ($linked_jobs) {
+          each as $lj {
+            array.push $version_ids {
+              value = $lj.journey_map_version_id
+            }
+          }
+        }
+
+        // The pinned versions are where each step's text lives.
+        db.query journey_map_version {
+          where = $db.journey_map_version.id in $version_ids
+          return = {type: "list"}
+        } as $versions
 
         var $cell_map {
           value = {}
@@ -247,12 +218,6 @@ function "planner/job_step_hydration" {
             }
           }
         }
-
-        db.query planner_task_work_task {
-          where = $db.planner_task_work_task.work_task_id in $wt_ids
-          sort = {position: "asc"}
-          return = {type: "list"}
-        } as $links
 
         var $wt {
           value = null
@@ -300,117 +265,19 @@ function "planner/job_step_hydration" {
               value = $cell_map|get:$key:null
             }
 
-            var $step_expected_minutes {
-              value = ($cell.duration_minutes ?? null)
-            }
-
-            var $step_estimate_status {
-              value = "n/a"
-            }
-
-            var $step_estimate_source {
-              value = "n/a"
-            }
-
-            var $hyd_job_item_key {
-              value = $wt.work_item_id|to_text
-            }
-
-            var $hyd_job_has_items_row {
-              value = $items_row_by_job|get:$hyd_job_item_key:false
-            }
-
-            // EST-1 Opus review fixes (2026-10-25), mirrored from 555/
-            // 559/560/583: the override only applies to the task whose
-            // lens_key is the stage's OWNER — a second actor at the
-            // same stage keeps the raw cell scan's number, never the
-            // combined stage total (double-counting otherwise). And a
-            // stage also counts as incomplete when the WHOLE job is
-            // incomplete for a reason that isn't this stage's own (no
-            // lines at all), not only when this stage's own `missing`
-            // is non-empty.
-            conditional {
-              if ($hyd_job_has_items_row == true) {
-                var $hyd_jobstage_key {
-                  value = $hyd_job_item_key ~ "::" ~ $wt.stage_key
-                }
-
-                var $hyd_stage_est {
-                  value = $stage_est_by_jobstage|get:$hyd_jobstage_key:null
-                }
-
-                conditional {
-                  if ($hyd_stage_est != null && $hyd_stage_est.owner_lens_key == $wt.lens_key) {
-                    var.update $step_estimate_source {
-                      value = $hyd_stage_est.source
-                    }
-
-                    var $hyd_job_complete {
-                      value = true
-                    }
-
-                    conditional {
-                      if ($job_complete_by_job|has:$hyd_job_item_key) {
-                        var.update $hyd_job_complete {
-                          value = $job_complete_by_job|get:$hyd_job_item_key:true
-                        }
-                      }
-                    }
-
-                    var $hyd_incomplete {
-                      value = (($hyd_stage_est.missing|count) > 0)
-                    }
-
-                    conditional {
-                      if ($hyd_stage_est.scales_with != "per_order" && $hyd_job_complete == false) {
-                        var.update $hyd_incomplete {
-                          value = true
-                        }
-                      }
-                    }
-
-                    conditional {
-                      if ($hyd_incomplete == true) {
-                        var.update $step_expected_minutes {
-                          value = $hyd_stage_est.baseline_minutes
-                        }
-
-                        var.update $step_estimate_status {
-                          value = "incomplete"
-                        }
-                      }
-
-                      else {
-                        var.update $step_expected_minutes {
-                          value = $hyd_stage_est.total_minutes
-                        }
-
-                        var.update $step_estimate_status {
-                          value = "complete"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-
             array.push $steps {
               value = {
-                planner_task_id : $l.planner_task_id
-                work_task_id    : $l.work_task_id
-                position        : $l.position
-                work_item_id    : $wt.work_item_id
-                job_title       : $job.title
-                job_status      : $job.status
-                stage_key       : $wt.stage_key
-                lens_key        : $wt.lens_key
-                step_status     : $wt.status
-                step_title      : ($cell.task ?? null)
-                done_when       : ($cell.done_when ?? null)
-                expected_minutes: $step_expected_minutes
-                estimate_status : $step_estimate_status
-                estimate_source : $step_estimate_source
+                planner_task_id: $l.planner_task_id
+                work_task_id   : $l.work_task_id
+                position       : $l.position
+                work_item_id   : $wt.work_item_id
+                job_title      : $job.title
+                job_status     : $job.status
+                stage_key      : $wt.stage_key
+                lens_key       : $wt.lens_key
+                step_status    : $wt.status
+                step_title     : ($cell.task ?? null)
+                done_when      : ($cell.done_when ?? null)
               }
             }
           }

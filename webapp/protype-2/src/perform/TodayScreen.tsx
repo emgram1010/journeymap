@@ -11,26 +11,12 @@
 // GAP-FIX W5 — and when a day IS empty, it now says which of the four
 // possible reasons applies. The decision itself is `diagnoseEmptyDay`
 // in `dayNavigation.ts`, tested on its own; this file only renders it.
-import {ChevronLeft, ChevronRight} from 'lucide-react';
+import {Clock, ChevronLeft, ChevronRight} from 'lucide-react';
 import type {Session} from './sessionModel';
-import {nextItemToWork} from './sessionModel';
+import {nextItemToWork, todaySummary} from './sessionModel';
 import {formatDayLabel, type EmptyDayDiagnosis} from './dayNavigation';
-
-const STATUS_LABELS: Record<Session['status'], string> = {
-  not_started: 'Not started',
-  in_progress: 'In progress',
-  blocked: 'Blocked',
-  done: 'Done',
-  skipped: 'Skipped',
-};
-
-const STATUS_COLORS: Record<Session['status'], string> = {
-  not_started: 'bg-zinc-100 text-zinc-600',
-  in_progress: 'bg-blue-100 text-blue-800',
-  blocked: 'bg-red-100 text-red-800',
-  done: 'bg-emerald-100 text-emerald-800',
-  skipped: 'bg-zinc-200 text-zinc-500',
-};
+import {formatWindow} from '../planner/timeWindowModel';
+import StatusPill from './ui/StatusPill';
 
 // Same fallback SessionScreen's own row label uses: `item.title` comes
 // from the frozen snapshot and is blank for some job-derived steps
@@ -71,8 +57,8 @@ export default function TodayScreen({
   onGoToToday: () => void;
   onJumpTo: (date: string) => void;
 }) {
-  const sessionsDone = sessions.filter((s) => s.status === 'done').length;
   const nextSession = sessions.find((s) => s.status !== 'done' && s.status !== 'skipped');
+  const summary = todaySummary(sessions);
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -113,12 +99,18 @@ export default function TodayScreen({
         </div>
         {sessions.length > 0 && (
           <p className="mt-1 text-xs text-zinc-500">
-            {sessions.length} session{sessions.length === 1 ? '' : 's'} · {sessionsDone} done · {sessions.length - sessionsDone} remaining
+            {summary.jobCount} job{summary.jobCount === 1 ? '' : 's'} {isToday ? 'today' : 'scheduled'}
+            {summary.inProgressCount > 0 && (
+              <>
+                {' '}
+                · <span className="font-medium text-blue-700">{summary.inProgressCount} in progress</span>
+              </>
+            )}
           </p>
         )}
       </header>
 
-      <main className="px-4 py-4 pb-24">
+      <main className="px-4 py-4 pb-36">
         {sessions.length === 0 ? (
           <div id="perform-empty-state" className="mt-12 mx-auto max-w-xs text-center">
             <p className="text-sm font-medium text-zinc-800">{diagnosis.headline}</p>
@@ -138,6 +130,7 @@ export default function TodayScreen({
           <ul className="space-y-3">
             {sessions.map((session) => {
               const isNext = nextSession?.workItemId === session.workItemId;
+              const isInProgress = session.status === 'in_progress';
               return (
                 <li key={session.workItemId}>
                   <button
@@ -148,22 +141,42 @@ export default function TodayScreen({
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-xs text-zinc-400">{session.plannedStartLabel}</p>
-                        <p className="text-sm font-medium text-zinc-900">{session.title}</p>
-                        {session.flowTitle && <p className="text-xs text-zinc-500">{session.flowTitle}</p>}
+                      {/* Time first: the planned start is the biggest thing on the card. */}
+                      <div className="flex shrink-0 flex-col min-w-[52px]">
+                        <span className="text-lg font-bold tabular-nums text-zinc-900">{session.plannedStartLabel}</span>
                       </div>
-                      <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-medium ${STATUS_COLORS[session.status]}`}>
-                        {STATUS_LABELS[session.status]}
-                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-zinc-900 truncate">{session.title}</p>
+                        {session.flowTitle && <p className="text-xs text-zinc-500 truncate">{session.flowTitle}</p>}
+                        <p className="mt-1 text-xs text-zinc-500">
+                          {session.totalCount} step{session.totalCount === 1 ? '' : 's'} · {formatMinutes(session.totalScheduledMinutes)} ·{' '}
+                          {session.doneCount} of {session.totalCount} done
+                        </p>
+                        {/* Thin progress bar: doneCount already counts skipped as finished, same as canFinishSession. */}
+                        <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-zinc-100">
+                          <div
+                            className="h-full rounded-full bg-zinc-900"
+                            style={{width: `${session.totalCount === 0 ? 0 : Math.round((session.doneCount / session.totalCount) * 100)}%`}}
+                          />
+                        </div>
+                        {isInProgress && nextUpLabel(session) && (
+                          <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-blue-700">
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-600" aria-hidden="true" />
+                            <span className="truncate">Next up: {nextUpLabel(session)}</span>
+                          </p>
+                        )}
+                        {/* TW-1 (US-TW-1-05) — read-only; no window, no clutter. */}
+                        {session.timeWindow && (
+                          <p className="mt-1.5 flex items-center gap-1 text-xs text-zinc-500">
+                            <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
+                            Time window {formatWindow(session.timeWindow)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="shrink-0 pt-0.5">
+                        <StatusPill status={session.status} size="sm" />
+                      </div>
                     </div>
-                    <p className="mt-2 text-xs text-zinc-500">
-                      {session.totalCount} step{session.totalCount === 1 ? '' : 's'} · {formatMinutes(session.totalScheduledMinutes)} ·{' '}
-                      {session.doneCount} of {session.totalCount} done
-                    </p>
-                    {isNext && nextUpLabel(session) && (
-                      <p className="mt-1 text-xs font-medium text-zinc-700">Next up: {nextUpLabel(session)}</p>
-                    )}
                   </button>
                 </li>
               );

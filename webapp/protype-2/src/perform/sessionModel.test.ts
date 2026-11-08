@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {toSessions, nextItemToWork, nextSubStepToWork, canFinishSession, type Session} from './sessionModel';
+import {toSessions, nextItemToWork, nextSubStepToWork, canFinishSession, todaySummary, jobProgress, jobNotes, type Session} from './sessionModel';
 import type {PerformerItem, PerformerSubStep, SessionInfo, TaskStatus} from './performerView';
 
 // ── Fixtures ───────────────────────────────────────────────────────────
@@ -30,6 +30,7 @@ function subStep(overrides: Partial<PerformerSubStep> = {}): PerformerSubStep {
     task: 'Log the request in the sheet',
     doneWhen: 'Customer name, event date and contact are recorded',
     expectedMinutes: 10,
+    completedBy: null,
     session: session(),
     notes: [],
     ...overrides,
@@ -49,6 +50,7 @@ function item(overrides: Partial<PerformerItem> = {}, subStepOverrides: Partial<
     plannedStartLabel: '09:00',
     status: sub.status,
     subSteps: [sub],
+    timeWindow: null,
     ...overrides,
   };
 }
@@ -65,6 +67,15 @@ test('UT-APP-2-S01: items from the same job group into one session', () => {
   assert.equal(sessions.length, 1);
   assert.equal(sessions[0].workItemId, 8);
   assert.equal(sessions[0].items.length, 3);
+});
+
+test('UT-TW-1-05-S01: a session carries its first item\'s time window; no window on any item is null', () => {
+  const window = {start_date: '2026-11-03', start_time: '09:00', end_date: '2026-11-03', end_time: '11:00', note: ''};
+  const withWindow = toSessions([item({plannedStartMinutes: 540, timeWindow: window}, {workTaskId: 1})]);
+  assert.deepEqual(withWindow[0].timeWindow, window);
+
+  const without = toSessions([item({plannedStartMinutes: 540}, {workTaskId: 1})]);
+  assert.equal(without[0].timeWindow, null);
 });
 
 test('UT-APP-2-S02: two jobs on the same flow produce two separate sessions', () => {
@@ -229,6 +240,7 @@ function blockItem(statuses: TaskStatus[]): PerformerItem {
     plannedStartLabel: '09:00',
     status: 'in_progress',
     subSteps: subs,
+    timeWindow: null,
   };
 }
 
@@ -259,4 +271,142 @@ test('UT-BLK-1-04: it walks into the SECOND card once the first is finished', ()
 test('UT-BLK-1-05: a single-step card answers the same as nextItemToWork did', () => {
   const s = statusesOf(['not_started', 'not_started']);
   assert.equal(nextSubStepToWork(s)?.workTaskId, nextItemToWork(s)?.subSteps[0].workTaskId);
+});
+
+// ── todaySummary (EXEC-1 US-EXEC-1-02) ────────────────────────────────
+
+function minimalSession(overrides: Partial<Session> = {}): Session {
+  return {
+    workItemId: 1,
+    title: 'Job',
+    flowTitle: 'Flow',
+    versionNo: 1,
+    planId: 1,
+    planName: 'Plan',
+    items: [],
+    status: 'not_started',
+    plannedStartMinutes: 480,
+    plannedStartLabel: '08:00',
+    totalScheduledMinutes: 30,
+    doneCount: 0,
+    totalCount: 1,
+    timeWindow: null,
+    ...overrides,
+  };
+}
+
+test('UT-EXEC-1-02a: todaySummary on an empty day is all zeros', () => {
+  assert.deepEqual(todaySummary([]), {jobCount: 0, inProgressCount: 0});
+});
+
+test('UT-EXEC-1-02b: todaySummary counts every session and only the in_progress ones', () => {
+  const sessions = [
+    minimalSession({workItemId: 1, status: 'not_started'}),
+    minimalSession({workItemId: 2, status: 'in_progress'}),
+    minimalSession({workItemId: 3, status: 'in_progress'}),
+    minimalSession({workItemId: 4, status: 'done'}),
+    minimalSession({workItemId: 5, status: 'blocked'}),
+    minimalSession({workItemId: 6, status: 'skipped'}),
+  ];
+  assert.deepEqual(todaySummary(sessions), {jobCount: 6, inProgressCount: 2});
+});
+
+test('UT-EXEC-1-02c: a blocked session is not counted as in progress', () => {
+  const sessions = [minimalSession({status: 'blocked'})];
+  assert.deepEqual(todaySummary(sessions), {jobCount: 1, inProgressCount: 0});
+});
+
+// ── jobProgress (EXEC-1 US-EXEC-1-04) ─────────────────────────────────
+
+test('UT-EXEC-1-04a: a 0-step session reports 0% and all-zero counts, never NaN', () => {
+  const s = toSessions([])[0] ?? {...minimalSession(), items: []};
+  assert.deepEqual(jobProgress(s), {doneCount: 0, blockedCount: 0, skippedCount: 0, totalCount: 0, percent: 0});
+});
+
+test('UT-EXEC-1-04b: counts steps, not blocks — a block with 3 bundled sub-steps counts as 3', () => {
+  const bundled = item(
+    {},
+    {} // base sub, overridden below via subSteps on the item itself
+  );
+  bundled.subSteps = [
+    subStep({workTaskId: 1, status: 'done'}),
+    subStep({workTaskId: 2, status: 'done'}),
+    subStep({workTaskId: 3, status: 'not_started'}),
+  ];
+  const session = toSessions([bundled])[0];
+  assert.deepEqual(jobProgress(session), {doneCount: 2, blockedCount: 0, skippedCount: 0, totalCount: 3, percent: 67});
+});
+
+test('UT-EXEC-1-04c: skipped counts toward done (percent) AND is reported separately', () => {
+  const items = [
+    item({plannedStartMinutes: 1}, {workTaskId: 1, status: 'done'}),
+    item({plannedStartMinutes: 2}, {workTaskId: 2, status: 'skipped'}),
+    item({plannedStartMinutes: 3}, {workTaskId: 3, status: 'not_started'}),
+    item({plannedStartMinutes: 4}, {workTaskId: 4, status: 'blocked'}),
+  ];
+  const session = toSessions(items)[0];
+  assert.deepEqual(jobProgress(session), {doneCount: 2, blockedCount: 1, skippedCount: 1, totalCount: 4, percent: 50});
+});
+
+test('UT-EXEC-1-04d: every step done is 100%, none blocked/skipped', () => {
+  const items = [
+    item({plannedStartMinutes: 1}, {workTaskId: 1, status: 'done'}),
+    item({plannedStartMinutes: 2}, {workTaskId: 2, status: 'done'}),
+  ];
+  const session = toSessions(items)[0];
+  assert.deepEqual(jobProgress(session), {doneCount: 2, blockedCount: 0, skippedCount: 0, totalCount: 2, percent: 100});
+});
+
+// ── jobNotes (EXEC-1 US-EXEC-1-05) ────────────────────────────────────
+
+test('UT-EXEC-1-05a: no notes anywhere in the job is an empty feed', () => {
+  const items = [item({plannedStartMinutes: 1}, {workTaskId: 1, notes: []})];
+  const session = toSessions(items)[0];
+  assert.deepEqual(jobNotes(session), []);
+});
+
+test('UT-EXEC-1-05b: notes from every step are merged, newest first, each tagged with its own step', () => {
+  const items = [
+    item(
+      {plannedStartMinutes: 1},
+      {
+        workTaskId: 1,
+        stageLabel: 'Receive',
+        notes: [{note: 'early note', occurredAt: 100, author: 'Alex'}],
+      },
+    ),
+    item(
+      {plannedStartMinutes: 2},
+      {
+        workTaskId: 2,
+        stageLabel: 'Triage',
+        notes: [
+          {note: 'later note', occurredAt: 300, author: 'Jav'},
+          {note: 'middle note', occurredAt: 200, author: 'Jav'},
+        ],
+      },
+    ),
+  ];
+  const session = toSessions(items)[0];
+  const notes = jobNotes(session);
+  assert.deepEqual(
+    notes.map((n) => [n.note, n.stepLabel]),
+    [
+      ['later note', 'Triage'],
+      ['middle note', 'Triage'],
+      ['early note', 'Receive'],
+    ],
+  );
+  assert.equal(notes[0].workTaskId, 2);
+});
+
+test('UT-EXEC-1-05c: a step with no stageLabel falls back to its stageKey, same as the Steps tab', () => {
+  const items = [
+    item(
+      {plannedStartMinutes: 1},
+      {workTaskId: 1, stageKey: 's9', stageLabel: null, notes: [{note: 'x', occurredAt: 1, author: null}]},
+    ),
+  ];
+  const session = toSessions(items)[0];
+  assert.equal(jobNotes(session)[0].stepLabel, 's9');
 });

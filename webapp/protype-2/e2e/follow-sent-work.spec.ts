@@ -70,7 +70,7 @@ async function expectHittable(button: Locator) {
 }
 
 test.describe('EXC-2 — sent chip opens the read-only view (US-EXC-2-03/04)', () => {
-  test('E2E-EXC-2-03/04 (desktop, planner path): the exception chip is a reachable button with a progress label, and opens JobPeekSheet', async ({page}) => {
+  test('E2E-EXC-2-03/04 (desktop, planner path): the exception chip is a reachable button with a progress label, and opens the sent job in the job panel', async ({page}) => {
     test.setTimeout(180_000);
     test.skip(!(await signIn(page)), 'No auth token — see file header.');
     const auth = {Authorization: `Bearer ${AUTH_TOKEN}`};
@@ -94,8 +94,10 @@ test.describe('EXC-2 — sent chip opens the read-only view (US-EXC-2-03/04)', (
     await expect(modal).toBeVisible();
     await page.waitForLoadState('networkidle');
 
-    const row = modal.locator(`#job-row-${parentId}`);
-    await row.getByText(title).click();
+    // PUX-1 (2026-11-07): the Jobs modal is a list; a job opens in the side panel.
+    await modal.getByTestId('jobs-modal-job').filter({hasText: title}).click();
+    const row = page.locator('#job-panel');
+    await expect(row.getByTestId('job-panel-title')).toHaveText(title);
     const sendButton = row.getByTestId('exception-send-button');
     await sendButton.scrollIntoViewIfNeeded();
     await sendButton.click();
@@ -120,44 +122,33 @@ test.describe('EXC-2 — sent chip opens the read-only view (US-EXC-2-03/04)', (
     await chip.scrollIntoViewIfNeeded();
     await expectHittable(chip);
 
-    // Tapping it opens the shared, read-only JobPeekSheet (D-2) — same
-    // component the performer's chip and "Came from" chip open.
+    // PUX-1 deviation from EXC-2 D-2 (planner side only): the chip opens the
+    // sent job in the SAME job panel — one job screen everywhere. The
+    // performer's chips still open the read-only JobPeekSheet.
     await chip.click();
-    const peek = page.getByTestId('job-peek-sheet');
-    await expect(peek).toBeVisible();
-    await expect(peek.getByTestId('job-peek-title')).not.toBeEmpty();
-    await expect(peek.getByTestId('job-peek-progress')).toContainText('0 of');
-    await expect(peek.getByTestId('job-peek-steps')).toBeVisible();
-    await expect(peek.getByTestId('job-peek-step').first()).toContainText('Now');
-    // Read-only: no action button anywhere in the sheet.
-    await expect(peek.getByRole('button', {name: /^(Start|Done|Block|Skip|Resume|Reopen)$/})).toHaveCount(0);
+    await expect(row.getByTestId('job-panel-title')).not.toHaveText(title);
+    await expect(row.getByTestId('job-panel-status')).toBeVisible();
+    await expect(row.getByTestId('job-panel-parent')).toContainText(title);
 
-    const close = peek.getByTestId('job-peek-footer-close');
-    await expectHittable(close);
-    await close.click();
-    await expect(peek).toHaveCount(0);
-    // Closing returns to the planner exactly where it was (nothing changed).
-    await expect(row.getByTestId('exception-chip')).toBeVisible();
-
-    // US-EXC-2-04 / E2E-EXC-2-03: "1 sent on" opens the SENT work (not the parent again).
-    await row.locator('button[aria-expanded]').first().click(); // collapse the parent
-    const sentOn = row.getByTestId('job-children-chip');
-    await expect(sentOn).toHaveAttribute('title', 'Opens the work sent from this job');
+    // US-EXC-2-04: from the child, its parent; from the parent, the sent work.
+    await expectHittable(row.getByTestId('job-panel-parent'));
+    await row.getByTestId('job-panel-parent').click();
+    await expect(row.getByTestId('job-panel-title')).toHaveText(title);
+    const sentOn = row.getByTestId('job-panel-child');
+    await expect(sentOn).toHaveCount(1);
     await expectHittable(sentOn);
     await sentOn.click();
-    const childRow = modal.locator(`#job-row-${childId}`);
-    await expect(childRow.locator('button[aria-expanded]').first()).toHaveAttribute('aria-expanded', 'true');
-    await expect(childRow).toBeInViewport();
+    await expect(row.getByTestId('job-panel-parent')).toContainText(title);
 
-    // US-EXC-2-05 / E2E-EXC-2-06: a failed load shows the friendly message, then Try again works.
+    // US-EXC-2-05: a failed load shows the friendly message, then Try again works.
+    await row.getByTestId('job-panel-parent').click();
     await page.route(`**/work_item/${childId}`, (route) => route.fulfill({status: 500, contentType: 'application/json', body: '{"message":"boom"}', headers: {'access-control-allow-origin': '*'}}));
-    await row.locator('button[aria-expanded]').first().click(); // expand the parent again
     await row.getByTestId('exception-chip').click();
-    await expect(page.getByTestId('job-peek-error')).toBeVisible();
+    await expect(page.getByTestId('job-panel-error')).toBeVisible();
     await page.unroute(`**/work_item/${childId}`);
-    await page.getByTestId('job-peek-retry').click();
-    await expect(page.getByTestId('job-peek-steps')).toBeVisible();
-    await page.getByTestId('job-peek-footer-close').click();
+    await page.getByTestId('job-panel-retry').click();
+    await expect(page.getByTestId('job-panel-error')).toHaveCount(0);
+    await expect(row.getByTestId('job-panel-parent')).toContainText(title);
 
     for (const id of [childId, parentId]) {
       await page.request.post(`${PLANNER_API}/work_item/${id}/cancel`, {headers: auth, data: {}});

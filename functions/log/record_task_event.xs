@@ -132,17 +132,31 @@ function "log/record_task_event" {
           }
         }
 
-        db.query plan_publication {
-          where = $db.plan_publication.timeline_id == $slot.timeline_id
-          return = {type: "list"}
-        } as $pubs
+        // REPUB-1: events are stamped with the CURRENT publication
+        // (shared rule in live/latest_publications). Once an event
+        // lands, the republish endpoint's seal makes "current" final.
+        var $pub_tl_ids {
+          value = []
+        }
+
+        array.push $pub_tl_ids {
+          value = $slot.timeline_id
+        }
+
+        function.run "live/latest_publications" {
+          input = {timeline_ids: $pub_tl_ids}
+        } as $latest_pub
+
+        foreach ($latest_pub.publications) {
+          each as $p {
+            var.update $publication_id {
+              value = $p.id
+            }
+          }
+        }
 
         conditional {
-          if (($pubs|count) > 0) {
-            var.update $publication_id {
-              value = ($pubs|first).id
-            }
-
+          if ($publication_id > 0) {
             var.update $item_ref {
               value = "pt-" ~ ($slot_id|to_text)
             }

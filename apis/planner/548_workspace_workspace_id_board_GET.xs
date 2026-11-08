@@ -35,6 +35,15 @@
 // step placed on the board rendered as a blank card. One extra
 // function call for the whole plan — see planner/job_step_hydration
 // for why the join lives there rather than inline here.
+//
+// REPUB-1 (US-REPUB-1-05) — `current_version` and `is_sealed`, additive
+// on each timeline. ONE extra function call for the whole plan
+// (live/publication_status), same "constant per entity type" rule this
+// endpoint already follows — never one call per timeline. A timeline
+// with no publication at all (still draft) is simply absent from that
+// function's result; both fields default to their "never published"
+// values (version 0, not sealed) so the frontend never needs a
+// separate null check.
 query "workspace/{workspace_id}/board" verb=GET {
   api_group = "planner"
   auth = "user"
@@ -99,6 +108,48 @@ query "workspace/{workspace_id}/board" verb=GET {
       }
     }
 
+    // REPUB-1: version + sealed state for every timeline in the plan,
+    // one call, before the per-timeline loop below builds the views.
+    var $tl_ids {
+      value = []
+    }
+
+    foreach ($timelines) {
+      each as $tl {
+        array.push $tl_ids {
+          value = $tl.id
+        }
+      }
+    }
+
+    function.run "live/publication_status" {
+      input = {timeline_ids: $tl_ids}
+    } as $pub_status
+
+    var $version_by_tl {
+      value = {}
+    }
+
+    var $sealed_by_tl {
+      value = {}
+    }
+
+    foreach ($pub_status.statuses) {
+      each as $s {
+        var.update $key {
+          value = "k:" ~ ($s.timeline_id|to_text)
+        }
+
+        var.update $version_by_tl {
+          value = $version_by_tl|set:$key:$s.current_version
+        }
+
+        var.update $sealed_by_tl {
+          value = $sealed_by_tl|set:$key:$s.is_sealed
+        }
+      }
+    }
+
     // Backlog first, then each day — every task in one flat list, as
     // the frontend's store expects.
     function.run "planner/derive_tasks" {
@@ -133,6 +184,14 @@ query "workspace/{workspace_id}/board" verb=GET {
       value = false
     }
 
+    var $cur_version {
+      value = 0
+    }
+
+    var $cur_sealed {
+      value = false
+    }
+
     foreach ($timelines) {
       each as $tl {
         function.run "planner/derive_tasks" {
@@ -163,17 +222,31 @@ query "workspace/{workspace_id}/board" verb=GET {
           value = ($tl.planned_date < $workspace.planning_window_start || $tl.planned_date > $workspace.planning_window_end)
         }
 
+        var.update $key {
+          value = "k:" ~ ($tl.id|to_text)
+        }
+
+        var.update $cur_version {
+          value = ($version_by_tl|get:$key:0) ?? 0
+        }
+
+        var.update $cur_sealed {
+          value = ($sealed_by_tl|get:$key:false) ?? false
+        }
+
         array.push $timeline_views {
           value = {
-            id           : $tl.id
-            workspace_id : $tl.workspace_id
-            agent_id     : $tl.agent_id
-            agent_name   : $agent_name
-            label        : $label
-            planned_date : $tl.planned_date
-            start_time   : $tl.start_time
-            status       : $tl.status
-            out_of_window: $oow
+            id             : $tl.id
+            workspace_id   : $tl.workspace_id
+            agent_id       : $tl.agent_id
+            agent_name     : $agent_name
+            label          : $label
+            planned_date   : $tl.planned_date
+            start_time     : $tl.start_time
+            status         : $tl.status
+            out_of_window  : $oow
+            current_version: $cur_version
+            is_sealed      : $cur_sealed
           }
         }
       }

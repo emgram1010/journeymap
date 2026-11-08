@@ -144,8 +144,10 @@ test.describe('EXC-1 — send part of a job to a linked map (US-EXC-1-03/05/06)'
     await expect(modal).toBeVisible();
     await page.waitForLoadState('networkidle');
 
-    const row = modal.locator(`#job-row-${parentId}`);
-    await row.getByText(title).click();
+    // PUX-1 (2026-11-07): the Jobs modal is a list; a job opens in the side panel.
+    await modal.getByTestId('jobs-modal-job').filter({hasText: title}).click();
+    const row = page.locator('#job-panel');
+    await expect(row.getByTestId('job-panel-title')).toHaveText(title);
     // Inline buttons live in a scrolling list, which a person scrolls: bring
     // it on screen the way they would, THEN hit-test. The sheet's confirm
     // gets no such help — it must be reachable as it lands.
@@ -194,14 +196,16 @@ test.describe('EXC-1 — send part of a job to a linked map (US-EXC-1-03/05/06)'
     const after = await (await page.request.get(`${PLANNER_API}/work-item/${parentId}/lines`, {headers: auth})).json();
     expect(after.lines.map((l: {quantity: number}) => l.quantity)).toEqual([1]);
 
-    // E2E-EXC-1-04: the child's row says where it came from, and the chip opens the parent.
-    const childRow = modal.locator(`#job-row-${childId}`);
-    await expect(childRow.getByTestId('job-parent-chip')).toHaveText(`from #${parentId}`);
-    await childRow.getByTestId('job-parent-chip').scrollIntoViewIfNeeded();
-    await expectHittable(childRow.getByTestId('job-parent-chip'));
-    await childRow.getByTestId('job-parent-chip').click();
+    // E2E-EXC-1-04: the child (opened in the same panel) says where it came
+    // from, and that link opens the parent again (PUX-1 panel, 2026-11-07).
+    await row.getByTestId('exception-chip').click();
+    await expect(row.getByTestId('job-panel-title')).not.toHaveText(title);
+    await expect(row.getByTestId('job-panel-parent')).toContainText(title);
+    await expectHittable(row.getByTestId('job-panel-parent'));
+    await row.getByTestId('job-panel-parent').click();
+    await expect(row.getByTestId('job-panel-title')).toHaveText(title);
     await expect(row.getByTestId('exception-chip')).toBeVisible();
-    await expect(row.getByTestId('job-children-chip')).toContainText('1 sent on');
+    await expect(row.getByTestId('job-panel-child')).toHaveCount(1);
 
     // Tidy up: cancel (never delete) what this run created and archive its
     // plan, so it drops out of the planner's default list (restorable).

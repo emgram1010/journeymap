@@ -56,6 +56,10 @@ export function adaptTimeline(raw: RawTimeline): Timeline {
     assignee: raw.agent_name ?? '',
     status: raw.status,
     startTime: raw.start_time,
+    // REPUB-1 — additive; an older server that omits these fields reads
+    // as "never published" / "not sealed", which is correct for a draft.
+    currentVersion: raw.current_version ?? 0,
+    isSealed: raw.is_sealed ?? false,
   };
 }
 
@@ -124,6 +128,7 @@ export function adaptTask(raw: RawTask, steps?: LinkedStep[]): Task {
     title: raw.title || linkedTitle || '',
     seq: raw.seq,
     planned_start: raw.planned_start ?? '',
+    startOverride: raw.start_override ?? '',
     duration: raw.duration_minutes,
     assignee: raw.effective_assignee.name ?? undefined,
     notes: raw.notes,

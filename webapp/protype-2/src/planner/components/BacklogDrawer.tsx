@@ -20,13 +20,17 @@ import {
 } from 'lucide-react';
 import { Task, Timeline, Agent, Workspace, AppSettings, Throughput } from '../types';
 import { getWindowBounds, getWindowDays, formatShortDate, isDateOutOfWindow } from '../utils/dateUtils';
-import { calculateWorkspaceCapacitySummary } from '../utils/agentUtils';
+import { calculateWorkspaceCapacitySummary, calculateAgentDayLoad } from '../utils/agentUtils';
 import { calculateWorkspaceCostSummary, formatMoney } from '../utils/costUtils';
-import { listBacklogWork, type BacklogCard } from '../plannerApi';
+import { listBacklogWork, getWorkItem, type BacklogCard, type BacklogCardStep } from '../plannerApi';
+import { cardStepsFromJobTasks } from '../backlogCardSteps';
 import { formatMinutes } from '../varianceDisplay';
 import { groupCardsByJob, classifyUnscheduleTarget } from '../boardModel';
 import { EstimateBadge } from './EstimateBadge';
 import JobPeekSheet from '../../exceptions/JobPeekSheet';
+import { TimeWindowChip } from './TimeWindowChip';
+import { CapacityHint } from './CapacityHint';
+import { daysInsideWindow, type TimeWindow } from '../timeWindowModel';
 
 interface BacklogDrawerProps {
   backlogTasks: Task[];
@@ -61,6 +65,12 @@ interface BacklogDrawerProps {
   jobsReloadNonce: number;
   /** PlannerApp owns the schedule rule (ensure the day, 583, refresh). True = placed. */
   onPlaceCard: (card: BacklogCard, agentId: string, day: string) => Promise<boolean>;
+  /** PUX-1-03 — a job's name opens its panel. */
+  onOpenJob?: (workItemId: number) => void;
+  /** PUX-2 — every window in the plan, keyed by job. */
+  windowsByJob?: Map<number, TimeWindow & {work_item_id: number}>;
+  /** PUX-2/-4 — report the job being dragged, so the board can show fit hints. */
+  onDragJob?: (job: {workItemId: number; minutes: number} | null) => void;
 }
 
 export function BacklogDrawer({
@@ -88,6 +98,9 @@ export function BacklogDrawer({
   workspaceId,
   jobsReloadNonce,
   onPlaceCard,
+  onOpenJob,
+  windowsByJob,
+  onDragJob,
 }: BacklogDrawerProps) {
   // QUE-1 (US-QUE-1-01): open by default — this is the queue a planner
   // works from, not an out-of-the-way bin. Still collapsible; the bar
@@ -154,7 +167,8 @@ export function BacklogDrawer({
     let current = true;
     setIsLoadingCards(true);
     setCardsError(null);
-    listBacklogWork(Number(workspaceId))
+    // LOAD-1 (US-LOAD-1-03): summary rows only. A card's steps are read when it is selected.
+    listBacklogWork(Number(workspaceId), { summary: true })
       .then((data) => {
         if (!current) return;
         setWaitingCards(data.backlog);
@@ -175,6 +189,57 @@ export function BacklogDrawer({
     };
   }, [workspaceId, jobsReloadNonce]);
 
+  // LOAD-1 (US-LOAD-1-03) — the selected card's steps, read on click.
+  //
+  // The list above is summary rows (no step text). Selecting a card reads its
+  // JOB (GET work_item/{id}, 555 — pinned-version text, tenancy-checked) and
+  // `cardStepsFromJobTasks` picks this card's steps, in the card's own order.
+  //
+  // NEVER THE WRONG CARD'S STEPS. Each read carries its own AbortSignal (such a
+  // request is not shared — performApi) and a `current` flag; switching cards,
+  // closing the panel or unmounting cancels the old read, and the result is
+  // stored WITH the card key it was read for, so the render below shows steps
+  // only when that key is the selected one. Hooks stay above every early return.
+  const selectedRaw = waitingCards.find((c) => c.card_key === selectedCardKey) ?? null;
+  const selectedItemId = selectedRaw ? selectedRaw.work_item_id : 0;
+  const selectedIdsKey = selectedRaw ? selectedRaw.work_task_ids.join(',') : '';
+  const [cardSteps, setCardSteps] = useState<{ cardKey: string; steps: BacklogCardStep[]; missing: number[] } | null>(null);
+  const [stepsLoading, setStepsLoading] = useState(false);
+  const [stepsError, setStepsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedRaw) {
+      setCardSteps(null);
+      setStepsLoading(false);
+      setStepsError(null);
+      return;
+    }
+    const card = selectedRaw;
+    const controller = new AbortController();
+    let current = true;
+    setStepsLoading(true);
+    setStepsError(null);
+    getWorkItem(card.work_item_id, controller.signal)
+      .then((data) => {
+        if (!current) return;
+        const { steps, missing } = cardStepsFromJobTasks(card, data.tasks);
+        setCardSteps({ cardKey: card.card_key, steps, missing });
+      })
+      .catch((err) => {
+        if (!current || controller.signal.aborted) return;
+        setStepsError(err instanceof Error ? err.message : "Couldn't load this card's steps.");
+      })
+      .finally(() => {
+        if (current) setStepsLoading(false);
+      });
+    return () => {
+      current = false;
+      controller.abort();
+    };
+    // `selectedRaw` is derived from these; re-read after any write (the nonce).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCardKey, selectedItemId, selectedIdsKey, jobsReloadNonce]);
+
   const cardGroups = groupCardsByJob(waitingCards);
 
   // The selected row's card + its job title, for the Stages panel.
@@ -192,9 +257,26 @@ export function BacklogDrawer({
     }
   }
 
-  const openPlaceForm = (cardKey: string) => {
+  // LOAD-1 (US-LOAD-1-03) — steps for the card on screen, or null while they
+  // load / failed. Only ever the SELECTED card's own read (matched by key).
+  const stepsMatch = !!selectedCard && !!cardSteps && cardSteps.cardKey === selectedCard.card_key;
+  const shownSteps: BacklogCardStep[] | null = stepsMatch && cardSteps ? cardSteps.steps : null;
+  const shownMissing: number[] = stepsMatch && cardSteps ? cardSteps.missing : [];
+
+  const openPlaceForm = (cardKey: string, workItemId?: number) => {
     setPlacingFor((prev) => (prev === cardKey ? null : cardKey));
     setPlaceAgentId((prev) => prev || agents[0]?.id || '');
+    // PUX-2-02 — suggest the first day inside the job's window AND the plan.
+    // Only a suggestion: any day in the plan can still be picked.
+    const fitting = daysInsideWindow(
+      workItemId != null ? windowsByJob?.get(workItemId) ?? null : null,
+      workspace?.planningWindowStart ?? null,
+      workspace?.planningWindowEnd ?? null,
+    );
+    if (fitting.length > 0) {
+      setPlaceDay(fitting[0]);
+      return;
+    }
     // WIN-1 (US-WIN-1-02): never carry a day held over from another
     // plan's window into this one.
     setPlaceDay((prev) => {
@@ -640,7 +722,9 @@ export function BacklogDrawer({
                               e.dataTransfer.setData('application/json', str);
                               e.dataTransfer.setData('text/plain', str);
                               e.dataTransfer.effectAllowed = 'move';
+                              onDragJob?.({workItemId: card.work_item_id, minutes: card.expected_minutes ?? 0});
                             }}
+                            onDragEnd={() => onDragJob?.(null)}
                             onClick={() => setSelectedCardKey((prev) => (prev === card.card_key ? null : card.card_key))}
                             aria-selected={isSelected}
                             title="Click to see its steps on the right. Drag onto someone's day, or use Place…"
@@ -653,29 +737,29 @@ export function BacklogDrawer({
                                 width, so it is the only one that can absorb a long
                                 job name — and must, rather than shoving the numeric
                                 columns around. Full text on hover. */}
-                            <td className="px-2 py-1 truncate" title={`${group.jobTitle} · ${card.lens_label || card.lens_key}`}>
-                              <span className="inline-flex items-center gap-1 min-w-0">
+                            <td className="px-2 py-1" title={`${group.jobTitle} · ${card.lens_label || card.lens_key}`}>
+                              {/* PUX (2026-11-07) — two lines: the job's name gets the whole
+                                  width (it was cut to "E2E card 179…"), the role and the
+                                  exception chips sit underneath. */}
+                              <span className="flex items-center gap-1 min-w-0">
                                 <GripVertical className="w-3 h-3 shrink-0 text-neutral-300" />
-                                {/* US-ROW-1-02: the read-only job view, NOT the
-                                    modal that carries the "+ New job" form. Same
-                                    `setPeekId` the exception chips below already
-                                    use — one read-only job view everywhere. */}
                                 <button
                                   type="button"
                                   data-testid="unscheduled-job-title"
-                                  onClick={(e) => { e.stopPropagation(); setPeekId(card.work_item_id); }}
-                                  title="Open this job (read-only)"
-                                  className="shrink-0 max-w-[55%] truncate font-semibold text-neutral-900 hover:underline"
+                                  onClick={(e) => { e.stopPropagation(); if (onOpenJob) onOpenJob(card.work_item_id); else setPeekId(card.work_item_id); }}
+                                  title="Open this job"
+                                  className="min-w-0 truncate text-left font-semibold text-neutral-900 hover:underline"
                                 >
                                   {group.jobTitle}
                                 </button>
-                                <span className="shrink-0 text-neutral-300">·</span>
+                              </span>
+                              <span className="flex items-center gap-1 min-w-0 pl-4 text-[10px] text-neutral-500">
                                 <span className="truncate" data-testid="unscheduled-card-handle">{card.lens_label || card.lens_key}</span>
                                 {(card.parent_work_item_id ?? 0) > 0 && (
                                   <button
                                     type="button"
                                     data-testid="unscheduled-parent-chip"
-                                    onClick={(e) => { e.stopPropagation(); setPeekId(card.parent_work_item_id!); }}
+                                    onClick={(e) => { e.stopPropagation(); if (onOpenJob) onOpenJob(card.parent_work_item_id!); else setPeekId(card.parent_work_item_id!); }}
                                     className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-1.5 text-[9px] text-amber-800 hover:bg-amber-100"
                                   >
                                     from #{card.parent_work_item_id}
@@ -685,13 +769,15 @@ export function BacklogDrawer({
                                   <button
                                     type="button"
                                     data-testid="unscheduled-children-chip"
-                                    onClick={(e) => { e.stopPropagation(); setPeekId(card.work_item_id); }}
+                                    onClick={(e) => { e.stopPropagation(); if (onOpenJob) onOpenJob(card.work_item_id); else setPeekId(card.work_item_id); }}
                                     className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-1.5 text-[9px] text-amber-800 hover:bg-amber-100"
                                   >
                                     {card.child_count} sent on
                                   </button>
                                 )}
                               </span>
+                              {/* PUX-2-01 — the job's window, before it is placed. */}
+                              <TimeWindowChip window={windowsByJob?.get(card.work_item_id)} compact className="mt-0.5 ml-4 max-w-full" />
                             </td>
                             <td className="px-2 py-1 text-right font-mono text-neutral-600">{card.step_count}</td>
                             <td className="px-2 py-1 text-right font-mono text-neutral-600">{formatMinutes(card.expected_minutes)}</td>
@@ -701,7 +787,7 @@ export function BacklogDrawer({
                                 <button
                                   type="button"
                                   data-testid="unscheduled-place"
-                                  onClick={(e) => { e.stopPropagation(); openPlaceForm(card.card_key); }}
+                                  onClick={(e) => { e.stopPropagation(); openPlaceForm(card.card_key, card.work_item_id); }}
                                   title="Place…"
                                   className="p-0.5 text-neutral-500 hover:text-neutral-900 rounded"
                                 >
@@ -742,6 +828,18 @@ export function BacklogDrawer({
                                       }`}
                                     />
                                   </label>
+                                  {/* PUX-4-01 / PUX-2-02 — before placing: room that day? inside the window? */}
+                                  {placeAgentId && placeDay && (() => {
+                                    const who = agents.find((a) => a.id === placeAgentId);
+                                    if (!who) return null;
+                                    const load = calculateAgentDayLoad(who, placeDay, timelinesInWorkspace, tasks);
+                                    return (
+                                      <span data-testid="unscheduled-place-fit" className="flex flex-col gap-0.5 self-center">
+                                        <CapacityHint loadMinutes={load.totalMinutes} capacityHours={load.capacityHours} addMinutes={card.expected_minutes ?? 0} />
+                                        <TimeWindowChip window={windowsByJob?.get(card.work_item_id)} placedDays={[placeDay]} compact />
+                                      </span>
+                                    );
+                                  })()}
                                   <button
                                     type="button"
                                     data-testid="unscheduled-place-confirm"
@@ -909,7 +1007,21 @@ export function BacklogDrawer({
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedCard.steps.map((step, index) => (
+                    {shownSteps === null && (
+                      <tr data-testid="unscheduled-steps-status">
+                        <td colSpan={4} className={`px-2 py-3 text-[11px] ${stepsError ? 'text-red-600' : 'text-neutral-400'}`}>
+                          {stepsError ?? 'Loading steps…'}
+                        </td>
+                      </tr>
+                    )}
+                    {shownMissing.length > 0 && (
+                      <tr data-testid="unscheduled-steps-missing">
+                        <td colSpan={4} className="px-2 py-1 text-[11px] text-red-600">
+                          {shownMissing.length} step{shownMissing.length === 1 ? '' : 's'} listed for this card could not be read.
+                        </td>
+                      </tr>
+                    )}
+                    {(shownSteps ?? []).map((step, index) => (
                       <tr key={step.work_task_id} className="border-t border-neutral-100">
                         <td className="px-2 py-1 text-right font-mono text-neutral-400 align-top">{index + 1}</td>
                         <td className="px-2 py-1 align-top">

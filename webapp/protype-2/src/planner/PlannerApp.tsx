@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Calendar, LayoutList, Hammer } from 'lucide-react';
 import { Workspace, Timeline, Task, Agent, ViewMode, AppSettings } from './types';
 import { DEFAULT_SETTINGS, DEFAULT_INPUT_TOKENS_PER_MINUTE, DEFAULT_OUTPUT_TOKENS_PER_MINUTE } from './data/initialData';
@@ -7,13 +7,17 @@ import {
   createAgent, updateAgent, setWorkspaceAgentVisibility,
   createTimeline, updateTimeline, publishTimeline as publishTimelineApi, reorderTimeline,
   createTask, updateTask, placeTask, deleteAgent, deleteTimeline,
+  putStartOverride, deleteStartOverride,
   listTemplates, createWorkspaceFromTemplate, createWorkspace, TemplateListEntry, SkippedAgent,
   updateWorkspace,
   scheduleCard, unscheduleWorkTask, BacklogCard,
+  listTimeWindows, type RawTimeWindow,
 } from './plannerApi';
 import { logEvent } from '../ops/logEvent';
 import { formatMinutes } from './varianceDisplay';
 import { adaptWorkspace, adaptBoard } from './plannerAdapter';
+import { indexWindowsByJob, formatDayShort } from './timeWindowModel';
+import { calculateAgentDayLoad } from './utils/agentUtils';
 import { windowEnd } from '../planTemplate';
 import { SettingsModal } from './components/SettingsModal';
 import { WorkspaceSettingsModal } from './components/WorkspaceSettingsModal';
@@ -21,6 +25,9 @@ import { AgentProfilesModal } from './components/AgentProfilesModal';
 import { TemplatesModal } from './components/TemplatesModal';
 import { CreateWorkspaceModal } from './components/CreateWorkspaceModal';
 import { JobsModal } from './components/JobsModal';
+import { JobPanel } from './components/JobPanel';
+import { placementsByJob, type Placement } from './jobScheduleModel';
+import { initialBoardDay, workOutsidePlan, capacityFit, overloadMessage, localToday } from './boardModel';
 import { JobsColumn } from './components/JobsColumn';
 import { Header } from './components/Header';
 import { ScheduleGrid } from './components/ScheduleGrid';
@@ -43,7 +50,8 @@ export default function PlannerApp() {
   const [activeTimelineId, setActiveTimelineId] = useState<string | null>(null);
 
   // Agent-centric state
-  const [activeDay, setActiveDay] = useState<string>('2026-10-13');
+  // PUX-3-01 — replaced on load by `initialBoardDay`; today until then.
+  const [activeDay, setActiveDay] = useState<string>(() => localToday());
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
   const [focusedAgentId, setFocusedAgentId] = useState<string | null>(null);
 
@@ -65,10 +73,17 @@ export default function PlannerApp() {
   const [isAgentProfilesOpen, setIsAgentProfilesOpen] = useState(false);
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   // GAP-FIX W1 — the screen that turns a map into real work.
-  // BOARD-1 — the modal is per-job detail now; `jobsFocusId` opens it on
-  // one job when a Jobs-column title is clicked.
+  // PUX-1 — the Jobs modal is only the list of jobs now; one job opens in
+  // the side panel (`openJobId`).
   const [isJobsOpen, setIsJobsOpen] = useState(false);
-  const [jobsFocusId, setJobsFocusId] = useState<number | null>(null);
+  // PUX-1 — the one job shown in the side panel, opened from every job surface.
+  const [openJobId, setOpenJobId] = useState<number | null>(null);
+  // PUX-2/-4 — the job being dragged right now, for fit hints on the board.
+  const [dragJob, setDragJob] = useState<{workItemId: number; minutes: number} | null>(null);
+  // PUX-4-02 — the one "are you sure?" before overloading someone.
+  const [overloadAsk, setOverloadAsk] = useState<{message: string; resolve: (ok: boolean) => void} | null>(null);
+  // PUX-1-02 — the timeline ringed after "Where it's scheduled" jumps to it.
+  const [highlightTimelineId, setHighlightTimelineId] = useState<string | null>(null);
   // BOARD-1 — the Jobs column refetches 559 whenever this changes; bumped
   // after every mutation that can move work on or off a day.
   const [jobsReloadNonce, setJobsReloadNonce] = useState(0);
@@ -100,6 +115,12 @@ export default function PlannerApp() {
   // localStorage read cannot fail. Both are new here.
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoadingBoard, setIsLoadingBoard] = useState(false);
+  // TW-1 (US-TW-1-03) — every window in the active plan, refetched
+  // alongside the board so a card's "outside time window" warning never
+  // drifts from the board's own data. JobsModal reads this plan's windows
+  // independently (its own open/close lifecycle); this copy is the
+  // board's, kept in step with `refreshBoard`.
+  const [windowsByJob, setWindowsByJob] = useState<Map<number, RawTimeWindow & {work_item_id: number}>>(new Map());
 
   // 1. Which plans does this account have? Picks the first as active,
   // same default behaviour as before.
@@ -126,11 +147,17 @@ export default function PlannerApp() {
   // backlog), settings, models. Re-runs whenever the active plan
   // changes, which is also how a refresh-after-mutation will work
   // later: refetch the board, don't hand-patch local state.
+  // The board loader is a stable callback; it reads the plan's dates through this.
+  const workspacesRef = useRef<Workspace[]>([]);
+  useEffect(() => {
+    workspacesRef.current = workspaces;
+  }, [workspaces]);
+
   const loadActiveBoard = useCallback((workspaceId: string, preserveView = false) => {
     setIsLoadingBoard(true);
     setLoadError(null);
-    return getBoard(Number(workspaceId))
-      .then((board) => {
+    return Promise.all([getBoard(Number(workspaceId)), listTimeWindows(Number(workspaceId))])
+      .then(([board, windowData]) => {
         // BOARD-1: the board's linkedSteps are no longer kept here — the
         // slimmed Jobs modal stopped reading them, and each slot's own
         // job fields (jobTitle/workTaskId) already ride on the tasks.
@@ -139,16 +166,27 @@ export default function PlannerApp() {
         setTimelines(tl);
         setTasks(tk);
         setSettings(s);
+        setWindowsByJob(indexWindowsByJob(windowData.windows));
 
         // BOARD-1: only the INITIAL load (or a plan switch) may move the
         // view. A refresh after a write used to snap the board back to
         // the first timeline's day — so dropping a card on Tuesday
         // yanked the view to Monday and the card seemed to vanish.
-        const firstTl = tl[0];
-        if (firstTl && !preserveView) {
-          setActiveTimelineId(firstTl.id);
-          if (firstTl.plannedDate) setActiveDay(firstTl.plannedDate);
-          if (firstTl.agentId) setActiveAgentId(firstTl.agentId);
+        // PUX-3-01 — open on today if it is inside the plan, else the plan's
+        // first day. It used to be the FIRST TIMELINE's day, which opened a
+        // Nov 1–7 plan on Oct 27.
+        if (!preserveView) {
+          const ws = workspacesRef.current.find(w => w.id === workspaceId);
+          const day = initialBoardDay(
+            localToday(),
+            ws?.planningWindowStart ?? '',
+            ws?.planningWindowEnd ?? '',
+            tl[0]?.plannedDate ?? null,
+          );
+          setActiveDay(day);
+          const dayTl = tl.find(t => t.plannedDate === day) ?? null;
+          setActiveTimelineId(dayTl?.id ?? null);
+          if (dayTl?.agentId) setActiveAgentId(dayTl.agentId);
         }
       })
       .catch((err) => {
@@ -202,6 +240,30 @@ export default function PlannerApp() {
     return tasks.filter(t => t.workspaceId === activeWorkspaceId && !t.timelineId);
   }, [tasks, activeWorkspaceId]);
 
+  // PUX-1/-4 — where every job sits on this plan's board, from data already loaded.
+  const jobPlacementMap = useMemo(
+    () => placementsByJob(tasks.filter(t => t.workspaceId === activeWorkspaceId), timelinesInActiveWs, agentsInActiveWs),
+    [tasks, activeWorkspaceId, timelinesInActiveWs, agentsInActiveWs],
+  );
+
+  // PUX-3-02 — days holding work that the week view can't show (outside the plan's dates).
+  const outsidePlanWork = useMemo(
+    () => workOutsidePlan(
+      timelinesInActiveWs,
+      tasks.filter(t => t.workspaceId === activeWorkspaceId),
+      activeWorkspace?.planningWindowStart ?? '',
+      activeWorkspace?.planningWindowEnd ?? '',
+    ),
+    [timelinesInActiveWs, tasks, activeWorkspaceId, activeWorkspace],
+  );
+
+  const openJob = useCallback((workItemId: number) => {
+    setIsJobsOpen(false);
+    setOpenJobId(workItemId);
+  }, []);
+
+  const closeJob = useCallback(() => setOpenJobId(null), []);
+
   // Active modal task id helper (highlighted row only while modal is open)
   const activeModalTaskId = activeModalEntity?.type === 'task' ? activeModalEntity.task.id : null;
 
@@ -240,17 +302,13 @@ export default function PlannerApp() {
   };
 
   // Handler: Select Workspace
+  // PUX-3-01 — the board load that follows a plan switch picks the day
+  // (`initialBoardDay`); this only clears the old plan's selection.
   const handleSelectWorkspace = (wsId: string) => {
     setActiveWorkspaceId(wsId);
-    const firstTl = timelines.find(t => t.workspaceId === wsId);
-    if (firstTl) {
-      setActiveTimelineId(firstTl.id);
-      if (firstTl.plannedDate) setActiveDay(firstTl.plannedDate);
-      if (firstTl.agentId) setActiveAgentId(firstTl.agentId);
-    } else {
-      setActiveTimelineId(null);
-      setActiveAgentId(null);
-    }
+    setActiveTimelineId(null);
+    setActiveAgentId(null);
+    setOpenJobId(null);
   };
 
   // US-PLN-9-07: a real plan is created from a template (PLAN-1's
@@ -548,8 +606,9 @@ export default function PlannerApp() {
   };
 
   // Save Task from Modal — EditModal's own form only ever sends title,
-  // duration, assignee, status, notes, needsInfoReason: never
-  // timelineId/seq (moving a task is always `task/place`, never this).
+  // duration, assignee, status, notes, needsInfoReason, and (SCHED-2) a
+  // start override: never timelineId/seq (moving a task is always
+  // `task/place`, never this).
   //
   // The assignee field is free text ("inherits timeline assignee if
   // blank"), but the backend only takes an `assignee_agent_id` int
@@ -582,6 +641,12 @@ export default function PlannerApp() {
         needs_info_reason: updates.needsInfoReason ?? '',
         ...(assigneeAgentId !== undefined ? { assignee_agent_id: assigneeAgentId } : {}),
       });
+      // SCHED-2 — the start is its own endpoint (a side table), applied after
+      // the task's own fields. undefined = untouched, '' = back to computed.
+      if (updates.startOverride !== undefined) {
+        if (updates.startOverride === '') await deleteStartOverride(Number(taskId));
+        else await putStartOverride(Number(taskId), { start_time: updates.startOverride });
+      }
       await refreshBoard();
       setAcknowledgedTaskId(taskId);
       setTimeout(() => setAcknowledgedTaskId(null), 2500);
@@ -635,6 +700,28 @@ export default function PlannerApp() {
     const tlTasks = tasks.filter(t => t.timelineId === tl.id);
     const readiness = getTimelineReadiness(tl, tlTasks, activeWorkspace);
     if (!readiness.ready) return;
+    publishTimelineApi(Number(timelineId))
+      .then(() => refreshBoard())
+      .catch(reportActionError);
+  };
+
+  // Republish Timeline (REPUB-1). The SAME endpoint as the first
+  // publish — the server tells the two cases apart itself and refuses
+  // (E-LIVE-007) once the agent has recorded any activity. This always
+  // confirms first, because a republish replaces what the performer is
+  // currently looking at; the button itself is only ever shown/enabled
+  // when `canRepublish(tl)` is true, so a race between load and click
+  // is the one way this call can still be refused — handled the same
+  // as any other reportActionError.
+  const handleRepublishTimeline = (timelineId: string) => {
+    const tl = timelines.find(t => t.id === timelineId);
+    if (!tl) return;
+    const agent = agents.find(a => a.id === tl.agentId);
+    const ok = confirm(
+      `Republish this day for ${agent?.name || tl.assignee || 'the assigned agent'}? ` +
+      `They will see this updated plan instead of what they have now.`
+    );
+    if (!ok) return;
     publishTimelineApi(Number(timelineId))
       .then(() => refreshBoard())
       .catch(reportActionError);
@@ -776,6 +863,18 @@ export default function PlannerApp() {
   // what the drop target believed.
   const bumpJobsColumn = () => setJobsReloadNonce((n) => n + 1);
 
+  // PUX-1-02 — "Where it's scheduled" → show that day on the board and ring it.
+  const handleJumpToPlacement = (p: Placement) => {
+    const tl = timelines.find(t => t.id === p.timelineId);
+    setViewMode('plan');
+    setFocusedAgentId(null);
+    setActiveDay(p.date);
+    setActiveTimelineId(p.timelineId);
+    if (tl?.agentId) setActiveAgentId(tl.agentId);
+    setHighlightTimelineId(p.timelineId);
+    setTimeout(() => setHighlightTimelineId((cur) => (cur === p.timelineId ? null : cur)), 2500);
+  };
+
   const showBoardNotice = (message: string) => {
     setBoardNotice(message);
     setTimeout(() => setBoardNotice(null), 6000);
@@ -811,14 +910,42 @@ export default function PlannerApp() {
     }
   };
 
+  // PUX-4-02 — warn, never block: a drop that would take someone past their
+  // daily capacity asks once; a drop that fits never asks. Capacity is not a
+  // server rule (founder's call, EPIC-PUX-4 §7), so this lives only here.
+  const confirmIfOverload = (agentId: string, day: string, minutes: number): Promise<boolean> => {
+    const agent = agentsInActiveWs.find(a => a.id === agentId);
+    if (!agent || !minutes) return Promise.resolve(true);
+    const load = calculateAgentDayLoad(agent, day, timelinesInActiveWs, tasks);
+    const fit = capacityFit(load.totalMinutes, load.capacityHours, minutes);
+    if (fit.state === 'fits') return Promise.resolve(true);
+    return new Promise<boolean>((resolve) =>
+      setOverloadAsk({message: overloadMessage(agent.name, fit, load.capacityHours), resolve}),
+    );
+  };
+
+  const answerOverload = (ok: boolean) => {
+    overloadAsk?.resolve(ok);
+    setOverloadAsk(null);
+  };
+
   const handleDropJobCard = (payload: {workItemId: number; lensKey: string}, timelineId: string) => {
-    void scheduleCardOnTimeline(payload.workItemId, payload.lensKey, timelineId);
+    const minutes = dragJob?.workItemId === payload.workItemId ? dragJob.minutes : 0;
+    setDragJob(null);
+    const tl = timelines.find(t => t.id === timelineId);
+    void (async () => {
+      if (tl && !(await confirmIfOverload(tl.agentId, tl.plannedDate, minutes))) return;
+      await scheduleCardOnTimeline(payload.workItemId, payload.lensKey, timelineId);
+    })();
   };
 
   // A drop on an agent with no day yet: the board shows one day at a
   // time, so the day is the active one, created idempotently first.
   const handleDropJobCardOnNewDay = (payload: {workItemId: number; lensKey: string}, agentId: string) => {
+    const minutes = dragJob?.workItemId === payload.workItemId ? dragJob.minutes : 0;
+    setDragJob(null);
     void (async () => {
+      if (!(await confirmIfOverload(agentId, activeDay, minutes))) return;
       const timelineId = await handleEnsureTimeline(agentId, activeDay);
       if (timelineId) await scheduleCardOnTimeline(payload.workItemId, payload.lensKey, timelineId);
     })();
@@ -826,6 +953,7 @@ export default function PlannerApp() {
 
   // The click path (US-02's "Place…"), with the card's own who/day picks.
   const handlePlaceJobCard = async (card: BacklogCard, agentId: string, day: string): Promise<boolean> => {
+    if (!(await confirmIfOverload(agentId, day, card.expected_minutes ?? 0))) return false;
     const timelineId = await handleEnsureTimeline(agentId, day);
     if (!timelineId) return false;
     return scheduleCardOnTimeline(card.work_item_id, card.lens_key, timelineId);
@@ -1238,6 +1366,32 @@ export default function PlannerApp() {
         <div className="flex-1 flex min-h-0 overflow-hidden">
           {/* Center Column: Day Board (Plan View) or Schedule Grid (Schedule View) + Backlog Drawer */}
           <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-white">
+            {/* PUX-3-02 — work outside the plan's dates is flagged, never hidden. */}
+            {outsidePlanWork.length > 0 && (
+              <div
+                data-testid="outside-plan-banner"
+                className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-1.5 bg-amber-50 border-b border-amber-200 text-[11px] text-amber-900"
+              >
+                <span className="font-semibold">
+                  Work on {outsidePlanWork.length} day{outsidePlanWork.length === 1 ? '' : 's'} outside this plan's dates
+                  {activeWorkspace?.planningWindowStart ? ` (${formatDayShort(activeWorkspace.planningWindowStart)} – ${formatDayShort(activeWorkspace.planningWindowEnd)})` : ''}:
+                </span>
+                {outsidePlanWork.map(o => (
+                  <button
+                    key={o.timelineId}
+                    type="button"
+                    data-testid="outside-plan-show"
+                    onClick={() => {
+                      const tl = timelines.find(t => t.id === o.timelineId);
+                      handleJumpToPlacement({timelineId: o.timelineId, date: o.date, agentName: '', start: '', steps: o.slots, published: tl?.status === 'published'});
+                    }}
+                    className="rounded border border-amber-300 bg-white px-2 py-0.5 font-medium hover:bg-amber-100"
+                  >
+                    {formatDayShort(o.date)} · {o.slots} item{o.slots === 1 ? '' : 's'} — Show
+                  </button>
+                ))}
+              </div>
+            )}
             {viewMode === 'plan' ? (
               /* BOARD-1 — the whole loop on one screen: jobs waiting on
                  the left, the day's columns on the right, drag between
@@ -1247,9 +1401,11 @@ export default function PlannerApp() {
                   workspaceId={activeWorkspaceId || null}
                   reloadNonce={jobsReloadNonce}
                   onOpenJobs={(focusJobId) => {
-                    setJobsFocusId(focusJobId ?? null);
-                    setIsJobsOpen(true);
+                    if (focusJobId != null) openJob(focusJobId);
+                    else setIsJobsOpen(true);
                   }}
+                  windowsByJob={windowsByJob}
+                  placementsByJob={jobPlacementMap}
                 />
                 {/* DAY BOARD (Section 5: One Day, All Agents Side-by-Side) */}
                 <DayBoard
@@ -1261,6 +1417,7 @@ export default function PlannerApp() {
                 focusedAgentId={focusedAgentId}
                 planningWindowStart={activeWorkspace?.planningWindowStart || '2026-10-12'}
                 planningWindowEnd={activeWorkspace?.planningWindowEnd || '2026-10-25'}
+                windowsByJob={windowsByJob}
                 onChangeDay={(newDay) => {
                   setActiveDay(newDay);
                   const tl = timelines.find(t => t.workspaceId === activeWorkspaceId && t.plannedDate === newDay && (activeAgentId ? t.agentId === activeAgentId : true));
@@ -1268,6 +1425,10 @@ export default function PlannerApp() {
                 }}
                 onFocusAgent={setFocusedAgentId}
                 onOpenTaskEditModal={handleOpenTaskEditModal}
+                onOpenJob={openJob}
+                highlightTimelineId={highlightTimelineId}
+                dragJob={dragJob}
+                onDragJob={setDragJob}
                 onOpenTimelineEditModal={handleOpenTimelineEditModal}
                 onStartTimelineForAgentDay={handleStartTimelineForAgentDay}
                 onReorderTasksInTimeline={handleReorderTasks}
@@ -1275,6 +1436,7 @@ export default function PlannerApp() {
                 onAddTaskToTimeline={handleAddTaskToTimeline}
                 onPublishTimeline={handlePublishTimeline}
                 onReopenTimeline={handleReopenTimeline}
+                onRepublishTimeline={handleRepublishTimeline}
                 onDeleteTask={handleDeleteTask}
                 onMoveTaskToBacklog={handleMoveTaskToBacklog}
                 onMoveTaskToAgentDay={handleMoveTaskToAgentDay}
@@ -1302,6 +1464,8 @@ export default function PlannerApp() {
                 agents={agentsInActiveWs}
                 timelines={timelinesInActiveWs}
                 tasks={tasks}
+                onOpenJob={openJob}
+                windowsByJob={windowsByJob}
                 onOpenCellInPlan={(date, agentId) => {
                   setActiveDay(date);
                   setActiveAgentId(agentId);
@@ -1353,6 +1517,9 @@ export default function PlannerApp() {
               workspaceId={activeWorkspaceId || null}
               jobsReloadNonce={jobsReloadNonce}
               onPlaceCard={handlePlaceJobCard}
+              onOpenJob={openJob}
+              windowsByJob={windowsByJob}
+              onDragJob={setDragJob}
             />
           </div>
         </div>
@@ -1374,6 +1541,12 @@ export default function PlannerApp() {
         onReopenTimeline={handleReopenTimeline}
         planningWindowStart={activeWorkspace?.planningWindowStart}
         planningWindowEnd={activeWorkspace?.planningWindowEnd}
+        jobWindow={
+          activeModalEntity?.type === 'task' && activeModalEntity.task.workItemId
+            ? windowsByJob.get(Number(activeModalEntity.task.workItemId)) ?? null
+            : null
+        }
+        onOpenJob={openJob}
       />
 
       {/* Settings: cost rates & model pricing */}
@@ -1425,10 +1598,57 @@ export default function PlannerApp() {
         isOpen={isJobsOpen}
         workspaceId={activeWorkspaceId || null}
         workspaceName={activeWorkspace?.name ?? ''}
-        focusJobId={jobsFocusId}
-        onClose={() => {
-          setIsJobsOpen(false);
-          setJobsFocusId(null);
+        windowsByJob={windowsByJob}
+        onClose={() => setIsJobsOpen(false)}
+        onOpenJob={openJob}
+        onChanged={() => {
+          bumpJobsColumn();
+          void refreshBoard();
+        }}
+      />
+
+      {/* PUX-4-02 — overload check: one question, Place / Cancel. */}
+      {overloadAsk && (
+        <div className="fixed inset-0 z-[60] bg-neutral-950/30 flex items-center justify-center p-4" onClick={() => answerOverload(false)}>
+          <div
+            role="alertdialog"
+            data-testid="overload-confirm"
+            className="bg-white rounded-lg shadow-xl border border-neutral-200 w-full max-w-sm p-5 flex flex-col gap-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-sm text-neutral-900">{overloadAsk.message}</p>
+            <div className="flex justify-end gap-2">
+              <button type="button" data-testid="overload-cancel" onClick={() => answerOverload(false)} className="px-3 py-1.5 text-xs text-neutral-700 hover:text-neutral-900">
+                Cancel
+              </button>
+              <button type="button" data-testid="overload-place" onClick={() => answerOverload(true)} className="px-3 py-1.5 bg-neutral-900 text-white rounded-md text-xs font-semibold hover:bg-neutral-800">
+                Place anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PUX-1 — one job, side panel; the board stays visible beside it. */}
+      {/* Keyed by job: switching jobs REMOUNTS every editor inside, so a
+          half-typed time window / items / exception sheet can never be saved
+          onto the next job (Opus review, 2026-11-07). */}
+      <JobPanel
+        key={openJobId ?? 'none'}
+        workItemId={openJobId}
+        placements={openJobId != null ? jobPlacementMap.get(String(openJobId)) ?? [] : []}
+        timeWindow={openJobId != null ? windowsByJob.get(openJobId) ?? null : null}
+        planWindow={{start: activeWorkspace?.planningWindowStart ?? null, end: activeWorkspace?.planningWindowEnd ?? null}}
+        onClose={closeJob}
+        onOpenJob={openJob}
+        onJumpTo={handleJumpToPlacement}
+        onWindowChanged={(workItemId, w) => {
+          setWindowsByJob((prev) => {
+            const next = new Map(prev);
+            if (w) next.set(workItemId, {...w, work_item_id: workItemId});
+            else next.delete(workItemId);
+            return next;
+          });
         }}
         onChanged={() => {
           bumpJobsColumn();

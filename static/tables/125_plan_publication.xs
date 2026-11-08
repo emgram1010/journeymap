@@ -12,6 +12,15 @@
 // minutes post-publish, this snapshot still read 30 and its hash was
 // unchanged.
 //
+// REPUB-1: a timeline may now be published MORE THAN ONCE, up until the
+// agent starts working it. Each republish ADDS a row with version n+1;
+// old versions stay forever as history. "Current" = highest version
+// (equivalently highest id) — the one rule, in
+// functions/live/latest_publications.xs. The unique index on
+// (timeline_id, version) is the RACE GUARD: two overlapping republishes
+// both compute n+1 and the database refuses the second (db.transaction
+// alone does not serialize overlaps — CLAUDE.md, EXC-1).
+//
 // `snapshot_hash` is the tamper-evidence: re-serialising the stored
 // snapshot must reproduce it, the same guarantee PUB-1 gives a map
 // version.
@@ -39,7 +48,11 @@ table plan_publication {
 
     int timeline_id? {
       table = "planner_timeline"
-      description = "Unique — one publication per timeline. Re-publishing is not in the MVP."
+      description = "REPUB-1: no longer unique on its own — one row per (timeline, version)."
+    }
+
+    int version?=0 {
+      description = "REPUB-1: 1 = first publish, +1 per republish. Unique with timeline_id (the race guard). Backfilled to 1 for all pre-REPUB rows; 0 is impossible by construction."
     }
 
     int published_by? {
@@ -64,7 +77,7 @@ table plan_publication {
   index = [
     {type: "primary", field: [{name: "id"}]}
     {type: "btree", field: [{name: "created_at", op: "desc"}]}
-    {type: "btree|unique", field: [{name: "timeline_id", op: "asc"}]}
+    {type: "btree|unique", field: [{name: "timeline_id", op: "asc"}, {name: "version", op: "asc"}]}
     {type: "btree", field: [{name: "published_by", op: "asc"}]}
   ]
 }

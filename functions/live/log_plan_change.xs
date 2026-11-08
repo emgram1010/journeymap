@@ -43,19 +43,33 @@ function "live/log_plan_change" {
       value = 0
     }
 
+    var $tl_ids {
+      value = []
+    }
+
+    array.push $tl_ids {
+      value = $input.timeline_id
+    }
+
     try_catch {
       try {
-        db.query plan_publication {
-          where = $db.plan_publication.timeline_id == $input.timeline_id
-          return = {type: "list"}
-        } as $pubs
+        // REPUB-1: changes are logged against the CURRENT publication
+        // (shared rule in live/latest_publications) — after a republish,
+        // "changed since publish" must mean "since the LAST publish".
+        function.run "live/latest_publications" {
+          input = {timeline_ids: $tl_ids}
+        } as $latest
+
+        foreach ($latest.publications) {
+          each as $p {
+            var.update $publication_id {
+              value = $p.id
+            }
+          }
+        }
 
         conditional {
-          if (($pubs|count) > 0) {
-            var.update $publication_id {
-              value = ($pubs|first).id
-            }
-
+          if ($publication_id > 0) {
             db.add plan_change_log {
               data = {
                 timeline_id        : $input.timeline_id

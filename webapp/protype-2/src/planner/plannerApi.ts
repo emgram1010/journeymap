@@ -115,6 +115,10 @@ export interface RawTimeline {
   task_count: number;
   total_minutes: number;
   out_of_window: boolean;
+  /** REPUB-1 — 0 before the first publish. Additive; an older server simply omits it. */
+  current_version?: number;
+  /** REPUB-1 — true once any activity has been recorded against a published day. Additive. */
+  is_sealed?: boolean;
 }
 
 export const listTimelines = (workspaceId: number, dateFrom?: string, dateTo?: string) => {
@@ -138,12 +142,23 @@ export const updateTimeline = (
   body: Partial<{agent_id: number; planned_date: string; start_time: string}>,
 ) => performRequest<{timeline: RawTimeline}>(`/timeline/${timelineId}`, {method: 'PATCH', body});
 
-/** LIVE-1 — freezes this day for the performer. Throws with every blocker's message if the day isn't ready. */
+/**
+ * LIVE-1 — freezes this day for the performer. Throws with every blocker's message if the day isn't ready.
+ *
+ * REPUB-1 — the SAME endpoint republishes an already-published day: a
+ * new, higher `version` snapshot replaces what the performer sees. The
+ * server tells the two apart itself (`is_republish`) and refuses
+ * (E-LIVE-007) once the agent has recorded any activity against the
+ * day — the caller doesn't need to know which case it is, only that a
+ * republish needs its own confirmation copy (see `canRepublish` /
+ * `handleRepublishTimeline`).
+ */
 export const publishTimeline = (timelineId: number) =>
-  performRequest<{publication: {id: number; timeline_id: number; item_count: number}; published_at: number}>(
-    `/timeline/${timelineId}/publish`,
-    {method: 'POST'},
-  );
+  performRequest<{
+    publication: {id: number; timeline_id: number; version: number; item_count: number};
+    published_at: number;
+    is_republish: boolean;
+  }>(`/timeline/${timelineId}/publish`, {method: 'POST'});
 
 /**
  * PLN-6 (US-PLN-6-05) — delete one day. The day goes, the work stays:
@@ -176,6 +191,8 @@ export interface RawTask {
   assignee_agent_id: number;
   /** "HH:MM", or null for a backlog task — never stored, always derived server-side (planner_task's own header comment explains why). */
   planned_start: string | null;
+  /** SCHED-2 — the planner's manual start ("HH:MM"), or "" when the start is computed. Absent on servers before SCHED-2. */
+  start_override?: string;
   effective_assignee: {agent_id: number; name: string | null};
 }
 
@@ -497,6 +514,60 @@ export const cancelWorkItem = (workItemId: number) =>
     {method: 'POST', body: {}},
   );
 
+// ── TW-1 — a job's time window ──────────────────────────────────────────
+
+export interface RawTimeWindow {
+  start_date: string;
+  start_time: string;
+  end_date: string;
+  end_time: string;
+  note?: string | null;
+}
+
+export const getTimeWindow = (workItemId: number, signal?: AbortSignal) =>
+  performRequest<{work_item_id: number; time_window: RawTimeWindow | null}>(`/work-item/${workItemId}/time-window`, {signal});
+
+/** Upsert: create or replace the job's one window. The server re-checks every rule (D-6). */
+export const putTimeWindow = (workItemId: number, body: RawTimeWindow, correlationId?: string) =>
+  performRequest<{
+    work_item_id: number;
+    time_window: RawTimeWindow;
+    created: boolean;
+    needs_republish: boolean;
+    published_item_refs: string[];
+  }>(`/work-item/${workItemId}/time-window`, {method: 'PUT', body: {...body, correlation_id: correlationId}});
+
+export const deleteTimeWindow = (workItemId: number) =>
+  performRequest<{work_item_id: number; deleted: boolean; needs_republish: boolean; published_item_refs: string[]}>(
+    `/work-item/${workItemId}/time-window`,
+    {method: 'DELETE'},
+  );
+
+// ── SCHED-2 — a scheduled slot's manual start time ──────────────────────
+// No list read needed: derive_tasks already returns `start_override` on
+// every task the board loads.
+
+/** Upsert. Later slots on the day flow on from this one ("pin + flow"). The server re-checks every rule. */
+export const putStartOverride = (plannerTaskId: number, body: {start_time: string; reason?: string}, correlationId?: string) =>
+  performRequest<{planner_task_id: number; start_override: string; reason: string; created: boolean; needs_republish: boolean}>(
+    `/planner_task/${plannerTaskId}/start-override`,
+    {method: 'PUT', body: {...body, correlation_id: correlationId}},
+  );
+
+/** Back to the computed start. Clearing a slot with no override is a no-op, not an error. */
+export const deleteStartOverride = (plannerTaskId: number) =>
+  performRequest<{planner_task_id: number; cleared: boolean; needs_republish: boolean}>(
+    `/planner_task/${plannerTaskId}/start-override`,
+    {method: 'DELETE'},
+  );
+
+/** Every window in the plan, for the board/backlog to merge onto their own cards (CLAUDE.md: a side table needs its own list read). */
+export const listTimeWindows = (workspaceId: number, signal?: AbortSignal) =>
+  performRequest<{workspace_id: number; windows: Array<RawTimeWindow & {work_item_id: number}>}>(
+    `/workspace/${workspaceId}/time-windows`,
+    {signal},
+  );
+
 /**
  * Everything in this plan waiting for a day, as CARDS.
  *
@@ -536,17 +607,28 @@ export interface BacklogCard {
   estimate_status?: 'n/a' | 'complete' | 'incomplete';
   first_stage_label: string;
   last_stage_label: string;
+  /** The card's UNSCHEDULED steps, in the pinned version's stage order — the contract `cardStepsFromJobTasks` relies on. */
   work_task_ids: number[];
-  steps: BacklogCardStep[];
+  /**
+   * LOAD-1 (US-LOAD-1-03) — ABSENT in a summary read (`listBacklogWork(id, {summary: true})`),
+   * present in a full one. The drawer reads summary rows and fetches a selected card's steps
+   * from the job (`getWorkItem` + `cardStepsFromJobTasks`); never assume this is set.
+   */
+  steps?: BacklogCardStep[];
   /** EXC-1 — 0 unless this card's job was started from another job. */
   parent_work_item_id?: number;
   /** EXC-1 — open jobs started from this card's job. */
   child_count?: number;
 }
 
-export const listBacklogWork = (workspaceId: number) =>
+/**
+ * LOAD-1 (US-LOAD-1-03) — `summary: true` asks for summary rows only (`?detail=summary`):
+ * every field but `steps`. ~83% smaller on the live data; the steps for one card are read
+ * when it is selected. Without it the response is the full one, exactly as before.
+ */
+export const listBacklogWork = (workspaceId: number, opts: {summary?: boolean} = {}) =>
   performRequest<{workspace_id: number; count: number; backlog: BacklogCard[]}>(
-    `/workspace/${workspaceId}/backlog_work`,
+    `/workspace/${workspaceId}/backlog_work${opts.summary ? '?detail=summary' : ''}`,
   );
 
 /**
@@ -633,7 +715,10 @@ export interface LinkedStep {
   step_status: string;
   step_title: string | null;
   done_when: string | null;
-  expected_minutes: number | null;
+  // LOAD-1 (US-LOAD-1-01): `expected_minutes` / `estimate_status` /
+  // `estimate_source` are gone from this shape — the board never read them,
+  // and computing them cost ~0.35s per scheduled job. Estimates still come
+  // from the backlog (559) and a job's own task list (555).
 }
 
 // ── What came back from Execution (W3) ─────────────────────────────────────
@@ -685,8 +770,12 @@ export interface ActivityEvent {
   source: string;
 }
 
-/** The human half: what was said, by whom, when. Step wording comes from the job's pinned version, so a note reads against the text the person actually saw. */
-export const getWorkItemActivity = (workItemId: number) =>
+/**
+ * The human half: what was said, by whom, when. Step wording comes from the job's pinned version, so a note reads against the text the person actually saw.
+ * PERF-1 (US-PERF-1-02) — optional `signal` so a caller (JobsModal) can
+ * abort this when the job's row closes before it resolves.
+ */
+export const getWorkItemActivity = (workItemId: number, signal?: AbortSignal) =>
   performRequest<{
     work_item_id: number;
     job_title: string;
@@ -695,7 +784,7 @@ export const getWorkItemActivity = (workItemId: number) =>
     blocked_count: number;
     skipped_count: number;
     events: ActivityEvent[];
-  }>(`/work_item/${workItemId}/activity`);
+  }>(`/work_item/${workItemId}/activity`, {signal});
 
 // ── EST-1: what's in this order ─────────────────────────────────────────
 //
@@ -747,15 +836,26 @@ export interface AvailableItem {
   is_active: boolean;
 }
 
-/** US-EST-1-02 — this job's lines, each with its own per-stage contribution, plus the job's whole estimate. */
-export const getWorkItemLines = (workItemId: number) =>
-  performRequest<{
-    work_item_id: number;
-    lines: WorkItemLine[];
-    estimate: JobEstimate;
-    available_items: AvailableItem[];
-    frozen: boolean;
-  }>(`/work-item/${workItemId}/lines`);
+/**
+ * PERF-1 (US-PERF-1-01) — the shape `getWorkItemLines` resolves to, named so
+ * `JobsModal` can hold ONE fetch of it in state and pass it down to both
+ * `JobLinesEditor` and `ExceptionSendPanel` instead of each fetching it
+ * independently (the audit's measured 4× `lines` / 2× `links` call bug).
+ */
+export interface WorkItemLinesResult {
+  work_item_id: number;
+  lines: WorkItemLine[];
+  estimate: JobEstimate;
+  available_items: AvailableItem[];
+  frozen: boolean;
+}
+
+/**
+ * US-EST-1-02 — this job's lines, each with its own per-stage contribution, plus the job's whole estimate.
+ * PERF-1 (US-PERF-1-02) — optional `signal` to abort (see `getWorkItemActivity`).
+ */
+export const getWorkItemLines = (workItemId: number, signal?: AbortSignal) =>
+  performRequest<WorkItemLinesResult>(`/work-item/${workItemId}/lines`, {signal});
 
 /**
  * Replace the job's whole set of lines. The server REJECTS a repeated
@@ -852,14 +952,17 @@ export interface JobSendOption {
   published: boolean;
 }
 
-/** GET work_item/{id}/links (611) — where a job came from, what was sent off it, and what each step can send. */
-export const getWorkItemLinks = (workItemId: number) =>
+/**
+ * GET work_item/{id}/links (611) — where a job came from, what was sent off it, and what each step can send.
+ * PERF-1 (US-PERF-1-02) — optional `signal` to abort (see `getWorkItemActivity`).
+ */
+export const getWorkItemLinks = (workItemId: number, signal?: AbortSignal) =>
   performRequest<{
     work_item_id: number;
     parent: JobParentLink | null;
     children: JobChildLink[];
     send_options: JobSendOption[];
-  }>(`/work_item/${workItemId}/links`);
+  }>(`/work_item/${workItemId}/links`, {signal});
 
 /** EXC-2 (US-EXC-2-02) — one task of a job, hydrated from its pinned version (555's shape). */
 export interface WorkItemTask {
@@ -884,8 +987,9 @@ export interface WorkItemTask {
  * read 611 uses. `JobPeekSheet` (US-EXC-2-02) is the one caller of
  * this that reads someone ELSE's job — read-only, same tenancy check
  * as every other 555 caller (the job must be in the caller's account).
+ * PERF-1 (US-PERF-1-02) — optional `signal` to abort (see `getWorkItemActivity`).
  */
-export const getWorkItem = (workItemId: number) =>
+export const getWorkItem = (workItemId: number, signal?: AbortSignal) =>
   performRequest<{
     work_item: RawWorkItem;
     parent: JobParentLink | null;
@@ -895,7 +999,7 @@ export const getWorkItem = (workItemId: number) =>
     status_matches: boolean;
     tasks: WorkItemTask[];
     estimate_summary: {has_items_row: boolean; complete: boolean; total_minutes: number; missing: unknown[]; reasons: unknown[]};
-  }>(`/work_item/${workItemId}`);
+  }>(`/work_item/${workItemId}`, {signal});
 
 export interface RaiseExceptionResult {
   exception_id: number;

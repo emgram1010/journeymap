@@ -1,136 +1,62 @@
-// GAP-FIX W1 (2026-10-17) — The missing middle of the loop.
+// GAP-FIX W1 (2026-10-17) built this as the screen that turns a map into real
+// work: start a job from a map, see the jobs in this plan.
 //
-// THE DEAD STOP THIS FIXES. You publish a map, make a plan, attach the
-// map — and then "Add task" gives you a plain text task that looks like
-// every other task, because it is one. There was no screen anywhere
-// that turned a map into real work. Two separate things existed:
-//
-//   planner_task  a scheduling slot: a title, a duration, a position on
-//                 someone's day. Knows nothing about maps. ← "Add task"
-//   work_item     a JOB: a real instance of the work ("Quote for the
-//   + work_task   Garcia party"), whose steps are generated from the
-//                 map's frozen version and carry the real instructions,
-//                 done-when and durations. ← no screen created one
-//
-// The backend for the second was complete and tested (JOB-1's 554–558,
-// SCHED-1's 559–560). The end-to-end proof earlier in this project
-// worked precisely because those jobs were created by direct API call.
-// Only the screen was missing. This is the screen.
-//
-// THREE THINGS IN ONE PLACE, because they are one task in the planner's
-// head: start a job from a map, see the jobs in this plan, and put
-// their steps on someone's day.
-//
-// BOARD-1 (2026-10-28) — SCHEDULING LEFT THIS MODAL. "Work waiting for
-// a day", "Already on a day" and the pick-who/pick-day form moved to
-// the planner's main screen (the Jobs column + drag onto a day, see
-// JobsColumn.tsx), the same way RPT-1 moved Planned-vs-actual out. What
-// remains here is PER-JOB: create a job from a map, its lines, its
-// exceptions, its activity. `focusJobId` opens it straight onto one job
-// when a Jobs-column title is clicked.
-//
-// BLK-1 (US-BLK-1-07, 2026-10-21) — A ROW IS A CARD, NOT A STEP.
-// Stories 01-03 made the backlog return one row per (job, actor row)
-// and gave the server a card-level schedule and release, and this
-// screen was left pointing at the old per-step shape. It was not
-// merely behind: 559's response no longer had `work_task_id`, `task`
-// or `stage_key` in it, so every row rendered `undefined`, every row's
-// key was `undefined`, and `schedulingFor === row.work_task_id` was
-// therefore true for ALL of them at once — one click opened every
-// scheduler on the list. A card is keyed by `card_key`
-// (`work_item_id::lens_key`) precisely because `work_task_id` is no
-// longer one row's identity.
-import {useCallback, useEffect, useRef, useState} from 'react';
-import {X, Briefcase, Plus, Ban, ChevronRight, ChevronDown} from 'lucide-react';
+// PUX-1 (US-PUX-1-05, 2026-11-07) — A LIST, NOTHING MORE. It used to expand a
+// job's row in place (steps, lines, exceptions, activity, time window), and the
+// Jobs column opened it with a `focusJobId` that expanded one row inside the
+// full list — the founder's "why do I see every job when I clicked mine?". All
+// per-job detail moved to `JobPanel.tsx`, opened from every place a job
+// appears; this modal keeps search, "New job", and one line per job.
+import {useCallback, useEffect, useMemo, useState} from 'react';
+import {X, Briefcase, Plus, Search, ChevronRight} from 'lucide-react';
 import {
   listWorkspaceMaps,
   listWorkItems,
   createWorkItem,
-  cancelWorkItem,
-  getWorkItemActivity,
-  getWorkItem,
-  type ActivityEvent,
   type RawWorkspaceMap,
   type WorkItemListEntry,
-  type WorkItemTask,
+  type RawTimeWindow,
 } from '../plannerApi';
-import {reasonLabel, eventLabel, formatMinutes} from '../varianceDisplay';
-import {jobStatusLabel, groupTasksByRole} from '../../jobModel';
-import {JobLinesEditor} from './JobLinesEditor';
-import ExceptionSendPanel from '../../exceptions/ExceptionSendPanel';
-import JobPeekSheet from '../../exceptions/JobPeekSheet';
+import {jobStatusLabel} from '../../jobModel';
+import {compareByWindow} from '../timeWindowModel';
+import {TimeWindowChip} from './TimeWindowChip';
 
 interface JobsModalProps {
   isOpen: boolean;
   workspaceId: string | null;
   workspaceName: string;
-  /** BOARD-1 — open straight onto this job's detail (a Jobs-column title click). */
-  focusJobId?: number | null;
+  /** PUX-2 — every window in the plan, keyed by job (PlannerApp's copy). */
+  windowsByJob: Map<number, RawTimeWindow & {work_item_id: number}>;
   onClose: () => void;
-  /** Refetch the board after anything here changes it. */
+  /** PUX-1 — open one job in the side panel. */
+  onOpenJob: (workItemId: number) => void;
+  /** Refetch the board after a job is created. */
   onChanged: () => void;
 }
 
-export function JobsModal({
-  isOpen,
-  workspaceId,
-  workspaceName,
-  focusJobId,
-  onClose,
-  onChanged,
-}: JobsModalProps) {
+export function JobsModal({isOpen, workspaceId, workspaceName, windowsByJob, onClose, onOpenJob, onChanged}: JobsModalProps) {
   const [maps, setMaps] = useState<RawWorkspaceMap[]>([]);
   const [jobs, setJobs] = useState<WorkItemListEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-
-  // New-job form
+  const [query, setQuery] = useState('');
+  const [sortByWindow, setSortByWindow] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newMapId, setNewMapId] = useState<number | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  // W3 — what came back from Execution, fetched per job only when the
-  // planner opens it: the activity log (577).
-  //
-  // RPT-1 (2026-10-27) — the variance report (568) used to be fetched
-  // here too, for the "Planned vs actual" block. That block is now its
-  // own page (Reports → Plan vs Action), so opening a job no longer
-  // pulls a report nobody asked to read.
-  const [openJobId, setOpenJobId] = useState<number | null>(null);
-  const [reportFor, setReportFor] = useState<number | null>(null);
-  const [activity, setActivity] = useState<ActivityEvent[]>([]);
-  const [isLoadingReport, setIsLoadingReport] = useState(false);
-  const [reportError, setReportError] = useState<string | null>(null);
-  const [confirmCancelId, setConfirmCancelId] = useState<number | null>(null);
-  // EXC-2 (US-EXC-2-04) — sent work that is not in this plan opens in the read-only view.
-  const [peekId, setPeekId] = useState<number | null>(null);
-  // QUE-1 (US-QUE-1-04) — a job's own steps, fetched alongside activity
-  // when its row opens. The founder's own analogy: a Trello card opening
-  // to its checklist. Read-only — 555 (getWorkItem) is the same endpoint
-  // JobPeekSheet reads for someone else's job; here it is the planner's
-  // own, shown inline instead of in a separate sheet.
-  const [steps, setSteps] = useState<WorkItemTask[]>([]);
-  const [isLoadingSteps, setIsLoadingSteps] = useState(false);
-  const [stepsError, setStepsError] = useState<string | null>(null);
-  const [expandedStepId, setExpandedStepId] = useState<number | null>(null);
 
-  const load =useCallback(async (wsId: string, isPlanChange = false) => {
+  const load = useCallback(async (wsId: string, isPlanChange = false) => {
     setIsLoading(true);
     setError(null);
-    // Switching plans must CLEAR first. Leaving the previous plan's jobs
-    // and maps on screen while the new ones load shows one plan's work
-    // under another plan's name — briefly, but long enough to act on
-    // (an E2E run picked exactly that stale list and believed it).
+    // Switching plans must CLEAR first, so one plan's jobs never show under another's name.
     if (isPlanChange) {
       setMaps([]);
       setJobs([]);
       setNewMapId(null);
     }
     try {
-      const [mapData, jobData] = await Promise.all([
-        listWorkspaceMaps(Number(wsId)),
-        listWorkItems(Number(wsId)),
-      ]);
+      const [mapData, jobData] = await Promise.all([listWorkspaceMaps(Number(wsId)), listWorkItems(Number(wsId))]);
       setMaps(mapData.maps);
       setJobs(jobData.work_items);
       setNewMapId((prev) => (prev !== null && mapData.maps.some((m) => m.map_id === prev) ? prev : mapData.maps[0]?.map_id ?? null));
@@ -141,37 +67,28 @@ export function JobsModal({
     }
   }, []);
 
-  // Reset the form only when the modal OPENS — the same rule the
-  // "New plan" modal had to be fixed to follow (gap-fix Part 1 #7):
-  // resetting whenever loaded data arrives erases what was typed.
+  // Reset the form only when the modal OPENS (gap-fix Part 1 #7).
   useEffect(() => {
     if (!isOpen) return;
     setNewTitle('');
     setError(null);
     setNotice(null);
-    setConfirmCancelId(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setQuery('');
   }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && workspaceId) void load(workspaceId, true);
   }, [isOpen, workspaceId, load]);
 
-  // BOARD-1 — opened from a Jobs-column title: expand that job's detail
-  // once its row exists. One shot per open (the ref), so the planner can
-  // still collapse it or open another without this effect fighting back.
-  const focusedOnceRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (!isOpen) {
-      focusedOnceRef.current = null;
-      return;
-    }
-    if (focusJobId == null || focusedOnceRef.current === focusJobId) return;
-    if (!jobs.some((j) => j.work_item.id === focusJobId)) return;
-    focusedOnceRef.current = focusJobId;
-    showJob(focusJobId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, focusJobId, jobs]);
+  const visibleJobs = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q ? jobs.filter((j) => j.work_item.title.toLowerCase().includes(q)) : jobs;
+    return [...filtered].sort((a, b) =>
+      sortByWindow
+        ? compareByWindow(windowsByJob.get(a.work_item.id), windowsByJob.get(b.work_item.id)) || b.work_item.id - a.work_item.id
+        : b.work_item.id - a.work_item.id,
+    );
+  }, [jobs, query, sortByWindow, windowsByJob]);
 
   if (!isOpen) return null;
 
@@ -193,110 +110,15 @@ export function JobsModal({
       const result = await createWorkItem({workspace_id: Number(workspaceId), journey_map_id: newMapId, title});
       setNewTitle('');
       setNotice(
-        `"${title}" created with ${result.task_count} step${result.task_count === 1 ? '' : 's'}, pinned to version ${result.pinned_version.version_no}. Schedule them below.`,
+        `"${title}" created with ${result.task_count} step${result.task_count === 1 ? '' : 's'}, pinned to version ${result.pinned_version.version_no}. Its steps are waiting in Unscheduled.`,
       );
       await load(workspaceId);
       onChanged();
     } catch (err) {
-      // The server's messages here already name the map and say what to
-      // do (E-JOB-002 "add it to the plan's maps first", E-JOB-003
-      // "hasn't been published yet"), so they are shown as-is.
+      // The server's messages name the map and say what to do (E-JOB-002/003).
       setError(err instanceof Error ? err.message : "Couldn't create that job.");
     } finally {
       setIsCreating(false);
-    }
-  };
-
-  // W3 — loaded on demand, not with the list: a plan with twenty jobs
-  // should not fetch twenty reports nobody asked for. QUE-1 (US-QUE-1-04)
-  // adds the job's own steps to this same on-demand fetch, via the same
-  // endpoint JobPeekSheet uses for someone else's job (555).
-  const openReport = async (workItemId: number) => {
-    if (openJobId === workItemId) {
-      setOpenJobId(null);
-      return;
-    }
-    setOpenJobId(workItemId);
-    setIsLoadingReport(true);
-    setReportError(null);
-    setActivity([]);
-    setIsLoadingSteps(true);
-    setStepsError(null);
-    setSteps([]);
-    setExpandedStepId(null);
-    try {
-      const a = await getWorkItemActivity(workItemId);
-      setReportFor(workItemId);
-      setActivity(a.events);
-    } catch (err) {
-      setReportError(err instanceof Error ? err.message : "Couldn't load what came back for this job.");
-    } finally {
-      setIsLoadingReport(false);
-    }
-    try {
-      const w = await getWorkItem(workItemId);
-      setSteps(w.tasks);
-    } catch (err) {
-      setStepsError(err instanceof Error ? err.message : "Couldn't load this job's steps.");
-    } finally {
-      setIsLoadingSteps(false);
-    }
-  };
-
-  // EXC-1 — the "from #…" / "sent on" chips are links, not toggles: they
-  // open the other job (never close it) and bring it on screen.
-  const showJob = (workItemId: number) => {
-    if (openJobId !== workItemId) void openReport(workItemId);
-    requestAnimationFrame(() => document.getElementById(`job-row-${workItemId}`)?.scrollIntoView({block: 'center'}));
-  };
-
-  // EXC-2 (US-EXC-2-04) — a chip for sent work: in this plan's list →
-  // expand and scroll to its row; otherwise the read-only job view.
-  const openSentJob = (childId: number) => {
-    if (jobs.some((j) => j.work_item.id === childId)) showJob(childId);
-    else setPeekId(childId);
-  };
-
-  // "N sent on": one child in this plan → that child. Otherwise (several,
-  // or the one child lives elsewhere) → open the parent and bring its
-  // Exceptions block into view, where each child has its own chip.
-  const openSentWork = (parentId: number) => {
-    const kids = jobs.filter((j) => j.work_item.parent_work_item_id === parentId);
-    const entry = jobs.find((j) => j.work_item.id === parentId);
-    if (kids.length === 1 && (entry?.child_count ?? 0) === 1) {
-      showJob(kids[0].work_item.id);
-      return;
-    }
-    // The Exceptions block lists them all — but it only renders on a job that
-    // can still send, so on a finished or cancelled parent there is nothing
-    // to scroll to and the chip would do nothing at all. Its read-only view
-    // lists the same sent work (D-2), so that is the fallback.
-    const status = entry?.work_item.status;
-    if (status === 'completed' || status === 'cancelled') {
-      setPeekId(parentId);
-      return;
-    }
-    if (openJobId !== parentId) void openReport(parentId);
-    const scrollToExceptions = (triesLeft: number) =>
-      requestAnimationFrame(() => {
-        const el = document.getElementById(`job-exceptions-${parentId}`);
-        if (el) el.scrollIntoView({block: 'center'});
-        else if (triesLeft > 0) setTimeout(() => scrollToExceptions(triesLeft - 1), 150);
-      });
-    scrollToExceptions(10);
-  };
-
-  const handleCancel = async (workItemId: number) => {
-    setError(null);
-    setNotice(null);
-    try {
-      const result = await cancelWorkItem(workItemId);
-      setConfirmCancelId(null);
-      setNotice(result.message || 'Job cancelled.');
-      if (workspaceId) await load(workspaceId);
-      onChanged();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't cancel that job.");
     }
   };
 
@@ -304,14 +126,11 @@ export function JobsModal({
     <div
       id="jobs-modal-overlay"
       className="fixed inset-0 z-50 bg-neutral-950/40 backdrop-blur-xs flex items-center justify-center p-4"
-      // With the job view open, a click beside it closes just that view — the
-      // sheet renders inside this overlay, so the old `onClose` threw away the
-      // whole Jobs modal (and the expanded job) instead of the sheet.
-      onClick={() => (peekId != null ? setPeekId(null) : onClose())}
+      onClick={onClose}
     >
       <div
         id="jobs-modal"
-        className="bg-white rounded-lg shadow-xl border border-neutral-200 w-full max-w-2xl flex flex-col max-h-[88vh] overflow-hidden"
+        className="bg-white rounded-lg shadow-xl border border-neutral-200 w-full max-w-xl flex flex-col max-h-[88vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="h-14 px-6 border-b border-neutral-200 flex items-center justify-between bg-neutral-50 shrink-0">
@@ -326,16 +145,19 @@ export function JobsModal({
         </div>
 
         <div className="p-6 overflow-y-auto flex flex-col gap-6">
-          {error &&<p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</p>}
+          {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</p>}
           {notice && <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2">{notice}</p>}
 
           {/* ── New job ─────────────────────────────────────────────── */}
           <section>
             <h3 className="text-xs font-semibold text-neutral-900 mb-2">New job</h3>
-            {maps.length === 0 ? (
+            {/* PERF-1 (US-PERF-1-03): gated on isLoading, so "no maps" never flashes while loading. */}
+            {isLoading && maps.length === 0 ? (
+              <p className="text-[11px] text-neutral-400">Loading…</p>
+            ) : maps.length === 0 ? (
               <p className="text-[11px] text-neutral-500">
-                This plan doesn't use any maps yet. Add one in <span className="font-medium">Workspace Settings → Maps in
-                this plan</span> first — a job has to follow a published map.
+                This plan doesn't use any maps yet. Add one in <span className="font-medium">Workspace Settings → Maps in this plan</span> first —
+                a job has to follow a published map.
               </p>
             ) : (
               <div className="flex flex-col gap-2">
@@ -343,7 +165,10 @@ export function JobsModal({
                   id="new-job-title-input"
                   type="text"
                   value={newTitle}
-                  onChange={(e) => { setNewTitle(e.target.value); setError(null); }}
+                  onChange={(e) => {
+                    setNewTitle(e.target.value);
+                    setError(null);
+                  }}
                   placeholder="e.g. Quote for the Garcia party"
                   className="text-xs px-3 py-2 border border-neutral-200 rounded-md focus:outline-none focus:border-neutral-900"
                 />
@@ -355,7 +180,9 @@ export function JobsModal({
                     className="flex-1 text-xs px-3 py-2 border border-neutral-200 rounded-md bg-white focus:outline-none focus:border-neutral-900"
                   >
                     {maps.map((m) => (
-                      <option key={m.map_id} value={m.map_id}>{m.title ?? `Map #${m.map_id}`}</option>
+                      <option key={m.map_id} value={m.map_id}>
+                        {m.title ?? `Map #${m.map_id}`}
+                      </option>
                     ))}
                   </select>
                   <button
@@ -373,262 +200,64 @@ export function JobsModal({
             )}
           </section>
 
-          {/* ── Jobs in this plan ───────────────────────────────────── */}
+          {/* ── Jobs in this plan — one line each; a click opens the job panel ── */}
           <section>
-            <h3 className="text-xs font-semibold text-neutral-900 mb-2">Jobs in this plan</h3>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <h3 className="text-xs font-semibold text-neutral-900">Jobs in this plan</h3>
+              <label className="flex items-center gap-1 text-[10px] text-neutral-600">
+                <input type="checkbox" checked={sortByWindow} onChange={(e) => setSortByWindow(e.target.checked)} />
+                Soonest window first
+              </label>
+            </div>
+            <div className="relative mb-2">
+              <Search className="w-3 h-3 absolute left-2 top-2 text-neutral-400" />
+              <input
+                type="text"
+                data-testid="jobs-modal-search"
+                placeholder="Find a job…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="w-full pl-6 pr-2 py-1.5 text-[11px] bg-white border border-neutral-200 rounded focus:outline-none focus:border-neutral-400"
+              />
+            </div>
             {isLoading && jobs.length === 0 ? (
               <p className="text-[11px] text-neutral-400">Loading…</p>
             ) : jobs.length === 0 ? (
               <p className="text-[11px] text-neutral-500">No jobs yet.</p>
+            ) : visibleJobs.length === 0 ? (
+              <p className="text-[11px] text-neutral-500">No job matches “{query}”.</p>
             ) : (
               <ul className="divide-y divide-neutral-100 border border-neutral-200 rounded-md">
-                {jobs.map(({work_item: job, task_count, finished_count, has_blocked, child_count}) => (
-                  <li key={job.id} id={`job-row-${job.id}`} className="px-3 py-2 flex flex-col gap-2">
-                  <div className="flex items-center justify-between gap-3">
-                    {/* W3 — the whole row opens the report. Everything the
-                        performer reported was already in the database and
-                        had no screen; this is the screen. */}
+                {visibleJobs.map(({work_item: job, task_count, finished_count, has_blocked}) => (
+                  <li key={job.id}>
                     <button
                       type="button"
-                      onClick={() => void openReport(job.id)}
-                      className="min-w-0 flex items-start gap-1.5 text-left flex-1"
-                      aria-expanded={openJobId === job.id}
+                      data-testid="jobs-modal-job"
+                      onClick={() => onOpenJob(job.id)}
+                      className="w-full px-3 py-2 flex items-center justify-between gap-3 text-left hover:bg-neutral-50"
                     >
-                      {openJobId === job.id ? (
-                        <ChevronDown className="w-3.5 h-3.5 mt-0.5 shrink-0 text-neutral-400" />
-                      ) : (
-                        <ChevronRight className="w-3.5 h-3.5 mt-0.5 shrink-0 text-neutral-400" />
-                      )}
                       <span className="min-w-0">
                         <span className="block text-xs font-medium text-neutral-900 truncate">{job.title}</span>
                         <span className="block text-[10px] text-neutral-500">
-                          {jobStatusLabel(job.status)} · {finished_count} of {task_count} step
-                          {task_count === 1 ? '' : 's'} done
+                          {jobStatusLabel(job.status)} · {finished_count} of {task_count} step{task_count === 1 ? '' : 's'} done
                           {has_blocked && <span className="text-red-600"> · blocked</span>}
                         </span>
+                        <TimeWindowChip window={windowsByJob.get(job.id)} className="mt-1" />
                       </span>
+                      <ChevronRight className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
                     </button>
-                    {/* EXC-1 (US-EXC-1-05) — the link both ways. Clicking opens the other job. */}
-                    {job.parent_work_item_id > 0 && (
-                      <button
-                        type="button"
-                        data-testid="job-parent-chip"
-                        onClick={() => showJob(job.parent_work_item_id)}
-                        className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-800 hover:bg-amber-100"
-                        title="Opens the job this one came from"
-                      >
-                        from #{job.parent_work_item_id}
-                      </button>
-                    )}
-                    {(child_count ?? 0) > 0 && (
-                      <button
-                        type="button"
-                        data-testid="job-children-chip"
-                        onClick={() => openSentWork(job.id)}
-                        className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-800 hover:bg-amber-100"
-                        title="Opens the work sent from this job"
-                      >
-                        {child_count} sent on
-                      </button>
-                    )}
-                    {job.status !== 'cancelled' && (
-                      confirmCancelId === job.id ? (
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-[10px] text-red-700">Unscheduled steps are dropped.</span>
-                          <button
-                            type="button"
-                            onClick={() => void handleCancel(job.id)}
-                            className="px-2 py-1 text-[11px] font-semibold text-white bg-red-600 hover:bg-red-700 rounded"
-                          >
-                            Cancel job
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmCancelId(null)}
-                            className="px-2 py-1 text-[11px] text-neutral-600 hover:text-neutral-900"
-                          >
-                            Keep
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setConfirmCancelId(job.id)}
-                          className="shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] text-neutral-500 hover:text-red-700 hover:bg-red-50 rounded"
-                        >
-                          <Ban className="w-3 h-3" />
-                          Cancel
-                        </button>
-                      )
-                    )}
-                  </div>
-
-                  {/* ── W3: what came back ──────────────────────────── */}
-                  {openJobId === job.id && (
-                    <div className="rounded-md border border-neutral-200 bg-neutral-50/60 p-2.5 flex flex-col gap-3">
-                      {/* QUE-1 (US-QUE-1-04) — the job's own steps, the
-                          Trello-checklist-under-the-card piece. Its own
-                          loading/error state (555 is a separate call from
-                          the activity fetch below, so one finishing first
-                          should not block the other from showing). */}
-                      <div>
-                        <p className="text-[11px] font-semibold text-neutral-800 mb-1">Steps</p>
-                        {isLoadingSteps ? (
-                          <p className="text-[11px] text-neutral-400">Loading…</p>
-                        ) : stepsError ? (
-                          <p className="text-[11px] text-red-600">{stepsError}</p>
-                        ) : steps.length === 0 ? (
-                          <p className="text-[11px] text-neutral-500">This job has no steps yet.</p>
-                        ) : (
-                          (() => {
-                            const roleGroups = groupTasksByRole(steps);
-                            const stepRow = (t: WorkItemTask) => {
-                              const isOpen = expandedStepId === t.id;
-                              return (
-                                <li key={t.id} className="rounded border border-neutral-200 bg-white">
-                                  <button
-                                    type="button"
-                                    onClick={() => setExpandedStepId(isOpen ? null : t.id)}
-                                    aria-expanded={isOpen}
-                                    className="w-full px-2 py-1.5 flex items-center justify-between gap-2 text-left hover:bg-neutral-50"
-                                  >
-                                    <span className="min-w-0">
-                                      <span className="block text-[11px] text-neutral-800 truncate">
-                                        {t.stage_label || t.stage_key}
-                                      </span>
-                                      {!roleGroups && t.owner_lens_label && (
-                                        <span className="block text-[10px] text-neutral-500">{t.owner_lens_label}</span>
-                                      )}
-                                    </span>
-                                    <span className="shrink-0 flex items-center gap-1.5">
-                                      {t.expected_minutes != null && (
-                                        <span className="text-[10px] text-neutral-500 font-mono">{formatMinutes(t.expected_minutes)}</span>
-                                      )}
-                                      <span className="text-[10px] font-medium text-neutral-600">{t.status.replace('_', ' ')}</span>
-                                    </span>
-                                  </button>
-                                  {isOpen && (t.task || t.done_when) && (
-                                    <div className="border-t border-neutral-100 px-2 py-1.5 text-[10px] text-neutral-600 space-y-0.5">
-                                      {t.task && <p>{t.task}</p>}
-                                      {t.done_when && <p className="text-neutral-500">Done when: {t.done_when}</p>}
-                                    </div>
-                                  )}
-                                </li>
-                              );
-                            };
-                            return roleGroups ? (
-                              // More than one role — a group per role line (US-QUE-1-04).
-                              <div className="flex flex-col gap-2">
-                                {roleGroups.map((g) => (
-                                  <div key={g.lensKey}>
-                                    <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-1">
-                                      {g.lensLabel} · {g.tasks.length} step{g.tasks.length === 1 ? '' : 's'}
-                                    </p>
-                                    <ul className="flex flex-col gap-1">{g.tasks.map(stepRow)}</ul>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              // One role — steps directly, no extra tier.
-                              <ul className="flex flex-col gap-1">{steps.map(stepRow)}</ul>
-                            );
-                          })()
-                        )}
-                      </div>
-
-                      {isLoadingReport && reportFor !== job.id ? (
-                        <p className="text-[11px] text-neutral-400">Loading…</p>
-                      ) : reportError ? (
-                        <p className="text-[11px] text-red-600">{reportError}</p>
-                      ) : (
-                        <>
-                          {/* EXC-1 (US-EXC-1-05) — what was sent off this job, and the planner's own "Send to…" */}
-                          {job.status !== 'cancelled' && job.status !== 'completed' && (
-                            <div id={`job-exceptions-${job.id}`}>
-                              <p className="text-[11px] font-semibold text-neutral-800 mb-1">Exceptions</p>
-                              <ExceptionSendPanel
-                                workItemId={job.id}
-                                variant="planner"
-                                onOpenJob={openSentJob}
-                                onSent={() => {
-                                  if (workspaceId) void load(workspaceId);
-                                  onChanged();
-                                }}
-                              />
-                            </div>
-                          )}
-
-                          <div>
-                            <JobLinesEditor
-                              workItemId={job.id}
-                              onEstimateChanged={() => {
-                                if (workspaceId) void load(workspaceId);
-                              }}
-                            />
-                          </div>
-
-                          <div>
-                            <p className="text-[11px] font-semibold text-neutral-800">What the performer reported</p>
-                            {activity.length === 0 ? (
-                              <p className="text-[10px] text-neutral-500 mt-1">
-                                Nothing recorded yet — this job hasn't been worked on.
-                              </p>
-                            ) : (
-                              <ul className="mt-1 flex flex-col gap-1">
-                                {activity.map((e) => (
-                                  <li key={e.id} className="text-[10px] bg-white border border-neutral-200 rounded px-2 py-1">
-                                    <span className="font-medium text-neutral-800">{eventLabel(e.event_type)}</span>
-                                    {e.step_title && <span className="text-neutral-500"> · {e.step_title}</span>}
-                                    {e.performer_name && <span className="text-neutral-400"> · {e.performer_name}</span>}
-                                    {e.event_type === 'blocked' && reasonLabel(e.reason_code) && (
-                                      <span className="text-red-700"> · {reasonLabel(e.reason_code)}</span>
-                                    )}
-                                    {e.note && <span className="block text-neutral-700 mt-0.5">“{e.note}”</span>}
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-
-                          {/* RPT-1 (2026-10-27) — where Planned vs actual went.
-                              A sentence, not a link: this is a modal over the
-                              planner, and navigating away would throw away
-                              everything the planner has open behind it. */}
-                          <p className="text-[10px] text-neutral-400">
-                            Planned vs actual now lives in Reports → Plan vs Action.
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  )}
                   </li>
                 ))}
               </ul>
             )}
           </section>
-
-          {/* BOARD-1 (2026-10-28) — where scheduling went. "Work waiting for
-              a day" and "Already on a day" are now the planner's main screen:
-              the Jobs column lists the waiting cards, dragging one onto a
-              day places it, and each day column shows what it carries. */}
-          <p className="text-[11px] text-neutral-400 border-t border-neutral-100 pt-3">
-            Scheduling moved to the board — drag a card from the Jobs column onto someone's day, or use its Place… button.
-          </p>
         </div>
 
         <div className="h-14 px-6 border-t border-neutral-200 flex items-center justify-end bg-neutral-50 shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-1.5 bg-neutral-900 text-white rounded-md text-xs font-semibold hover:bg-neutral-800"
-          >
+          <button type="button" onClick={onClose} className="px-4 py-1.5 bg-neutral-900 text-white rounded-md text-xs font-semibold hover:bg-neutral-800">
             Done
           </button>
         </div>
-      </div>
-      {/* The sheet sits inside the overlay; its clicks must not reach the overlay's close-on-click. */}
-      <div onClick={(e) => e.stopPropagation()}>
-        <JobPeekSheet workItemId={peekId ?? 0} open={peekId != null} onClose={() => setPeekId(null)} onOpenJob={setPeekId} />
       </div>
     </div>
   );

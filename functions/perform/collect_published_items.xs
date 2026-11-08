@@ -6,6 +6,13 @@
 // publication id it stamps onto each log row. A planner rearranging
 // the day after publish changes nothing this returns.
 //
+// TW-1 (US-TW-1-05) — `time_window` is read straight off the frozen item too
+// (added to the snapshot by `live/build_publication` v2); `?? null` makes an
+// old v1 item (no such key at all) resolve to null rather than throw.
+//
+// SCHED-2 — `start_override` likewise ("HH:MM" or ""; v3 snapshots). Older
+// snapshots have no such key and resolve to "" = computed start.
+//
 // `assignee_agent_id` is read straight off each snapshot item, which
 // `live/build_publication` already resolved to the slot's own
 // override or the timeline's agent — so a step reassigned to a
@@ -92,10 +99,12 @@ function "perform/collect_published_items" {
       }
     }
 
-    db.query plan_publication {
-      where = $db.plan_publication.timeline_id in $tl_ids
-      return = {type: "list"}
-    } as $pubs
+    // REPUB-1: the CURRENT publication per timeline, via the one shared
+    // rule (`live/latest_publications`) — a republished day must never
+    // serve two snapshots, or a stale one, to the performer.
+    function.run "live/latest_publications" {
+      input = {timeline_ids: $tl_ids}
+    } as $latest
 
     var $items {
       value = []
@@ -117,7 +126,7 @@ function "perform/collect_published_items" {
       value = null
     }
 
-    foreach ($pubs) {
+    foreach ($latest.publications) {
       each as $pub {
         var.update $tl_key {
           value = $pub.timeline_id|to_text
@@ -151,6 +160,8 @@ function "perform/collect_published_items" {
                     assignee_name    : $raw.assignee_name
                     title            : $raw.title
                     work_task_ids    : $raw.work_task_ids
+                    time_window      : ($raw.time_window ?? null)
+                    start_override   : ($raw.start_override ?? "")
                   }
                 }
               }

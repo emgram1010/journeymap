@@ -11,6 +11,7 @@
 // performer a clean sentence.
 import {getAuthToken, XanoHttpError} from '../xano';
 import {CORRELATION_HEADER, newCorrelationId} from '../ops/correlationId';
+import {createInflight} from './inflight';
 
 const DEFAULT_PLANNER_BASE_URL = 'https://xdjc-i7zz-jhm2.n7e.xano.io/api:PE5iDldw';
 
@@ -88,9 +89,27 @@ function extractServerMessage(responseText: string): string | null {
   }
 }
 
-export async function performRequest<T>(path: string, options: PerformRequestOptions = {}): Promise<T> {
-  const {method = 'GET', body, signal, baseUrl} = options;
-  const token = getAuthToken();
+interface RawResponse {
+  ok: boolean;
+  status: number;
+  statusText: string;
+  text: string;
+  correlationId: string;
+}
+
+// PERF-1 (US-PERF-1-04) — identical GETs already in flight share one
+// network call. See inflight.ts for why (the backend is effectively
+// one-at-a-time, so duplicates cost real seconds) and why it is safe
+// (in-flight only, never cached).
+const shareGet = createInflight<RawResponse>();
+
+async function sendRequest(
+  url: string,
+  method: string,
+  body: Record<string, unknown> | undefined,
+  signal: AbortSignal | undefined,
+  token: string | null,
+): Promise<RawResponse> {
   const correlationId = newCorrelationId();
   const headers: Record<string, string> = {Accept: 'application/json', [CORRELATION_HEADER]: correlationId};
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -98,7 +117,7 @@ export async function performRequest<T>(path: string, options: PerformRequestOpt
 
   let response: Response;
   try {
-    response = await fetch(`${baseUrl ?? getPlannerBaseUrl()}${path}`, {
+    response = await fetch(url, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
@@ -112,19 +131,34 @@ export async function performRequest<T>(path: string, options: PerformRequestOpt
     throw new PerformRequestError(0, message, correlationId, true);
   }
 
-  const responseText = await response.text();
+  return {ok: response.ok, status: response.status, statusText: response.statusText, text: await response.text(), correlationId};
+}
 
-  if (!response.ok) {
-    const serverMessage = extractServerMessage(responseText);
+export async function performRequest<T>(path: string, options: PerformRequestOptions = {}): Promise<T> {
+  const {method = 'GET', body, signal, baseUrl} = options;
+  const url = `${baseUrl ?? getPlannerBaseUrl()}${path}`;
+  const token = getAuthToken();
+  const send = () => sendRequest(url, method, body, signal, token);
+
+  // Only a plain GET is shared: a write must always be sent, and a
+  // request carrying its own AbortSignal must not be cancelled by — or
+  // cancel — someone else's. The token is part of the key so two
+  // signed-in users can never receive each other's response.
+  const raw = method === 'GET' && !body && !signal ? await shareGet(`${url}\n${token ?? ''}`, send) : await send();
+
+  if (!raw.ok) {
+    const serverMessage = extractServerMessage(raw.text);
     throw new PerformRequestError(
-      response.status,
-      serverMessage ?? `Planner ${method} ${path} failed (${response.status}): ${responseText || response.statusText}`,
-      correlationId,
+      raw.status,
+      serverMessage ?? `Planner ${method} ${path} failed (${raw.status}): ${raw.text || raw.statusText}`,
+      raw.correlationId,
       false,
     );
   }
 
-  return responseText ? (JSON.parse(responseText) as T) : (undefined as T);
+  // Each caller parses its OWN copy, so two callers sharing one request
+  // can never see each other's in-place edits to the result.
+  return raw.text ? (JSON.parse(raw.text) as T) : (undefined as T);
 }
 
 // ── Domain calls (US-APP-1-02, -04) ───────────────────────────────────────

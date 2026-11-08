@@ -21,6 +21,9 @@ import { formatMinutesToTime, parseTimeToMinutes } from '../utils/planningLogic'
 import { AGENT_PALETTE } from '../data/initialData';
 import { getNextAgentColor } from '../utils/agentUtils';
 import { listTeamMembers, type TeamMember } from '../plannerApi';
+import { startOverrideChange } from '../startOverrideModel';
+import type { TimeWindow } from '../timeWindowModel';
+import { TimeWindowChip } from './TimeWindowChip';
 
 interface EditModalProps {
   isOpen: boolean;
@@ -54,6 +57,10 @@ interface EditModalProps {
   // bounded to nothing — the server is still the authority (D-5).
   planningWindowStart?: string;
   planningWindowEnd?: string;
+  /** PUX-1-04 — the job's time window, for the step's job header. */
+  jobWindow?: TimeWindow | null;
+  /** PUX-1-04 — leave the step for its job's panel. */
+  onOpenJob?: (workItemId: number) => void;
 }
 
 export function EditModal({
@@ -71,6 +78,8 @@ export function EditModal({
   onReopenTimeline,
   planningWindowStart,
   planningWindowEnd,
+  jobWindow,
+  onOpenJob,
 }: EditModalProps) {
   // Modal states
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
@@ -85,10 +94,14 @@ export function EditModal({
   // "Rendered more hooks than during the previous render" the moment
   // the modal opened).
   const [isSaving, setIsSaving] = useState(false);
+  // PUX-1-04 — "Open job" with unsaved edits asks first.
+  const [confirmOpenJob, setConfirmOpenJob] = useState(false);
 
   // Task form state
   const [taskTitle, setTaskTitle] = useState('');
   const [taskStart, setTaskStart] = useState('');
+  // SCHED-2 — "Use computed time" was chosen for a step that had a manual start.
+  const [startUseComputed, setStartUseComputed] = useState(false);
   const [taskDuration, setTaskDuration] = useState<string>('30');
   const [taskAssignee, setTaskAssignee] = useState('');
   const [taskStatus, setTaskStatus] = useState<TaskPlanningStatus>('planned');
@@ -127,11 +140,13 @@ export function EditModal({
     setHasChanges(false);
     setErrors({});
     setConfirmDeleteTimeline(false);
+    setConfirmOpenJob(false);
 
     if (entity.type === 'task') {
       const t = entity.task;
       setTaskTitle(t.title);
       setTaskStart(t.planned_start || '');
+      setStartUseComputed(false);
       setTaskDuration(t.duration ? t.duration.toString() : '30');
       setTaskAssignee(t.assignee || '');
       setTaskStatus(t.status);
@@ -213,7 +228,7 @@ export function EditModal({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, hasChanges, entity, taskTitle, taskDuration, taskStart, taskAssignee, taskStatus, taskNotes, taskNeedsInfoReason, tlDate, tlStartTime, agentName, agentKind, agentColor, agentCapacity]);
+  }, [isOpen, hasChanges, entity, taskTitle, taskDuration, taskStart, startUseComputed, taskAssignee, taskStatus, taskNotes, taskNeedsInfoReason, tlDate, tlStartTime, agentName, agentKind, agentColor, agentCapacity]);
 
   if (!isOpen || !entity) return null;
 
@@ -263,6 +278,17 @@ export function EditModal({
     }
   };
 
+  // SCHED-2 — "Use computed time". The computed value is only known once the
+  // server recomputes the day, so the field is emptied until the save.
+  const handleUseComputedStart = () => {
+    if (entity.type !== 'task') return;
+    setStartUseComputed(true);
+    setTaskStart('');
+    setErrors((prev) => ({...prev, start: ''}));
+    setHasChanges(true);
+    setShowDiscardConfirm(false);
+  };
+
   // Track changes for Task
   const handleTaskFieldChange = (field: string, value: string) => {
     if (entity.type !== 'task') return;
@@ -284,8 +310,9 @@ export function EditModal({
     if (field === 'notes') { nextNotes = value; setTaskNotes(value); }
     if (field === 'needsInfoReason') { nextReason = value; setTaskNeedsInfoReason(value); }
 
-    const changed = 
+    const changed =
       nextTitle !== original.title ||
+      startUseComputed ||
       nextStart !== (original.planned_start || '') ||
       nextDuration !== (original.duration?.toString() || '30') ||
       nextAssignee !== (original.assignee || '') ||
@@ -401,6 +428,11 @@ export function EditModal({
         newErrors.duration = 'Duration must be a positive whole number.';
       }
 
+      const startChange = startOverrideChange(entity.task, taskStart, startUseComputed, isBacklogTask);
+      if (startChange.kind === 'invalid') {
+        newErrors.start = startChange.message;
+      }
+
       if (Object.keys(newErrors).length > 0) {
         setErrors(newErrors);
         return;
@@ -411,6 +443,9 @@ export function EditModal({
       const result = await onSaveTask(entity.task.id, {
         title: taskTitle.trim(),
         planned_start: isBacklogTask ? '' : taskStart.trim(),
+        // SCHED-2 — undefined = leave the start alone; '' = back to computed; 'HH:MM' = set by hand.
+        startOverride:
+          startChange.kind === 'set' ? startChange.value : startChange.kind === 'clear' ? '' : undefined,
         duration: durNum,
         assignee: taskAssignee.trim(),
         status: isBacklogTask ? 'planned' : taskStatus,
@@ -972,7 +1007,53 @@ export function EditModal({
                   the one place it is easiest to break it. */}
               {entity.task.workTaskId && (
                 <div className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-[11px] text-indigo-900">
-                  <p className="font-semibold">Step of "{entity.task.jobTitle ?? 'a job'}"</p>
+                  {/* PUX-1-04 — the job this step belongs to: its window, and the way in. */}
+                  <div data-testid="edit-step-job-header" className="flex items-start justify-between gap-2">
+                    <p className="font-semibold min-w-0">Step of "{entity.task.jobTitle ?? 'a job'}"</p>
+                    {onOpenJob && entity.task.workItemId && (
+                      <button
+                        type="button"
+                        data-testid="edit-step-open-job"
+                        onClick={() => {
+                          if (hasChanges && !isLocked) {
+                            setConfirmOpenJob(true);
+                            return;
+                          }
+                          onClose();
+                          onOpenJob(Number(entity.task.workItemId));
+                        }}
+                        className="shrink-0 rounded border border-indigo-300 bg-white px-2 py-0.5 text-[10px] font-semibold text-indigo-800 hover:bg-indigo-100"
+                      >
+                        Open job
+                      </button>
+                    )}
+                  </div>
+                  {confirmOpenJob && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2 rounded bg-white/70 px-2 py-1 text-[10px]">
+                      <span>You have unsaved changes here.</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfirmOpenJob(false);
+                          onClose();
+                          onOpenJob?.(Number(entity.task.workItemId));
+                        }}
+                        className="font-semibold text-red-700 underline"
+                      >
+                        Discard and open job
+                      </button>
+                      <button type="button" onClick={() => setConfirmOpenJob(false)} className="text-neutral-600 underline">
+                        Stay
+                      </button>
+                    </div>
+                  )}
+                  {jobWindow ? (
+                    <div className="mt-1">
+                      <TimeWindowChip window={jobWindow} placedDays={entity.timeline?.plannedDate ? [entity.timeline.plannedDate] : []} />
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-[10px] text-indigo-700">No time window on this job — set one in the job.</p>
+                  )}
                   <p className="mt-0.5">
                     The wording comes from that job's published map version. Changing the title here only renames this
                     slot — it doesn't change the map, and the person doing the work still sees the map's own
@@ -1008,18 +1089,41 @@ export function EditModal({
                   <label className="block text-xs font-semibold text-neutral-700 mb-1">
                     Planned Start
                   </label>
+                  {/* SCHED-2 — editable on a scheduled step; a backlog step still has no start. */}
                   <input
+                    id="edit-task-start-input"
                     type="time"
-                    disabled
-                    readOnly
+                    disabled={isBacklogTask || isLocked || startUseComputed}
+                    readOnly={isBacklogTask}
                     value={taskStart}
-                    className="w-full text-xs px-3 py-2 border border-neutral-200 rounded-md focus:outline-none focus:border-neutral-900 disabled:bg-neutral-100 disabled:text-neutral-400 font-mono"
+                    onChange={(e) => {
+                      setErrors((prev) => ({...prev, start: ''}));
+                      handleTaskFieldChange('start', e.target.value);
+                    }}
+                    className={`w-full text-xs px-3 py-2 border rounded-md focus:outline-none focus:border-neutral-900 disabled:bg-neutral-100 disabled:text-neutral-400 font-mono ${
+                      errors.start ? 'border-red-500 bg-red-50/20' : 'border-neutral-200'
+                    }`}
                   />
-                  <p className="text-[10px] text-neutral-400 mt-1">
+                  {errors.start && <p className="text-[11px] text-red-600 mt-1">{errors.start}</p>}
+                  <p data-testid="edit-task-start-hint" className="text-[10px] text-neutral-400 mt-1">
                     {isBacklogTask
                       ? 'Start time is assigned upon landing on a timeline.'
-                      : "Computed automatically from the timeline's start time and step order."}
+                      : startUseComputed
+                        ? "Goes back to the computed time when you save."
+                        : entity.task.startOverride
+                          ? 'Set by hand. Steps after it on this day follow on from it.'
+                          : "Computed from the day's start time and step order. Change it to set this step's start by hand."}
                   </p>
+                  {!isBacklogTask && !isLocked && !startUseComputed && entity.task.startOverride && (
+                    <button
+                      id="edit-task-start-use-computed"
+                      type="button"
+                      onClick={handleUseComputedStart}
+                      className="mt-1 text-[10px] font-medium text-neutral-600 underline hover:text-neutral-900"
+                    >
+                      Use computed time
+                    </button>
+                  )}
                 </div>
 
                 <div>

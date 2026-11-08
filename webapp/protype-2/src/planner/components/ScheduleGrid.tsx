@@ -17,12 +17,19 @@ import { Agent, Timeline, Task, Workspace } from '../types';
 import { formatShortDate, getWindowPage, isDateOutOfWindow } from '../utils/dateUtils';
 import { calculateAgentDayLoad } from '../utils/agentUtils';
 import { AgentsPopover } from './AgentsPopover';
+import { cellPreview } from '../boardModel';
+import type { TimeWindow } from '../timeWindowModel';
+import { TimeWindowChip } from './TimeWindowChip';
 
 interface ScheduleGridProps {
   workspace: Workspace | null;
   agents: Agent[];
   timelines: Timeline[];
   tasks: Task[];
+  /** PUX-3-03 — a job name in a cell opens its panel. */
+  onOpenJob?: (workItemId: number) => void;
+  /** PUX-2-01 — job windows, for the chip on each listed job. */
+  windowsByJob?: Map<number, TimeWindow & {work_item_id: number}>;
   onOpenCellInPlan: (date: string, agentId: string) => void;
   onCreateTimelineForCell: (agentId: string, date: string) => void;
   onMoveTimelineCell: (timelineId: string, targetAgentId: string, targetDate: string) => void;
@@ -42,6 +49,8 @@ export function ScheduleGrid({
   agents,
   timelines,
   tasks,
+  onOpenJob,
+  windowsByJob,
   onOpenCellInPlan,
   onCreateTimelineForCell,
   onMoveTimelineCell,
@@ -571,6 +580,45 @@ export function ScheduleGrid({
                                 )}
                               </div>
                             </div>
+
+                            {/* PUX-3-03 — which work, not just how much: first 3 items in day order. */}
+                            {(() => {
+                              const preview = cellPreview(dayLoad.tasks, 3);
+                              if (preview.shown.length === 0) return null;
+                              return (
+                                <ul data-testid="schedule-cell-items" className="mt-1 flex flex-col gap-0.5">
+                                  {preview.shown.map((t) => (
+                                    <li key={t.id} className="min-w-0">
+                                      <button
+                                        type="button"
+                                        data-testid="schedule-cell-item"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (t.workItemId && onOpenJob) onOpenJob(Number(t.workItemId));
+                                          else onOpenCellInPlan(dateStr, agent.id);
+                                        }}
+                                        title={t.workItemId ? 'Open this job' : 'Open this day'}
+                                        className="w-full flex items-baseline gap-1 text-left text-[10px] leading-tight hover:underline"
+                                      >
+                                        <span className="font-mono text-neutral-500 shrink-0">{t.planned_start || '--:--'}</span>
+                                        <span className="truncate text-neutral-800">{t.title}</span>
+                                      </button>
+                                      {t.workItemId && (
+                                        <TimeWindowChip
+                                          window={windowsByJob?.get(Number(t.workItemId))}
+                                          placedDays={[dateStr]}
+                                          compact
+                                          className="max-w-full"
+                                        />
+                                      )}
+                                    </li>
+                                  ))}
+                                  {preview.more > 0 && (
+                                    <li className="text-[9px] text-neutral-500">+{preview.more} more</li>
+                                  )}
+                                </ul>
+                              );
+                            })()}
 
                             {/* Middle/Bottom: Planned load hours & thin fill line (§4, §5) */}
                             <div className="mt-auto pt-1">

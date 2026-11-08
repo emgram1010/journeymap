@@ -23,7 +23,7 @@
 // server's own sentence (CLAUDE.md UI rule).
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {Minus, Plus, Send, X} from 'lucide-react';
-import {getWorkItemLines, getWorkItemLinks, raiseException, type JobChildLink, type JobParentLink, type JobSendOption} from '../planner/plannerApi';
+import {getWorkItemLines, getWorkItemLinks, raiseException, type JobChildLink, type JobParentLink, type JobSendOption, type WorkItemLinesResult} from '../planner/plannerApi';
 import {newCorrelationId} from '../ops/correlationId';
 import {progressShortLabel} from './jobProgress';
 import JobPeekSheet from './JobPeekSheet';
@@ -46,6 +46,24 @@ type Props = {
   /** Performer: the step being worked. Planner: omit, and the panel offers every step that can send. */
   workTaskId?: number;
   variant: 'performer' | 'planner';
+  /**
+   * PERF-1 (US-PERF-1-01) — when supplied (the planner's `JobsModal`,
+   * which also renders `JobLinesEditor` for the same job), this panel
+   * uses the shared fetch instead of calling `getWorkItemLines` itself —
+   * the audit measured both components independently fetching the same
+   * job's lines as 4 duplicate calls per job open. `null` means "shared
+   * mode, still loading." Omit entirely (the performer's standalone
+   * usage, `StepScreen`/`SessionScreen` — no sibling to share with) and
+   * the panel fetches its own lines exactly as before.
+   */
+  lines?: WorkItemLinesResult | null;
+  /**
+   * PERF-1 (US-PERF-1-01) — in shared mode, called after a successful
+   * send so the caller can refresh the shared `lines` (sending moves
+   * quantities OFF the parent job, so the old snapshot is stale).
+   * Unused outside shared mode.
+   */
+  onLinesStale?: () => void;
   /** Called after a successful send (e.g. to reload the job or the step). */
   onSent?: () => void;
   /**
@@ -63,10 +81,16 @@ type Props = {
   onOpenJob?: (workItemId: number) => void;
 };
 
-export default function ExceptionSendPanel({workItemId, workTaskId, variant, onSent, onLinksLoaded, onOpenJob}: Props) {
+const toSheetLines = (result: WorkItemLinesResult): SheetLine[] =>
+  (result.lines ?? []).map((l) => ({item_type_id: l.item_type_id, label: l.item_label || l.item_key, quantity: l.quantity}));
+
+export default function ExceptionSendPanel({workItemId, workTaskId, variant, lines: sharedLines, onLinesStale, onSent, onLinksLoaded, onOpenJob}: Props) {
+  const isShared = sharedLines !== undefined;
   const [options, setOptions] = useState<JobSendOption[]>([]);
   const [children, setChildren] = useState<JobChildLink[]>([]);
-  const [lines, setLines] = useState<SheetLine[]>([]);
+  // Only populated in STANDALONE mode (performer). In shared mode the
+  // effective lines come straight from the `lines` prop — see `effectiveLines`.
+  const [ownLines, setOwnLines] = useState<SheetLine[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -78,25 +102,57 @@ export default function ExceptionSendPanel({workItemId, workTaskId, variant, onS
   const [requestId, setRequestId] = useState<string>('');
   const [peekId, setPeekId] = useState<number | null>(null);
 
-  const load = useCallback(async () => {
+  const effectiveLines = useMemo<SheetLine[]>(
+    () => (isShared ? (sharedLines ? toSheetLines(sharedLines) : []) : ownLines),
+    [isShared, sharedLines, ownLines],
+  );
+
+  /**
+   * PERF-1 (US-PERF-1-02) — `signal` is OPTIONAL and only ever passed by
+   * the mount effect below. `submit()`'s own re-calls (after a send)
+   * pass none on purpose — that refresh is a direct result of a user
+   * action the component is clearly still mounted for, not a fetch that
+   * should be abortable by an unrelated unmount.
+   */
+  const load = useCallback(async (signal?: AbortSignal) => {
     setLoadError(null);
     try {
-      const [links, lineData] = await Promise.all([getWorkItemLinks(workItemId), getWorkItemLines(workItemId)]);
-      setOptions(links.send_options ?? []);
-      setChildren(links.children ?? []);
-      setLines((lineData.lines ?? []).map((l) => ({item_type_id: l.item_type_id, label: l.item_label || l.item_key, quantity: l.quantity})));
-      onLinksLoaded?.(links.parent ?? null);
+      if (isShared) {
+        // Shared mode: lines come from the `lines` prop — only links are this panel's own to fetch.
+        const links = await getWorkItemLinks(workItemId, signal);
+        if (signal?.aborted) return;
+        setOptions(links.send_options ?? []);
+        setChildren(links.children ?? []);
+        onLinksLoaded?.(links.parent ?? null);
+      } else {
+        const [links, lineData] = await Promise.all([getWorkItemLinks(workItemId, signal), getWorkItemLines(workItemId, signal)]);
+        if (signal?.aborted) return;
+        setOptions(links.send_options ?? []);
+        setChildren(links.children ?? []);
+        setOwnLines(toSheetLines(lineData));
+        onLinksLoaded?.(links.parent ?? null);
+      }
     } catch (err) {
+      if (signal?.aborted) return;
       setLoadError(err instanceof Error ? err.message : "Couldn't load where this work can be sent.");
     } finally {
-      setLoaded(true);
+      if (!signal?.aborted) setLoaded(true);
     }
-  }, [workItemId, onLinksLoaded]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workItemId, onLinksLoaded, isShared]);
 
   const openJob = useCallback((id: number) => (onOpenJob ? onOpenJob(id) : setPeekId(id)), [onOpenJob]);
 
+  // PERF-1 (US-PERF-1-02) — abort the MOUNT fetch if this panel unmounts
+  // before it resolves (the job row collapsed, or a different job
+  // opened). The audit found stray `links`/`lines` requests still
+  // landing for a job no longer on screen; this is where that happens
+  // for this component specifically (JobsModal's own three fetches have
+  // their own controller — see `openAbortRef` there).
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
   }, [load]);
 
   const stepsWithOptions = useMemo(() => {
@@ -124,7 +180,7 @@ export default function ExceptionSendPanel({workItemId, workTaskId, variant, onS
   const openSheet = (forStep: number | null) => {
     const opts = forStep == null ? [] : optionsForStep(options, forStep);
     setStepId(forStep);
-    setSheet(emptySheet(opts, lines));
+    setSheet(emptySheet(opts, effectiveLines));
     setRequestId(newCorrelationId());
     setSheetError(null);
     setToast(null);
@@ -133,7 +189,7 @@ export default function ExceptionSendPanel({workItemId, workTaskId, variant, onS
 
   const submit = async () => {
     if (!sheet || activeStep == null) return;
-    const problem = validateSheet(sheet, lines, stepOptions);
+    const problem = validateSheet(sheet, effectiveLines, stepOptions);
     if (problem) {
       setSheetError(problem.message);
       return;
@@ -148,7 +204,7 @@ export default function ExceptionSendPanel({workItemId, workTaskId, variant, onS
       const result = await raiseException(activeStep, buildExceptionRequest(sheet, requestId || newCorrelationId()));
       const target = stepOptions.find((o) => o.target_map_id === sheet.targetMapId)?.target_map_title ?? 'the linked map';
       const moved = result.child.lines.map((l) => ({
-        label: lines.find((x) => x.item_type_id === l.item_type_id)?.label ?? l.item_key,
+        label: effectiveLines.find((x) => x.item_type_id === l.item_type_id)?.label ?? l.item_key,
         quantity: l.quantity,
       }));
       let text = sentToast(target, result.child.work_item_id, moved);
@@ -157,6 +213,10 @@ export default function ExceptionSendPanel({workItemId, workTaskId, variant, onS
       setToast(text);
       setOpen(false);
       await load();
+      // Sending moves quantities OFF the parent job — in shared mode
+      // `load()` above only refreshed links, so the caller's shared
+      // `lines` snapshot is now stale until it refetches.
+      if (isShared) onLinesStale?.();
       onSent?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : "That didn't send. Try again.";
@@ -165,6 +225,7 @@ export default function ExceptionSendPanel({workItemId, workTaskId, variant, onS
         setToast(message);
         setOpen(false);
         await load();
+        if (isShared) onLinesStale?.();
         onSent?.();
         return;
       }
@@ -289,12 +350,12 @@ export default function ExceptionSendPanel({workItemId, workTaskId, variant, onS
               </div>
             </section>
 
-            {lines.length > 0 && (
+            {effectiveLines.length > 0 && (
               <section>
                 <p className="mb-1 text-sm font-medium text-zinc-700">How many are going?</p>
                 <p className="mb-2 text-xs text-zinc-500">Leave at 0 to keep them on this job.</p>
                 <ul className="space-y-2">
-                  {lines.map((line) => {
+                  {effectiveLines.map((line) => {
                     const n = sheet.counts[line.item_type_id] ?? 0;
                     const set = (value: number) =>
                       setSheet({...sheet, counts: {...sheet.counts, [line.item_type_id]: clampCount(value, line.quantity)}});

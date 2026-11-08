@@ -3,13 +3,14 @@
 // how it's grouped lives in `performerView.ts`/`sessionModel.ts`'s pure
 // functions; this file only wires fetch results, navigation and taps
 // to them.
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useReducer, useState} from 'react';
 import {fetchToday, recordEvent, PerformRequestError, type PerformEventType} from './performApi';
 import {publishedDays, addDays, diagnoseEmptyDay} from './dayNavigation';
 import {
   toPerformerItems,
   newClientEventId,
   optimisticReducer,
+  offlineReducer,
   mapActionError,
   FALLBACK_STATUS,
   type PerformerSnapshot,
@@ -17,11 +18,15 @@ import {
   type TaskStatus,
   type PerformerAction,
 } from './performerView';
-import {toSessions} from './sessionModel';
+import {toSessions, nextSubStepToWork} from './sessionModel';
 import {logEvent} from '../ops/logEvent';
 import TodayScreen from './TodayScreen';
-import SessionScreen from './SessionScreen';
+import SessionScreen, {type JobTab} from './SessionScreen';
 import StepScreen from './StepScreen';
+import OfflineBanner from './ui/OfflineBanner';
+import JobListSkeleton from './ui/JobListSkeleton';
+import PerformTabBar, {type PerformTab} from './ui/PerformTabBar';
+import PerformProfileScreen from './PerformProfileScreen';
 
 const EVENT_TYPE_FOR_ACTION: Record<PerformerAction, PerformEventType> = {
   start: 'started',
@@ -72,9 +77,38 @@ export default function PerformToday() {
   const [actionError, setActionError] = useState<{workTaskId: number; message: string} | null>(null);
   const [reasonPickerFor, setReasonPickerFor] = useState<{workTaskId: number; action: 'blocked' | 'skip'} | null>(null);
   const [view, setView] = useState<View>({type: 'today'});
+  // EXEC-1 (US-EXEC-1-04) — the job screen's active tab, owned HERE
+  // rather than inside SessionScreen: that component unmounts whenever
+  // `view` switches to 'step' and back, so its own local state can't
+  // survive the round trip. Reset only in `onOpenSession` (a genuinely
+  // different job); untouched by opening/closing a step on the SAME job.
+  const [sessionTab, setSessionTab] = useState<JobTab>('overview');
   const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
   const [noteErrors, setNoteErrors] = useState<Record<number, string | null>>({});
   const [savingNoteFor, setSavingNoteFor] = useState<number | null>(null);
+
+  // EXEC-1 (US-EXEC-1-08) — reactive offline state for the top banner.
+  // `isOffline()` above is still used imperatively at the moment of a
+  // tap (that check must be synchronous, not wait for a render); this
+  // is the SEPARATE reactive copy that drives the banner's visibility,
+  // via the browser's own `online`/`offline` events.
+  const [offline, dispatchOffline] = useReducer(offlineReducer, isOffline());
+  useEffect(() => {
+    const onOnline = () => dispatchOffline('went_online');
+    const onOffline = () => dispatchOffline('went_offline');
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
+
+  // EXEC-1 (US-EXEC-1-09) — the bottom tab bar's own tab, separate from
+  // `view` (today/session/step navigation WITHIN the Today tab). Switching
+  // to Profile and back to Today does not disturb `view` — leaving a job
+  // open, checking the profile, and coming back lands where you left off.
+  const [mainTab, setMainTab] = useState<PerformTab>('today');
 
   const load = useCallback(async (date: string | null = null) => {
     setPhase('loading');
@@ -152,6 +186,20 @@ export default function PerformToday() {
         void logEvent({
           feature: 'APP-2',
           step: 'action_tap',
+          outcome: 'failure',
+          errorCode: info.code,
+          message: info.message,
+          entityType: 'work_task',
+          entityId: workTaskId,
+        });
+        // EXEC-1 (US-EXEC-1-08) — a second, epic-specific event alongside the
+        // one above (doesn't replace it): the Governance section calls for
+        // `EXEC-1 / offline_blocked` specifically for an action refused
+        // because the device was offline, distinct from APP-2's general
+        // action-tap failure log.
+        void logEvent({
+          feature: 'EXEC-1',
+          step: 'offline_blocked',
           outcome: 'failure',
           errorCode: info.code,
           message: info.message,
@@ -289,6 +337,7 @@ export default function PerformToday() {
 
   const onOpenSession = useCallback((workItemId: number) => {
     void logEvent({feature: 'APP-2', step: 'open_session', outcome: 'success', entityType: 'work_item', entityId: workItemId});
+    setSessionTab('overview'); // a genuinely different job always opens on Overview
     setView({type: 'session', workItemId});
   }, []);
 
@@ -308,16 +357,21 @@ export default function PerformToday() {
     setView({type: 'today'});
   }, []);
 
-  if (phase === 'loading') {
-    return (
-      <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-zinc-300 border-t-zinc-700 rounded-full animate-spin" />
-      </div>
-    );
-  }
+  // EXEC-1 (US-EXEC-1-08) — every branch below resolves to ONE `body`
+  // JSX value instead of early-returning, so the offline banner can be
+  // wrapped around all of them from a single place at the bottom,
+  // rather than seven separate return sites each needing the same
+  // wrapper (and each a chance to forget it).
+  let body: React.ReactNode;
 
-  if (phase === 'error') {
-    return (
+  if (mainTab === 'profile') {
+    // EXEC-1 (US-EXEC-1-09) — independent of `phase`: Profile needs no
+    // fetch of its own, so it never waits on Today's load/error state.
+    body = <PerformProfileScreen />;
+  } else if (phase === 'loading') {
+    body = <JobListSkeleton />;
+  } else if (phase === 'error') {
+    body = (
       <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-6">
         <div className="max-w-sm text-center">
           <p className="text-sm text-zinc-700">{loadError}</p>
@@ -327,74 +381,105 @@ export default function PerformToday() {
         </div>
       </div>
     );
+  } else {
+    // Defensive fallback for both branches below: an item is never
+    // actually removed from the frozen snapshot (same guarantee APP-1
+    // already relies on), so `session`/`item`/`sub` should never be
+    // missing in practice — but a merge must degrade to Today rather
+    // than crash if a stale `view` ever outlives its target.
+    const todayFallback = (
+      <TodayScreen
+        date={shownDate}
+        isToday={shownDate === serverToday}
+        sessions={sessions}
+        diagnosis={diagnosis}
+        onOpenSession={onOpenSession}
+        onPrevDay={() => goToDay(addDays(shownDate, -1))}
+        onNextDay={() => goToDay(addDays(shownDate, 1))}
+        onGoToToday={() => goToDay(serverToday)}
+        onJumpTo={goToDay}
+      />
+    );
+
+    if (view.type === 'session') {
+      const session = sessions.find((s) => s.workItemId === view.workItemId);
+      body = !session ? (
+        todayFallback
+      ) : (
+        <SessionScreen
+          session={session}
+          pending={pendingWorkTaskId !== null}
+          offline={offline}
+          activeTab={sessionTab}
+          onChangeTab={setSessionTab}
+          onBack={() => setView({type: 'today'})}
+          onOpenStep={(workTaskId) => setView({type: 'step', workItemId: view.workItemId, workTaskId})}
+          onStartSession={() => onStartSession(view.workItemId)}
+          onFinishSession={() => onFinishSession(view.workItemId)}
+          noteDrafts={noteDrafts}
+          noteErrors={noteErrors}
+          savingNoteFor={savingNoteFor}
+          onChangeNoteDraft={(workTaskId, text) => setNoteDrafts((d) => ({...d, [workTaskId]: text}))}
+          onSaveNote={(workTaskId) => void onSaveNote(workTaskId)}
+        />
+      );
+    } else if (view.type === 'step') {
+      const session = sessions.find((s) => s.workItemId === view.workItemId);
+      const item = session?.items.find((i) => i.subSteps.some((s) => s.workTaskId === view.workTaskId));
+      const sub = item?.subSteps.find((s) => s.workTaskId === view.workTaskId);
+      if (!session || !item || !sub) {
+        body = todayFallback;
+      } else {
+        const workTaskId = view.workTaskId;
+        // EXEC-1 (US-EXEC-1-07) — "Step N of M" and the post-Done "Next step"
+        // target, both derived from the SAME session the Overview tab's
+        // "Continue" button already uses (`nextSubStepToWork`), so the two
+        // screens never disagree about what's next.
+        const allSteps = session.items.flatMap((i) => i.subSteps);
+        const stepIndex = allSteps.findIndex((s) => s.workTaskId === workTaskId);
+        const stepPosition = stepIndex >= 0 ? {index: stepIndex + 1, total: allSteps.length} : null;
+        const continueTarget = nextSubStepToWork(session);
+        body = (
+          <StepScreen
+            sub={sub}
+            expectedMinutes={sub.expectedMinutes ?? item.scheduledMinutes}
+            pending={pendingWorkTaskId === workTaskId}
+            offline={offline}
+            errorMessage={actionError?.workTaskId === workTaskId ? actionError.message : null}
+            reasonPickerFor={reasonPickerFor?.workTaskId === workTaskId ? reasonPickerFor.action : null}
+            noteDraft={noteDrafts[workTaskId] ?? ''}
+            noteSaving={savingNoteFor === workTaskId}
+            noteError={noteErrors[workTaskId] ?? null}
+            stepPosition={stepPosition}
+            continueLabel={continueTarget ? continueTarget.stageLabel || continueTarget.stageKey : null}
+            onBack={() => setView({type: 'session', workItemId: view.workItemId})}
+            onContinue={() => {
+              if (continueTarget) setView({type: 'step', workItemId: view.workItemId, workTaskId: continueTarget.workTaskId});
+              else setView({type: 'session', workItemId: view.workItemId});
+            }}
+            onTapAction={(action) => onTapAction(workTaskId, action)}
+            onPickReason={(reasonCode) => void act(workTaskId, reasonPickerFor!.action, reasonCode)}
+            onSkipWithoutReason={() => void act(workTaskId, 'skip')}
+            onCancelReason={() => setReasonPickerFor(null)}
+            onChangeNoteDraft={(text) => setNoteDrafts((d) => ({...d, [workTaskId]: text}))}
+            onSaveNote={() => void onSaveNote(workTaskId)}
+            workItemId={view.workItemId}
+            onExceptionSent={() => void refresh()}
+            timeWindow={session.timeWindow}
+          />
+        );
+      }
+    } else {
+      body = todayFallback;
+    }
   }
 
-  // Defensive fallback for both branches below: an item is never
-  // actually removed from the frozen snapshot (same guarantee APP-1
-  // already relies on), so `session`/`item`/`sub` should never be
-  // missing in practice — but a merge must degrade to Today rather
-  // than crash if a stale `view` ever outlives its target.
-  const todayFallback = (
-    <TodayScreen
-      date={shownDate}
-      isToday={shownDate === serverToday}
-      sessions={sessions}
-      diagnosis={diagnosis}
-      onOpenSession={onOpenSession}
-      onPrevDay={() => goToDay(addDays(shownDate, -1))}
-      onNextDay={() => goToDay(addDays(shownDate, 1))}
-      onGoToToday={() => goToDay(serverToday)}
-      onJumpTo={goToDay}
-    />
+  return (
+    <>
+      {offline && <OfflineBanner />}
+      {body}
+      {/* EXEC-1 (US-EXEC-1-09) — stays visible on Today, Job and Step; each screen's own primary action bar already sits at `bottom-14` (not `bottom-0`) to clear this. */}
+      <PerformTabBar active={mainTab} onChange={setMainTab} />
+    </>
   );
-
-  if (view.type === 'session') {
-    const session = sessions.find((s) => s.workItemId === view.workItemId);
-    if (!session) {
-      return todayFallback;
-    }
-    return (
-      <SessionScreen
-        session={session}
-        pending={pendingWorkTaskId !== null}
-        onBack={() => setView({type: 'today'})}
-        onOpenStep={(workTaskId) => setView({type: 'step', workItemId: view.workItemId, workTaskId})}
-        onStartSession={() => onStartSession(view.workItemId)}
-        onFinishSession={() => onFinishSession(view.workItemId)}
-      />
-    );
-  }
-
-  if (view.type === 'step') {
-    const session = sessions.find((s) => s.workItemId === view.workItemId);
-    const item = session?.items.find((i) => i.subSteps.some((s) => s.workTaskId === view.workTaskId));
-    const sub = item?.subSteps.find((s) => s.workTaskId === view.workTaskId);
-    if (!session || !item || !sub) {
-      return todayFallback;
-    }
-    const workTaskId = view.workTaskId;
-    return (
-      <StepScreen
-        sub={sub}
-        expectedMinutes={sub.expectedMinutes ?? item.scheduledMinutes}
-        pending={pendingWorkTaskId === workTaskId}
-        errorMessage={actionError?.workTaskId === workTaskId ? actionError.message : null}
-        reasonPickerFor={reasonPickerFor?.workTaskId === workTaskId ? reasonPickerFor.action : null}
-        noteDraft={noteDrafts[workTaskId] ?? ''}
-        noteSaving={savingNoteFor === workTaskId}
-        noteError={noteErrors[workTaskId] ?? null}
-        onBack={() => setView({type: 'session', workItemId: view.workItemId})}
-        onTapAction={(action) => onTapAction(workTaskId, action)}
-        onPickReason={(reasonCode) => void act(workTaskId, reasonPickerFor!.action, reasonCode)}
-        onSkipWithoutReason={() => void act(workTaskId, 'skip')}
-        onCancelReason={() => setReasonPickerFor(null)}
-        onChangeNoteDraft={(text) => setNoteDrafts((d) => ({...d, [workTaskId]: text}))}
-        onSaveNote={() => void onSaveNote(workTaskId)}
-        workItemId={view.workItemId}
-        onExceptionSent={() => void refresh()}
-      />
-    );
-  }
-
-  return todayFallback;
 }

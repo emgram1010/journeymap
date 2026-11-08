@@ -13,6 +13,7 @@
 // Xano side, and JSON encoders disagree about key order, whitespace
 // and unicode escaping.
 
+import type {TimeWindow} from './planner/timeWindowModel';
 import {escapeField} from './versionHash';
 
 export type BlockerCode = 'EMPTY' | 'NO_ASSIGNEE' | 'NEEDS_INFO' | 'NO_LOGIN';
@@ -134,6 +135,67 @@ export function canonicalizePublication(items: ReadonlyArray<PublishableItem>): 
       `|${i.work_task_ids.slice().sort((a, b) => a - b).join(',')}` +
       `\n`;
   }
+  return out;
+}
+
+/** What `live/build_publication` actually freezes per item, v2 (TW-1). */
+export interface PublicationItemV2 {
+  planner_task_id: number;
+  seq: number;
+  scheduled_minutes: number | null;
+  assignee_agent_id: number;
+  title?: string | null;
+  /** In the server's link order — not re-sorted, so the two sides agree. */
+  work_task_ids: number[];
+  time_window: TimeWindow | null;
+}
+
+/**
+ * The byte-identical twin of the server's `publication|v2` line
+ * (`live/build_publication`). v1 above is NOT a true twin — its fields
+ * drifted from the server before TW-1 — so v2 follows the server's v1
+ * line exactly and appends the window. Old v1 rows are never re-hashed.
+ */
+export function canonicalizePublicationV2(items: ReadonlyArray<PublicationItemV2>): string {
+  let out = 'publication|v2\n';
+  const ordered = [...items].sort((a, b) => a.seq - b.seq || a.planner_task_id - b.planner_task_id);
+  for (const i of ordered) {
+    const w = i.time_window;
+    out +=
+      `item|${escapeField(itemRef(i))}` +
+      `|${i.seq}` +
+      `|${i.scheduled_minutes ?? ''}` +
+      `|${i.assignee_agent_id}` +
+      `|${escapeField(i.title)}` +
+      `|${i.work_task_ids.join(',')}` +
+      `|${escapeField(w?.start_date)}` +
+      `|${escapeField(w?.start_time)}` +
+      `|${escapeField(w?.end_date)}` +
+      `|${escapeField(w?.end_time)}` +
+      `|${escapeField(w?.note)}` +
+      `\n`;
+  }
+  return out;
+}
+
+/** What `live/build_publication` freezes per item, v3 (SCHED-2): v2 plus the manual start. */
+export interface PublicationItemV3 extends PublicationItemV2 {
+  /** "HH:MM", or "" when the slot's start is computed. */
+  start_override: string;
+}
+
+/**
+ * The byte-identical twin of the server's `publication|v3` line: the v2
+ * line plus the slot's start override (empty when none). Old v1/v2 rows
+ * are never re-hashed.
+ */
+export function canonicalizePublicationV3(items: ReadonlyArray<PublicationItemV3>): string {
+  const v2Lines = canonicalizePublicationV2(items).split('\n').slice(1, -1);
+  const ordered = [...items].sort((a, b) => a.seq - b.seq || a.planner_task_id - b.planner_task_id);
+  let out = 'publication|v3\n';
+  ordered.forEach((i, idx) => {
+    out += `${v2Lines[idx]}|${escapeField(i.start_override)}\n`;
+  });
   return out;
 }
 

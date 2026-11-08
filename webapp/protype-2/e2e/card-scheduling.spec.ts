@@ -87,12 +87,16 @@ test('E2E-BLK-1-07-01: place a whole card on a day from the Jobs screen, then re
   // then select that plan by id — the thing under test is still driven
   // entirely through the UI.
   const plans = (await (await page.request.get(`${PLANNER_API}/workspace`, {headers: auth})).json())
-    .workspaces as Array<{workspace: {id: number}}>;
+    .workspaces as Array<{workspace: {id: number; planning_window_start: string; planning_window_end: string}}>;
   let planId: number | null = null;
+  let windowStart = '';
+  let windowEnd = '';
   for (const entry of plans) {
     const res = await page.request.get(`${PLANNER_API}/workspace/${entry.workspace.id}/map`, {headers: auth});
     if (((await res.json()).maps as unknown[]).length > 0) {
       planId = entry.workspace.id;
+      windowStart = entry.workspace.planning_window_start;
+      windowEnd = entry.workspace.planning_window_end;
       break;
     }
   }
@@ -220,6 +224,20 @@ test('E2E-BLK-1-07-01: place a whole card on a day from the Jobs screen, then re
   //
   // The click path (D-4). The day is set to the one the board is
   // showing, so the placed slot is on screen for the release below.
+  // WIN-1 (2026-11-02): Place… is disabled for a day outside the plan's window,
+  // and the board can open on an out-of-window day (a plan can hold a day from
+  // before its window moved). Page forward to a day INSIDE the window first, so
+  // the day we fill is one the screen will accept AND the one it is showing.
+  for (let i = 0; i < 31; i++) {
+    const cur = await page.locator('#day-board-view').getAttribute('data-active-day');
+    if (cur && cur >= windowStart && cur <= windowEnd) break;
+    await page
+      .getByText(/^\w{3}, \w{3} \d{1,2}, \d{4}$/)
+      .first()
+      .locator('xpath=following-sibling::button[1]')
+      .click();
+    await page.waitForTimeout(700);
+  }
   const activeDay = await page.locator('#day-board-view').getAttribute('data-active-day');
   const linksBefore = await readLinkedSteps(planId as number);
   // The Place… form (grid, QUE-1) renders as its own detail row, a

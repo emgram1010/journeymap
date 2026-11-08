@@ -32,12 +32,35 @@
 // iteration silently loses the write (CLAUDE.md). The grouping itself
 // copies `functions/ops/group_issues.xs` exactly — a fresh `var`
 // inside the iteration, an order-tracking array alongside the map.
+//
+// LOAD-1 (US-LOAD-1-02, 2026-11-02) — TWO PIECES OF WASTE REMOVED, output
+// byte-identical (sha256 of the raw response, every plan the test login
+// reaches, before vs after):
+//   1. `estimate/estimate_job` (~0.35s) ran for EVERY non-cancelled job,
+//      including jobs whose steps are all on a day and so never appear
+//      here. It now runs only for jobs with at least one unscheduled step.
+//   2. The `planner_task_work_task` query had NO `where`, so it loaded
+//      every account's schedule links to learn which of THIS plan's tasks
+//      are placed. It is now filtered to this plan's work tasks — cheaper,
+//      and it no longer pulls other tenants' rows into memory.
+//
+// LOAD-1 (US-LOAD-1-03, 2026-11-02) — `detail=summary` OMITS each card's
+// `steps[]`. The drawer shows steps for ONE selected card only, so it asks
+// for summary rows (card key, job, role, step count, total minutes, badge,
+// first/last stage, `work_task_ids`, exception counts) and reads the
+// selected card's steps on click (from GET work_item/{id}, 555, ordered by
+// the card's own `work_task_ids`). Anything else — no `detail`, or any other
+// value — returns the full response exactly as before, so no existing caller
+// changes. Every summary field is computed the same way in both modes; only
+// the `steps` key is left out. `detail` is an optional text input (arrives as
+// "" when omitted — CLAUDE.md), tested against a var set before the loop.
 query "workspace/{workspace_id}/backlog_work" verb=GET {
   api_group = "planner"
   auth = "user"
 
   input {
     int workspace_id filters=min:1
+    text detail?
   }
 
   stack {
@@ -179,52 +202,20 @@ query "workspace/{workspace_id}/backlog_work" verb=GET {
       }
     }
 
-    foreach ($jobs) {
-      each as $j3 {
-        var $j3_key {
-          value = $j3.id|to_text
-        }
-
-        var $j3_version_key {
-          value = $j3.journey_map_version_id|to_text
-        }
-
-        var $j3_schema_version {
-          value = $schema_version_by_version_id|get:$j3_version_key:1
-        }
-
-        conditional {
-          if ($j3_schema_version >= 2) {
-            function.run "estimate/estimate_job" {
-              input = {work_item_id: $j3.id}
-            } as $job_estimate
-
-            var.update $items_row_by_job {
-              value = $items_row_by_job|set:$j3_key:$job_estimate.has_items_row
-            }
-
-            var.update $job_complete_by_job {
-              value = $job_complete_by_job|set:$j3_key:$job_estimate.complete
-            }
-
-            foreach ($job_estimate.stages) {
-              each as $jes {
-                var $jobstage_key {
-                  value = $j3_key ~ "::" ~ $jes.stage_key
-                }
-
-                var.update $stage_est_by_jobstage {
-                  value = $stage_est_by_jobstage|set:$jobstage_key:$jes
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-
+    // LOAD-1 (US-LOAD-1-02) — the per-job `estimate/estimate_job` loop that
+    // used to sit here ran for EVERY non-cancelled job (~0.35s each),
+    // including jobs whose steps are all on a day and so never appear in
+    // the drawer. It now runs below, only for jobs that have at least one
+    // unscheduled step.
     var $cards {
       value = []
+    }
+
+    // LOAD-1 (US-LOAD-1-03) — summary mode, decided once from the input
+    // before any loop starts (so the branch below never reads a variable
+    // updated earlier in the same iteration).
+    var $is_summary {
+      value = ($input.detail == "summary")
     }
 
     conditional {
@@ -309,7 +300,27 @@ query "workspace/{workspace_id}/backlog_work" verb=GET {
         }
 
         // Which work tasks already have a slot.
+        //
+        // LOAD-1 (US-LOAD-1-02) — THIS PLAN'S LINKS ONLY. The query used
+        // to have no `where` at all, so it loaded every account's schedule
+        // links just to learn which of THIS plan's tasks are placed: cost
+        // grew with the whole customer base, and other tenants' rows sat in
+        // memory (never returned). Seeded with -1 so the `in` never gets an
+        // empty array (CLAUDE.md).
+        var $wt_ids {
+          value = [-1]
+        }
+
+        foreach ($work_tasks) {
+          each as $wtl {
+            array.push $wt_ids {
+              value = $wtl.id
+            }
+          }
+        }
+
         db.query planner_task_work_task {
+          where = $db.planner_task_work_task.work_task_id in $wt_ids
           return = {type: "list"}
         } as $links
 
@@ -325,6 +336,99 @@ query "workspace/{workspace_id}/backlog_work" verb=GET {
 
             var.update $linked {
               value = $linked|set:$key:1
+            }
+          }
+        }
+
+        // LOAD-1 (US-LOAD-1-02) — ONLY JOBS WITH AN UNSCHEDULED STEP ARE
+        // ESTIMATED. A job whose steps are all on a day produces no card, so
+        // its `estimate/estimate_job` (~0.35s) was pure waste. Two passes,
+        // exactly as Pass 1/2 below: the link lookup is recorded as a FIELD
+        // of a small row first, then the branch reads that field of the loop
+        // item (a branch on a variable set earlier in the same iteration
+        // silently loses its write — CLAUDE.md). The jobs to estimate then
+        // come from a `db.query ... where id in $unsched_job_ids`, so the
+        // filter lives in SQL (seeded with -1, never an empty array).
+        var $pre_rows {
+          value = []
+        }
+
+        foreach ($work_tasks) {
+          each as $pwt {
+            var.update $key {
+              value = $pwt.id|to_text
+            }
+
+            array.push $pre_rows {
+              value = {
+                work_item_id: $pwt.work_item_id
+                is_linked   : ($linked|get:$key:null)
+              }
+            }
+          }
+        }
+
+        var $unsched_job_ids {
+          value = [-1]
+        }
+
+        foreach ($pre_rows) {
+          each as $pr {
+            conditional {
+              if ($pr.is_linked == null) {
+                array.push $unsched_job_ids {
+                  value = $pr.work_item_id
+                }
+              }
+            }
+          }
+        }
+
+        db.query work_item {
+          where = $db.work_item.id in $unsched_job_ids
+          return = {type: "list"}
+        } as $est_jobs
+
+        foreach ($est_jobs) {
+          each as $j3 {
+            var $j3_key {
+              value = $j3.id|to_text
+            }
+
+            var $j3_version_key {
+              value = $j3.journey_map_version_id|to_text
+            }
+
+            var $j3_schema_version {
+              value = $schema_version_by_version_id|get:$j3_version_key:1
+            }
+
+            conditional {
+              if ($j3_schema_version >= 2) {
+                function.run "estimate/estimate_job" {
+                  input = {work_item_id: $j3.id}
+                } as $job_estimate
+
+                var.update $items_row_by_job {
+                  value = $items_row_by_job|set:$j3_key:$job_estimate.has_items_row
+                }
+
+                var.update $job_complete_by_job {
+                  value = $job_complete_by_job|set:$j3_key:$job_estimate.complete
+                }
+
+                foreach ($job_estimate.stages) {
+                  each as $jes {
+                    var $jobstage_key {
+                      value = $j3_key ~ "::" ~ $jes.stage_key
+                    }
+
+                    var.update $stage_est_by_jobstage {
+                      value = $stage_est_by_jobstage|set:$jobstage_key:$jes
+                    }
+                  }
+                }
+              }
             }
           }
         }
@@ -746,22 +850,56 @@ query "workspace/{workspace_id}/backlog_work" verb=GET {
               value = ($child_counts|get:$card_job_key:null) ?? 0
             }
 
-            array.push $cards {
-              value = {
-                card_key         : $card.card_key
-                work_item_id     : $card.work_item_id
-                job_title        : $card.job_title
-                lens_key         : $card.lens_key
-                lens_label       : $lens_label
-                step_count       : ($steps|count)
-                expected_minutes : $minutes
-                estimate_status  : $card_estimate_status
-                first_stage_label: ($first_step|get:"stage_label":"")
-                last_stage_label : $last_label
-                work_task_ids    : $ids
-                steps            : $steps
-                parent_work_item_id: $card_parent_id
-                child_count      : $card_child_count
+            // LOAD-1 (US-LOAD-1-03) — hoisted out of the object literal (a
+            // filter with arguments inside one drops every key after it).
+            var $card_step_count {
+              value = ($steps|count)
+            }
+
+            var $card_first_label {
+              value = ($first_step|get:"stage_label":"")
+            }
+
+            conditional {
+              if ($is_summary == true) {
+                array.push $cards {
+                  value = {
+                    card_key           : $card.card_key
+                    work_item_id       : $card.work_item_id
+                    job_title          : $card.job_title
+                    lens_key           : $card.lens_key
+                    lens_label         : $lens_label
+                    step_count         : $card_step_count
+                    expected_minutes   : $minutes
+                    estimate_status    : $card_estimate_status
+                    first_stage_label  : $card_first_label
+                    last_stage_label   : $last_label
+                    work_task_ids      : $ids
+                    parent_work_item_id: $card_parent_id
+                    child_count        : $card_child_count
+                  }
+                }
+              }
+
+              else {
+                array.push $cards {
+                  value = {
+                    card_key           : $card.card_key
+                    work_item_id       : $card.work_item_id
+                    job_title          : $card.job_title
+                    lens_key           : $card.lens_key
+                    lens_label         : $lens_label
+                    step_count         : $card_step_count
+                    expected_minutes   : $minutes
+                    estimate_status    : $card_estimate_status
+                    first_stage_label  : $card_first_label
+                    last_stage_label   : $last_label
+                    work_task_ids      : $ids
+                    steps              : $steps
+                    parent_work_item_id: $card_parent_id
+                    child_count        : $card_child_count
+                  }
+                }
               }
             }
           }

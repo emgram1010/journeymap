@@ -101,10 +101,12 @@ function "perform/published_dates_for" {
       }
     }
 
-    db.query plan_publication {
-      where = $db.plan_publication.timeline_id in $tl_ids
-      return = {type: "list"}
-    } as $pubs
+    // REPUB-1: latest publication per timeline, through the one shared
+    // rule — a republished day must list its date once, from the
+    // current snapshot, not once per version.
+    function.run "live/latest_publications" {
+      input = {timeline_ids: $tl_ids}
+    } as $latest
 
     var $dates {
       value = []
@@ -126,7 +128,7 @@ function "perform/published_dates_for" {
       value = null
     }
 
-    foreach ($pubs) {
+    foreach ($latest.publications) {
       each as $pub {
         var.update $tl_key {
           value = $pub.timeline_id|to_text

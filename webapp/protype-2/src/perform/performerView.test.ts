@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   availableActions,
+  primaryAction,
+  isOverExpected,
+  elapsedClock,
+  offlineReducer,
   toPerformerItems,
+  plannedStartsInOrder,
   newClientEventId,
   optimisticReducer,
   mapActionError,
@@ -30,6 +35,74 @@ test('UT-APP-1-04: done and skipped offer Reopen only', () => {
   assert.deepEqual(availableActions('skipped'), ['reopen']);
 });
 
+// ── UT-EXEC-1-07: primaryAction, isOverExpected ───────────────────────────
+
+test('UT-EXEC-1-07a: primaryAction matches the button table for every status', () => {
+  assert.equal(primaryAction('not_started'), 'start');
+  assert.equal(primaryAction('in_progress'), 'done');
+  assert.equal(primaryAction('blocked'), 'unblock');
+  assert.equal(primaryAction('done'), null);
+  assert.equal(primaryAction('skipped'), null);
+});
+
+test('UT-EXEC-1-07b: every primaryAction is one of availableActions for that status', () => {
+  const statuses: TaskStatus[] = ['not_started', 'in_progress', 'blocked', 'done', 'skipped'];
+  for (const status of statuses) {
+    const primary = primaryAction(status);
+    if (primary === null) continue;
+    assert.ok(availableActions(status).includes(primary), `${primary} is not a valid action for ${status}`);
+  }
+});
+
+test('UT-EXEC-1-07c: isOverExpected is false with no start time, even past the expected minutes', () => {
+  assert.equal(isOverExpected(null, Date.now(), 10), false);
+  assert.equal(isOverExpected(0, Date.now(), 10), false);
+});
+
+test('UT-EXEC-1-07d: isOverExpected is false with no expected minutes, however long elapsed', () => {
+  const startedAt = Date.now() - 999 * 60000;
+  assert.equal(isOverExpected(startedAt, Date.now(), null), false);
+});
+
+test('UT-EXEC-1-07e: isOverExpected flips true only once elapsed exceeds expected', () => {
+  const now = 1_800_000_000_000; // realistic epoch base, never 0 (CLAUDE.md)
+  const startedAt = now - 9 * 60000; // 9 minutes elapsed
+  assert.equal(isOverExpected(startedAt, now, 10), false); // under
+  assert.equal(isOverExpected(startedAt, now, 9), false); // exactly at — not yet "over"
+  assert.equal(isOverExpected(startedAt, now, 8), true); // over
+});
+
+test('UT-EXEC-1-09x: elapsedClock uses completedAt once a step is finished, never the live clock', () => {
+  const startedAt = 1_800_000_000_000;
+  const completedAt = startedAt + 5 * 60000; // finished in 5 minutes
+  const muchLaterNow = startedAt + 999_999 * 60000; // "today", weeks later
+  // Caught live (EXEC-1 US-EXEC-1-09): a step finished in 5 minutes,
+  // long ago, must never read as "over" just because real time has
+  // since passed. This is the fix, pinned.
+  assert.equal(elapsedClock(completedAt, muchLaterNow), completedAt);
+  assert.equal(isOverExpected(startedAt, elapsedClock(completedAt, muchLaterNow), 30), false);
+});
+
+test('UT-EXEC-1-09y: elapsedClock falls back to the live clock while a step is still open', () => {
+  const now = 1_800_000_000_000;
+  assert.equal(elapsedClock(null, now), now);
+});
+
+// ── UT-EXEC-1-08: offlineReducer ───────────────────────────────────────
+
+test('UT-EXEC-1-08a: online → offline → online, in order', () => {
+  let state = false; // starts online
+  state = offlineReducer(state, 'went_offline');
+  assert.equal(state, true);
+  state = offlineReducer(state, 'went_online');
+  assert.equal(state, false);
+});
+
+test('UT-EXEC-1-08b: a repeated event is idempotent', () => {
+  assert.equal(offlineReducer(true, 'went_offline'), true);
+  assert.equal(offlineReducer(false, 'went_online'), false);
+});
+
 // ── UT-APP-1-05/06: toPerformerItems ──────────────────────────────────────
 
 function statusEntry(workTaskId: number, status: TaskStatus, overrides: Partial<StatusMap[number]> = {}): StatusMap[number] {
@@ -51,6 +124,8 @@ function statusEntry(workTaskId: number, status: TaskStatus, overrides: Partial<
     // session/notes themselves, hence the bare defaults.
     session: null,
     notes: [],
+    // EXEC-1 (US-EXEC-1-03): same reason — required on the wire shape now.
+    completed_by: null,
     ...overrides,
   };
 }
@@ -72,6 +147,7 @@ test('UT-APP-1-05: items are ordered by planned start, computed from timeline st
         assignee_name: 'Rhea',
         title: 'Second task',
         work_task_ids: [102],
+        time_window: null,
       },
       {
         item_ref: 'pt-1',
@@ -84,6 +160,7 @@ test('UT-APP-1-05: items are ordered by planned start, computed from timeline st
         assignee_name: 'Rhea',
         title: 'First task',
         work_task_ids: [101],
+        time_window: null,
       },
     ],
   };
@@ -102,6 +179,106 @@ test('UT-APP-1-05: items are ordered by planned start, computed from timeline st
   assert.equal(items[1].plannedStartLabel, '08:30');
 });
 
+test('UT-TW-1-05-01: time_window passes through to timeWindow; null on an old (v1) item', () => {
+  const window = {start_date: '2026-11-03', start_time: '09:00', end_date: '2026-11-03', end_time: '11:00', note: 'Site opens at 9'};
+  const snapshot: PerformerSnapshot = {
+    date: '2026-11-03',
+    items: [
+      {
+        item_ref: 'pt-1',
+        planner_task_id: 1,
+        timeline_id: 10,
+        timeline_start_time: '08:00',
+        seq: 1,
+        scheduled_minutes: 30,
+        assignee_agent_id: 5,
+        assignee_name: 'Rhea',
+        title: 'Has a window',
+        work_task_ids: [101],
+        time_window: window,
+      },
+      {
+        item_ref: 'pt-2',
+        planner_task_id: 2,
+        timeline_id: 10,
+        timeline_start_time: '08:00',
+        seq: 2,
+        scheduled_minutes: 20,
+        assignee_agent_id: 5,
+        assignee_name: 'Rhea',
+        title: 'No window',
+        work_task_ids: [102],
+        time_window: null,
+      },
+    ],
+  };
+  const statuses: StatusMap = {101: statusEntry(101, 'not_started'), 102: statusEntry(102, 'not_started')};
+  const items = toPerformerItems(snapshot, statuses);
+  assert.deepEqual(items[0].timeWindow, window);
+  assert.equal(items[1].timeWindow, null);
+});
+
+// ── SCHED-2: start-time override, pin + flow ─────────────────────────────
+// GOLDEN CASES — the same five are run against the server's
+// `planner/start_minutes` (see EPIC-SCHED-2 §9). Change one side, change both.
+
+test('UT-SCHED-2-G1: no overrides = today\'s rule (day start + durations before)', () => {
+  assert.deepEqual(plannedStartsInOrder('08:00', [{minutes: 30}, {minutes: 60}, {minutes: 45}]), [480, 510, 570]);
+});
+
+test('UT-SCHED-2-G2: an override pins that task; later tasks flow from it', () => {
+  assert.deepEqual(
+    plannedStartsInOrder('08:00', [{minutes: 30}, {minutes: 60, override: '14:30'}, {minutes: 45}]),
+    [480, 870, 930],
+  );
+});
+
+test('UT-SCHED-2-G3: an override on the first task replaces the day start for everything after', () => {
+  assert.deepEqual(plannedStartsInOrder('08:00', [{minutes: 30, override: '10:00'}, {minutes: 60}]), [600, 630]);
+});
+
+test('UT-SCHED-2-G4: an override earlier than the previous task ends is allowed (overlap is the planner\'s call)', () => {
+  assert.deepEqual(
+    plannedStartsInOrder('08:00', [{minutes: 120}, {minutes: 30, override: '09:00'}, {minutes: 15}]),
+    [480, 540, 570],
+  );
+});
+
+test('UT-SCHED-2-G5: an empty or null override is "no override"', () => {
+  assert.deepEqual(
+    plannedStartsInOrder('08:00', [{minutes: 30, override: ''}, {minutes: 60, override: null}]),
+    [480, 510],
+  );
+});
+
+test('UT-SCHED-2-04a: toPerformerItems honours a frozen start_override; an old snapshot without the key behaves as before', () => {
+  const base = {
+    timeline_id: 10,
+    timeline_start_time: '08:00',
+    assignee_agent_id: 5,
+    assignee_name: 'Rhea',
+    time_window: null,
+  };
+  const snapshot: PerformerSnapshot = {
+    date: '2026-11-03',
+    items: [
+      {...base, item_ref: 'pt-1', planner_task_id: 1, seq: 1, scheduled_minutes: 30, title: 'First', work_task_ids: [101]},
+      {...base, item_ref: 'pt-2', planner_task_id: 2, seq: 2, scheduled_minutes: 60, title: 'Pinned', work_task_ids: [102], start_override: '14:30'},
+      {...base, item_ref: 'pt-3', planner_task_id: 3, seq: 3, scheduled_minutes: 45, title: 'Flows', work_task_ids: [103], start_override: ''},
+    ],
+  };
+  const statuses: StatusMap = {
+    101: statusEntry(101, 'not_started'),
+    102: statusEntry(102, 'not_started'),
+    103: statusEntry(103, 'not_started'),
+  };
+  const items = toPerformerItems(snapshot, statuses);
+  assert.deepEqual(
+    items.map((i) => i.plannedStartLabel),
+    ['08:00', '14:30', '15:30'],
+  );
+});
+
 test('UT-APP-1-05: a block (multiple work_task_ids) nests its sub-steps and derives one overall status', () => {
   const snapshot: PerformerSnapshot = {
     date: '2026-10-16',
@@ -117,6 +294,7 @@ test('UT-APP-1-05: a block (multiple work_task_ids) nests its sub-steps and deri
         assignee_name: 'Rhea',
         title: 'Onboarding block',
         work_task_ids: [201, 202],
+        time_window: null,
       },
     ],
   };
@@ -149,6 +327,7 @@ test('UT-APP-1-05: a block whose every sub-step is done or skipped reads done', 
         assignee_name: 'Rhea',
         title: 'Onboarding block',
         work_task_ids: [201, 202],
+        time_window: null,
       },
     ],
   };
@@ -176,6 +355,7 @@ test('UT-APP-1-05: a block with one blocked sub-step reads blocked, regardless o
         assignee_name: 'Rhea',
         title: 'Onboarding block',
         work_task_ids: [201, 202],
+        time_window: null,
       },
     ],
   };
@@ -207,6 +387,7 @@ test('UT-APP-1-06: an item whose sub-step has no entry in the live status map is
         assignee_name: 'Rhea',
         title: 'Orphaned-looking task',
         work_task_ids: [301],
+        time_window: null,
       },
     ],
   };
@@ -236,6 +417,7 @@ test('toPerformerItems: multiple timelines on the same day are merged and sorted
         assignee_name: 'Rhea',
         title: 'Early task from plan B',
         work_task_ids: [501],
+        time_window: null,
       },
       {
         item_ref: 'pt-1',
@@ -248,6 +430,7 @@ test('toPerformerItems: multiple timelines on the same day are merged and sorted
         assignee_name: 'Rhea',
         title: 'Task from plan A',
         work_task_ids: [101],
+        time_window: null,
       },
     ],
   };
@@ -255,6 +438,38 @@ test('toPerformerItems: multiple timelines on the same day are merged and sorted
 
   const items = toPerformerItems(snapshot, statuses);
   assert.deepEqual(items.map((i) => i.itemRef), ['pt-5', 'pt-1']);
+});
+
+// ── UT-EXEC-1-03: completed_by flows through to completedBy ──────────────
+
+test('UT-EXEC-1-03: completed_by on a done step flows through as completedBy; null for every other status', () => {
+  const snapshot: PerformerSnapshot = {
+    date: '2026-10-16',
+    items: [
+      {
+        item_ref: 'pt-9',
+        planner_task_id: 9,
+        timeline_id: 10,
+        timeline_start_time: '08:00',
+        seq: 1,
+        scheduled_minutes: 10,
+        assignee_agent_id: 5,
+        assignee_name: 'Rhea',
+        title: 'Finished task',
+        work_task_ids: [901, 902],
+        time_window: null,
+      },
+    ],
+  };
+  const statuses: StatusMap = {
+    901: statusEntry(901, 'done', {completed_by: 'Alex Morgan'}),
+    902: statusEntry(902, 'in_progress', {completed_by: null}),
+  };
+
+  const items = toPerformerItems(snapshot, statuses);
+
+  assert.equal(items[0].subSteps[0].completedBy, 'Alex Morgan');
+  assert.equal(items[0].subSteps[1].completedBy, null);
 });
 
 // ── UT-APP-1-07: newClientEventId ─────────────────────────────────────────

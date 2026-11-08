@@ -77,6 +77,10 @@ export interface Timeline {
   assignee: string; // Default assignee name for tasks in this timeline
   status: TimelineStatus;
   startTime: string; // e.g. "08:00" - anchor time; all task starts cascade from this
+  /** REPUB-1 — 0 before the first publish, then 1, 2, ... after each publish/republish. */
+  currentVersion: number;
+  /** REPUB-1 — true once the agent has recorded ANY activity against a published day. A sealed day can no longer be republished. */
+  isSealed: boolean;
 }
 
 export interface Task {
@@ -86,6 +90,8 @@ export interface Task {
   title: string;
   seq: number; // 1, 2, 3... within its timeline (or order in backlog)
   planned_start: string; // e.g., "09:00"
+  /** SCHED-2 — "HH:MM" when the planner set the start by hand ("" = computed). */
+  startOverride?: string;
   duration: number; // minutes
   assignee?: string; // optional; inherits timeline's if unset or blank
   notes: string;

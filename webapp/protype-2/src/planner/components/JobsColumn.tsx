@@ -15,30 +15,42 @@
 //     requirements/task-type work that comes after this epic.
 //
 // Rows carry the job's words — title, status, progress — never a code
-// (BOARD-1's D-2, still the rule). The exception chips ("from #N", "N
-// sent on") are unchanged from BOARD-1/EXC-2 and still open the shared
-// read-only job view (JobPeekSheet, D-2 of EXC-2).
+// (BOARD-1's D-2, still the rule).
+//
+// PUX (2026-11-07) — a row opens the job PANEL (PUX-1), the exception chips
+// open the related job in that same panel, and each row shows its planning
+// status (PUX-4) and time window (PUX-2). "Filters" is now real: All / Needs
+// scheduling / Has a time window, plus "Soonest window first".
 import {useEffect, useMemo, useState} from 'react';
-import {Briefcase, Plus, Search, SlidersHorizontal} from 'lucide-react';
-import {listWorkItems, type WorkItemListEntry} from '../plannerApi';
+import {Briefcase, Plus, Search} from 'lucide-react';
+import {listWorkItems, type WorkItemListEntry, type RawTimeWindow} from '../plannerApi';
 import {jobStatusLabel, unitRowLabel} from '../../jobModel';
-import JobPeekSheet from '../../exceptions/JobPeekSheet';
+import {compareByWindow} from '../timeWindowModel';
+import {jobPlanStatus, type Placement} from '../jobScheduleModel';
+import {TimeWindowChip} from './TimeWindowChip';
+import {JobPlanBadge} from './JobPlanBadge';
 
 interface JobsColumnProps {
   workspaceId: string | null;
   /** Bumped by PlannerApp after any board mutation; the list refetches. */
   reloadNonce: number;
-  /** Open the Jobs modal — on one job's detail, or on nothing (new job). */
+  /** PUX-1 — a job → its panel; no id → the Jobs list (New job). */
   onOpenJobs: (focusJobId?: number) => void;
+  /** PUX-2 — every window in the plan, keyed by job. */
+  windowsByJob: Map<number, RawTimeWindow & {work_item_id: number}>;
+  /** PUX-4 — where each job sits on the board, keyed by work_item_id as text. */
+  placementsByJob: Map<string, Placement[]>;
 }
 
-export function JobsColumn({workspaceId, reloadNonce, onOpenJobs}: JobsColumnProps) {
+type JobFilter = 'all' | 'needs' | 'window';
+
+export function JobsColumn({workspaceId, reloadNonce, onOpenJobs, windowsByJob, placementsByJob}: JobsColumnProps) {
   const [jobs, setJobs] = useState<WorkItemListEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  // EXC chips open the shared read-only job view (D-2 of EXC-2), never a rebuild of it.
-  const [peekId, setPeekId] = useState<number | null>(null);
+  const [filter, setFilter] = useState<JobFilter>('all');
+  const [sortByWindow, setSortByWindow] = useState(false);
 
   useEffect(() => {
     if (!workspaceId) {
@@ -63,14 +75,28 @@ export function JobsColumn({workspaceId, reloadNonce, onOpenJobs}: JobsColumnPro
     };
   }, [workspaceId, reloadNonce]);
 
-  // US-QUE-1-07 — the only filter wired is search-by-title. Newest job
-  // first, same ordering convention `groupCardsByJob` uses elsewhere.
+  // US-QUE-1-07 search + PUX-2/PUX-4 filter and sort. Newest first by default.
+  const planOf = (entry: WorkItemListEntry) =>
+    jobPlanStatus({status: entry.work_item.status, totalSteps: entry.task_count}, placementsByJob.get(String(entry.work_item.id)) ?? []);
+
   const visibleJobs = useMemo(() => {
-    const sorted = [...jobs].sort((a, b) => b.work_item.id - a.work_item.id);
     const q = query.trim().toLowerCase();
-    if (!q) return sorted;
-    return sorted.filter((j) => j.work_item.title.toLowerCase().includes(q));
-  }, [jobs, query]);
+    const filtered = jobs.filter((j) => {
+      if (q && !j.work_item.title.toLowerCase().includes(q)) return false;
+      if (filter === 'needs') {
+        const kind = planOf(j).kind;
+        return kind === 'unscheduled' || kind === 'partly';
+      }
+      if (filter === 'window') return windowsByJob.has(j.work_item.id);
+      return true;
+    });
+    return filtered.sort((a, b) =>
+      sortByWindow
+        ? compareByWindow(windowsByJob.get(a.work_item.id), windowsByJob.get(b.work_item.id)) || b.work_item.id - a.work_item.id
+        : b.work_item.id - a.work_item.id,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobs, query, filter, sortByWindow, windowsByJob, placementsByJob]);
 
   return (
     <aside
@@ -95,9 +121,8 @@ export function JobsColumn({workspaceId, reloadNonce, onOpenJobs}: JobsColumnPro
           </button>
         </div>
 
-        {/* US-QUE-1-07 — search wired; "Filters" reserves the space for
-            requirements/task-type filtering, deliberately NOT built here
-            (see EPIC-QUE-1 §4 — that work is designed but deferred). */}
+        {/* US-QUE-1-07 search; PUX-2/-4 filter + window sort. Requirements /
+            task-type filtering is still deferred (EPIC-QUE-1 §4). */}
         <div className="flex items-center gap-1">
           <div className="relative flex-1">
             <Search className="w-3 h-3 absolute left-2 top-1.5 text-neutral-400" />
@@ -110,16 +135,22 @@ export function JobsColumn({workspaceId, reloadNonce, onOpenJobs}: JobsColumnPro
               className="w-full pl-6 pr-2 py-1 text-[11px] bg-white border border-neutral-200 rounded focus:outline-none focus:border-neutral-400 placeholder:text-neutral-400"
             />
           </div>
-          <button
-            type="button"
-            disabled
-            title="Filter by status, role or task type — coming soon"
-            className="shrink-0 flex items-center gap-1 px-1.5 py-1 text-[10px] font-medium text-neutral-400 border border-neutral-200 rounded bg-neutral-50 cursor-not-allowed"
+          <select
+            data-testid="jobs-column-filter"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as JobFilter)}
+            title="Show only some jobs"
+            className="shrink-0 px-1 py-1 text-[10px] text-neutral-700 border border-neutral-200 rounded bg-white focus:outline-none"
           >
-            <SlidersHorizontal className="w-3 h-3" />
-            Filters
-          </button>
+            <option value="all">All</option>
+            <option value="needs">Needs scheduling</option>
+            <option value="window">Has a time window</option>
+          </select>
         </div>
+        <label className="flex items-center gap-1 text-[10px] text-neutral-600">
+          <input type="checkbox" data-testid="jobs-column-sort-window" checked={sortByWindow} onChange={(e) => setSortByWindow(e.target.checked)} />
+          Soonest window first
+        </label>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
@@ -135,19 +166,25 @@ export function JobsColumn({workspaceId, reloadNonce, onOpenJobs}: JobsColumnPro
           </p>
         )}
         {!isLoading && !error && jobs.length > 0 && visibleJobs.length === 0 && (
-          <p className="px-2 py-4 text-[11px] text-neutral-500">No job matches “{query}”.</p>
+          <p className="px-2 py-4 text-[11px] text-neutral-500">No job matches these filters.</p>
         )}
 
-        {visibleJobs.map(({work_item: job, task_count, finished_count, has_blocked, child_count, unit_total, units_moved_out}) => (
+        {visibleJobs.map((entry) => {
+          const {work_item: job, task_count, finished_count, has_blocked, child_count, unit_total, units_moved_out} = entry;
+          const placements = placementsByJob.get(String(job.id)) ?? [];
+          return (
           <button
             type="button"
             key={job.id}
             data-testid="jobs-column-job"
             onClick={() => onOpenJobs(job.id)}
-            title="Opens this job's detail (steps, lines, exceptions, activity)"
+            title="Open this job"
             className="w-full rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-left hover:bg-neutral-50 hover:border-neutral-300 transition-colors"
           >
-            <p className="text-xs font-medium text-neutral-900 truncate">{job.title}</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-xs font-medium text-neutral-900 truncate">{job.title}</p>
+              <JobPlanBadge status={planOf(entry)} testId="jobs-column-plan-status" />
+            </div>
             <p className="text-[10px] text-neutral-500">
               {jobStatusLabel(job.status)}
               {task_count > 0 && (
@@ -164,6 +201,7 @@ export function JobsColumn({workspaceId, reloadNonce, onOpenJobs}: JobsColumnPro
                 {unitRowLabel({unit_total, units_moved_out})}
               </p>
             )}
+            <TimeWindowChip window={windowsByJob.get(job.id)} placedDays={placements.map((p) => p.date)} className="mt-1 max-w-full" />
             {(job.parent_work_item_id > 0 || (child_count ?? 0) > 0) && (
               <p className="flex flex-wrap gap-1 mt-1" onClick={(e) => e.stopPropagation()}>
                 {job.parent_work_item_id > 0 && (
@@ -171,7 +209,7 @@ export function JobsColumn({workspaceId, reloadNonce, onOpenJobs}: JobsColumnPro
                     role="button"
                     tabIndex={0}
                     data-testid="jobs-column-parent-chip"
-                    onClick={() => setPeekId(job.parent_work_item_id)}
+                    onClick={() => onOpenJobs(job.parent_work_item_id)}
                     className="rounded-full border border-amber-200 bg-amber-50 px-1.5 text-[10px] text-amber-800 hover:bg-amber-100 cursor-pointer"
                   >
                     from #{job.parent_work_item_id}
@@ -182,7 +220,7 @@ export function JobsColumn({workspaceId, reloadNonce, onOpenJobs}: JobsColumnPro
                     role="button"
                     tabIndex={0}
                     data-testid="jobs-column-children-chip"
-                    onClick={() => setPeekId(job.id)}
+                    onClick={() => onOpenJobs(job.id)}
                     className="rounded-full border border-amber-200 bg-amber-50 px-1.5 text-[10px] text-amber-800 hover:bg-amber-100 cursor-pointer"
                   >
                     {child_count} sent on
@@ -191,10 +229,9 @@ export function JobsColumn({workspaceId, reloadNonce, onOpenJobs}: JobsColumnPro
               </p>
             )}
           </button>
-        ))}
+          );
+        })}
       </div>
-
-      <JobPeekSheet workItemId={peekId ?? 0} open={peekId != null} onClose={() => setPeekId(null)} onOpenJob={setPeekId} />
     </aside>
   );
 }

@@ -15,6 +15,15 @@
 // `ops/audit_execution`'s per-task replay: fine for a job's task
 // count (single digits in practice), not something to put behind a
 // high-traffic path without revisiting.
+//
+// EST-1 (US-EST-1-05/FT-EST-1-09) — on a map WITH an Items row,
+// "expected" is the real per-stage estimate/estimate_job total
+// (baseline only when that stage has a missing rate), not the raw
+// cell duration. A map with no Items row is unchanged.
+//
+// SCHED-2 — the planned start comes from planner/start_minutes (the shared
+// "pin + flow" rule) over the frozen items, so a published start override
+// moves the baseline. Identical to before for snapshots without overrides.
 function "variance/task_report" {
   input {
     int work_item_id filters=min:1
@@ -170,16 +179,18 @@ function "variance/task_report" {
       }
     }
 
-    db.query plan_publication {
-      where = $db.plan_publication.timeline_id in $timeline_ids
-      return = {type: "list"}
-    } as $pubs
+    // REPUB-1: latest publication per timeline (shared rule). With one
+    // row per timeline this map was last-seen-wins by accident; now it
+    // is the current version on purpose.
+    function.run "live/latest_publications" {
+      input = {timeline_ids: $timeline_ids}
+    } as $latest
 
     var $pub_by_timeline {
       value = {}
     }
 
-    foreach ($pubs) {
+    foreach ($latest.publications) {
       each as $p {
         var.update $key {
           value = $p.timeline_id|to_text
@@ -240,8 +251,17 @@ function "variance/task_report" {
       value = null
     }
 
+    // SCHED-2: now minutes-after-midnight from planner/start_minutes.
     var $cumulative {
       value = 0
+    }
+
+    var $tr_items {
+      value = []
+    }
+
+    var $tr_key {
+      value = ""
     }
 
     var $meta {
@@ -374,24 +394,37 @@ function "variance/task_report" {
                       value = $timeline_meta|get:$key:null
                     }
 
-                    var.update $cumulative {
-                      value = 0
+                    // SCHED-2: the shared "pin + flow" rule over the FROZEN
+                    // items (stored in day order), so a published start
+                    // override moves the variance baseline exactly as it
+                    // moves the performer's screen. Pre-v3 items have no
+                    // `start_override` key → "" → today's cumulative rule.
+                    var.update $tr_items {
+                      value = []
                     }
 
                     foreach ($pub_snapshot.items) {
                       each as $i2 {
-                        conditional {
-                          if ($i2.seq < $matched_item.seq) {
-                            var.update $cumulative {
-                              value = $cumulative + $i2.scheduled_minutes
-                            }
-                          }
+                        array.push $tr_items {
+                          value = {key: ("k:" ~ ($i2.planner_task_id|to_text)), minutes: $i2.scheduled_minutes, override: ($i2.start_override ?? "")}
                         }
                       }
                     }
 
+                    function.run "planner/start_minutes" {
+                      input = {day_start: $meta.start_time, items: $tr_items}
+                    } as $tr_rule
+
+                    var.update $tr_key {
+                      value = "k:" ~ ($slot_id|to_text)
+                    }
+
+                    var.update $cumulative {
+                      value = $tr_rule.starts|get:$tr_key:0
+                    }
+
                     var.update $base_start_ms {
-                      value = ($meta.planned_date ~ " " ~ $meta.start_time ~ ":00")|parse_timestamp:"Y-m-d H:i:s":"UTC"
+                      value = ($meta.planned_date ~ " 00:00:00")|parse_timestamp:"Y-m-d H:i:s":"UTC"
                     }
 
                     var.update $planned_start {

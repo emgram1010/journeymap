@@ -16,6 +16,15 @@
 
 export type TaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'done' | 'skipped';
 
+/** TW-1 — same shape as planner/timeWindowModel.ts's TimeWindow, duplicated rather than imported: this file has no imports by design (see header). */
+export interface TimeWindow {
+  start_date: string;
+  start_time: string;
+  end_date: string;
+  end_time: string;
+  note?: string | null;
+}
+
 /** The five one-tap actions a performer can take, per the epic's fixed table. */
 export type PerformerAction = 'start' | 'done' | 'blocked' | 'skip' | 'unblock' | 'reopen';
 
@@ -39,6 +48,56 @@ export function availableActions(status: TaskStatus): PerformerAction[] {
   }
 }
 
+/**
+ * EXEC-1 (US-EXEC-1-07) — which of `availableActions`' results is the
+ * PRIMARY (filled/prominent) button for a status. `availableActions`
+ * stays the source of truth for which actions exist at all (shared
+ * with the backend's own transition table, pinned by UT-APP-1-01..04);
+ * this only decides which one looks like the main action. `null` for
+ * done/skipped — neither has a primary action, only Reopen.
+ */
+export function primaryAction(status: TaskStatus): PerformerAction | null {
+  switch (status) {
+    case 'not_started':
+      return 'start';
+    case 'in_progress':
+      return 'done';
+    case 'blocked':
+      return 'unblock';
+    case 'done':
+    case 'skipped':
+      return null;
+  }
+}
+
+/**
+ * EXEC-1 (US-EXEC-1-07) — true once a step has been running longer
+ * than its expected minutes, for the Elapsed row's amber warning.
+ * `startedAt` of `null` or `0` (never legitimately started) and a
+ * missing `expectedMinutes` both read as "not over" — there is
+ * nothing to compare against.
+ */
+export function isOverExpected(startedAt: number | null, now: number, expectedMinutes: number | null): boolean {
+  if (!startedAt || expectedMinutes == null) return false;
+  const elapsedMinutes = (now - startedAt) / 60000;
+  return elapsedMinutes > expectedMinutes;
+}
+
+/**
+ * EXEC-1 (US-EXEC-1-07/-09) — the "clock" value to measure a step's
+ * elapsed time against: `completedAt` once finished, else the live
+ * clock. Both `formatElapsed` and `isOverExpected` must be fed the
+ * SAME value here, or they silently disagree — caught live (US-09): a
+ * step shown as "Elapsed: 11 min" (correctly using `completedAt`) sat
+ * next to an amber "over" (wrongly using the live clock), because a
+ * long-finished step's real-world age kept growing after it was done.
+ * Named and exported so there is exactly one place this decision is
+ * made, not two call sites that have to happen to agree.
+ */
+export function elapsedClock(completedAt: number | null, now: number): number {
+  return completedAt ?? now;
+}
+
 /** One item exactly as the frozen publication snapshot stored it (LIVE-1's build_publication shape, plus the owning timeline's own start_time — needed because planned start is never stored, only derived). */
 export interface SnapshotItem {
   item_ref: string;
@@ -54,6 +113,10 @@ export interface SnapshotItem {
   title: string;
   /** One task → one id. A "block" (grouped stages) → several. */
   work_task_ids: number[];
+  /** TW-1 (US-TW-1-05) — the job's window, frozen at publish time. Null on an item with no window, or one published before TW-1 (v1 snapshot). */
+  time_window: TimeWindow | null;
+  /** SCHED-2 — the planner's manual start ("HH:MM"), frozen at publish time. "" or absent (pre-v3 snapshot) = none. */
+  start_override?: string | null;
 }
 
 export interface PerformerSnapshot {
@@ -97,6 +160,8 @@ export interface WorkTaskStatusEntry {
   task: string | null;
   done_when: string | null;
   expected_minutes: number | null;
+  /** EXEC-1 (US-EXEC-1-03) — the performer's display name, server-resolved from the step's latest completed/skipped event. Always null unless `status` is 'done' or 'skipped' (a reopened-then-not-yet-redone step reports no completer, not a stale name). */
+  completed_by: string | null;
   session: RawSessionInfo | null;
   notes: RawNote[];
 }
@@ -132,6 +197,7 @@ export interface PerformerSubStep {
   task: string | null;
   doneWhen: string | null;
   expectedMinutes: number | null;
+  completedBy: string | null;
   session: SessionInfo | null;
   notes: PerformerNote[];
 }
@@ -150,6 +216,8 @@ export interface PerformerItem {
   /** One overall status for the block, derived from its sub-steps. */
   status: TaskStatus;
   subSteps: PerformerSubStep[];
+  /** TW-1 (US-TW-1-05) — read-only; the performer never edits this (Q-1). */
+  timeWindow: TimeWindow | null;
 }
 
 /** A status entry used when a work_task_id has no live row in the map yet (should not normally happen — work_task rows are never deleted — but a merge must degrade, not crash, on a sparse or stale join). */
@@ -164,6 +232,7 @@ export const FALLBACK_STATUS: Omit<WorkTaskStatusEntry, 'work_task_id'> = {
   task: null,
   done_when: null,
   expected_minutes: null,
+  completed_by: null,
   session: null,
   notes: [],
 };
@@ -181,6 +250,28 @@ function formatHHMM(totalMinutes: number): string {
   const hours = Math.floor(clamped / 60);
   const minutes = clamped % 60;
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+/**
+ * SCHED-2 — the one start-time rule, "pin + flow". Walk the day in order:
+ * a task with an override sets the clock to that time; every task starts
+ * at the clock; the clock then advances by the task's minutes. With no
+ * overrides this is exactly PLN-7's original rule.
+ *
+ * Twin of the server's `planner/start_minutes` — same golden cases
+ * (UT-SCHED-2-G1..G5). Returns minutes after midnight, unwrapped.
+ */
+export function plannedStartsInOrder(
+  dayStart: string,
+  items: ReadonlyArray<{minutes: number; override?: string | null}>,
+): number[] {
+  let cursor = parseHHMM(dayStart);
+  return items.map((item) => {
+    if (item.override) cursor = parseHHMM(item.override);
+    const start = cursor;
+    cursor += item.minutes;
+    return start;
+  });
 }
 
 /**
@@ -222,11 +313,11 @@ export function toPerformerItems(snapshot: PerformerSnapshot, statuses: StatusMa
 
   for (const group of byTimeline.values()) {
     const ordered = [...group].sort((a, b) => a.seq - b.seq);
-    let cursor = ordered.length > 0 ? parseHHMM(ordered[0].timeline_start_time) : 0;
-    for (const item of ordered) {
-      withStart.push({item, plannedStartMinutes: cursor});
-      cursor += item.scheduled_minutes;
-    }
+    const starts = plannedStartsInOrder(
+      ordered.length > 0 ? ordered[0].timeline_start_time : '00:00',
+      ordered.map((i) => ({minutes: i.scheduled_minutes, override: i.start_override})),
+    );
+    ordered.forEach((item, idx) => withStart.push({item, plannedStartMinutes: starts[idx]}));
   }
 
   const result: PerformerItem[] = withStart.map(({item, plannedStartMinutes}) => {
@@ -244,6 +335,7 @@ export function toPerformerItems(snapshot: PerformerSnapshot, statuses: StatusMa
         task: entry.task,
         doneWhen: entry.done_when,
         expectedMinutes: entry.expected_minutes,
+        completedBy: entry.completed_by,
         session: entry.session
           ? {
               workItemId: entry.session.work_item_id,
@@ -269,6 +361,7 @@ export function toPerformerItems(snapshot: PerformerSnapshot, statuses: StatusMa
       plannedStartLabel: formatHHMM(plannedStartMinutes),
       status: deriveBlockStatus(subSteps.map((s) => s.status)),
       subSteps,
+      timeWindow: item.time_window,
     };
   });
 
@@ -325,6 +418,21 @@ export function optimisticReducer(state: StatusMap, action: OptimisticAction): S
     case 'revert':
       return {...state, [action.workTaskId]: action.previous};
   }
+}
+
+// ── Offline state (EXEC-1 US-EXEC-1-08) ───────────────────────────────────
+
+export type OfflineEvent = 'went_offline' | 'went_online';
+
+/**
+ * EXEC-1 (US-EXEC-1-08) — drives the top banner. A plain pure reducer
+ * over `window`'s own `online`/`offline` events (the caller wires
+ * those; this file never touches `window`, same discipline as the
+ * rest of it). Idempotent: a repeated `went_offline` while already
+ * offline is a no-op, same for `went_online`.
+ */
+export function offlineReducer(state: boolean, event: OfflineEvent): boolean {
+  return event === 'went_offline';
 }
 
 // ── Friendly error mapping for a failed tap (US-APP-1-04, E-APP codes) ────

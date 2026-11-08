@@ -23,9 +23,22 @@
 // pinned version's `stage_rate` — the generic catalog list could
 // offer an item this map was never priced for, which E-EST-003 would
 // then refuse at save time with no warning beforehand.
+//
+// PERF-1 (US-PERF-1-01) — THIS COMPONENT NO LONGER FETCHES ON MOUNT.
+// It used to call `getWorkItemLines` itself, and so did its sibling
+// `ExceptionSendPanel` (rendered alongside it in JobsModal for the same
+// job) — the audit measured this as 4 duplicate `lines` calls per job
+// open (2 real, doubled again by dev-mode React StrictMode). The fetch
+// now lives once in `JobsModal`, which passes the result down as the
+// `lines` prop. The one fetch this component still makes on its own is
+// the deliberate POST-SAVE refetch in `handleSave` — `putWorkItemLines`
+// doesn't return the full normalized shape (available_items, frozen),
+// so a second GET is the only way to get it; that result is handed
+// back UP via `onSaved` so the shared state in JobsModal stays correct
+// too, rather than this component quietly going out of sync with it.
 import {useEffect, useState} from 'react';
 import {Plus, Trash2, AlertTriangle} from 'lucide-react';
-import {getWorkItemLines, putWorkItemLines, type WorkItemLine, type JobEstimate, type AvailableItem} from '../plannerApi';
+import {getWorkItemLines, putWorkItemLines, type WorkItemLinesResult} from '../plannerApi';
 
 interface DraftLine {
   item_type_id: number;
@@ -34,43 +47,39 @@ interface DraftLine {
 
 interface JobLinesEditorProps {
   workItemId: number;
-  /** Called after a successful save so the caller can repaint the card/backlog without a second fetch. */
-  onEstimateChanged: (estimate: JobEstimate) => void;
+  /** The shared fetch result from JobsModal — null while still loading. */
+  lines: WorkItemLinesResult | null;
+  isLoading: boolean;
+  loadError: string | null;
+  /**
+   * Called after a successful save with the server's fresh, normalized
+   * result. The caller (JobsModal) owns the shared `lines` state and also
+   * uses this to refresh the job list/backlog — this replaces the old
+   * `onEstimateChanged` + this component's own internal re-fetch-and-setState.
+   */
+  onSaved: (result: WorkItemLinesResult) => void;
 }
 
-export function JobLinesEditor({workItemId, onEstimateChanged}: JobLinesEditorProps) {
-  const [lines, setLines] = useState<WorkItemLine[]>([]);
-  const [estimate, setEstimate] = useState<JobEstimate | null>(null);
-  const [availableItems, setAvailableItems] = useState<AvailableItem[]>([]);
+export function JobLinesEditor({workItemId, lines, isLoading, loadError, onSaved}: JobLinesEditorProps) {
   const [draft, setDraft] = useState<DraftLine[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [isFrozen, setIsFrozen] = useState(false);
 
+  // Re-seed the draft whenever a NEW fetch result arrives — the initial
+  // load, or the fresh result `handleSave` hands back up and receives
+  // again as this same prop. A re-render with the SAME `lines` object
+  // (e.g. a sibling state change in JobsModal) does not touch the draft
+  // the user is mid-edit on, because the dependency is the object itself.
   useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    setError(null);
-    getWorkItemLines(workItemId)
-      .then((result) => {
-        if (cancelled) return;
-        setLines(result.lines);
-        setEstimate(result.estimate);
-        setAvailableItems(result.available_items.filter((i) => i.is_active));
-        setDraft(result.lines.map((l) => ({item_type_id: l.item_type_id, quantity: String(l.quantity)})));
-        setIsFrozen(result.frozen);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load this order\'s items.');
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [workItemId]);
+    if (!lines) return;
+    setDraft(lines.lines.map((l) => ({item_type_id: l.item_type_id, quantity: String(l.quantity)})));
+    setIsFrozen(lines.frozen);
+  }, [lines]);
+
+  const estimate = lines?.estimate ?? null;
+  const availableItems = (lines?.available_items ?? []).filter((i) => i.is_active);
+  const savedLines = lines?.lines ?? [];
 
   const addLine = () => {
     const picked = new Set(draft.map((d) => d.item_type_id));
@@ -89,22 +98,21 @@ export function JobLinesEditor({workItemId, onEstimateChanged}: JobLinesEditorPr
 
   const handleSave = async () => {
     setIsSaving(true);
-    setError(null);
+    setSaveError(null);
     setIsFrozen(false);
     try {
       const payload = draft
         .filter((d) => d.item_type_id > 0)
         .map((d) => ({item_type_id: d.item_type_id, quantity: Number(d.quantity) || 0}));
-      const result = await putWorkItemLines(workItemId, payload);
-      onEstimateChanged(result.estimate);
+      await putWorkItemLines(workItemId, payload);
+      // `putWorkItemLines`'s own response has no `lines`/`available_items` —
+      // only a second GET gives the full, normalized shape.
       const refreshed = await getWorkItemLines(workItemId);
-      setLines(refreshed.lines);
-      setEstimate(refreshed.estimate);
-      setDraft(refreshed.lines.map((l) => ({item_type_id: l.item_type_id, quantity: String(l.quantity)})));
+      onSaved(refreshed);
     } catch (err) {
       // Rejected save: draft is left exactly as typed (CLAUDE.md UI rule).
       const message = err instanceof Error ? err.message : 'That order\'s items could not be saved.';
-      setError(message);
+      setSaveError(message);
       if (message.includes('E-EST-007')) setIsFrozen(true);
     } finally {
       setIsSaving(false);
@@ -120,6 +128,8 @@ export function JobLinesEditor({workItemId, onEstimateChanged}: JobLinesEditorPr
   if (estimate && !estimate.has_items_row) {
     return null;
   }
+
+  const error = loadError ?? saveError;
 
   return (
     <div className="flex flex-col gap-2">
@@ -151,7 +161,7 @@ export function JobLinesEditor({workItemId, onEstimateChanged}: JobLinesEditorPr
         <ul className="flex flex-col gap-1">
           {draft.map((d, index) => {
             const item = availableItems.find((i) => i.item_type_id === d.item_type_id);
-            const savedLine = lines.find((l) => l.item_type_id === d.item_type_id);
+            const savedLine = savedLines.find((l) => l.item_type_id === d.item_type_id);
             const isMissing = estimate?.missing.some((m) => m.quantity_key === savedLine?.item_key) ?? false;
             // EST-1 Opus review fix (finding #8b, 2026-10-25): the server
             // rejects a repeated item with E-EST-006 ("change its

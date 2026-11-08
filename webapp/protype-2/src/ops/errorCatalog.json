@@ -241,6 +241,26 @@
     "severity": "error",
     "fix_hint": "Try again. The publication and the day's status are written together, so a failure leaves no half-published day. If it keeps happening, copy the diagnostic bundle from the Health page."
   },
+  "E-LIVE-007": {
+    "code": "E-LIVE-007",
+    "feature": "REPUB-1",
+    "user_message": "This person has already started this day — it can no longer be republished.",
+    "what_happened": "Republish was refused because the performer has already recorded work against this day's published plan.",
+    "likely_cause": "Work began between opening the planner and clicking republish, or the day was simply already underway.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "The full message names who. The day is sealed on purpose: what someone is measured against must not change once they have begun. Later planner edits are still allowed and logged — they just never reach the performer's frozen view."
+  },
+  "E-LIVE-008": {
+    "code": "E-LIVE-008",
+    "feature": "REPUB-1",
+    "user_message": "This day was just published by someone else — reload and try again.",
+    "what_happened": "Two publishes of the same day overlapped; this one lost the race and wrote nothing.",
+    "likely_cause": "Two planner windows, or two people, published the same timeline at the same moment.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload to see the version that won. If your changes are still missing, make them again and publish — nothing from the losing attempt was saved."
+  },
   "E-LOG-001": {
     "code": "E-LOG-001",
     "feature": "LOG-1",
@@ -835,6 +855,36 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Reload the backlog — a cancelled job’s steps drop out of it. Its history stays, but it is no longer work waiting to happen."
+  },
+  "E-SCHED-009": {
+    "code": "E-SCHED-009",
+    "feature": "SCHED-2",
+    "user_message": "Enter the start time as two digits each, like 09:00.",
+    "what_happened": "A step's start time was set by hand, but the time wasn't a valid 24-hour HH:MM (00:00 to 23:59).",
+    "likely_cause": "A typo, or a time typed with am/pm instead of 24-hour.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Type the time as HH:MM, 24-hour — 14:30, not 2:30pm. Nothing was saved, so the step keeps its old start."
+  },
+  "E-SCHED-010": {
+    "code": "E-SCHED-010",
+    "feature": "SCHED-2",
+    "user_message": "Put this on someone's day first — a step in Unscheduled has no start time to change.",
+    "what_happened": "A start time was set on a step that is still in Unscheduled (not on any day).",
+    "likely_cause": "The step was moved back to Unscheduled while its edit window was open.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Drag the step onto a day (or use Place…), then set its start. A start time only means something on a day."
+  },
+  "E-SCHED-011": {
+    "code": "E-SCHED-011",
+    "feature": "SCHED-2",
+    "user_message": "Keep the reason to 200 characters or fewer.",
+    "what_happened": "A start time was set by hand with a reason longer than 200 characters.",
+    "likely_cause": "A long note was pasted into the reason.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Shorten the reason. Longer context belongs in the step's notes."
   },
   "E-STAGE-001": {
     "code": "E-STAGE-001",
@@ -1616,5 +1666,65 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Nothing to fix on the job you're on. Ask a planner if the sent work was moved."
+  },
+  "E-TW-001": {
+    "code": "E-TW-001",
+    "feature": "TW-1",
+    "user_message": "Enter a start and end date, and times as two digits each, like 09:00.",
+    "what_happened": "A time window was saved with a missing date, or a time that isn't between 00:00 and 23:59.",
+    "likely_cause": "A field was left empty, or a time was typed as 9:5 or 25:00.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Use the 24-hour clock with two digits each: 09:00, 17:30. Your typing was kept."
+  },
+  "E-TW-002": {
+    "code": "E-TW-002",
+    "feature": "TW-1",
+    "user_message": "The window has to end after it starts.",
+    "what_happened": "A time window's end was the same as, or earlier than, its start.",
+    "likely_cause": "The end time was typed before the start time, or the end date was left on an earlier day.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "A window can run past midnight — set the end date to the next day for overnight work."
+  },
+  "E-TW-003": {
+    "code": "E-TW-003",
+    "feature": "TW-1",
+    "user_message": "This time window falls completely outside the plan's dates.",
+    "what_happened": "A time window was saved that doesn't overlap the plan's window at all.",
+    "likely_cause": "The wrong month or year was picked, or the job belongs in a different plan.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "The full message names the plan's dates. At least part of the time window must sit inside them."
+  },
+  "E-TW-004": {
+    "code": "E-TW-004",
+    "feature": "TW-1",
+    "user_message": "That job isn't available any more.",
+    "what_happened": "A time window was read or changed for a job that doesn't exist in this account.",
+    "likely_cause": "The job belongs to another account, or the page is out of date.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload the plan. If the job is still listed, quote the Reference to support."
+  },
+  "E-TW-005": {
+    "code": "E-TW-005",
+    "feature": "TW-1",
+    "user_message": "This job is cancelled, so its time window can't be changed.",
+    "what_happened": "A time window was set or removed on a cancelled job.",
+    "likely_cause": "The job was cancelled after the page was opened.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "A cancelled job keeps its window as history. Add a new job if the work is still needed."
+  },
+  "E-TW-006": {
+    "code": "E-TW-006",
+    "feature": "TW-1",
+    "user_message": "Keep the time window's note to 200 characters or fewer.",
+    "what_happened": "A time window was saved with a note longer than 200 characters.",
+    "likely_cause": "A long explanation or pasted text went into the note.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "The note is a short reason, like \"site opens at 9\". Put longer detail on the job itself. Your typing was kept."
   }
 }
