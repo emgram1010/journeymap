@@ -10,9 +10,18 @@ tool build_journey_map {
   
     // Optional domain context to guide the AI builder.
     text context?
+
+    text ticket? filters=trim {
+      description = "COP-1 run ticket from your context. If you were given one, pass it on every tool call exactly as given. Otherwise leave it empty."
+    }
   }
 
   stack {
+    // COP-1: who is calling, and is this map theirs? Reports only until usr/tool_gate_mode says enforce.
+    function.run "journey/tool_gate" {
+      input = {journey_map_id: $input.journey_map_id, ticket: $input.ticket, tool: "build_journey_map", kind: "write"}
+    } as $cop1_gate
+
     // Validate map exists before triggering the build
     db.get journey_map {
       field_name = "id"

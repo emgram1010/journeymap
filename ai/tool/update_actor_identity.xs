@@ -56,9 +56,18 @@ tool update_actor_identity {
     enum cost_rate_unit? {
       values = ["per_minute", "per_hour", "per_day", "per_week", "per_event"]
     }
+
+    text ticket? filters=trim {
+      description = "COP-1 run ticket from your context. If you were given one, pass it on every tool call exactly as given. Otherwise leave it empty."
+    }
   }
 
   stack {
+    // COP-1: who is calling, and is this map theirs? Reports only until usr/tool_gate_mode says enforce.
+    function.run "journey/tool_gate" {
+      input = {journey_map_id: $input.journey_map_id, ticket: $input.ticket, tool: "update_actor_identity", kind: "write"}
+    } as $cop1_gate
+
     db.query journey_lens {
       where = $db.journey_lens.journey_map == $input.journey_map_id && $db.journey_lens.key == $input.lens_key
       return = {type: "single"}

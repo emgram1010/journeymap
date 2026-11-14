@@ -8,9 +8,22 @@ tool compare_scenarios {
     int journey_architecture_id filters=min:1
     int map_a_id filters=min:1
     int map_b_id filters=min:1
+
+    text ticket? filters=trim {
+      description = "COP-1 run ticket from your context. If you were given one, pass it on every tool call exactly as given. Otherwise leave it empty."
+    }
   }
 
   stack {
+    // COP-1: who is calling, and is this map theirs? Reports only until usr/tool_gate_mode says enforce.
+    function.run "journey/tool_gate" {
+      input = {journey_map_id: $input.map_a_id, ticket: $input.ticket, tool: "compare_scenarios", kind: "read"}
+    } as $cop1_gate
+
+    function.run "journey/tool_gate" {
+      input = {journey_map_id: $input.map_b_id, ticket: $input.ticket, tool: "compare_scenarios", kind: "read"}
+    } as $cop1_gate_2
+
     precondition ($input.map_a_id != $input.map_b_id) {
       error_type = "inputerror"
       error = "map_a_id and map_b_id must be different maps"

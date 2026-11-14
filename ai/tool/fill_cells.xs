@@ -8,9 +8,18 @@ tool fill_cells {
   
     // Array of { stage_key, lens_key, content?, actor_fields? }
     json cell_updates
+
+    text ticket? filters=trim {
+      description = "COP-1 run ticket from your context. If you were given one, pass it on every tool call exactly as given. Otherwise leave it empty."
+    }
   }
 
   stack {
+    // COP-1: who is calling, and is this map theirs? Reports only until usr/tool_gate_mode says enforce.
+    function.run "journey/tool_gate" {
+      input = {journey_map_id: $input.journey_map_id, ticket: $input.ticket, tool: "fill_cells", kind: "write"}
+    } as $cop1_gate
+
     db.get journey_map {
       field_name = "id"
       field_value = $input.journey_map_id

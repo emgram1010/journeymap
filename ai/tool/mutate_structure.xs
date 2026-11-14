@@ -75,9 +75,18 @@ tool mutate_structure {
     // not have is refused by name (E-ORD-003), never ignored.
     text after_stage_key? filters=trim
     text after_lens_key? filters=trim
+
+    text ticket? filters=trim {
+      description = "COP-1 run ticket from your context. If you were given one, pass it on every tool call exactly as given. Otherwise leave it empty."
+    }
   }
 
   stack {
+    // COP-1: who is calling, and is this map theirs? Reports only until usr/tool_gate_mode says enforce.
+    function.run "journey/tool_gate" {
+      input = {journey_map_id: $input.journey_map_id, ticket: $input.ticket, tool: "mutate_structure", kind: "write"}
+    } as $cop1_gate
+
     var $result {
       value = {
         action : $input.action

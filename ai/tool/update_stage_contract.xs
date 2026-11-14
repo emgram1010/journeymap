@@ -25,9 +25,18 @@ tool update_stage_contract {
     int journey_stage_id filters=min:1
     text stage_goal? filters=trim
     text primary_actor_lens? filters=trim
+
+    text ticket? filters=trim {
+      description = "COP-1 run ticket from your context. If you were given one, pass it on every tool call exactly as given. Otherwise leave it empty."
+    }
   }
 
   stack {
+    // COP-1: who is calling, and is this map theirs? Reports only until usr/tool_gate_mode says enforce.
+    function.run "journey/tool_gate" {
+      input = {journey_map_id: $input.journey_map_id, ticket: $input.ticket, tool: "update_stage_contract", kind: "write"}
+    } as $cop1_gate
+
     util.get_raw_input {
       encoding = "json"
       exclude_middleware = false

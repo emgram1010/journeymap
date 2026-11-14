@@ -28,9 +28,18 @@ tool clone_scenario {
     int journey_architecture_id filters=min:1
     int source_map_id filters=min:1
     text title? filters=trim
+
+    text ticket? filters=trim {
+      description = "COP-1 run ticket from your context. If you were given one, pass it on every tool call exactly as given. Otherwise leave it empty."
+    }
   }
 
   stack {
+    // COP-1: who is calling, and is this map theirs? Reports only until usr/tool_gate_mode says enforce.
+    function.run "journey/tool_gate" {
+      input = {journey_map_id: $input.source_map_id, ticket: $input.ticket, tool: "clone_scenario", kind: "write"}
+    } as $cop1_gate
+
     db.get journey_architecture {
       field_name = "id"
       field_value = $input.journey_architecture_id

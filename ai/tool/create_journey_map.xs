@@ -18,9 +18,18 @@ tool create_journey_map {
   
     // FK to the parent L1/L2 map this map drills down from (optional).
     int parent_map_id?
+
+    text ticket? filters=trim {
+      description = "COP-1 run ticket from your context. If you were given one, pass it on every tool call exactly as given. Otherwise leave it empty."
+    }
   }
 
   stack {
+    // COP-1: who is calling, and is this map theirs? Reports only until usr/tool_gate_mode says enforce.
+    function.run "journey/tool_gate" {
+      input = {journey_map_id: $input.parent_map_id, ticket: $input.ticket, tool: "create_journey_map", kind: "write"}
+    } as $cop1_gate
+
     precondition ($input.title != null && $input.title != "") {
       error_type = "inputerror"
       error = "title is required"

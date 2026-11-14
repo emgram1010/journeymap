@@ -25,9 +25,18 @@ tool export_workflow_output {
     int journey_map_id?
     int conversation_id_log?
     text turn_id?
+
+    text ticket? filters=trim {
+      description = "COP-1 run ticket from your context. If you were given one, pass it on every tool call exactly as given. Otherwise leave it empty."
+    }
   }
 
   stack {
+    // COP-1: who is calling, and is this map theirs? Reports only until usr/tool_gate_mode says enforce.
+    function.run "journey/tool_gate" {
+      input = {journey_map_id: $input.journey_map_id, ticket: $input.ticket, tool: "export_workflow_output", kind: "write"}
+    } as $cop1_gate
+
     db.get workflow_execution {
       field_name = "id"
       field_value = $input.execution_id

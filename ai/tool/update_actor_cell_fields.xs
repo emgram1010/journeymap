@@ -66,9 +66,18 @@ tool update_actor_cell_fields {
     text stage_key filters=trim
     text lens_key filters=trim
     json actor_fields
+
+    text ticket? filters=trim {
+      description = "COP-1 run ticket from your context. If you were given one, pass it on every tool call exactly as given. Otherwise leave it empty."
+    }
   }
 
   stack {
+    // COP-1: who is calling, and is this map theirs? Reports only until usr/tool_gate_mode says enforce.
+    function.run "journey/tool_gate" {
+      input = {journey_map_id: $input.journey_map_id, ticket: $input.ticket, tool: "update_actor_cell_fields", kind: "write"}
+    } as $cop1_gate
+
     // Resolve stage
     db.query journey_stage {
       where = $db.journey_stage.journey_map == $input.journey_map_id && $db.journey_stage.key == $input.stage_key

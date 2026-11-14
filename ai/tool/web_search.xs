@@ -32,9 +32,18 @@ tool web_search {
     text search_depth?
     int conversation_id?
     text turn_id?
+
+    text ticket? filters=trim {
+      description = "COP-1 run ticket from your context. If you were given one, pass it on every tool call exactly as given. Otherwise leave it empty."
+    }
   }
 
   stack {
+    // COP-1: who is calling, and is this map theirs? Reports only until usr/tool_gate_mode says enforce.
+    function.run "journey/tool_gate" {
+      input = {journey_map_id: 0, ticket: $input.ticket, tool: "web_search", kind: "read"}
+    } as $cop1_gate
+
     precondition ($input.query != null && $input.query != "") {
       error_type = "inputerror"
       error = "Search query is required"

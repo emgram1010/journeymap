@@ -1,11 +1,11 @@
-// COP-1 — is the AI tool gate refusing yet, or only reporting? "report" = log what it WOULD refuse and refuse nothing; "enforce" = refuse. One switch for read tools and one for write tools, so reads can go first. Changing a value here and pushing this one function changes every tool at once; changing it back is the rollback.
+// COP-1 — is the AI tool gate refusing yet, or only reporting? "report" = log what it WOULD refuse and refuse nothing; "enforce" = refuse. Four switches: outside assistants (the tool address) and in-app agents, each for read tools and write tools, so each can go first on its own. Changing a value here and pushing this one function changes every tool at once; changing it back is the rollback.
 function "usr/tool_gate_mode" {
   input {
   }
 
   stack {
     var $modes {
-      value = {read: "report", write: "report"}
+      value = {outside_read: "report", outside_write: "report", inapp_read: "report", inapp_write: "report"}
     }
   }
 

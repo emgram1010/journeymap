@@ -40,9 +40,18 @@ tool validate_workflow {
   
     // full = capture raw payloads; summary = summaries only (default)
     text log_tier?
+
+    text ticket? filters=trim {
+      description = "COP-1 run ticket from your context. If you were given one, pass it on every tool call exactly as given. Otherwise leave it empty."
+    }
   }
 
   stack {
+    // COP-1: who is calling, and is this map theirs? Reports only until usr/tool_gate_mode says enforce.
+    function.run "journey/tool_gate" {
+      input = {journey_map_id: $input.journey_map_id, ticket: $input.ticket, tool: "validate_workflow", kind: "read"}
+    } as $cop1_gate
+
     // Load map structure
     db.query journey_stage {
       where = $db.journey_stage.journey_map == $input.journey_map_id

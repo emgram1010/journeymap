@@ -347,3 +347,58 @@ a bug.
 - Step 3: switch to refusing, read tools first.
 - Step 4: cross-account probe over real HTTP on the real tools.
 - Stories 01 (identity), 04 (log with who), 05 (off switch and cap), 06 (tool bug fixes).
+
+### Roll-out step 2a — the gate inside the live tools, report-only (2026-11-14, Fable 5.2)
+
+**What is live now:** 36 of the 37 AI tools call `journey/tool_gate` as their first line and accept
+an optional `ticket` input (`search_xano_docs` is left out: no customer data, used by the public
+demo). All four switches in `usr/tool_gate_mode` are `report`, so **nothing is refused**; a
+would-be refusal is logged (feature `COP-1`, step `tool_gate`, at most 60 rows an hour).
+
+The gate now also knows **where** a call came from — `outside` (the tool address) or `inapp` (an
+agent inside Emgram) — from the request address, which the caller cannot choose. Each has its own
+read and write switch, so the outside path can be closed before the in-app one.
+
+| Check | Result |
+|---|---|
+| All 36 tools have the gate and the `ticket` input (exact live copy, re-fetched) | ✅ 36/36 |
+| Existing lines changed in the other 35 tools | ✅ none (line-for-line against the pre-change live copy) |
+| `scaffold_structure` add / rename / remove / unknown key, on a test map | ✅ 8/8 **after the fix below** |
+| 9 more tools run for real on a test map (read-back confirmed the writes) | ✅ `get_map`, `update_cell`, `batch_update`, `get_slice`, `get_gaps`, `update_stage_contract`, `update_journey_settings`, `update_actor_identity`, `list_maps` |
+| In-app chat, one read turn and one write turn as a test user | ✅ both answered; the write landed |
+| Gate log shows the right context | ✅ `outside` for the tool address, `inapp` for the chat |
+| The remaining ~25 tools | Not run individually — covered only by "no existing line changed" |
+
+**🔴 A break I caused and fixed (about 25 minutes, 23:26–23:51 UTC).** I based each push on the
+live source Xano returned. For `scaffold_structure` that text had **lost the protective brackets**
+the original file has (`{key: ($op|get:"key":""), id: (…)}` comes back as
+`{key: $op|get:"key":"", id: …}`), and pushing it back made rename and remove fail with
+"Unable to locate var: rm.id". Restored from the repo copy plus the gate lines; proven 8/8.
+A scan for the same shape (a bare `$x|filter:arg` as an object value, or mid `&&`/`||`/`?:`)
+finds 17 lines in that file and **0 in the other 35 tools**.
+
+**Rule learned (worth a CLAUDE.md line):** *the XanoScript that `getTool` / `listTools` returns is
+not safe to push back as-is.* Xano drops brackets around a filter inside an object literal when
+it shows the source, and that changes the meaning on re-save. Fetch live to **compare**; push from
+the repo file. An oversized MCP result is saved to a file, which makes an exact compare possible.
+
+**Found, not fixed (pre-existing):**
+- `search_maps` fails with "Invalid pipe." — it uses `|lowercase`; the filter is `|lower`. Same
+  text since 2026-06-04, so it has been broken since then. Belongs with story 06.
+- 10 tools differ between the repo and live (`calculate_leakage`, `update_stage_contract`,
+  `clone_scenario`, `fill_cells`, `publish_map`, `update_journey_settings`, `batch_set_status`,
+  `scaffold_structure`, `batch_update`, `mutate_structure`). Each was patched on its own side, so
+  the difference is unchanged. Which side is right is not established.
+- `create_journey_map` still stamps owner 0 / account 0 (seen again on test map 236).
+
+**Test data left on purpose (test account 13):** maps 235 and 236, both titled "… (safe to delete)".
+
+### Still open before anything can be refused
+
+1. **Tickets for the in-app chat.** The chat endpoint (api 52) must mint a ticket and tell the
+   agent to pass it. That file is 138 KB / 3,809 lines; re-sending it through the push tool is
+   risky given the bracket rule above. Options: (a) the founder pushes that one file from the
+   Xano VS Code extension after a 10-line edit; (b) an interim check that needs no ticket.
+2. **Before the outside path is switched to refuse:** tools that create things must stamp the
+   caller's owner and account; `list_maps` / `search_maps` / `list_scenarios` must filter by
+   account; maps 226–234 (account 0) need an owner, or the founder loses them through the tools.

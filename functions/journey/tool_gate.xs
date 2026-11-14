@@ -1,4 +1,4 @@
-// COP-1 — the first line of every AI tool: who is calling (usr/tool_caller: ticket or request token, switched on, Intelligent Layer) and is this map in their account (journey/assert_map_owner). No rule is written here; it makes the calls in order and returns one verdict. In "report" mode (usr/tool_gate_mode) it logs what it would refuse and lets the tool carry on. A map in another account answers exactly like one that does not exist. Returns the caller's user_id and account_id so a tool that creates something can stamp it.
+// COP-1 — the first line of every AI tool: who is calling (usr/tool_caller: ticket or request token, switched on, Intelligent Layer) and is this map in their account (journey/assert_map_owner). No rule is written here; it makes the calls in order and returns one verdict. In "report" mode (usr/tool_gate_mode, set separately for outside assistants and in-app agents) it logs what it would refuse (at most 60 rows an hour) and lets the tool carry on. A map in another account answers exactly like one that does not exist. Returns the caller's user_id and account_id so a tool that creates something can stamp it.
 function "journey/tool_gate" {
   input {
     int journey_map_id?
@@ -18,14 +18,34 @@ function "journey/tool_gate" {
       input = {}
     } as $modes
 
-    var $mode {
-      value = $modes.read
+    var $kind {
+      value = "read"
     }
 
     conditional {
       if ($input.kind == "write") {
+        var.update $kind {
+          value = "write"
+        }
+      }
+    }
+
+    var $mode_key {
+      value = $caller.context ~ "_" ~ $kind
+    }
+
+    var $mode_raw {
+      value = $modes|get:$mode_key:null
+    }
+
+    var $mode {
+      value = "report"
+    }
+
+    conditional {
+      if ($mode_raw == "enforce") {
         var.update $mode {
-          value = $modes.write
+          value = "enforce"
         }
       }
     }
@@ -89,12 +109,37 @@ function "journey/tool_gate" {
       }
     }
 
+    var $recent_logs {
+      value = 0
+    }
+
     conditional {
       if ($ok == false) {
-        var $msg {
-          value = "AI tool gate (" ~ $mode ~ "): " ~ $input.tool ~ " - " ~ $caller.reason
+        var $now_ms {
+          value = now|to_int
         }
 
+        var $log_cutoff {
+          value = $now_ms - 3600000
+        }
+
+        db.query event_log {
+          where = $db.event_log.feature == "COP-1" && $db.event_log.step == "tool_gate" && $db.event_log.created_at >= $log_cutoff
+          return = {type: "count"}
+        } as $recent_count
+
+        var.update $recent_logs {
+          value = $recent_count
+        }
+      }
+    }
+
+    var $msg {
+      value = "AI tool gate (" ~ $mode ~ ", " ~ $caller.context ~ "): " ~ $input.tool ~ " - " ~ $caller.reason
+    }
+
+    conditional {
+      if ($ok == false && $recent_logs < 60) {
         function.run "ops/log_event" {
           input = {
             feature    : "COP-1"
@@ -107,7 +152,7 @@ function "journey/tool_gate" {
             account_id : $caller.account_id
             entity_type: "journey_map"
             entity_id  : $input.journey_map_id
-            metadata   : {mode: $mode, tool: $input.tool, kind: $input.kind, via: $caller.via, reason: $caller.reason}
+            metadata   : {mode: $mode, context: $caller.context, tool: $input.tool, kind: $kind, via: $caller.via, reason: $caller.reason}
           }
         } as $_logged
       }
@@ -151,6 +196,7 @@ function "journey/tool_gate" {
     code      : $code
     reason    : $caller.reason
     via       : $caller.via
+    context   : $caller.context
     user_id   : $caller.user_id
     account_id: $caller.account_id
   }
