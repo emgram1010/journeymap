@@ -41,6 +41,48 @@ Outside assistant ───▶ │ 2. May it use this module? (same grants as pe
 
 ---
 
+## 2a. Design note — how a tool learns who is calling (probed live 2026-11-14, Fable 5.2)
+
+Proven with a throwaway tool, tool address, agent and endpoint (all deleted afterwards):
+
+| Where the tool runs | What the tool can see | So the caller is found by |
+|---|---|---|
+| Outside assistant, over the tool address | `$auth` is **empty**. The request's `Authorization` header and address (`?token=`) **are** visible | Checking that token — the same `usr/mcp_caller` the door uses |
+| Inside Emgram, run by an agent from a signed-in endpoint | `$auth` is **empty**. **No** `Authorization` header (it is an internal call). The tool knows nothing about the caller | A **run ticket** (below) |
+
+**The run ticket.** Before an endpoint runs an agent, it writes one row: a random id, the signed-in
+user, their account, the map/business the turn is about, and an expiry. It gives the agent the
+ticket id to pass to every tool (exactly how `turn_id` is passed today). The tool looks the ticket
+up. The model cannot forge one, and a ticket only ever grants what its own user may reach — so a
+model tricked by text in a cell into asking for another account's map is refused by the server.
+
+**One gate, called first by every tool:**
+
+```
+tool starts ─▶ usr/tool_caller(ticket)            who is this?  header/address token, else ticket, else refuse
+            ─▶ usr/assert_module_access            switched on + Intelligent Layer   (existing)
+            ─▶ journey/assert_map_owner            is this map in the caller's account?   (existing)
+            ─▶ the tool's own work, stamping owner + account from the caller, never 0
+```
+
+- New: `usr/tool_caller`, one small ticket table, and one wrapper `journey/tool_gate` that makes the
+  three calls. Everything else is reused.
+- Lists (`list_maps`, `search_maps`, `list_scenarios`) are filtered with the existing
+  `journey/visible_map_ids`.
+- 37 tools get the same first line. Endpoints that run an agent (list them with
+  `grep -rl "ai.agent.run"`) mint a ticket.
+
+**Roll-out, so the live chat cannot break:** (1) build and prove the gate on scratch copies;
+(2) add it to the read tools in **report-only** mode (logs what it *would* refuse, refuses
+nothing) and replay real chat turns; (3) switch to refusing, one tool group at a time, write
+tools last; (4) probe: account A's token and ticket cannot read or change account B's map.
+
+**Known wrinkles**
+- Maps 226–234 and architecture 46 have account 0, so under this rule **nobody** can reach them
+  through a tool until they are given to the founder's account. That is a data change — ask first.
+- Each outside tool call costs one extra token check (~0.1–0.2 s).
+- `build_journey_map` runs an agent from inside a tool; it must pass its own caller on as a ticket.
+
 ## 3. Stories
 
 ### US-COP-1-00 — 🔴 The map tools answered with no sign-in
