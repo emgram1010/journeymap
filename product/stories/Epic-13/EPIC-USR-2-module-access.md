@@ -774,3 +774,44 @@ The Catalog page no longer fails as a whole if the map list is refused.
 | 4 | Switched-off people on `auth/me`, Members & Accounts, Catalog | Not started |
 | 5 | Final probe on real endpoints of every module; remove test account 13, users 21–25, the two scratch groups and scratch functions | Not started — fixtures still live on purpose |
 | — | The app shows a refusal as a generic error in some places; a friendly "you no longer have access" screen is not built | Not started |
+
+
+### Step 3 is LIVE — the Intelligent Layer is gated (founder: "Yes, lock it", 2026-11-14)
+
+**The simple lock was not used, and again the review before attaching is why.** `account/me` — the
+Account Settings page, open to every signed-in person — lives in the `journey-map` API group. A plain
+"Intelligent Layer only" gate would have broken that page for anyone without the grant. Built instead,
+on the same pattern as the planner group:
+
+| Piece | What it is |
+|---|---|
+| `usr/journey_group_module` (new) | Everything needs the Intelligent Layer, **except** `account/me` GET/PATCH (no module — just switched on) and the old `journey_map_attachable` door (Intelligent Layer **or** Planner). Unknown or odd-looking paths get the strict check |
+| `usr_require_journey_group` (new middleware, live id 4) | The one gate on the `journey-map` group |
+
+`usr_require_module_intelligence` (live id 2) still exists and guards only a scratch group. It can be
+deleted with the scratch groups in step 5.
+
+#### Results
+
+| Test | Result |
+|---|---|
+| Classifier table, 16 cases incl. `..`, `%`, `//`, wrong verb, empty | ✅ 16/16 |
+| Matrix on a scratch group: intelligence-only, planner-only, execution-only, all-modules, switched-off × 3 endpoint kinds | ✅ 15/15 |
+| Same matrix on the **real** `journey-map` group, **before** attaching | 🔴 6 of 15 wrong |
+| Same matrix on the **real** group, **after** attaching | ✅ **15/15** |
+| Planner group matrix re-run afterwards | ✅ 16/16 (unchanged) |
+| Browser, all-modules test user: Architectures, Account Settings, Catalog | ✅ all load |
+| Browser, **planner-only** test user: Planner, Account Settings (read-only), Catalog | ✅ all load; typing `/architectures` redirects to "no access" |
+| Emgram MCP map tools (`list_maps`) | ✅ still work — they do not pass through this gate at all (see below) |
+| Founder's own sign-in on the Intelligent Layer | ❌ **not checked by me** — please open a map once |
+
+#### What this does NOT cover — said plainly
+
+- 🔴 **AI tools bypass every gate.** The Emgram MCP tools and the in-app AI's tools call functions
+  directly, not these API groups, so no module check and no "switched off" check applies to them. This
+  is gap 2 (AI identity) and gap 4 (tool logging) in the "Emgram build" architecture, not a regression.
+- **A planner-only person lands on "Nothing has been switched on yet" after signing in**, because the
+  app always opens on the Intelligent Layer. The menu works; the landing page should pick their first
+  allowed module. Small frontend fix, not built.
+- Steps 4 and 5 below are unchanged: a switched-off person with a live token can still load
+  `auth/me`, Manage users and the Catalog until their token expires (24 hours at most).
