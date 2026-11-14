@@ -1,6 +1,6 @@
 # EPIC-COP-1 — Agent identity and guardrails
 
-**Status:** 📋 Not started. Written 2026-11-14 (Fable 5.2).
+**Status:** 🚧 In progress (Fable 5.2, 2026-11-14). The gate is built and proven on throwaway copies (roll-out step 1). **No live tool calls it yet.** See section 7.
 **Model:** **Opus 5.5** (or Fable 5.2). Guards and tenancy. Story 06 is Sonnet 5.5. Review pass after.
 **Depends on:** SEC-3 (the tool door), USR-2 (access gates, live). Closes map 226 gaps 2, 3 and 4.
 **Risk:** high. A mistake here lets an AI act on the wrong customer's data, or locks the chat out.
@@ -290,4 +290,60 @@ that fails before and passes after. Crash text: `Unable to locate var: op.primar
 
 ## 7. Test results
 
-Not run. Nothing is built.
+### Roll-out step 1 — the gate, on throwaway copies (2026-11-14, Fable 5.2)
+
+**Pushed to Xano (workspace 1), attached to nothing live:**
+
+| What | Id |
+|---|---|
+| Table `tool_run_ticket` (new) | 143 |
+| `usr/mint_tool_ticket` | fn 308 |
+| `usr/tool_caller` | fn 309 |
+| `usr/tool_gate_mode` — currently `read: report, write: report` | fn 310 |
+| `journey/tool_gate` | fn 311 |
+
+**Matrix, run through `journey/tool_gate` with real run tickets (test account 13):**
+
+| # | Case | Report mode | Enforce mode |
+|---|---|---|---|
+| 01 | Granted user, own map | ✅ ok | ✅ allowed |
+| 02 | Granted user, another account's map | ✅ `E-COP-002` | ✅ refused |
+| 03 | Granted user, map that does not exist | ✅ `E-COP-002` (same answer as 02) | ✅ refused |
+| 04 | Granted user, no target map | ✅ ok | ✅ allowed |
+| 05 | User without the Intelligent Layer | ✅ `E-COP-001` | ✅ refused |
+| 06 | Switched-off user | ✅ `E-COP-001` | ✅ refused |
+| 07 | Expired ticket | ✅ `E-SEC-020` | ✅ refused |
+| 08 | Made-up ticket | ✅ `E-SEC-020` | ✅ refused |
+| 09 | No ticket and no token | ✅ `E-SEC-020` | ✅ refused |
+| 10 | Granted user, map with no account (226) | ✅ `E-COP-002` | ✅ refused |
+
+Enforce mode was switched on only for that run and switched back; the function is in `report`.
+
+**The gate inside a real tool, reached both ways (throwaway tool, tool address, agent, endpoint):**
+
+| Path | Case | Result |
+|---|---|---|
+| Outside assistant, `Authorization` header | own map | ✅ ok, `via: token` |
+| Outside assistant, `Authorization` header | another account's map | ✅ `E-COP-002` |
+| Outside assistant, `?token=` | own map | ✅ ok |
+| Outside assistant, no token | any map | ✅ `E-SEC-020` |
+| In-app agent with a run ticket | own map | ✅ ok, `via: ticket` (the model passed the ticket correctly) |
+| In-app agent with a run ticket | another account's map | ✅ `E-COP-002` |
+
+**Cleaned up:** throwaway tools 159/160, tool addresses 34/36, agents 35/37, endpoints 631/632,
+function 312 and all test tickets are deleted. **Left on purpose:** map 235, "COP-1 fixture (safe
+to delete)", in test account 13 — the probes for steps 2–4 need a map that account owns.
+
+**Learned (for CLAUDE.md):** `$env.$http_headers` and `$env.$request_uri` work inside a function
+called from a tool. When a function is run through the Xano management connection
+(`runWorkspaceFunction`), that connection's own `Authorization` header is visible to it — so a
+"no token" test run that way reports `bad_token`, not `no_token`. Harmless, but do not read it as
+a bug.
+
+### Not done yet
+
+- Step 2: add the gate's first line to the 37 tools in report mode; endpoints that run an agent
+  mint a ticket and tell the agent to pass it. **Touches the live chat — ask first.**
+- Step 3: switch to refusing, read tools first.
+- Step 4: cross-account probe over real HTTP on the real tools.
+- Stories 01 (identity), 04 (log with who), 05 (off switch and cap), 06 (tool bug fixes).
