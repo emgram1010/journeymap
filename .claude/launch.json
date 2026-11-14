@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "copilot-approvals-mock",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "5180", "--directory", "webapp/copilot-approvals-mock"],
+      "port": 5180
+    }
+  ]
+}

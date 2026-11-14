@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Copilot Approvals</title>
+<!--
+  MOCK-UP ONLY (2026-11-14). Fake data, no Xano calls, nothing is sent anywhere.
+  Purpose: let the founder try approval levels before anything real is built.
+  Plan: product/updates/2026-11-14_2150-UTC_ai-copilot-party-rentals-architecture.md (M2 Approval gate).
+-->
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --ink: #1d2330; --muted: #667085; --line: #e3e6eb;
+    --blue: #2f6fed; --blue-soft: #e8efff; --green: #1f9d55; --green-soft: #e3f6ea;
+    --amber: #b7791f; --amber-soft: #fdf3e1; --red: #c53030; --red-soft: #fde8e8;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  header { background: var(--card); border-bottom: 1px solid var(--line); padding: 14px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; }
+  .mock { font-size: 12px; background: var(--amber-soft); color: var(--amber); padding: 2px 8px; border-radius: 99px; }
+  header .spacer { flex: 1; }
+  nav { display: flex; gap: 4px; padding: 10px 20px 0; flex-wrap: wrap; }
+  nav button { border: 0; background: none; padding: 8px 14px; border-radius: 8px 8px 0 0; font: inherit; color: var(--muted); cursor: pointer; }
+  nav button.on { background: var(--card); color: var(--ink); font-weight: 600; border: 1px solid var(--line); border-bottom-color: var(--card); }
+  main { max-width: 900px; margin: 0 auto; padding: 0 20px 40px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 0 10px 10px 10px; padding: 18px; }
+  .btn { border: 1px solid var(--line); background: var(--card); padding: 7px 14px; border-radius: 8px; font: inherit; cursor: pointer; }
+  .btn.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .btn.good { background: var(--green); color: #fff; border-color: var(--green); }
+  .btn.bad { color: var(--red); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .card { border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .tag { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--blue-soft); color: var(--blue); }
+  .lvl-auto { background: var(--green-soft); color: var(--green); }
+  .lvl-tell { background: var(--blue-soft); color: var(--blue); }
+  .lvl-wait { background: var(--amber-soft); color: var(--amber); }
+  .muted { color: var(--muted); font-size: 13px; }
+  .why { font-size: 13px; color: var(--muted); margin: 6px 0 10px; }
+  textarea { width: 100%; min-height: 80px; font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 8px; }
+  .draft { white-space: pre-wrap; background: var(--bg); border-radius: 8px; padding: 10px; margin: 8px 0; }
+  .empty { text-align: center; padding: 30px; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; }
+  select, input[type=number] { font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; }
+  .hint { margin-top: 6px; font-size: 13px; background: var(--green-soft); color: var(--green); padding: 6px 10px; border-radius: 8px; }
+  .legend { display: grid; gap: 6px; margin-bottom: 16px; }
+  .badge { min-width: 22px; text-align: center; background: var(--red); color: #fff; border-radius: 99px; font-size: 12px; padding: 0 6px; margin-left: 4px; }
+  .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Copilot approvals</h1>
+  <span class="mock">Mock-up · fake data · nothing is sent</span>
+  <span class="spacer"></span>
+  <button class="btn primary" id="sim">+ Simulate a new inquiry</button>
+  <button class="btn" id="reset">Reset</button>
+</header>
+
+<nav>
+  <button data-tab="wait" class="on">Waiting for you <span class="badge" id="wait-count">0</span></button>
+  <button data-tab="log">What the copilot did</button>
+  <button data-tab="levels">Approval levels</button>
+</nav>
+
+<main>
+  <div class="panel" id="tab-wait"></div>
+  <div class="panel" id="tab-log" hidden></div>
+  <div class="panel" id="tab-levels" hidden></div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ---------- Levels ----------
+const LEVELS = {
+  auto: { label: 'Runs on its own', cls: 'lvl-auto' },
+  tell: { label: 'Runs, then tells you', cls: 'lvl-tell' },
+  wait: { label: 'Waits for you', cls: 'lvl-wait' },
+};
+const ORDER = ['wait', 'tell', 'auto']; // strictest first
+
+// Action types. "money: true" types can never go below "Waits for you" except via the amount limit.
+const DEFAULT_TYPES = [
+  { key: 'greeting', name: 'Greeting a new inquiry', level: 'auto', touches: 'customer' },
+  { key: 'intake',   name: 'Asking intake questions', level: 'tell', touches: 'customer' },
+  { key: 'stock',    name: 'Checking stock for a date', level: 'auto', touches: 'internal' },
+  { key: 'quote',    name: 'Sending a quote', level: 'wait', touches: 'money', limit: 200 },
+  { key: 'hold',     name: 'Holding items on a date', level: 'wait', touches: 'booking' },
+  { key: 'booking',  name: 'Confirming a booking', level: 'wait', touches: 'booking' },
+  { key: 'discount', name: 'Offering a discount', level: 'wait', touches: 'money', locked: true },
+  { key: 'nudge',    name: 'Follow-up nudge', level: 'tell', touches: 'customer' },
+];
+
+const CUSTOMERS = ['Maria G.', 'Tom R.', 'Aisha K.', 'Luis P.', 'Grace H.', 'Dev S.', 'Rochelle B.'];
+const ITEMS = [['Bounce house', 150], ['Table (6 ft)', 10], ['Chair', 2], ['Tent 20x20', 220], ['Cotton candy machine', 60]];
+
+let state;
+function fresh() {
+  return {
+    types: JSON.parse(JSON.stringify(DEFAULT_TYPES)),
+    pending: [],
+    log: [],
+    stats: {}, // key -> {approved, edited, rejected}
+    seq: 1,
+  };
+}
+function load() {
+  try { const s = JSON.parse(localStorage.getItem('copilot-mock')); if (s && s.types) return s; } catch (e) {}
+  const s = fresh(); seed(s); return s;
+}
+function save() { try { localStorage.setItem('copilot-mock', JSON.stringify(state)); } catch (e) {} }
+function typeOf(key) { return state.types.find(t => t.key === key); }
+function stat(key) { return state.stats[key] || (state.stats[key] = { approved: 0, edited: 0, rejected: 0 }); }
+
+// ---------- Routing: what level does THIS action get? ----------
+function levelFor(action) {
+  const t = typeOf(action.type);
+  if (t.key === 'quote' && t.level === 'wait' && t.limit > 0 && action.amount != null && action.amount < t.limit) {
+    return { level: 'tell', why: `Under your $${t.limit} limit for quotes` };
+  }
+  return { level: t.level, why: LEVELS[t.level].label };
+}
+
+function route(action) {
+  const r = levelFor(action);
+  action.id = state.seq++;
+  action.at = Date.now();
+  if (r.level === 'wait') {
+    state.pending.unshift(action);
+  } else {
+    state.log.unshift({ ...action, outcome: r.level === 'auto' ? 'done' : 'done-told', why: r.why });
+  }
+}
+
+// ---------- Fake inquiries ----------
+function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+function makeInquiry(s) {
+  const who = pick(CUSTOMERS);
+  const lines = [pick(ITEMS), pick(ITEMS)].filter((v, i, a) => a.indexOf(v) === i);
+  const qty = lines.map(([n, p]) => [n, p, n === 'Chair' ? 40 : n.startsWith('Table') ? 6 : 1]);
+  const items = qty.reduce((sum, [, p, q]) => sum + p * q, 0);
+  const miles = 3 + Math.floor(Math.random() * 20);
+  const fee = 20 + miles * 2;
+  const total = items + fee;
+  const date = new Date(Date.now() + (3 + Math.floor(Math.random() * 20)) * 864e5).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const list = qty.map(([n, p, q]) => `${q} × ${n} @ $${p}`).join('\n');
+  const prev = state; state = s; // route() reads state
+  route({ type: 'greeting', who, title: `Greeted ${who}`, draft: `Hi ${who.split(' ')[0]}! Thanks for reaching out. I'll get you a quote shortly.` });
+  route({ type: 'stock', who, title: `Checked stock for ${date}`, draft: `All items available on ${date}.` });
+  route({ type: 'quote', who, amount: total, title: `Quote for ${who} · $${total}`,
+          context: `${date} · ${miles} miles away`,
+          draft: `Hi ${who.split(' ')[0]}, here is your quote for ${date}:\n${list}\nDelivery: $${fee} ($20 + ${miles} mi × $2)\nTotal: $${total}` });
+  if (Math.random() < 0.5) route({ type: 'hold', who, title: `Hold items for ${who} on ${date}`, draft: `Hold ${qty.map(q => q[0]).join(', ')} on ${date} for 48 hours.` });
+  if (Math.random() < 0.3) route({ type: 'discount', who, amount: 25, title: `Discount for ${who} · $25 off`, context: 'Repeat customer', draft: `Offer $25 off as a thank-you for booking again.` });
+  state = prev;
+}
+function seed(s) { for (let i = 0; i < 3; i++) makeInquiry(s); }
+
+// ---------- Decisions ----------
+function decide(id, outcome, newText) {
+  const i = state.pending.findIndex(p => p.id === id);
+  if (i < 0) return;
+  const a = state.pending.splice(i, 1)[0];
+  const st = stat(a.type);
+  if (outcome === 'approved') st.approved++;
+  if (outcome === 'edited') { st.edited++; a.draft = newText; }
+  if (outcome === 'rejected') st.rejected++;
+  state.log.unshift({ ...a, outcome, at: Date.now(), why: 'You decided' });
+  save(); render();
+  toast(outcome === 'rejected' ? 'Rejected. Nothing was sent.' : outcome === 'edited' ? 'Sent with your edits (pretend).' : 'Approved and sent (pretend).');
+}
+
+// ---------- Render ----------
+const $ = id => document.getElementById(id);
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function ago(t) { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; }
+
+function renderWait() {
+  $('wait-count').textContent = state.pending.length;
+  if (!state.pending.length) { $('tab-wait').innerHTML = '<div class="empty">Nothing is waiting for you. 🎉<br><span class="muted">Click “Simulate a new inquiry” to see what arrives.</span></div>'; return; }
+  $('tab-wait').innerHTML = state.pending.map(a => {
+    const t = typeOf(a.type);
+    return `<div class="card" data-id="${a.id}">
+      <div class="row"><span class="tag lvl-wait">${esc(t.name)}</span><span class="muted">${esc(a.who)} · ${ago(a.at)}</span></div>
+      <h3 style="margin:8px 0 0;font-size:16px">${esc(a.title)}</h3>
+      ${a.context ? `<div class="why">${esc(a.context)}</div>` : ''}
+      <div class="why">Waiting because: ${t.locked ? 'discounts always need you' : t.key === 'quote' && t.limit ? `at or over your $${t.limit} limit` : 'this type is set to “Waits for you”'}</div>
+      <div class="draft" data-draft>${esc(a.draft)}</div>
+      <div class="row">
+        <button class="btn good" data-act="approve">Approve</button>
+        <button class="btn" data-act="edit">Edit</button>
+        <button class="btn bad" data-act="reject">Reject</button>
+      </div></div>`;
+  }).join('');
+}
+
+function renderLog() {
+  if (!state.log.length) { $('tab-log').innerHTML = '<div class="empty">Nothing yet.</div>'; return; }
+  const label = { done: ['Did it on its own', 'lvl-auto'], 'done-told': ['Did it, telling you', 'lvl-tell'], approved: ['You approved', 'lvl-auto'], edited: ['You edited', 'lvl-tell'], rejected: ['You rejected', 'lvl-wait'] };
+  $('tab-log').innerHTML = `<p class="muted" style="margin-top:0">Everything the copilot did, newest first. “Did it, telling you” items are the ones to skim.</p>
+    <table><tr><th>When</th><th>What</th><th>How</th><th></th></tr>
+    ${state.log.slice(0, 60).map(a => {
+      const [txt, cls] = label[a.outcome];
+      const undo = a.outcome === 'done-told' ? `<button class="btn" data-undo="${a.id}">Undo</button>` : '';
+      return `<tr><td class="muted">${ago(a.at)}</td><td>${esc(a.title)}<div class="muted">${esc(a.why)}</div></td><td><span class="tag ${cls}">${txt}</span></td><td>${undo}</td></tr>`;
+    }).join('')}</table>`;
+}
+
+function renderLevels() {
+  const legend = ORDER.map(k => `<div><span class="tag ${LEVELS[k].cls}">${LEVELS[k].label}</span> <span class="muted">${{ wait: 'Nothing happens until you approve, edit or reject.', tell: 'The copilot does it and lists it under “What the copilot did”. You can undo.', auto: 'The copilot just does it. Still logged.' }[k]}</span></div>`).join('');
+  $('tab-levels').innerHTML = `<div class="legend">${legend}</div>
+    <table><tr><th>Action</th><th>Level</th><th>Your track record</th></tr>
+    ${state.types.map(t => {
+      const s = stat(t.key); const n = s.approved + s.edited + s.rejected;
+      const changeRate = n ? Math.round(100 * (s.edited + s.rejected) / n) : null;
+      const opts = ORDER.map(k => `<option value="${k}" ${t.level === k ? 'selected' : ''}>${LEVELS[k].label}</option>`).join('');
+      const sel = t.locked ? `<span class="tag lvl-wait">Waits for you</span> <span class="muted">· locked</span>` : `<select data-level="${t.key}">${opts}</select>`;
+      const limit = t.key === 'quote' ? `<div class="muted" style="margin-top:6px">Send quotes under $<input type="number" min="0" step="10" value="${t.limit || 0}" data-limit="quote" style="width:80px"> without waiting (0 = never)</div>` : '';
+      const ready = t.level === 'wait' && !t.locked && n >= 5 && changeRate <= 10;
+      const hint = ready ? `<div class="hint">You changed ${changeRate}% of these. Ready to move down to “Runs, then tells you”? <button class="btn" data-promote="${t.key}">Move down</button></div>` : '';
+      const record = n ? `${n} decided · ${changeRate}% edited or rejected` : '<span class="muted">No decisions yet</span>';
+      return `<tr><td>${esc(t.name)}<div class="muted">Touches: ${t.touches}</div>${hint}</td><td>${sel}${limit}</td><td>${record}</td></tr>`;
+    }).join('')}</table>
+    <p class="muted">Levels only change when you change them. The copilot can suggest a move after 5+ decisions with 10% or fewer changes; it never moves one by itself.</p>`;
+}
+
+function render() { renderWait(); renderLog(); renderLevels(); }
+
+// ---------- Events ----------
+document.querySelector('nav').addEventListener('click', e => {
+  const b = e.target.closest('button[data-tab]'); if (!b) return;
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
+  ['wait', 'log', 'levels'].forEach(k => $('tab-' + k).hidden = k !== b.dataset.tab);
+});
+
+$('tab-wait').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-act]'); if (!btn) return;
+  const card = btn.closest('.card'); const id = +card.dataset.id;
+  const act = btn.dataset.act;
+  if (act === 'approve') return decide(id, 'approved');
+  if (act === 'reject') return decide(id, 'rejected');
+  if (act === 'edit') {
+    const d = card.querySelector('[data-draft]');
+    if (d.tagName === 'TEXTAREA') return decide(id, 'edited', d.value);
+    const ta = document.createElement('textarea'); ta.value = d.textContent; ta.setAttribute('data-draft', '');
+    d.replaceWith(ta); ta.focus();
+    btn.textContent = 'Send edited'; btn.classList.add('primary');
+    card.querySelector('[data-act=approve]').disabled = true;
+  }
+});
+
+$('tab-log').addEventListener('click', e => {
+  const b = e.target.closest('button[data-undo]'); if (!b) return;
+  const a = state.log.find(x => x.id === +b.dataset.undo);
+  if (a) { a.outcome = 'rejected'; a.why = 'You undid it'; stat(a.type).rejected++; save(); render(); toast('Undone (pretend).'); }
+});
+
+$('tab-levels').addEventListener('change', e => {
+  const s = e.target.closest('[data-level]');
+  if (s) { typeOf(s.dataset.level).level = s.value; save(); render(); toast('Level changed. New actions follow it.'); }
+  const l = e.target.closest('[data-limit]');
+  if (l) { typeOf('quote').limit = Math.max(0, +l.value || 0); save(); render(); toast(`Quote limit set to $${typeOf('quote').limit}.`); }
+});
+$('tab-levels').addEventListener('click', e => {
+  const b = e.target.closest('[data-promote]'); if (!b) return;
+  typeOf(b.dataset.promote).level = 'tell'; save(); render(); toast('Moved down a level.');
+});
+
+$('sim').onclick = () => { makeInquiry(state); save(); render(); toast('New inquiry arrived.'); };
+$('reset').onclick = () => { state = fresh(); seed(state); save(); render(); toast('Reset to the starting data.'); };
+
+let tt; function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 1800); }
+
+state = load();
+render();
+setInterval(() => { renderWait(); }, 60000);
+</script>
+</body>
+</html>

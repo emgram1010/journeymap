@@ -1726,5 +1726,15 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "The note is a short reason, like \"site opens at 9\". Put longer detail on the job itself. Your typing was kept."
+  },
+  "E-SEC-020": {
+    "code": "E-SEC-020",
+    "feature": "SEC-3",
+    "user_message": "Sign in to use these tools. Add a valid Emgram token to the connection.",
+    "what_happened": "An outside assistant connected to the AI tool address without a valid token, or with a token whose owner is switched off or lacks the Intelligent Layer. The gate returned no tools, so nothing could be listed or run.",
+    "likely_cause": "The connection has no token, the token expired, or the person behind it has not been granted the Intelligent Layer.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Create a token (automation_api_token/generate) and add it to the assistant's connection as a Bearer header, or as ?token= on the address. If the token is valid, check the person is switched on and has the Intelligent Layer on the Team page."
   }
 }
