@@ -48,6 +48,14 @@ function "usr/assert_module_access" {
 
     // For the event log, so a refusal says which door was tried.
     text step? filters=trim
+
+    // USR-2 story 04 (2026-11-14): an ALTERNATIVE grant. A few planner-group
+    // endpoints are used by both the Planner and the performer app; for those
+    // holding EITHER grant is enough. Empty = none (the strict single check).
+    // An unknown value matches no grant row, so a typo is stricter, never
+    // looser. Callers pass it explicitly ("" for none) — an input left out of
+    // `function.run` inherits the caller's `$input` of the same name.
+    text or_module? filters=trim
   }
 
   stack {
@@ -107,8 +115,24 @@ function "usr/assert_module_access" {
       output = ["id", "granted"]
     } as $grant_row
 
-    var $granted {
+    var $granted_main {
       value = $grant_row|get:"granted":false
+    }
+
+    // The alternative grant. With `or_module` empty this matches no row and
+    // stays false, so the single-module check is unchanged.
+    db.query user_module_access {
+      where = $db.user_module_access.user_id == $actor_id && $db.user_module_access.module == $input.or_module
+      return = {type: "single"}
+      output = ["id", "granted"]
+    } as $or_row
+
+    var $granted_or {
+      value = $or_row|get:"granted":false
+    }
+
+    var $granted {
+      value = ($granted_main == true) || ($granted_or == true && $input.or_module != "")
     }
 
     // Refusals are logged; successful checks deliberately are NOT. This runs
@@ -128,7 +152,7 @@ function "usr/assert_module_access" {
             account_id : $account_id
             entity_type: "module"
             entity_id  : 0
-            metadata   : {module: $input.module}
+            metadata   : {module: $input.module, or_module: $input.or_module}
           }
         } as $_denied
       }

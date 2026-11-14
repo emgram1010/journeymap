@@ -659,3 +659,63 @@ Both halves are in `ai-learnings.md`.
 - **Whether the deactivation check lives in these middlewares or its own.** One
   shared pre-check is cheaper; a separate one is clearer. Decide once the
   per-request cost has been measured.
+
+
+---
+
+## 2026-11-14 — Stories 03/04 restarted (Fable 5.2). Gate proven on scratch groups; nothing real attached yet
+
+Picked up as **gap 1** of the "Emgram build" architecture, after SEC-2 proved live that module grants
+and "switched off" are enforced on no request at all.
+
+### Proven today, over real HTTP with real tokens (`tests/usr2_gate_probe.py`)
+
+Test account 13, users P (no grants), Q (Intelligent Layer only), R (all grants, switched off after
+signing in). Middleware `usr_require_module_intelligence` (live id 2) attached to **two scratch API
+groups only**.
+
+| Case | Group-level attach | Per-endpoint attach |
+|---|---|---|
+| P — no grant | ✅ 403 `E-USR-006` | ✅ 403 `E-USR-006` |
+| Q — granted | ✅ 200 | ✅ 200 |
+| R — switched off, token still valid | ✅ 403 `E-USR-005` | ✅ 403 `E-USR-005` |
+| No token | ✅ 401 | — |
+| Control: same group, endpoint with no middleware, P | — | ✅ 200 (so the gate is what refuses) |
+
+- **Both attachment shapes work.** Story 04's "approach 1, unproven" is now proven.
+- **`exception_policy = "critical"` survived the round-trip** — read back from the stored definition.
+- **Cost: about 33 ms per request** (median 199 → 232 ms over 15 calls).
+- 🔴 **A bug caught on the scratch group, not on a real one.** The first draft read the caller with
+  `$auth|get:"id":0`. Xano rewrote it on save to `$auth[""]|get:"id":0`, and **every** request —
+  granted or not — failed with a 500. Attached to `journey-map` that would have taken the whole
+  Intelligent Layer down for everyone. `$auth.id ?? 0` works. All three local middleware files are
+  corrected to the stored shape.
+
+### Facts the plan below rests on (checked 2026-11-14)
+
+- **No middleware was live before today**, and no API group has one attached except the two scratch groups.
+- **All 89 live `journey-map` endpoints require sign-in.** (11 local `.xs` files lack `auth = "user"`;
+  live does not — local drift, not a hole.)
+- **All 64 `planner` endpoints call `planner/resolve_actor`.** That is one chokepoint for the whole group.
+- **The performer app calls exactly two endpoints:** `GET perform/today` and `POST work_task/{id}/event`.
+- **Grants today:** users 2 (founder) and 15 hold all three modules; test user 9 too. Nobody else has
+  any — by the founder's own rule (new users start with none).
+- **Two `journey-map` endpoints are used from outside the Intelligent Layer:** `journey_map_attachable`
+  (Planner, to attach a map to a plan) and the map list (Catalog page, for map names).
+
+### How to finish — in this order, one push at a time
+
+| # | Step | Why this way | Risk |
+|---|---|---|---|
+| 1 | **Planner group — no middleware.** `planner/resolve_actor` gains one optional input, `module`, defaulting to `planning`, and calls `usr/assert_module_access`. The two performer endpoints pass `execution`. | Solves story 04 with one function and two endpoint edits, instead of splitting the group or attaching 64 middlewares. A new planner endpoint is protected by default, because every one already calls this guard. | Medium — every planner request passes through it. Omitted input = `planning`, the stricter default |
+| 2 | **Move the two shared reads** so a Planner-only person is not refused: a planner-group copy of "attachable maps", and the Catalog reading map names without the Intelligent Layer. | Otherwise step 3 breaks "attach a map" for anyone with Planner but not the Intelligent Layer. Nobody is in that position today (both real users hold all three). | Low |
+| 3 | 🔴 **Attach `usr_require_module_intelligence` to the `journey-map` group.** The first step that can lock people out of a whole module. **The founder's separate decision.** | 89 endpoints, no shared guard — group-level is the only one-place answer, and it covers endpoints not written yet | High — detach is the rollback, and it is one call |
+| 4 | **Switched-off people on the remaining doors:** `auth/me`, and the Members & Accounts and Catalog groups (which have no module). | Without it a switched-off person with a live token can still open Manage users and the Catalog for up to 24 hours | Medium — never the Authentication group by middleware; `auth/me` gets the check inline |
+| 5 | Re-run this probe against **real** endpoints of each module, as granted / ungranted / switched-off, and the founder signs in once. | The story's gate is a real 403, never "the code reads correctly" | — |
+
+### Not done, and waiting
+
+- Nothing above is built. The middleware exists live but guards only the scratch groups.
+- Test account 13, users 21–23, scratch groups `scratch-usr2-gate` / `scratch-usr2-endpoint` and two
+  scratch functions are **still live on purpose** — they are the fixtures for step 5. Remove after.
+- `admin/user_delete` still leaves orphan grant rows (see **Still open** above) — unchanged.

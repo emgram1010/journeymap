@@ -29,23 +29,30 @@
 // 🔴 NEVER ATTACH THIS TO THE AUTHENTICATION GROUP. A middleware that needs
 // `$auth` on the very endpoints that create `$auth` is a lockout with its key
 // inside.
-middleware "usr_require_module_intelligence" {
-  exception_policy = "critical"
-
+//
+// ✅ SHAPE PROVEN LIVE 2026-11-14 on two scratch API groups (group-level AND
+// per-endpoint attachment), with real tokens over real HTTP:
+//   no grant -> 403 E-USR-006 · granted -> 200 · switched off -> 403 E-USR-005
+// Two corrections to the first draft of this file, both found by that test:
+//   1. The stored declaration is `middleware name { input { json vars; enum
+//      type } stack {...} response = null  response_strategy = "merge"
+//      exception_policy = "critical" }` — unquoted name, policy at the END.
+//   2. 🔴 `$auth|get:"id":0` is REWRITTEN on save to `$auth[""]|get:"id":0`,
+//      which fails every request with a 500 "Unable to locate auth". Attached
+//      to a real group that would have taken the whole module down for
+//      everyone. `$auth.id ?? 0` is what works.
+// Cost measured: about 33 ms added per request (199 -> 232 ms median).
+middleware usr_require_module_intelligence {
   input {
+    json vars
+    enum type {
+      values = ["pre", "post"]
+    }
   }
 
   stack {
-    // An unauthenticated request must fall through untouched, so the
-    // endpoint's own `auth` setting stays the thing that decides. Refusing
-    // here would break any public endpoint that ever joins this group, and it
-    // would answer "you don't have access" to somebody who is simply not
-    // signed in — a worse sentence and a worse clue.
-    //
-    // `$auth|get:"id":0` rather than `$auth.id`, because a literal key honours
-    // its default (CLAUDE.md) and there may be no `$auth` object at all.
     var $caller_id {
-      value = $auth|get:"id":0
+      value = $auth.id ?? 0
     }
 
     conditional {
@@ -60,4 +67,8 @@ middleware "usr_require_module_intelligence" {
       }
     }
   }
+
+  response = null
+  response_strategy = "merge"
+  exception_policy = "critical"
 }
