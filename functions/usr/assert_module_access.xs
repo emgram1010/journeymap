@@ -12,10 +12,11 @@
 //   2. Is this person switched on?           → E-USR-005
 //   3. Have they been granted this module?   → E-USR-006
 //
-// 🔴 Question 2 is here and not only in `auth/login` on purpose: it closes the
-// gap USR-1 left open and documented. Deactivating somebody only blocked a NEW
-// sign-in; anyone holding a token issued before they were switched off kept
-// working until it expired. Checked on every request, that stops being true.
+// 🔴 Question 2 is asked through `usr/assert_user_active` (SEC-2, 2026-11-14),
+// the same function `auth/login` asks, so the two cannot disagree. It is
+// asked HERE as well as at login on purpose: anyone holding a token issued
+// before they were switched off keeps it until it expires, and only a check
+// on every request stops that.
 //
 // 🔴 Every read below uses `db.query ... return = {type: "single"}` and then
 // `|get` with a LITERAL key, not `db.get` plus a null test. Two reasons, both
@@ -84,20 +85,19 @@ function "usr/assert_module_access" {
 
     // ABSENCE OF A ROW MEANS ACTIVE, in `user_status` — the opposite default
     // to this epic's own table, and the reason USR-1 needed no backfill.
-    db.query user_status {
-      where = $db.user_status.user_id == $actor_id
-      return = {type: "single"}
-      output = ["id", "is_active"]
-    } as $status_row
-
-    var $is_active {
-      value = $status_row|get:"is_active":true
-    }
-
-    precondition ($is_active == true) {
-      error_type = "accessdenied"
-      error = "This account has been switched off. Ask your admin to turn it back on. (E-USR-005)"
-    }
+    //
+    // SEC-2 (2026-11-14): the read and the refusal moved to
+    // `usr/assert_user_active`, so `auth/login` and this door ask the same
+    // function instead of each holding a copy. Same message, same code; the
+    // refusal is now also logged, which it was not before.
+    function.run "usr/assert_user_active" {
+      input = {
+        user_id   : $actor_id
+        account_id: $account_id
+        feature   : "USR-2"
+        step      : "module_access"
+      }
+    } as $_active
 
     // ABSENCE OF A ROW MEANS NOT GRANTED. A missing row, a half-run backfill
     // and an explicit revoke all land here, and all three mean no.

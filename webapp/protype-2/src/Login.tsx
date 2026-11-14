@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, RotateCcw } from 'lucide-react';
 import { useAuth } from './AuthContext';
+import { loginErrorMessage } from './loginError';
 
 export default function Login() {
   const { login } = useAuth();
@@ -32,8 +33,9 @@ export default function Login() {
     try {
       await login(email.trim(), password);
       navigate(from, { replace: true });
-    } catch {
-      setApiError('Invalid email or password.');
+    } catch (err) {
+      // SEC-2: generic unless the server explained a post-password refusal.
+      setApiError(loginErrorMessage(err));
     } finally {
       setIsLoading(false);
     }

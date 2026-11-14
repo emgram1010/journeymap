@@ -61,6 +61,18 @@ query "reset/magic-link-login" verb=POST {
       error = "This magic link has already been used. Please request another one."
     }
   
+    // SEC-2 (US-SEC-2-04, 2026-11-14) — the same rule as `auth/login`: a
+    // switched-off person gets no token by this route either. After the
+    // token checks, so a wrong or stale link still says only that.
+    function.run "usr/assert_user_active" {
+      input = {
+        user_id   : $user.id
+        account_id: $user.account_id
+        feature   : "SEC-2"
+        step      : "magic_link_login"
+      }
+    } as $_active
+
     // Create an authentication token
     security.create_auth_token {
       table = "user"

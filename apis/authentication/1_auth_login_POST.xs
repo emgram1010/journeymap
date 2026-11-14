@@ -47,6 +47,19 @@ query "auth/login" verb=POST {
       error = "Invalid Credentials."
     }
   
+    // SEC-2 (US-SEC-2-04, 2026-11-14) — a switched-off person gets no token.
+    // AFTER the password check, deliberately: asked first, this form would
+    // tell a stranger which emails belong to switched-off people. The rule
+    // itself lives in `usr/assert_user_active`, shared with the module doors.
+    function.run "usr/assert_user_active" {
+      input = {
+        user_id   : $user.id
+        account_id: $user.account_id
+        feature   : "SEC-2"
+        step      : "login"
+      }
+    } as $_active
+
     // Create an authentication token
     security.create_auth_token {
       table = "user"
