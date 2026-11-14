@@ -327,7 +327,11 @@ export const searchJourneyMaps = () =>
     account_id: number;
     count: number;
     maps: Array<{map_id: number; title: string; status: string; published_version_no: number | null}>;
-  }>('/journey_map_attachable', {baseUrl: getJourneyMapBaseUrl()}).then((data) => ({
+    // USR-2 (2026-11-14): read from the PLANNER group, not the journey-map one.
+    // Same list (both endpoints call `journey/attachable_maps`), but behind the
+    // Planner gate — so a Planner-only person is not refused the picker once
+    // the Intelligent Layer is gated.
+  }>('/journey_map_attachable').then((data) => ({
     results: data.maps.map((m) => ({
       map_id: m.map_id,
       title: m.title,

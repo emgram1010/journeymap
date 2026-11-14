@@ -499,7 +499,11 @@ function MethodsTab({isAdmin}: {isAdmin: boolean}) {
   const load = useCallback(() => {
     setIsLoading(true);
     setListError(null);
-    Promise.all([listMethods(showInactive), listJourneyMaps()])
+    // USR-2 (2026-11-14): the map list is an Intelligent Layer read. The
+    // Catalog has no module of its own, so somebody without that grant must
+    // still get their methods — just without sub-journey names — instead of
+    // the whole page failing on a refused request.
+    Promise.all([listMethods(showInactive), listJourneyMaps().catch(() => [] as XanoJourneyMap[])])
       .then(([methodRes, mapList]) => {
         setMethods(methodRes.methods);
         // Atomic maps first (the level a method's sub-journey normally

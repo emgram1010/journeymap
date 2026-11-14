@@ -71,7 +71,9 @@ for who in ("p", "s", "q", "r"):
         print(f"{NAMES[who]} | no token available — skipped")
         continue
     for method, path, kind in ENDPOINTS:
-        body = {} if method == "POST" else None
+        # A VALID body: Xano validates inputs BEFORE the middleware runs, so an invalid
+        # body answers 400 for everyone and proves nothing about the gate.
+        body = {"event_type": "note", "client_event_id": f"usr2-gate-{who}", "note": "gate test"} if method == "POST" else None
         s, b = call(method, GROUP, path, body, tok[who])
         refused = s in (401, 403)
         want_pass = kind in MAY[who]

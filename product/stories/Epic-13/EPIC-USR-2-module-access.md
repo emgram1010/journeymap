@@ -719,3 +719,58 @@ groups only**.
 - Test account 13, users 21–23, scratch groups `scratch-usr2-gate` / `scratch-usr2-endpoint` and two
   scratch functions are **still live on purpose** — they are the fixtures for step 5. Remove after.
 - `admin/user_delete` still leaves orphan grant rows (see **Still open** above) — unchanged.
+
+
+### Later the same day — steps 1 and 2 are LIVE (founder: "continue")
+
+**Step 1 changed shape before it was built, and for the better.** The plan above said "add the check
+to `planner/resolve_actor`". Reviewing its callers first showed **17 journey-map endpoints call that
+guard too** — a Planner default there would have refused every Intelligent-Layer-only person on their
+own maps. Built instead:
+
+| Piece | What it is |
+|---|---|
+| `usr/planner_group_module` (new) | Reads a request's path and verb and says which module it needs: **execution**, **planning**, or **either**. Unknown or odd-looking paths get the strict Planner check |
+| `usr_require_planner_group` (new middleware, live id 3) | One gate on the whole `planner` group. Calls the classifier, then `usr/assert_module_access` |
+| `usr/assert_module_access` | Gains `or_module` — "either grant is enough" — for the four endpoints both apps use |
+
+This also overturns the epic's "approach 3, probably impossible": a middleware **can** read the
+request (`$env.$request_uri`, `$env.$request_method`).
+
+| Execution only | Either grant | Planner (everything else, incl. future endpoints) |
+|---|---|---|
+| `perform/*` · `POST work_task/{id}/event` | `GET work_item/{id}` · `GET work-item/{id}/lines` · `GET work_item/{id}/links` · `POST work-task/{id}/exception` | all the others |
+
+**Step 2.** `journey_map_attachable` now also exists in the planner group (endpoint 626); both it and
+journey-map 578 call one function, `journey/attachable_maps`. `plannerApi.ts` reads the planner copy.
+The Catalog page no longer fails as a whole if the map list is refused.
+
+#### Results (real HTTP, real tokens, test account 13)
+
+| Test | Result |
+|---|---|
+| Classifier table — 21 routing cases + 13 safety cases (`..`, `%`, `//`, empty) | ✅ 34/34. The first pattern silently matched nothing (a `/` inside a regex returns null) and **failed to the strict side**; rewritten to match on spaces |
+| Matrix on a scratch group: planner-only, execution-only, intelligence-only, switched-off × 4 endpoint kinds | ✅ 16/16 |
+| Same matrix on the **real** planner group, **before** attaching | 🔴 11 of 16 wrong — everyone got in |
+| Same matrix on the **real** planner group, **after** attaching | ✅ **16/16** |
+| Map list: planner door vs journey-map door, as planner-only and full user | ✅ identical bodies; execution-only is refused at the planner door |
+| Browser, fully-granted test user: `/planner`, `/perform`, `/reports/plan-vs-action` | ✅ all load normally |
+| `npm test` / `tsc` | ✅ 789/789, clean |
+| Founder's own sign-in on Planner, Execution, Reports | ❌ **not checked by me** — please open them once |
+| Playwright specs, `workflow_tests/` | ❌ not run / not written |
+
+#### Two things learned the hard way today (candidates for CLAUDE.md, with the founder's OK)
+
+- **Xano validates an endpoint's inputs BEFORE the middleware runs.** A refused person sending a bad
+  body gets a 400, not a 403. Nobody gets in, but a gate test must send a valid body or it proves nothing.
+- **Pushing an API group without `swagger = {active: true}` silently turns its API docs off.** Restored;
+  the line is now written out in `apis/planner/api_group.xs`.
+
+#### Still to do
+
+| # | Step | State |
+|---|---|---|
+| 3 | 🔴 Attach `usr_require_module_intelligence` to the `journey-map` group | **Waiting for the founder's separate OK** |
+| 4 | Switched-off people on `auth/me`, Members & Accounts, Catalog | Not started |
+| 5 | Final probe on real endpoints of every module; remove test account 13, users 21–25, the two scratch groups and scratch functions | Not started — fixtures still live on purpose |
+| — | The app shows a refusal as a generic error in some places; a friendly "you no longer have access" screen is not built | Not started |
