@@ -5,7 +5,7 @@ function "usr/tool_gate_mode" {
 
   stack {
     var $modes {
-      value = {outside_read: "report", outside_write: "report", inapp_read: "report", inapp_write: "report"}
+      value = {outside_read: "enforce", outside_write: "enforce", inapp_read: "report", inapp_write: "report"}
     }
   }
 

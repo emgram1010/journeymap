@@ -429,3 +429,18 @@ tool address (including the founder's) is then limited to its own account's maps
 
 Test data left in test account 13: maps 235 and 236 plus the probe's "(safe to delete)" workspace
 and maps.
+
+### Roll-out step 3 — the outside door refuses (2026-11-15, Sonnet 5.5)
+
+`usr/tool_gate_mode` now reads `outside_read: enforce`, `outside_write: enforce`,
+`inapp_read: report`, `inapp_write: report`. Rollback: set the first two back to `report`.
+
+`tests/cop1_outside_probe.py` with `COP1_EXPECT=enforce`, test user in account 13: **16/16.**
+Another account's map: read, write and create are refused with the same "not found" answer as for
+a map that does not exist; another account's business is refused; the caller's own maps still
+work; lists show only their account.
+
+In-app chat, one read turn and one write turn after the switch: see the result below.
+
+**What changed for the founder:** an outside assistant now sees only the account its token
+belongs to, and needs a token at all (SEC-3). The in-app chat is unchanged until tickets are wired.
