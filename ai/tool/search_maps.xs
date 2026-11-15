@@ -42,6 +42,11 @@ tool search_maps {
       value = false
     }
 
+    // COP-3 story 02: in a conversation pinned to one business, only that business's maps.
+    var $pin {
+      value = $cop1_gate.pin_architecture_id ?? 0
+    }
+
     function.run "journey/visible_map_ids" {
       input = {caller_account_id: $caller_account}
     } as $visible
@@ -52,7 +57,7 @@ tool search_maps {
 
     // Load the caller's active maps
     db.query journey_map {
-      where = $db.journey_map.status == "active" && (($see_all == true) || ($db.journey_map.id in $visible_ids))
+      where = ($db.journey_map.status == "active" && (($see_all == true) || ($db.journey_map.id in $visible_ids))) && (($pin == 0) || ($db.journey_map.journey_architecture == $pin))
       sort = {updated_at: "desc"}
       return = {type: "list"}
     } as $active_maps

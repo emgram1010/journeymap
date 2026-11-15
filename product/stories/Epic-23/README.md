@@ -176,6 +176,7 @@ Each has a default so the build is never blocked. Say the word to change one.
 | SEC-3 | 🟡 Door shut and proven 2026-11-14 (stories 01–03). Open: 04 tenancy inside tools (→ COP-1), 05 refusal logging, nightly probe |
 | COP-1 | ✅ Built and reviewed (2026-11-15) |
 | COP-2 | ✅ Built and proven (2026-11-15) — Undo and per-business reminder times deferred |
-| COP-3 … COP-5 | 📋 Not started |
+| COP-3 | ✅ Built (2026-11-15) — plan/work reading moves to COP-5; business-delete guard pending |
+| COP-4, COP-5 | 📋 Not started |
 | COP-6 | 📋 Not started — **deferred on purpose** ("you don't have to do it right now") |
 | Approvals mock-up | 🧪 built, fake data, not committed |

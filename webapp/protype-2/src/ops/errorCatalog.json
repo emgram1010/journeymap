@@ -2056,5 +2056,65 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Choose a business in the picker, then change its levels."
+  },
+  "E-COP-037": {
+    "code": "E-COP-037",
+    "feature": "COP-3",
+    "user_message": "This conversation works inside one business, so it can't create a new one. Ask a person to create it.",
+    "what_happened": "The copilot, in a conversation pinned to one business, tried to create a new business. That is refused; new businesses are made by a person.",
+    "likely_cause": "The owner asked the copilot to start a new business from inside another one.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Create the new business yourself, then talk to the copilot about it."
+  },
+  "E-COP-040": {
+    "code": "E-COP-040",
+    "feature": "COP-3",
+    "user_message": "Your account doesn't have a copilot yet. An admin can create one on Manage users.",
+    "what_happened": "Someone opened the copilot or set up its home, but the account has no copilot identity.",
+    "likely_cause": "No copilot has been created for this account.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "An account admin creates the copilot on Manage users."
+  },
+  "E-COP-041": {
+    "code": "E-COP-041",
+    "feature": "COP-3",
+    "user_message": "The copilot is switched off. An admin can switch it back on in Manage users.",
+    "what_happened": "Someone sent the copilot a message while it is switched off. Nothing ran.",
+    "likely_cause": "An admin switched the copilot off.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Switch the copilot back on in Manage users."
+  },
+  "E-COP-042": {
+    "code": "E-COP-042",
+    "feature": "COP-3",
+    "user_message": "That conversation belongs to another business. Pick it from that business, or start a new one here.",
+    "what_happened": "A copilot conversation was opened or continued under a different business (or account) than the one it was started for. A conversation's business never changes.",
+    "likely_cause": "The business picker changed but an old conversation id was reused.",
+    "owner": "product_manager",
+    "severity": "info",
+    "fix_hint": "Start a new conversation for this business."
+  },
+  "E-COP-043": {
+    "code": "E-COP-043",
+    "feature": "COP-3",
+    "user_message": "Type a message for the copilot.",
+    "what_happened": "An empty message was sent to the copilot.",
+    "likely_cause": "Send was pressed with an empty box.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Type a message, then send."
+  },
+  "E-COP-044": {
+    "code": "E-COP-044",
+    "feature": "COP-3",
+    "user_message": "The copilot already has its own business.",
+    "what_happened": "Someone tried to set up the copilot's own 'how I work' business a second time. There is one per account.",
+    "likely_cause": "Setup was clicked twice.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Open the existing 'Copilot's own' business."
   }
 }

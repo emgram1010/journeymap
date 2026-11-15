@@ -1,6 +1,6 @@
 # EPIC-COP-3 — Copilot home and chat: its own maps, one business at a time, one place to talk
 
-**Status:** 📋 Not started. Written 2026-11-14 (Fable 5.2).
+**Status:** ✅ Built (Opus 5.5 backend + Sonnet 5.5 panel, 2026-11-15) — stories 01–05; story 06 (plans and work record) moves to COP-5 with the planner read tools. See Test results.
 **Model:** **Sonnet 5.5.** Opus 5.5 (or Fable 5.2) review of story 02's "one business only" rule.
 **Depends on:** COP-1 (identity, scope). Can run in parallel with COP-2.
 **Risk:** medium. Mostly screens on storage that already exists.
@@ -49,7 +49,7 @@ The copilot's own architecture ("how I work")          A business's architecture
 ## 3. Stories
 
 ### US-COP-3-01 — The copilot's own "how I work" architecture
-**Status:** 📋 Not started.
+**Status:** ✅ Built: `copilot_home` (one per account) + setup button that creates the business and four empty starter maps (content to be written with the founder). Delete guard not added — see results.
 
 **As an** owner, **I want** the copilot's working methods written down as maps I can read,
 **so that** I can see and improve how it works.
@@ -79,7 +79,7 @@ read. Mark the architecture as the copilot's own in a side table (no new column 
 founder, not invented in code.
 
 ### US-COP-3-02 — One business at a time
-**Status:** 📋 Not started. **Opus review.**
+**Status:** ✅ Built and proven (the pin lives in `journey/tool_gate` only). **Opus review:** pending.
 
 **As an** owner, **I want** each copilot conversation tied to one business,
 **so that** what it learns about one never shows up in another.
@@ -108,7 +108,7 @@ screen for it, and must add **no second copy** of the rule. `agent_conversation`
 `journey_architecture_id`; confirm how today's per-map conversations use it before reusing it.
 
 ### US-COP-3-03 — One chat, reachable everywhere
-**Status:** 📋 Not started.
+**Status:** ✅ Built (side panel from every screen; reopens the latest conversation per business).
 
 **As an** owner, **I want** to open the copilot from any screen,
 **so that** I can ask it something without leaving what I am doing.
@@ -138,7 +138,7 @@ Scenario: The map chat still works
 (PUX R-3). Not shown to people without the module grants the copilot itself needs.
 
 ### US-COP-3-04 — It knows what I am looking at
-**Status:** 📋 Not started.
+**Status:** ✅ Built (the panel sends a plain-words summary of the current screen; the copilot asks when it cannot tell).
 
 ```gherkin
 Scenario: "This" means the thing on screen
@@ -153,7 +153,7 @@ Scenario: It says when it cannot tell
 ```
 
 ### US-COP-3-05 — It asks, and it shows what is waiting
-**Status:** 📋 Not started.
+**Status:** ✅ Built (one-question rule in the copilot's instructions; waiting count + link to Approvals in the panel).
 
 ```gherkin
 Scenario: One question at a time
@@ -172,7 +172,7 @@ Scenario: It reports plainly
 **Build notes.** Depends on COP-2 for the link; until then, show "needs your OK" inline.
 
 ### US-COP-3-06 — It can read the whole business
-**Status:** 📋 Not started.
+**Status:** 🟡 Maps only. Plan and work-record read tools do not exist yet; built with COP-5's planner tools.
 
 **As an** owner, **I want** the copilot to see the maps, plans and work record of its business,
 **so that** its answers are about what is really there.
@@ -222,6 +222,42 @@ and is logged.
 | UI-COP-3-02 | Browser | Switch business; nothing carries over |
 | REG | Suites | `npm test`, `tsc`, build; map chat replay identical |
 
-## 7. Test results
+## 7. Test results (2026-11-15, Opus 5.5)
 
-Not run. Nothing is built.
+**How it works.** `POST copilot/chat` (643) mints a run ticket for the account's **copilot user**,
+pinned to the chosen business, and runs the new agent **Emgram Copilot** (agent 40). So every tool
+call the copilot makes is its own: COP-1 gate (switched on, Intelligent Layer, daily cap, audit row
+under its name), COP-2 approval levels, and the COP-3 pin. The pin is one check in
+`journey/tool_gate`: a pinned ticket may only touch maps in that business and only name that
+business. `list_maps` / `search_maps` show only that business; `create_journey_map` lands new maps
+in it; `create_workspace` is refused (E-COP-037); `invoke_map` passes the pin to nested agents.
+
+**Pushed:** tables 150 `copilot_home`, 151 `copilot_conversation`; agent 40 Emgram Copilot;
+endpoints 643 chat, 644 conversations, 645 conversation_messages, 646 home, 647 home_create
+(journey-map group, behind its Intelligent Layer middleware); tools create_journey_map (49),
+create_workspace (50), list_maps (54), search_maps (57), invoke_map (53); `journey/tool_gate` (311).
+
+| Check (test admin q, account 13; businesses 47 and 48) | Result |
+|---|---|
+| Pinned ticket: map in the business → allowed; map in business 48 or with no business → refused E-COP-038 | ✅ (audit rows 89–91) |
+| Pinned list_maps → only business 47's maps | ✅ |
+| Pinned create_journey_map → lands in 47, owned by the copilot; naming business 48 → refused | ✅ map 258 |
+| Pinned create_workspace → refused (E-COP-037) | ✅ |
+| Chat: empty message (E-COP-043); another account's business (E-COP-035) | ✅ |
+| **Real chat (AI)**: "which maps are in this business?" → exactly business 47's three maps | ✅ |
+| **Real chat**: asked about a map in business 48 → "belongs to another business… switch" | ✅ |
+| Reusing a conversation under another business → E-COP-042 | ✅ |
+| Conversation listed under 47, not under 48; reopening returns all 4 messages | ✅ |
+| The copilot's tool calls are logged under the copilot (user 26), via ticket | ✅ (tool_call_log 97) |
+| Home endpoint reports has_copilot / has_home | ✅ |
+| Browser (localhost, test admin): Copilot button on every screen opens the panel beside the page; business picker; the earlier conversation reopens; a message typed in the panel gets a real answer that knows the current screen ("You are looking at the Approvals page…") | ✅ |
+| `npm test` / `tsc` | ✅ 808/808 / clean |
+
+**Not done / gaps:**
+- "The copilot's own business can't be deleted" (governance) — not added. Live endpoint 69 (delete
+  business) has a newer soft-delete version than the repo file, and the live source export drops
+  brackets, so neither could be pushed safely tonight. **The repo copy of 69 is stale** — flagged.
+- Story 06: plan and work-record reading needs planner read tools (COP-5).
+- Long conversations send the whole history (no trimming yet).
+- The four starter maps are created empty, by design (content written with the founder).
+

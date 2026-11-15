@@ -2211,3 +2211,57 @@ export const setCopilotLevel = (body: {
   confirm_irreversible?: boolean;
 }): Promise<{level: string; limit_amount: number}> =>
   xanoRequest('/copilot/level_set', {method: 'POST', body, baseUrl: getXanoMembersBaseUrl()});
+
+// ── COP-3: copilot chat (journey-map group, the default base URL) ────────────
+
+export interface XanoCopilotChatResult {
+  conversation_id: number;
+  reply: string;
+  waiting_count: number;
+}
+
+export interface XanoCopilotConversation {
+  id: number;
+  title: string | null;
+  created_at: number | string | null;
+  last_message_at: number | string | null;
+}
+
+export interface XanoCopilotMessage {
+  id: number;
+  created_at: number | string | null;
+  role: string;
+  content: unknown;
+}
+
+export interface XanoCopilotHome {
+  has_copilot: boolean;
+  copilot_name: string;
+  has_home: boolean;
+  journey_architecture_id: number;
+  maps: {id: number; title: string | null; status: string}[];
+}
+
+/** The copilot can take 20 to 60 seconds to answer; allow it. */
+export const sendCopilotChat = (body: {
+  journey_architecture_id: number;
+  conversation_id: number;
+  content: string;
+  screen_context: string;
+}): Promise<XanoCopilotChatResult> =>
+  xanoRequest<XanoCopilotChatResult>('/copilot/chat', {method: 'POST', body, signal: AbortSignal.timeout(180_000)});
+
+export const listCopilotConversations = (
+  journeyArchitectureId: number,
+): Promise<{journey_architecture_id: number; conversations: XanoCopilotConversation[]}> =>
+  xanoRequest(`/copilot/conversations?journey_architecture_id=${journeyArchitectureId}`);
+
+export const getCopilotConversationMessages = (
+  conversationId: number,
+): Promise<{conversation_id: number; journey_architecture_id: number; messages: XanoCopilotMessage[]}> =>
+  xanoRequest(`/copilot/conversation_messages?conversation_id=${conversationId}`);
+
+export const getCopilotHome = (): Promise<XanoCopilotHome> => xanoRequest<XanoCopilotHome>('/copilot/home');
+
+export const createCopilotHome = (): Promise<{journey_architecture_id: number}> =>
+  xanoRequest('/copilot/home_create', {method: 'POST', body: {}});

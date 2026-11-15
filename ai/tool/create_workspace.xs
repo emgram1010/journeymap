@@ -19,6 +19,17 @@ tool create_workspace {
       input = {journey_map_id: 0, ticket: $input.ticket, tool: "create_workspace", kind: "write"}
     } as $cop1_gate
 
+    // COP-3 story 02: a conversation pinned to one business works inside it; a new business is
+    // made by a person (or from a conversation that is not pinned).
+    var $pin {
+      value = $cop1_gate.pin_architecture_id ?? 0
+    }
+
+    precondition ($pin == 0) {
+      error_type = "accessdenied"
+      error = "This conversation works inside one business, so it can't create a new one. Ask a person to create it. (E-COP-037)"
+    }
+
     precondition ($input.title != null && $input.title != "") {
       error_type = "inputerror"
       error = "title is required"

@@ -4,7 +4,8 @@ import {useAuth} from './AuthContext';
 import {canManageTeam, hasModule, type ModuleKey} from './team/teamModel';
 import {useMyModules} from './team/useMyModules';
 import {getCopilotActionsCount} from './xano';
-import {Sparkles, CalendarRange, PlayCircle, Users, Boxes, BarChart3, Menu, X, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, ClipboardCheck} from 'lucide-react';
+import CopilotPanel from './copilot/CopilotPanel';
+import {Sparkles, CalendarRange, PlayCircle, Users, Boxes, BarChart3, Menu, X, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, ClipboardCheck, MessageSquare} from 'lucide-react';
 
 /**
  * Persistent app chrome for every signed-in route.
@@ -293,6 +294,11 @@ export default function AppLayout({children}: {children: React.ReactNode}) {
      offered. */
   const {modules, isLoading: modulesLoading} = useMyModules();
 
+  /* COP-3: the copilot chat panel, reachable from every screen. Shown to anyone who holds the
+     Intelligent Layer; the server refuses again. */
+  const [copilotOpen, setCopilotOpen] = useState(false);
+  const canUseCopilot = modulesLoading || hasModule({modules}, 'intelligence');
+
   const navItems = useMemo(
     () =>
       NAV_ITEMS.filter((item) => {
@@ -453,6 +459,20 @@ export default function AppLayout({children}: {children: React.ReactNode}) {
       <div id="app-content" className="flex-1 min-w-0 min-h-0 overflow-auto">
         {children}
       </div>
+
+      {canUseCopilot && user && !copilotOpen && (
+        <button
+          type="button"
+          id="copilot-open-btn"
+          onClick={() => setCopilotOpen(true)}
+          className="fixed bottom-4 right-4 z-30 inline-flex items-center gap-2 rounded-full bg-indigo-600 text-white px-4 py-2 text-sm shadow-lg hover:bg-indigo-700"
+        >
+          <MessageSquare className="w-4 h-4" /> Copilot
+        </button>
+      )}
+      {canUseCopilot && user && (
+        <CopilotPanel open={copilotOpen} onClose={() => setCopilotOpen(false)} userId={user.id} isAdmin={isAdmin} />
+      )}
     </div>
   );
 }

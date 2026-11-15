@@ -66,6 +66,20 @@ tool create_journey_map {
       }
     }
   
+    // COP-3 story 02: in a conversation pinned to one business, a new map lands in that business
+    // (a different business named in the input was already refused by the gate, E-COP-038).
+    var $pin {
+      value = $cop1_gate.pin_architecture_id ?? 0
+    }
+
+    conditional {
+      if ($pin != 0) {
+        var.update $resolved_architecture {
+          value = $pin
+        }
+      }
+    }
+
     // COP-1: a map belongs to whoever made it. When the caller is known, the account and
     // owner come from the caller - never 0, never from the model's input.
     var $stamp_owner {

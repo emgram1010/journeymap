@@ -59,6 +59,7 @@ tool invoke_map {
   
     // COP-1: the nested agent works for the same person as this tool call. A caller we could
     // not identify (report mode only) gets no ticket and the nested tools report it again.
+    // COP-3: the nested ticket keeps the caller's business pin.
     var $nested_ticket {
       value = ""
     }
@@ -66,7 +67,7 @@ tool invoke_map {
     conditional {
       if ($cop1_gate.user_id != 0) {
         function.run "usr/mint_tool_ticket" {
-          input = {user_id: $cop1_gate.user_id, journey_map_id: $input.target_map_id, journey_architecture_id: 0, source: "invoke_map", ttl_seconds: 0}
+          input = {user_id: $cop1_gate.user_id, journey_map_id: $input.target_map_id, journey_architecture_id: ($cop1_gate.pin_architecture_id ?? 0), source: "invoke_map", ttl_seconds: 0}
         } as $cop1_nested
 
         var.update $nested_ticket {
