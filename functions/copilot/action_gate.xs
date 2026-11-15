@@ -1,4 +1,4 @@
-// COP-2 stories 02/05/08 — the approval gate for one copilot action. Called ONLY by journey/tool_gate (after who/what/where checks pass) when a tool declares an action type. People are never stopped here: levels apply to AI identities only. For an AI: person-only types (Publish version / Publish to live) are refused (E-COP-025); "own" proceeds; "tell" proceeds and lists the action for the owner; "wait" stores the exact tool input as a waiting copilot_action and refuses (E-COP-020) — nothing happens. An approved action runs when the copilot calls the same tool again with approval_id: it must be this account's, this tool's, approved or edited, not run before (unique claim, E-COP-030), and the input must match exactly what the owner approved (E-COP-027). Never throws: returns proceed + a code + a message; tool_gate does the refusing. The payload is never logged.
+// COP-2 stories 02/05/08 — the approval gate for one copilot action. Called ONLY by journey/tool_gate (after who/what/where checks pass) when a tool declares an action type. People are never stopped here: levels apply to AI identities only. For an AI: person-only types (Publish version / Publish to live) are refused (E-COP-025); "own" proceeds; "tell" proceeds and lists the action for the owner; "wait" stores the exact tool input as a waiting copilot_action and refuses (E-COP-020) — nothing happens. An approved action runs when the copilot calls the same tool again with approval_id: it must be this account's, this tool's, approved or edited, not run before (unique claim, E-COP-030), for the same map and action type, and the input must match exactly what the owner approved (E-COP-027). The gate only claims the run; the tool marks it executed or failed with copilot/action_finish after its own write. Never throws: returns proceed + a code + a message; tool_gate does the refusing. The payload is never logged.
 function "copilot/action_gate" {
   input {
     int user_id?
@@ -134,8 +134,17 @@ function "copilot/action_gate" {
               value = $approved_obj|json_encode
             }
 
+            var $act_map {
+              value = $act|get:"journey_map_id":0
+            }
+
+            var $act_type_stored {
+              value = $act|get:"action_type":""
+            }
+
+            // COP-2 review fix: the approval is for this account, this tool, this map and this type.
             var $usable {
-              value = ($act_id != 0 && $act_account == $input.account_id && $act_tool == $input.act_tool)
+              value = ($act_id != 0 && $act_account == $input.account_id && $act_tool == $input.act_tool && $act_map == $input.act_map_id && $act_type_stored == $input.act_type)
             }
 
             conditional {
@@ -219,14 +228,11 @@ function "copilot/action_gate" {
                   }
                 }
 
+                // COP-2 review fix: the claim stops a second run, but the item is NOT marked
+                // executed here — the tool's own write has not happened yet. The tool calls
+                // copilot/action_finish after its write (executed) or on failure (failed).
                 conditional {
                   if ($claimed == true) {
-                    db.patch copilot_action {
-                      field_name = "id"
-                      field_value = $act_id
-                      data = {status: "executed", executed_at: "now", updated_at: "now"}
-                    } as $act_done
-
                     var.update $action_id {
                       value = $act_id
                     }
@@ -238,11 +244,11 @@ function "copilot/action_gate" {
                     function.run "ops/log_event" {
                       input = {
                         feature    : "COP-2"
-                        step       : "action_executed"
+                        step       : "action_started"
                         outcome    : "success"
                         severity   : "info"
                         error_code : ""
-                        message    : "An approved copilot action was carried out."
+                        message    : "An approved copilot action started running."
                         user_id    : $input.user_id
                         account_id : $input.account_id
                         entity_type: "copilot_action"
@@ -345,8 +351,39 @@ function "copilot/action_gate" {
               value = $dup_id
             }
 
+            // COP-2 review fix: already approved but the copilot called again without approval_id?
+            // Point it at the approval instead of filing a new waiting item.
+            db.query copilot_action {
+              where = $db.copilot_action.account_id == $input.account_id && ($db.copilot_action.status == "approved" || $db.copilot_action.status == "edited") && $db.copilot_action.tool == $input.act_tool && $db.copilot_action.journey_map_id == $input.act_map_id
+              return = {type: "list"}
+            } as $approved_same
+
+            var $approved_id {
+              value = 0
+            }
+
+            foreach ($approved_same) {
+              each as $ap {
+                conditional {
+                  if ((($ap.payload ?? {})|json_encode) == $payload_json) {
+                    var.update $approved_id {
+                      value = $ap.id
+                    }
+                  }
+                }
+              }
+            }
+
             conditional {
-              if ($dup_id == 0) {
+              if ($approved_id != 0) {
+                var.update $action_id {
+                  value = $approved_id
+                }
+              }
+            }
+
+            conditional {
+              if ($dup_id == 0 && $approved_id == 0) {
                 db.add copilot_action {
                   data = {
                     account_id             : $input.account_id
@@ -393,7 +430,15 @@ function "copilot/action_gate" {
             }
 
             var.update $message {
-              value = "Waiting for the owner's approval - nothing was done. It is item " ~ $action_id_text ~ " in Approvals. Tell the owner it is waiting. Once they approve, call this tool again with approval_id " ~ $action_id_text ~ " and exactly the approved input. (E-COP-020)"
+              value = "Waiting for the owner's approval - nothing was done. It is item " ~ $action_id_text ~ " in Approvals. Tell the owner it is waiting. Once they approve, call this tool again with approval_id " ~ $action_id_text ~ " and exactly the approved input (use get_approval to read it). (E-COP-020)"
+            }
+
+            conditional {
+              if ($approved_id != 0) {
+                var.update $message {
+                  value = "The owner already approved this - nothing was done yet. Call get_approval with approval_id " ~ $action_id_text ~ ", then call this tool again with approval_id " ~ $action_id_text ~ " and exactly the approved input. (E-COP-020)"
+                }
+              }
             }
           }
         }

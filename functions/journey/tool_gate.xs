@@ -160,6 +160,64 @@ function "journey/tool_gate" {
       }
     }
 
+    // COP-3 story 02 (= COP-1 story 03): one business at a time. A run ticket can pin a business
+    // (journey_architecture_id). When it does, the map a tool touches must be in that business and
+    // any business it names must be that one. This is THE one place the rule lives; refused in any
+    // mode, like an approval refusal. Account checks above already ran, so this only narrows.
+    var $pin {
+      value = $caller.ticket_architecture_id ?? 0
+    }
+
+    var $pin_refused {
+      value = false
+    }
+
+    conditional {
+      if ($ok == true && $pin != 0 && $input.journey_map_id != 0) {
+        db.query journey_map {
+          where = $db.journey_map.id == $input.journey_map_id
+          return = {type: "single"}
+          output = ["id", "journey_architecture"]
+        } as $pin_map
+
+        var $pin_map_arch {
+          value = $pin_map|get:"journey_architecture":0
+        }
+
+        conditional {
+          if ($pin_map_arch != $pin) {
+            var.update $ok {
+              value = false
+            }
+
+            var.update $code {
+              value = "E-COP-038"
+            }
+
+            var.update $pin_refused {
+              value = true
+            }
+          }
+        }
+      }
+    }
+
+    conditional {
+      if ($ok == true && $pin != 0 && $input.journey_architecture_id != 0 && $input.journey_architecture_id != $pin) {
+        var.update $ok {
+          value = false
+        }
+
+        var.update $code {
+          value = "E-COP-038"
+        }
+
+        var.update $pin_refused {
+          value = true
+        }
+      }
+    }
+
     // COP-1 story 05: an AI identity (copilot) has a daily cap on tool calls, counted per UTC day
     // from the audit trail. People have no cap. One "cap reached" event per copilot per day.
     var $over_cap {
@@ -328,7 +386,7 @@ function "journey/tool_gate" {
     }
 
     conditional {
-      if ($ok == false && $recent_logs < 60 && $action_refused == false) {
+      if ($ok == false && $recent_logs < 60 && $action_refused == false && $pin_refused == false) {
         function.run "ops/log_event" {
           input = {
             feature    : "COP-1"
@@ -355,7 +413,7 @@ function "journey/tool_gate" {
     }
 
     conditional {
-      if ($ok == false && ($mode == "enforce" || $action_refused == true)) {
+      if ($ok == false && ($mode == "enforce" || $action_refused == true || $pin_refused == true || $over_cap == true)) {
         var.update $verdict {
           value = "refused"
         }
@@ -391,8 +449,15 @@ function "journey/tool_gate" {
       }
     }
 
+    // COP-2 review fix: report mode is a rollout aid for PEOPLE's tools. An AI identity is refused
+    // whenever any check failed, whatever the switch says — otherwise flipping a switch back to
+    // "report" would also skip the approval gate (which only runs when every check passed).
+    function.run "copilot/identity_for_user" {
+      input = {user_id: $caller.user_id}
+    } as $caller_ai
+
     var $refuse {
-      value = ($ok == false && $mode == "enforce")
+      value = ($ok == false && ($mode == "enforce" || $caller_ai.is_ai == true))
     }
 
     var $refuse_signin {
@@ -413,6 +478,12 @@ function "journey/tool_gate" {
 
     var $refuse_cap {
       value = ($refuse == true && $code == "E-COP-004")
+    }
+
+    // COP-3: outside the business this conversation is pinned to — refused in any mode.
+    precondition ($pin_refused == false) {
+      error_type = "accessdenied"
+      error = "That belongs to another business. This conversation works on one business only; switch business to work on it. (E-COP-038)"
     }
 
     // COP-2: waiting for approval, person-only, or a bad approval — refused in any mode.
@@ -458,5 +529,6 @@ function "journey/tool_gate" {
     account_id: $caller.account_id
     action_level: $action_level
     action_id : $action_id
+    pin_architecture_id: $pin
   }
 }

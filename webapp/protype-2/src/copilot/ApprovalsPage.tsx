@@ -153,8 +153,8 @@ function WaitingItem({a, onChanged}: {a: XanoCopilotAction; onChanged: () => Pro
       await onChanged();
     } catch (e) {
       setMessage(serverText(e, 'That did not go through. Nothing was changed.'));
-      // The item may now be decided, expired or out of date: refresh the list but keep the typing here.
-      if (e instanceof XanoHttpError) void onChanged();
+      // Keep the typing and the message on screen (CLAUDE.md: keep the user's typing on any
+      // rejected save). The item may now be decided, expired or out of date; the owner refreshes.
     } finally {
       setBusy(false);
     }
@@ -180,6 +180,9 @@ function WaitingItem({a, onChanged}: {a: XanoCopilotAction; onChanged: () => Pro
       {message && (
         <p role="alert" className="flex items-start gap-2 text-sm text-red-700 mt-2">
           <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {message}
+          <button type="button" onClick={() => void onChanged()} className="underline text-zinc-700 shrink-0">
+            Refresh list
+          </button>
         </p>
       )}
       <div className="flex flex-wrap gap-2 mt-3">
@@ -339,6 +342,11 @@ function LevelsTab() {
           ))}
         </select>
       </label>
+      {archId === 0 && (
+        <p className="text-sm text-zinc-600 mb-3">
+          Maps outside any business always use these safe defaults. Pick a business to change its levels.
+        </p>
+      )}
       {error && (
         <p role="alert" className="flex items-center gap-2 text-sm text-red-700 mb-3">
           <AlertCircle className="w-4 h-4" /> {error}
@@ -358,7 +366,7 @@ function LevelsTab() {
 }
 
 function LevelRow({row, archId, onSaved}: {row: XanoCopilotLevelRow; archId: number; onSaved: () => Promise<void>}) {
-  const locked = row.locked || row.person_only;
+  const locked = row.locked || row.person_only || archId === 0;
   const [level, setLevel] = useState<Level>(row.level);
   const [limit, setLimit] = useState(String(row.limit_amount ?? 0));
   const [busy, setBusy] = useState(false);

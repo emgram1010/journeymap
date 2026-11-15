@@ -1,7 +1,7 @@
 // COP-2 stories 01/05/07/08 — the Approval levels tab for one business: every action type from
 // the one catalogue (copilot/action_types), its level here, whether it is locked or person-only,
 // its limit, whether a copilot tool uses it yet ("wired"), and a SUGGESTION to move it down one
-// level when the owner has decided 5 or more of that type and changed 10% or fewer. The
+// level when the owner has decided 5 or more of that type and changed or rejected 10% or fewer. The
 // suggestion is only ever a suggestion: levels move only through POST copilot/level_set.
 //
 // journey_architecture_id 0 = maps outside any business. Any other id must be this account's
@@ -67,7 +67,7 @@ query "copilot/levels" verb=GET {
         } as $decided
 
         db.query copilot_action {
-          where = $db.copilot_action.account_id == $admin_user.account_id && $db.copilot_action.journey_architecture_id == $input.journey_architecture_id && $db.copilot_action.action_type == $k && $db.copilot_action.status == "edited"
+          where = $db.copilot_action.account_id == $admin_user.account_id && $db.copilot_action.journey_architecture_id == $input.journey_architecture_id && $db.copilot_action.action_type == $k && ($db.copilot_action.status == "edited" || $db.copilot_action.status == "rejected")
           return = {type: "count"}
         } as $edited
 

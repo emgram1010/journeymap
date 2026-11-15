@@ -2036,5 +2036,25 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Check Approvals for the right item."
+  },
+  "E-COP-038": {
+    "code": "E-COP-038",
+    "feature": "COP-3",
+    "user_message": "That belongs to another business. This conversation works on one business only; switch business to work on it.",
+    "what_happened": "The copilot, working in a conversation pinned to one business, tried to read or change a map or business outside it. The gate refused it and nothing happened.",
+    "likely_cause": "The question touched another business, or the copilot guessed an id.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Switch the copilot to the other business and ask again."
+  },
+  "E-COP-039": {
+    "code": "E-COP-039",
+    "feature": "COP-2",
+    "user_message": "Pick a business first. Maps outside any business always use the safe defaults.",
+    "what_happened": "Someone tried to set an approval level for 'maps outside any business'. Those always use the safe defaults; levels are set per business.",
+    "likely_cause": "The levels screen was on 'Maps outside any business'.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Choose a business in the picker, then change its levels."
   }
 }

@@ -53,6 +53,40 @@ function "copilot/expire_waiting" {
       }
     }
 
+    // COP-2 review fix: an approval that the copilot never carried out does not stay runnable
+    // forever. 72 hours after the decision it expires too.
+    db.query copilot_action {
+      where = ($db.copilot_action.status == "approved" || $db.copilot_action.status == "edited") && $db.copilot_action.decided_at < $expire_cutoff && (($all == true) || ($db.copilot_action.account_id == $input.account_id))
+      return = {type: "list"}
+      output = ["id", "account_id", "action_type"]
+    } as $stale_approved
+
+    foreach ($stale_approved) {
+      each as $sa {
+        db.patch copilot_action {
+          field_name = "id"
+          field_value = $sa.id
+          data = {status: "expired", updated_at: "now"}
+        } as $_sa_expired
+
+        function.run "ops/log_event" {
+          input = {
+            feature    : "COP-2"
+            step       : "approval_expired"
+            outcome    : "rejected"
+            severity   : "info"
+            error_code : "E-COP-024"
+            message    : "An approved copilot action was not carried out within 72 hours and expired."
+            user_id    : 0
+            account_id : $sa.account_id
+            entity_type: "copilot_action"
+            entity_id  : $sa.id
+            metadata   : {action_type: $sa.action_type}
+          }
+        } as $_sa_logged
+      }
+    }
+
     // An untouched timestamp may be stored as null or 0; both mean "never reminded". In a where
     // clause (SQL) those are different values, so both are tested.
     db.query copilot_action {
@@ -88,5 +122,5 @@ function "copilot/expire_waiting" {
     }
   }
 
-  response = {expired: $to_expire|count, reminded: $to_remind|count}
+  response = {expired: $to_expire|count, reminded: $to_remind|count, approvals_expired: $stale_approved|count}
 }

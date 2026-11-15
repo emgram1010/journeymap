@@ -86,8 +86,15 @@ function "copilot/action_level" {
       }
     }
 
+    // COP-2 review fix: maps outside any business (architecture 0) ALWAYS use the defaults. A
+    // stored row for 0 would be shared by every account (the unique key has no account in it), so
+    // it is never read here and POST copilot/level_set refuses to write one (E-COP-039).
+    var $lookup_arch {
+      value = $input.journey_architecture_id
+    }
+
     db.query copilot_action_level {
-      where = $db.copilot_action_level.journey_architecture_id == $input.journey_architecture_id && $db.copilot_action_level.action_type == $type_key
+      where = $lookup_arch != 0 && $db.copilot_action_level.journey_architecture_id == $lookup_arch && $db.copilot_action_level.action_type == $type_key
       return = {type: "single"}
     } as $row
 

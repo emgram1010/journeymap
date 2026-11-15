@@ -331,3 +331,20 @@ proven with the gate and a stand-in tool name; real tools arrive in COP-5/COP-6 
 pass `act_type`. Undo has no backend (no reversible "tell" tool yet). Reminder/expiry times are
 fixed. Test fixtures in account 13: copilot_action items 1–14 (all decided or expired), a money
 limit row (arch 0, limit 100).
+
+### Independent review pass (2026-11-15, Opus 5.5) — findings and fixes
+
+| # | Finding | Severity | Fix | Proven |
+|---|---|---|---|---|
+| 1 | "Maps outside any business" levels were one row shared by every account (unique key had no account) | High | Business 0 always uses the defaults: `action_level` never reads a row for 0; `level_set` refuses 0 (E-COP-039); the screen shows 0 read-only. The fixture row was deleted | ✅ HTTP: business 0 refused; business 47 money limit 100 → 40 runs at "tell"; the same 40 on a no-business map waits |
+| 2 | The approval re-run was unreachable from a real tool, and the copilot could not read an approval | High | New AI tool `get_approval` (161). Contract written: a tool that declares an act_type takes `approval_id`, passes it as act_approval_id, builds act_payload only from what it executes, then calls `copilot/action_finish`. A retry without approval_id is now pointed at the approval instead of filing a duplicate | ✅ get_approval reads status; retry message points at item 5 |
+| 3 | An approval was marked "executed" before the tool's write | Medium-High | The gate only claims the run (logs action_started); `copilot/action_finish` (336) marks executed or failed after the write | ✅ claim → still approved → finish → executed → re-run E-COP-030 |
+| 4 | Approved items never expired | Medium | `expire_waiting` also expires approved/edited items 72 h after the decision | pushed (same pattern as the proven waiting expiry) |
+| 5 | Report mode skipped the approval gate for an AI | Medium (latent) | An AI identity is refused whenever any check failed, whatever the switch says | logic only — all switches are enforce |
+| 6 | Run-time check did not compare map or action type | Medium | Added | ✅ same approval on another map → E-COP-036 |
+| 7 | A refused decision reloaded the list and lost the owner's typing and message | Medium | No reload on refusal; a "Refresh list" link instead | tsc clean |
+| 8 | Suggestion counted rejections as agreement | Low-Medium | Rejected now counts as "changed" | pushed |
+| 9 | Small races (decide vs expiry at 72 h; parallel identical drafts) | Low | Not fixed — noted | — |
+
+Known limit kept: the "out of date" check sees writes made through AI tools only (tool_call_log); a person's edit in the app is not seen.
+

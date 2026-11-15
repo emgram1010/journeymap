@@ -283,7 +283,7 @@ query "copilot/action_decide" verb=POST {
   response = {
     action_id: $act_id
     status   : $new_status
-    note     : (($new_status == "rejected") ? "Nothing will be done." : "The copilot will carry this out the next time it runs that tool with this item number.")
+    note     : (($new_status == "rejected") ? "Nothing will be done." : "Approved. The copilot can now carry it out: it reads the approval and runs the tool once, with exactly this content. Approvals not used within 72 hours expire.")
   }
   tags = ["cop-2"]
 }

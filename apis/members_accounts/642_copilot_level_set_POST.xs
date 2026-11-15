@@ -57,6 +57,13 @@ query "copilot/level_set" verb=POST {
       error = "We couldn't find that business. (E-COP-035)"
     }
 
+    // COP-2 review fix: levels are set per business. Maps outside any business always use the safe
+    // defaults; a stored level for "no business" would apply to every account.
+    precondition ($input.journey_architecture_id != 0) {
+      error_type = "inputerror"
+      error = "Pick a business first. Maps outside any business always use the safe defaults. (E-COP-039)"
+    }
+
     function.run "copilot/action_level" {
       input = {
         journey_architecture_id: $input.journey_architecture_id
