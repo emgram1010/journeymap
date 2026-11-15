@@ -25,6 +25,10 @@ tool web_search {
     
       Use the returned content to enrich your responses and cell writes.
       Always cite the source URL when using search results in your reply.
+
+      In a copilot research run, searches must stay general: a query with a business or
+      customer name, an email address, a phone number or another long number is refused
+      before it is sent (E-COP-052). Reword it as a general question.
     """
 
   input {
@@ -47,6 +51,21 @@ tool web_search {
     precondition ($input.query != null && $input.query != "") {
       error_type = "inputerror"
       error = "Search query is required"
+    }
+
+    // COP-7 story 02: a search made during a copilot research run must carry nothing private.
+    // The rule lives in copilot/search_query_check; other callers pass through it untouched.
+    function.run "copilot/search_query_check" {
+      input = {ticket: $input.ticket, query: $input.query}
+    } as $q_check
+
+    var $q_refusal {
+      value = $q_check.message
+    }
+
+    precondition ($q_check.ok == true) {
+      error_type = "inputerror"
+      error = $q_refusal
     }
   
     var $depth {

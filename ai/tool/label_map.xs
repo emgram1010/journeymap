@@ -94,6 +94,74 @@ tool label_map {
       value = ($sources_text != "[]" && $sources_text != "{}" && $sources_text != "null")
     }
 
+    // COP-7 story 05: sources are a short list of {title, url} - at most 20, title up to 200
+    // characters, link up to 500 - so a page's long text can never be stored as a "source".
+    // Nothing sent = an empty list (an omitted json input arrives as {}, not []).
+    var $sources_first {
+      value = $sources_text|substr:0:1
+    }
+
+    var $new_sources {
+      value = []
+    }
+
+    var $title_lens {
+      value = [0]
+    }
+
+    var $url_lens {
+      value = [0]
+    }
+
+    conditional {
+      if ($has_sources == true && $sources_first == "[") {
+        var.update $new_sources {
+          value = $input.sources
+        }
+      }
+    }
+
+    foreach ($new_sources) {
+      each as $src {
+        var $src_title {
+          value = ($src|get:"title":"") ?? ""
+        }
+
+        var $src_url {
+          value = ($src|get:"url":"") ?? ""
+        }
+
+        array.push $title_lens {
+          value = ($src_title|to_text)|strlen
+        }
+
+        array.push $url_lens {
+          value = ($src_url|to_text)|strlen
+        }
+      }
+    }
+
+    var $sources_count {
+      value = $new_sources|count
+    }
+
+    var $max_title {
+      value = $title_lens|max
+    }
+
+    var $max_url {
+      value = $url_lens|max
+    }
+
+    var $sources_ok {
+      value = (($has_sources == false) || ($sources_first == "[" && $sources_count <= 20 && $max_title <= 200 && $max_url <= 500))
+    }
+
+    precondition ($sources_ok) {
+      error_type = "inputerror"
+      error = "Sources are a short list: up to 20, each a title (up to 200 characters) and a link (up to 500). (E-COP-053)"
+    }
+
     conditional {
       if ($existing_id == 0) {
         db.add copilot_map_profile {
@@ -103,7 +171,7 @@ tool label_map {
             journey_architecture_id: ($map|get:"journey_architecture":0)
             kind                   : $new_kind
             made_by                : $new_made
-            sources                : ($input.sources ?? [])
+            sources                : $new_sources
             research_note          : $new_note
             updated_by_user_id     : $cop1_gate.user_id
             updated_at             : "now"
@@ -131,7 +199,7 @@ tool label_map {
             db.patch copilot_map_profile {
               field_name = "id"
               field_value = $existing_id
-              data = {sources: $input.sources}
+              data = {sources: $new_sources}
             } as $_sources
           }
         }

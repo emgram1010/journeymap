@@ -2186,5 +2186,25 @@
     "owner": "product_manager",
     "severity": "info",
     "fix_hint": "Nothing to fix: the map was not changed. Ask the copilot in chat if you do want that map edited."
+  },
+  "E-COP-052": {
+    "code": "E-COP-052",
+    "feature": "COP-7",
+    "user_message": "Search generally: no business or customer names, contact details or long numbers. Reword the search.",
+    "what_happened": "A copilot research search was refused before it was sent, because it held something private.",
+    "likely_cause": "The search text contained an email address, a long number, this business's name or the run ticket.",
+    "owner": "product_manager",
+    "severity": "info",
+    "fix_hint": "Nothing to fix: nothing left Emgram. If research keeps failing on an ordinary topic, tell the engineer which topic."
+  },
+  "E-COP-053": {
+    "code": "E-COP-053",
+    "feature": "COP-7",
+    "user_message": "Sources are a short list: up to 20, each a title (up to 200 characters) and a link (up to 500).",
+    "what_happened": "A map label was given too many sources, or a source that was too long.",
+    "likely_cause": "The copilot tried to store page text as a source.",
+    "owner": "product_manager",
+    "severity": "info",
+    "fix_hint": "Nothing to fix: the label was not changed."
   }
 }

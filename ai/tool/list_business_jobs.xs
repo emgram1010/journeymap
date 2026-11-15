@@ -1,8 +1,10 @@
 // COP-5 story 04 (2026-11-15) — the copilot lists the jobs (work items) of THIS business: jobs whose
 // pinned map version belongs to a map in the conversation's business, in the caller's account.
 // Read-only. Newest first. Use with get_job_variance to answer "how did the plan go?".
+// COP-7 story 05: at most 50 jobs (the newest; "more" says there are others), jobs of deleted maps
+// are left out, and an unknown status is refused instead of quietly returning nothing.
 tool list_business_jobs {
-  instructions = "List the jobs (work items) of this business, newest first: id, title, status (open, in_progress, blocked, done...), started_at, finished_at and the map they came from. Optionally filter by status. Use get_job_variance on a job to see planned vs actual."
+  instructions = "List the jobs (work items) of this business, newest first: id, title, status, started_at, finished_at and the map they came from. At most the 50 newest; 'more' is true when there are others. Optionally filter by status: open, in_progress, blocked, completed or cancelled. Use get_job_variance on a job to see planned vs actual."
 
   input {
     text status? filters=trim
@@ -26,8 +28,35 @@ tool list_business_jobs {
       error = "This only works in a copilot conversation about one business. (E-COP-045)"
     }
 
+    // The valid statuses are work_item.status's own values (static/tables, written by LOG-1).
+    var $status_ok {
+      value = ($input.status == "" || $input.status == "open" || $input.status == "in_progress" || $input.status == "blocked" || $input.status == "completed" || $input.status == "cancelled")
+    }
+
+    precondition ($status_ok) {
+      error_type = "inputerror"
+      error = "Status is one of: open, in_progress, blocked, completed, cancelled."
+    }
+
+    // Deleted maps are left out. The exclusion list is seeded so it is never empty (CLAUDE.md).
+    function.run "journey/deleted_map_ids" {
+      input = {}
+    } as $deleted
+
+    var $deleted_ids {
+      value = [-1]
+    }
+
+    foreach ($deleted.ids) {
+      each as $did {
+        array.push $deleted_ids {
+          value = $did
+        }
+      }
+    }
+
     db.query journey_map {
-      where = $db.journey_map.journey_architecture == $pin && $db.journey_map.account_id == $cop1_gate.account_id
+      where = $db.journey_map.journey_architecture == $pin && $db.journey_map.account_id == $cop1_gate.account_id && ($db.journey_map.id not in $deleted_ids)
       return = {type: "list"}
       output = ["id", "title"]
     } as $maps
@@ -95,7 +124,15 @@ tool list_business_jobs {
       sort = {created_at: "desc"}
       return = {type: "list"}
       output = ["id", "title", "status", "started_at", "finished_at", "journey_map_version_id", "parent_work_item_id"]
-    } as $jobs
+    } as $all_jobs
+
+    var $total {
+      value = $all_jobs|count
+    }
+
+    var $jobs {
+      value = $all_jobs|slice:0:50
+    }
 
     var $rows {
       value = []
@@ -130,5 +167,5 @@ tool list_business_jobs {
     }
   }
 
-  response = {journey_architecture_id: $pin, count: $rows|count, jobs: $rows}
+  response = {journey_architecture_id: $pin, count: ($rows|count), total: $total, more: ($total > 50), jobs: $rows}
 }

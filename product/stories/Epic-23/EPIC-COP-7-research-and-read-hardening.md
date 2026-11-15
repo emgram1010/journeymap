@@ -1,6 +1,6 @@
 # EPIC-COP-7 — Harden the copilot's research and its plan-vs-actual reading
 
-**Status:** 🟡 Story 01 built and proven live; story 03 partly (2026-11-15, Fable 5.2). Stories 02, 04, 05, 06 not started. Written 2026-11-15 (Fable 5.2) from the Fable review in `COP-1-WORK-TRACKER.md` (findings F1–F7).
+**Status:** ✅ Stories 01–05 built and proven live (2026-11-15, Fable 5.2). Story 06 (proof on real jobs) is open. Written 2026-11-15 (Fable 5.2) from the Fable review in `COP-1-WORK-TRACKER.md` (findings F1–F7).
 **Model:** **Opus 5.5** (or Fable 5.2) for stories 01–04 — guards on what an AI may touch and what leaves the product. Sonnet 5.5 for story 05. Review pass after.
 **Depends on:** COP-1 (gate), COP-3 (business pin), COP-4 (research), COP-5 story 04 (job reading). All live.
 **Goes before:** any COP-5 planner work. Fix what is live before adding more.
@@ -117,7 +117,7 @@ researcher's prompt: it may reuse **its own** drafts only. Update the agent's de
 currently over-claims.
 
 ### US-COP-7-02 — A web search carries nothing private
-**Status:** 📋 Not started. **Opus review.**
+**Status:** ✅ Built and proven live (Fable 5.2, 2026-11-15). **Review pass:** pending.
 
 **Description.** Search queries leave Emgram and go to an outside search company. Today only a
 prompt line keeps them generic, and the search tool's own instructions say the opposite. After
@@ -163,7 +163,7 @@ the query text. New code `E-COP-052`. Limit: this stops the obvious shapes, not 
 fact; say so in the test results.
 
 ### US-COP-7-03 — The run ticket never leaves
-**Status:** 🟡 Partly built (2026-11-15): the research ticket ends with the run, the report is scrubbed, the researcher is told. Not yet: refusing a search that contains the ticket (comes with story 02), scrubbing cells, notes and sources.
+**Status:** ✅ Built (2026-11-15), with one scenario changed on purpose: cells, notes and sources are **not** scrubbed. Instead the research ticket is ended the moment the run finishes (and lives 15 minutes at most), so a ticket written into a map is already useless when anyone reads it. Scrubbing would have meant changing three large shared map tools for no extra safety. The researcher never sees the chat's own ticket.
 
 **Description.** The ticket is what lets the copilot act. The researcher holds it and is not told
 to keep it to itself; only the final chat reply is scrubbed today.
@@ -197,7 +197,7 @@ child ticket when the run finishes needs a way to expire a ticket early — chec
 (for example 10 minutes) is the fallback if early expiry is not possible without a table change.
 
 ### US-COP-7-04 — The job tool checks the caller first
-**Status:** 📋 Not started.
+**Status:** ✅ Built and proven live (2026-11-15).
 
 **Description.** `get_job_variance` looks the job up, and can answer "Job not found", before it
 checks who is calling. A caller with no ticket can learn which job numbers exist, and that call
@@ -231,7 +231,7 @@ and business checks done by the tool itself against the gate's `account_id` and
 "an AI must be pinned" refusal.
 
 ### US-COP-7-05 — Sensible limits on labels and job lists
-**Status:** 📋 Not started.
+**Status:** ✅ Built and proven live (2026-11-15), except the 50-job cap and deleted-map filter, which need real jobs (story 06).
 
 **Description.** Small fixes that stop quiet oddities: unbounded lists, the wrong empty shape, a
 typo that returns nothing.
@@ -360,7 +360,38 @@ agent 41 (prompt and description). `E-COP-051` added to `errorCatalog.json`. No 
 | Real research run after the push (real AI, real web search) | ✅ 95 s, drafted and reported a new map |
 | `npm test` / `tsc` | ✅ 815/815 / clean |
 
+### Stories 02–05 (same day)
+
+**Pushed:** new `copilot/search_query_check` (340); tool `web_search` (39: calls the check, one
+added line of instructions); tools `get_job_variance` (168) and `list_business_jobs` (167)
+rewritten per stories 04/05; tool `label_map` (165: source limits, empty list). `E-COP-052`,
+`E-COP-053` added to `errorCatalog.json`.
+
+| Check | Result |
+|---|---|
+| Research ticket: general search | ✅ runs, 5 results |
+| Research ticket: email address / 8-digit number / phone-like number / the ticket itself / the business's own name | ✅ each refused before sending, reason logged (never the query) |
+| Non-research ticket with an email and a long number | ✅ passes the check untouched |
+| `get_job_variance`, no ticket: missing job and existing job | ✅ same sign-in refusal for both |
+| `get_job_variance`, person's ticket: missing job and another account's job (125) | ✅ same "Not Found" for both |
+| `list_business_jobs`: pinned copilot / status "done" / status "completed" | ✅ answers / refused with the valid list / answers |
+| `label_map`: 2 valid sources replace the old list; a 230-character title; sources not a list | ✅ replaced exactly / refused `E-COP-053` / refused |
+| `label_map`: first label with no sources | ✅ stores `[]` |
+| `npm test` / `tsc` | ✅ 815/815 / clean |
+
+**New engine fact (confirmed live):** `$list|slice:0:N` works on a plain `return = {type: "list"}`
+result and the slice can be looped. A paged query result exposes no keys at all (`|keys` is `[]`,
+`|get:"items"` is empty) — so "newest N" is: plain list, sort, slice. Worth adding to CLAUDE.md.
+
+**Test data touched:** map 260's real research sources were replaced by two probe sources; map 244
+got a label (kind runnable, made by copilot_draft). Both are in test business 49.
+
 **Not proven / known limits**
+- The search check stops obvious shapes only. A customer's name, a street address or a figure
+  written in words still gets through; the prompt rule is the only guard for those.
+- The 20-ordinary-topics run was not done (two ordinary topics passed). A year range like
+  "2024 - 2025" would be refused as a long number; the message tells the AI to reword.
+- The 50-job cap, the deleted-map filter and "another business's job" were not run: no jobs exist.
 - The refusal **text** could not be read back: the test tools show only "Access Denied" for this
   kind of refusal. That it is the research rule is shown by elimination (same ticket: read allowed,
   own map allowed; other tickets: allowed). Whether the researcher AI sees the full message is unchecked.
