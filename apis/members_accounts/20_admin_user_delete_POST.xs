@@ -159,8 +159,15 @@ query "admin/user_delete" verb=POST {
       return = {type: "count"}
     } as $performed_steps
 
+    // COP-1 review (2026-11-14): owned journey maps count too. Before this, a person who had only
+    // made maps could be deleted, leaving those maps owned by nobody.
+    db.query journey_map {
+      where = $db.journey_map.owner_user == $target_user.id
+      return = {type: "count"}
+    } as $owned_maps
+
     var $references {
-      value = $owned_architectures + $agent_links + $agent_profiles + $performed_steps
+      value = $owned_architectures + $agent_links + $agent_profiles + $performed_steps + $owned_maps
     }
 
     conditional {
@@ -182,6 +189,7 @@ query "admin/user_delete" verb=POST {
               agent_links        : $agent_links
               agent_profiles     : $agent_profiles
               performed_steps    : $performed_steps
+              owned_maps         : $owned_maps
             }
           }
         } as $_blocked

@@ -11,7 +11,7 @@ Rule: two tracks never touch the same files. Backend gate/tool files belong to t
 | B | Health page: view of `tool_call_log` (needs one new GET endpoint) | Sonnet 5.5 helper | `src/health/*`, new endpoint file | ⏳ after F (endpoint push) |
 | C | Old bug: endpoint 209 + `invoke_map` unwrapped filter | Opus 5.5 (main) | `apis/journey_map/209*`, `ai/tool/invoke_map.xs` | ⏳ after R (in review scope) |
 | E | Scaffold all-or-nothing (founder decision) + confirm `intent` now saves | Opus 5.5 (main) | `ai/tool/scaffold_structure.xs`, `ai/tool/scaffold_map.xs` | ✅ pushed live and checked |
-| D | Delete endpoint: count owned maps as "has work" | Opus 5.5 (main) | `apis/members_accounts/20_admin_user_delete_POST.xs` | ⏳ after R (in review scope) |
+| D | Delete endpoint: count owned maps as "has work" | Opus 5.5 (main) | `apis/members_accounts/20_admin_user_delete_POST.xs` | ✅ pushed (api 589); count query checked live (copilot owns 1 → counted). Not exercised end-to-end, to avoid a real delete |
 
 ## Review findings (2026-11-14)
 | # | Finding | Severity | Fix (repo) | Live |
