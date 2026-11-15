@@ -521,3 +521,17 @@ user 22. Per-tool counts match what the probe called.
 **Not done in this story:** the Health page does not show it yet (the data is there — query by
 `account_id` or `user_id`); `verdict` is the gate's decision at the start, not the tool's own
 success; rows are never pruned (decide retention before volume matters).
+
+### Story 06 — map-tool bugs (2026-11-15, Sonnet 5.5) 🟡 partly done
+
+| Bug | State |
+|---|---|
+| `scaffold_map` crashed on add without `primary_actor_lens` (`Unable to locate var: op.primary_actor_lens`) | ✅ fixed and proven: `scaffold_map` is now a thin wrapper over `scaffold_structure` (it had been a 436-line copy made before ORD-2). `tests/cop1_scaffold_map_probe.py` **5/5**: add with optional fields left out; partial rename keeps `stage_goal`; remove deletes the stage and its cells and reports an unknown key; a missing map is refused |
+| A rename overwrote `stage_goal` / `primary_actor_lens` with nothing; a remove left the stage's cells behind | ✅ same fix (the old copy deleted the stage row directly) |
+| New maps get owner 0 / account 0 | ✅ fixed in step 2b |
+| `search_maps` "Invalid pipe." | ✅ fixed in step 2b |
+| **`intent` is not saved** | 🔴 **open — needs a decision.** The live `journey_map` table has **no `intent` column** (nor `ai_summary` or `tags`), so every tool that "sets" it drops it silently. Adding a column with `updateTableSchema` would drop the validators on that table's text columns (CLAUDE.md). Options: (a) store it in the existing `settings` json column and read it from there in the six tools that mention it; (b) a side table with its own GET endpoint; (c) add the column in the Xano dashboard by hand. Recommended: (c), then nothing else changes |
+| A failed scaffold still saves part of its changes | 🔴 open — not reproduced this session. `scaffold_structure` applies operations one by one with per-operation errors by design; true all-or-nothing would need the whole tool inside a `db.transaction`. Decide whether per-operation reporting is the wanted behaviour |
+
+**Behaviour change:** `position` on a stage operation in `scaffold_map` is no longer read; adds
+append. `mutate_structure` places a column or row at a position.
