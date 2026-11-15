@@ -56,9 +56,27 @@ tool invoke_map {
       }
     } as $child_exec
   
+    // COP-1: the nested agent works for the same person as this tool call. A caller we could
+    // not identify (report mode only) gets no ticket and the nested tools report it again.
+    var $nested_ticket {
+      value = ""
+    }
+
+    conditional {
+      if ($cop1_gate.user_id != 0) {
+        function.run "usr/mint_tool_ticket" {
+          input = {user_id: $cop1_gate.user_id, journey_map_id: $input.target_map_id, journey_architecture_id: 0, source: "invoke_map", ttl_seconds: 0}
+        } as $cop1_nested
+
+        var.update $nested_ticket {
+          value = $cop1_nested.ticket
+        }
+      }
+    }
+
     // Build context message for the sub-agent
     var $invoke_msg {
-      value = `"## Map Invocation (Sub-Agent Mode)\nParent execution: " ~ ($input.parent_execution_id|to_text ?? "none") ~ "\nSubject: " ~ ($input.subject_label ?? "unspecified") ~ "\nInput context: " ~ ($input.input_data|json_encode ?? "{}")`
+      value = `"## Map Invocation (Sub-Agent Mode)\nParent execution: " ~ ($input.parent_execution_id|to_text ?? "none") ~ "\nSubject: " ~ ($input.subject_label ?? "unspecified") ~ "\nInput context: " ~ ($input.input_data|json_encode ?? "{}") ~ "\n- ticket: " ~ $nested_ticket`
     }
   
     var $invoke_messages {

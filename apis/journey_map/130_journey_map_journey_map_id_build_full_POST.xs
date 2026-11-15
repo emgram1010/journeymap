@@ -199,6 +199,11 @@ query "journey_map/{journey_map_id}/build_full" verb=POST {
       value = "You are the Journey Map Assistant running in autonomous build mode. You MUST use tools to build the journey map — do not just respond with text.\n\n## Journey Map\nID: " ~ ($input.journey_map_id|to_text) ~ "\nTitle: " ~ $journey_map.title ~ "\n\n## Current Stages\n" ~ $stage_summary ~ "\n## Current Lenses\n" ~ $lens_summary ~ "\n\n### Tool Logging (pass to every tool call)\n- journey_map_id: " ~ ($input.journey_map_id|to_text)
     }
   
+    // COP-1: a run ticket tells the tools who this agent is working for.
+    function.run "usr/mint_tool_ticket" {
+      input = {user_id: $auth.id, journey_map_id: $input.journey_map_id, journey_architecture_id: 0, source: "build_full", ttl_seconds: 7200}
+    } as $cop1_ticket
+
     // ── Main loop ──
     var $loop_idx {
       value = 0
@@ -222,7 +227,7 @@ query "journey_map/{journey_map_id}/build_full" verb=POST {
       
         // ── Build messages array with system context injected per turn ──
         var $system_ctx {
-          value = $base_system_context ~ "\n- conversation_id: " ~ $conversation.id ~ "\n- turn_id: " ~ $turn_id
+          value = $base_system_context ~ "\n- conversation_id: " ~ $conversation.id ~ "\n- turn_id: " ~ $turn_id ~ "\n- ticket: " ~ $cop1_ticket.ticket
         }
       
         var $agent_messages {

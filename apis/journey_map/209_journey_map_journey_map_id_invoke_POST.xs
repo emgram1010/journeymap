@@ -63,9 +63,14 @@ query "journey_map/{journey_map_id}/invoke" verb=POST {
       }
     } as $child_exec
   
+    // COP-1: a run ticket tells the tools who this agent is working for.
+    function.run "usr/mint_tool_ticket" {
+      input = {user_id: $auth.id, journey_map_id: $input.journey_map_id, journey_architecture_id: 0, source: "invoke", ttl_seconds: 0}
+    } as $cop1_ticket
+
     // Build agent messages — inject input_data as the opening context
     var $invoke_context {
-      value = `"## Map Invocation\nThis map has been invoked programmatically.\nParent execution ID: " ~ ($input.parent_execution_id|to_text ?? "none") ~ "\nSubject: " ~ ($input.subject_label ?? $input.subject_id ?? "unspecified") ~ "\nInput context:\n" ~ ($input.input_data|json_encode ?? "{}")`
+      value = `"## Map Invocation\nThis map has been invoked programmatically.\nParent execution ID: " ~ ($input.parent_execution_id|to_text ?? "none") ~ "\nSubject: " ~ ($input.subject_label ?? $input.subject_id ?? "unspecified") ~ "\nInput context:\n" ~ ($input.input_data|json_encode ?? "{}") ~ "\n- ticket: " ~ $cop1_ticket.ticket`
     }
   
     var $invoke_messages {

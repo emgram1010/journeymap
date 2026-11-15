@@ -3205,12 +3205,18 @@ query "journey_map/{journey_map_id}/ai_message" verb=POST {
   
     // ── Inject journey_map_id, conversation_id and turn_id into dynamic context ──
     // ALL THREE must be passed to every tool call — the agent reads this section.
+    // COP-1: a run ticket tells the tools who this agent is working for.
+    function.run "usr/mint_tool_ticket" {
+      input = {user_id: $auth.id, journey_map_id: $input.journey_map_id, journey_architecture_id: 0, source: "ai_message", ttl_seconds: 0}
+    } as $cop1_ticket
+
     var.update $dynamic_context {
       value = $dynamic_context
         |concat:"\n\n### Tool Logging (pass to every tool call)\n":""
         |concat:"- journey_map_id: " ~ ($input.journey_map_id|to_text):""
         |concat:"\n- conversation_id: " ~ $conversation.id:""
         |concat:"\n- turn_id: " ~ $turn_id:""
+        |concat:"\n- ticket: " ~ $cop1_ticket.ticket:""
     }
   
     // ── Build messages array (system uses the NOW-complete context) ──

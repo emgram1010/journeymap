@@ -922,9 +922,14 @@ query "journey_architecture/{journey_architecture_id}/compare/message" verb=POST
       value = "turn_" ~ ($conv.id|to_text) ~ "_" ~ ($user_msg.id|to_text)
     }
   
+    // COP-1: a run ticket tells the tools who this agent is working for.
+    function.run "usr/mint_tool_ticket" {
+      input = {user_id: $auth.id, journey_map_id: $input.map_a_id, journey_architecture_id: $input.journey_architecture_id, source: "compare_message", ttl_seconds: 0}
+    } as $cop1_ticket
+
     var.update $ctx {
       value = $ctx
-        |concat:"\n## Tool Logging\n- map_a_id: " ~ ($input.map_a_id|to_text) ~ "\n- map_b_id: " ~ ($input.map_b_id|to_text) ~ "\n- conversation_id: " ~ ($conv.id|to_text) ~ "\n- turn_id: " ~ $turn_id ~ "\n":""
+        |concat:"\n## Tool Logging\n- map_a_id: " ~ ($input.map_a_id|to_text) ~ "\n- map_b_id: " ~ ($input.map_b_id|to_text) ~ "\n- conversation_id: " ~ ($conv.id|to_text) ~ "\n- turn_id: " ~ $turn_id ~ "\n- ticket: " ~ $cop1_ticket.ticket ~ "\n":""
     }
   
     // ── Build messages array ──

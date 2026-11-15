@@ -444,3 +444,33 @@ In-app chat, one read turn and one write turn after the switch: see the result b
 
 **What changed for the founder:** an outside assistant now sees only the account its token
 belongs to, and needs a token at all (SEC-3). The in-app chat is unchanged until tickets are wired.
+
+### Roll-out step 4 — tickets for in-app agents (2026-11-15, Sonnet 5.5)
+
+**Written (in the repo files):** every place that runs an agent now mints a run ticket first
+(`usr/mint_tool_ticket`, fn 308) and adds one line, `- ticket: <id>`, to the context the agent
+already receives (next to `turn_id`). The tools' `ticket` input says to pass it on every call.
+
+| File | Change | Ticket life | Pushed? |
+|---|---|---|---|
+| `ai/tool/invoke_map.xs` (tool 53) | the nested agent gets its own ticket for the same person | 30 min | ✅ pushed |
+| `apis/journey_map/52_…_ai_message_POST.xs` (the map chat) | +6 lines | 30 min | ⏳ **founder pushes** |
+| `apis/journey_map/129_…_compare_message_POST.xs` | +5 lines | 30 min | ⏳ **founder pushes** |
+| `apis/journey_map/130_…_build_full_POST.xs` | +5 lines | 2 hours (a build loops) | ⏳ **founder pushes** |
+| `apis/journey_map/209_…_invoke_POST.xs` | +5 lines | 30 min | ⏳ **founder pushes** |
+
+**Why the founder pushes these four:** they are 150–3,800 lines each and Xano's own rendering of
+them is not safe to push back (see the bracket rule above). The repo copies were compared with live
+and are the same (the chat endpoint line-for-line, ignoring whitespace and brackets; 129, 130 and
+209 by reading), so pushing the repo file is the safe direction.
+
+**How:** in the Xano VS Code extension, open each file above and use *Push to Xano* (one at a time,
+chat endpoint first). Then tell me — I run one chat turn and read the gate log: a ticketed turn
+must show no `no_token` rows and `via: ticket`.
+
+**Not a leak:** the model sees the ticket in its context. It only works for the person who started
+the turn, expires in 30 minutes (2 hours for a build), and the tools still check that person's
+account and the Intelligent Layer on every call.
+
+**After that, to switch in-app agents to refuse:** `inapp_read` and `inapp_write` to `"enforce"` in
+`usr/tool_gate_mode`, then run `tests/cop1_outside_probe.py` plus one real chat turn.
