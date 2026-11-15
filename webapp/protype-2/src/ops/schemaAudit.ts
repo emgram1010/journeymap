@@ -97,6 +97,9 @@ export const TABLE_MANIFEST: Record<string, TableExpectation> = {
   // Built 2026-10-15 as live table 124 (SCHED-1). A link row is
   // created or removed, never edited, so it carries no `updated_at`.
   planner_task_work_task: {naturalKeys: [['work_task_id']], appendOnly: true},
+  // COP-1: a run ticket and the AI audit trail are written once and never edited.
+  tool_run_ticket: {naturalKeys: [['ticket']], appendOnly: true},
+  tool_call_log: {appendOnly: true},
   plan_publication: {naturalKeys: [['timeline_id', 'version']], appendOnly: true},
   plan_change_log: {enumFields: ['change_type'], appendOnly: true},
   activity_log: {naturalKeys: [['client_event_id']], enumFields: ['event_type', 'source'], appendOnly: true},

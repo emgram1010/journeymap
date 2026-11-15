@@ -54,7 +54,7 @@ export const HISTORY_TABLES: HistoryTable[] = [
   },
   {
     table: 'tool_call_log',
-    why: 'Who an AI acted for, which tool it used and on which map, and whether the gate allowed it. The only audit trail of what an AI did; delete it and a customer's question "did your AI touch my map?" has no answer.',
+    why: "Who an AI acted for, which tool it used and on which map, and whether the gate allowed it. The only audit trail of what an AI did: delete it and the question 'did your AI touch my map?' has no answer.",
   },
   {
     table: 'event_log',

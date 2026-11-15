@@ -1730,11 +1730,31 @@
   "E-SEC-020": {
     "code": "E-SEC-020",
     "feature": "SEC-3",
-    "user_message": "Sign in to use these tools. Add a valid Emgram token to the connection.",
+    "user_message": "Sign in to use these tools.",
     "what_happened": "An outside assistant connected to the AI tool address without a valid token, or with a token whose owner is switched off or lacks the Intelligent Layer. The gate returned no tools, so nothing could be listed or run.",
     "likely_cause": "The connection has no token, the token expired, or the person behind it has not been granted the Intelligent Layer.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "Create a token (automation_api_token/generate) and add it to the assistant's connection as a Bearer header, or as ?token= on the address. If the token is valid, check the person is switched on and has the Intelligent Layer on the Team page."
+    "fix_hint": "Create a token (automation_api_token/generate) and add it to the assistant's connection as a Bearer header, or as ?token= on the address. If the token is valid, check the person is switched on and has the Intelligent Layer on the Team page. Add a valid Emgram token to the connection."
+  },
+  "E-COP-001": {
+    "code": "E-COP-001",
+    "feature": "COP-1",
+    "user_message": "You don't have access to this part of the product. Ask your admin to turn it on.",
+    "what_happened": "An AI tool was called by a person (directly, or through an agent working for them) who is switched off or has not been granted the Intelligent Layer. The tool gate refused the call before the tool ran.",
+    "likely_cause": "The person's Intelligent Layer access was never ticked on the Team page, or they were switched off after they started a chat or connected an assistant.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "An admin can grant the Intelligent Layer, or switch the person back on, on the Team page. Every refusal is also in tool_call_log with verdict 'refused'."
+  },
+  "E-COP-002": {
+    "code": "E-COP-002",
+    "feature": "COP-1",
+    "user_message": "Journey map not found",
+    "what_happened": "An AI tool named a map or business that is not in the caller's account, or does not exist. The answer is deliberately the same for both, so a caller cannot learn which ids are real.",
+    "likely_cause": "The AI was asked about a map from another account, or was given an id that is wrong or deleted.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Check the id belongs to the account the person signed in with. A refusal for a business says 'Journey Architecture not found' under the same code."
   }
 }
