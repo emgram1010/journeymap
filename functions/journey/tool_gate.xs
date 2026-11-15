@@ -199,6 +199,50 @@ function "journey/tool_gate" {
       }
     }
 
+    // COP-1 story 04: the audit trail. One row per call, from any caller, written BEFORE any
+    // refusal so a refused call is recorded too. Holds who, which tool, which map and the verdict
+    // — never the call's input, the ticket or the token. A failure to write must never break the tool.
+    var $verdict {
+      value = "allowed"
+    }
+
+    conditional {
+      if ($ok == false && $mode == "enforce") {
+        var.update $verdict {
+          value = "refused"
+        }
+      }
+
+      elseif ($ok == false) {
+        var.update $verdict {
+          value = "would_refuse"
+        }
+      }
+    }
+
+    try_catch {
+      try {
+        db.add tool_call_log {
+          data = {
+            user_id                : $caller.user_id
+            account_id             : $caller.account_id
+            tool                   : $input.tool
+            kind                   : $kind
+            journey_map_id         : $input.journey_map_id
+            journey_architecture_id: $input.journey_architecture_id
+            context                : $caller.context
+            via                    : $caller.via
+            verdict                : $verdict
+            code                   : $code
+          }
+        } as $_audit
+      }
+
+      catch {
+        // Never let the audit write break the tool.
+      }
+    }
+
     var $refuse {
       value = ($ok == false && $mode == "enforce")
     }

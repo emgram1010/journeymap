@@ -507,3 +507,17 @@ signed-in person who started the turn (ticket). Rollback for any one of the four
 
 **Still to do in COP-1:** stories 01 (the copilot's own identity), 04 (log every call with who),
 05 (off switch and daily cap), 06 (tool bugs). 01 and 05 are permission design — Opus/Fable work.
+
+### Story 04 — every AI tool call is logged with who (2026-11-15, Sonnet 5.5) ✅
+
+New append-only table `tool_call_log` (table 144; no tool input, ticket or token stored).
+`journey/tool_gate` writes one row per call **before** any refusal, so refused calls are recorded.
+A failed write never breaks the tool. Listed in `src/ops/historyTables.ts` (never delete).
+
+Proof (test account 13): one ticketed chat write → `inapp / ticket / allowed / user 22 / account 13`;
+the 16-call outside probe → `outside / token` 11 allowed + 5 refused, every row attributed to
+user 22. Per-tool counts match what the probe called.
+
+**Not done in this story:** the Health page does not show it yet (the data is there — query by
+`account_id` or `user_id`); `verdict` is the gate's decision at the start, not the tool's own
+success; rows are never pruned (decide retention before volume matters).

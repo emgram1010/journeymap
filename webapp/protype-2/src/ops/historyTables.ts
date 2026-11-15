@@ -53,6 +53,10 @@ export const HISTORY_TABLES: HistoryTable[] = [
     why: "Why part of a job left for a linked map, from which step, and which counts went with it. It is the only link between a child job and the reason it exists — delete a row and Health can no longer say what an orphaned child came from.",
   },
   {
+    table: 'tool_call_log',
+    why: 'Who an AI acted for, which tool it used and on which map, and whether the gate allowed it. The only audit trail of what an AI did; delete it and a customer's question "did your AI touch my map?" has no answer.',
+  },
+  {
     table: 'event_log',
     why: 'The ops record behind the Health page. Support uses it to explain failures after the fact.',
   },
