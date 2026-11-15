@@ -492,3 +492,18 @@ account and the Intelligent Layer on every call.
 
 **Next, to switch in-app agents to refuse (founder to confirm first):** `inapp_read` and `inapp_write` to `"enforce"` in
 `usr/tool_gate_mode`, then run `tests/cop1_outside_probe.py` plus one real chat turn.
+
+### Roll-out step 5 — everything refuses (2026-11-15, Sonnet 5.5)
+
+`usr/tool_gate_mode` is now `enforce` on all four switches (outside/in-app × read/write).
+As the test user: ticketed chat read turn ✅, ticketed chat write turn ✅ (the write landed);
+`tests/cop1_outside_probe.py` with `COP1_EXPECT=enforce` **16/16**; a tool call with no ticket and
+no token (run through the gate directly) → **Access Denied**.
+
+**The AI tools are now closed on both doors:** a stranger gets nothing (SEC-3), an outside
+assistant sees only its own account (outside switch), and the in-app chat's tools only work for the
+signed-in person who started the turn (ticket). Rollback for any one of the four: set it back to
+`report` in fn 310.
+
+**Still to do in COP-1:** stories 01 (the copilot's own identity), 04 (log every call with who),
+05 (off switch and daily cap), 06 (tool bugs). 01 and 05 are permission design — Opus/Fable work.
