@@ -100,6 +100,8 @@ export const TABLE_MANIFEST: Record<string, TableExpectation> = {
   // COP-1: a run ticket and the AI audit trail are written once and never edited.
   tool_run_ticket: {naturalKeys: [['ticket']], appendOnly: true},
   tool_call_log: {appendOnly: true},
+  // COP-1: one copilot per account; one identity per user. Has updated_at (the cap changes).
+  ai_identity: {naturalKeys: [['user_id'], ['account_id']]},
   plan_publication: {naturalKeys: [['timeline_id', 'version']], appendOnly: true},
   plan_change_log: {enumFields: ['change_type'], appendOnly: true},
   activity_log: {naturalKeys: [['client_event_id']], enumFields: ['event_type', 'source'], appendOnly: true},

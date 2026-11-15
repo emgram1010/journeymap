@@ -150,6 +150,78 @@ function "journey/tool_gate" {
       }
     }
 
+    // COP-1 story 05: an AI identity (copilot) has a daily cap on tool calls, counted per UTC day
+    // from the audit trail. People have no cap. One "cap reached" event per copilot per day.
+    var $over_cap {
+      value = false
+    }
+
+    conditional {
+      if ($ok == true && $caller.user_id != 0) {
+        function.run "copilot/identity_for_user" {
+          input = {user_id: $caller.user_id}
+        } as $ai
+
+        conditional {
+          if ($ai.is_ai == true) {
+            var $now_cap {
+              value = now|to_int
+            }
+
+            var $day_start {
+              value = $now_cap - ($now_cap % 86400000)
+            }
+
+            db.query tool_call_log {
+              where = $db.tool_call_log.user_id == $caller.user_id && $db.tool_call_log.created_at >= $day_start
+              return = {type: "count"}
+            } as $calls_today
+
+            conditional {
+              if ($calls_today >= $ai.daily_cap) {
+                var.update $ok {
+                  value = false
+                }
+
+                var.update $code {
+                  value = "E-COP-004"
+                }
+
+                var.update $over_cap {
+                  value = true
+                }
+
+                db.query event_log {
+                  where = $db.event_log.feature == "COP-1" && $db.event_log.step == "cap_reached" && $db.event_log.user_id == $caller.user_id && $db.event_log.created_at >= $day_start
+                  return = {type: "count"}
+                } as $cap_events_today
+
+                conditional {
+                  if ($cap_events_today == 0) {
+                    function.run "ops/log_event" {
+                      input = {
+                        feature    : "COP-1"
+                        step       : "cap_reached"
+                        outcome    : "rejected"
+                        severity   : "warn"
+                        error_code : "E-COP-004"
+                        message    : "The copilot reached its daily limit and is paused until tomorrow (UTC)."
+                        user_id    : $caller.user_id
+                        account_id : $caller.account_id
+                        entity_type: "ai_identity"
+                        entity_id  : $ai.identity_id
+                        metadata   : {daily_cap: $ai.daily_cap, calls_today: $calls_today}
+                      }
+                    } as $_cap_logged
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     var $recent_logs {
       value = 0
     }
@@ -261,6 +333,15 @@ function "journey/tool_gate" {
 
     var $refuse_arch {
       value = ($refuse == true && $code == "E-COP-002" && $what == "architecture")
+    }
+
+    var $refuse_cap {
+      value = ($refuse == true && $code == "E-COP-004")
+    }
+
+    precondition ($refuse_cap == false) {
+      error_type = "accessdenied"
+      error = "The copilot has reached today's limit and is paused until tomorrow. (E-COP-004)"
     }
 
     precondition ($refuse_signin == false) {

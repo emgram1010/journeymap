@@ -1,6 +1,6 @@
 # EPIC-COP-1 — Agent identity and guardrails
 
-**Status:** 🚧 In progress (Fable 5.2, 2026-11-14). The gate is built and proven on throwaway copies (roll-out step 1). **No live tool calls it yet.** See section 7.
+**Status:** 🟡 Mostly built (2026-11-15). Stories 02, 04, 05 ✅; 01 ✅ backend; 03 🟡 (account boundary done, per-business pinning waits for COP-3); 06 🟡 (two decisions open). See section 7.
 **Model:** **Opus 5.5** (or Fable 5.2). Guards and tenancy. Story 06 is Sonnet 5.5. Review pass after.
 **Depends on:** SEC-3 (the tool door), USR-2 (access gates, live). Closes map 226 gaps 2, 3 and 4.
 **Risk:** high. A mistake here lets an AI act on the wrong customer's data, or locks the chat out.
@@ -89,7 +89,7 @@ tools last; (4) probe: account A's token and ticket cannot read or change accoun
 **Status:** Moved to its own epic: `EPIC-SEC-3-lock-the-ai-tool-door.md`. Do that first.
 
 ### US-COP-1-01 — The copilot has its own identity
-**Status:** 📋 Not started.
+**Status:** ✅ Built and proven (Opus 5.5, 2026-11-15) — backend. Team page "AI" label not built (screen work).
 
 **As an** owner, **I want** the copilot to be a named member of my account,
 **so that** everything it creates says who made it.
@@ -117,7 +117,7 @@ D-3. Existing rows with owner 0 (architecture 46, maps 226–234) are **not** re
 them in Test Results and ask.
 
 ### US-COP-1-02 — Tools go through the same gates as people
-**Status:** 📋 Not started.
+**Status:** ✅ Built and proven (2026-11-14/15) — all four gate switches enforce.
 
 **As an** owner, **I want** the copilot stopped by the same rules that stop a person,
 **so that** a limit I set actually limits it.
@@ -151,7 +151,7 @@ tool to exactly one module in **one** table/list, with a test that fails if a ne
 without one. Capture a before/after replay of the existing chat's tool calls.
 
 ### US-COP-1-03 — Pinned to one business at a time
-**Status:** 📋 Not started.
+**Status:** 🟡 Account boundary built and proven (another account's map or business = "not found"). Pinning a session to ONE business inside an account waits for COP-3 (the business chat), which is where a session gets its business.
 
 **As an** owner with more than one business, **I want** the copilot working on one business per
 session, **so that** it never mixes them.
@@ -178,7 +178,7 @@ check. Resolve every target (map, plan, job, task) to its architecture, then com
 for other accounts, never "forbidden" — do not confirm that an id exists.
 
 ### US-COP-1-04 — Every tool call is logged with who
-**Status:** 📋 Not started.
+**Status:** ✅ Built and proven (Sonnet 5.5, 2026-11-15). Health page view not built.
 
 **As** the only support person, **I want** one log row for every tool call, naming who acted,
 **so that** I can explain afterwards what the copilot did.
@@ -204,7 +204,7 @@ table or a new log table (design note; `agent_tool_log` has no text validators �
 Surface on the Health page under its own feature code.
 
 ### US-COP-1-05 — An off switch and a daily cap
-**Status:** 📋 Not started.
+**Status:** ✅ Built and proven (Opus 5.5, 2026-11-15). "Scheduled run skips" waits for COP-5 (no scheduled runs exist).
 
 ```gherkin
 Scenario: Switched off stops it on the next call
@@ -229,7 +229,7 @@ Scenario: The daily cap pauses it politely
 cap; store it per account in a side table.
 
 ### US-COP-1-06 — The four map-tool bugs are fixed
-**Status:** 📋 Not started. **Model: Sonnet 5.5.**
+**Status:** 🟡 3 of 5 fixed (see Story 06 results); `intent` needs a schema decision; all-or-nothing scaffold needs a behaviour decision. **Model: Sonnet 5.5.**
 
 ```gherkin
 Scenario: Adding a stage without a primary actor works
@@ -535,3 +535,65 @@ success; rows are never pruned (decide retention before volume matters).
 
 **Behaviour change:** `position` on a stage operation in `scaffold_map` is no longer read; adds
 append. `mutate_structure` places a column or row at a position.
+
+### Story 01 + 05 — design note (2026-11-15, Opus 5.5)
+
+**Decision (D-3): the copilot is a real `user` row in the account, marked as AI by a side table.**
+Why: everything a person already has then applies to it with no second copy of any rule —
+module grants (`user_module_access`), switch-off (`user_status` → `usr/assert_user_active`, which the
+tool gate already calls), Manage users listing, and audit (`tool_call_log.user_id`). A separate,
+non-user identity would need its own copy of all of those.
+
+| Piece | What |
+|---|---|
+| `ai_identity` (new side table) | `user_id` (unique), `account_id` (unique → one copilot per account), `name`, `daily_cap`, `created_by_user_id`. No column added to `user` (text validators — CLAUDE.md) |
+| The user row | role `member`; email `copilot+a<account>@ai.emgram.invalid` (the `.invalid` TLD can never receive mail); a random password nobody is shown. It cannot sign in by password, reset by email, or receive a magic link |
+| Grants | Intelligent Layer only, at creation. Planner and Execution stay off until COP-5 |
+| `copilot/identity_for_user` | The one place that answers "is this user an AI, and what is its cap?" |
+| `POST admin/copilot_create` | Account admin only (`usr/assert_team_admin`); refuses a second copilot (unique index, not a pre-check) |
+| `GET account/copilot` | The account's copilot (id, name, cap, on/off) — for the Team page label |
+| `POST admin/copilot_cap` | Account admin only; sets the daily cap |
+| Off switch (story 05) | The existing **Switch off** on Manage users. Its next tool call fails at the gate (`E-COP-001`) — nothing new to build |
+| Daily cap (story 05) | In `journey/tool_gate`, only for AI identities: count today's `tool_call_log` rows for that user (UTC day); at the cap → `E-COP-004`, one Health event per day |
+
+**Hardening found while designing:** a run ticket was honoured on the outside tool address too.
+A ticket is meant for in-app agents only; outside, the caller's own token is the identity. So
+`usr/tool_caller` now ignores a ticket when the request came in on the tool address — otherwise a
+leaked ticket plus any valid token would let one person act as another.
+
+**Out of scope here (follow-ups):** the Team page "AI" label (screen work, Sonnet); refusing
+**Delete** on the copilot once it has created anything (needs a guard in api 20); scheduled runs
+honouring the off switch (no scheduled runs exist until COP-5).
+
+
+### Stories 01 + 05 — results (2026-11-15, Opus 5.5)
+
+**Pushed:** table `ai_identity` (145); function `copilot/identity_for_user` (fn 319); endpoints
+`POST admin/copilot_create` (633), `GET account/copilot` (634), `POST admin/copilot_cap` (635) in the
+Members & Accounts group; `journey/tool_gate` (daily cap) and `usr/tool_caller` (ticket ignored on
+the outside address). Error codes E-COP-004, 006, 007, 008, 009, 010 added to the catalog.
+
+| Check (test account 13: q = admin, p = member) | Result |
+|---|---|
+| A member tries to create a copilot | ✅ refused, `E-USR-001` |
+| The admin creates it | ✅ user 26 "Test Copilot", role member, Intelligent Layer only, cap 500 |
+| A second create | ✅ refused, `E-COP-006` (unique index) |
+| `GET account/copilot` | ✅ has_copilot, user 26, cap 500, switched on |
+| It appears on Manage users | ✅ in `account/my_team_members` (no "AI" label yet — screen work) |
+| A map made by an in-app agent running **as the copilot** | ✅ map 253 owned by user 26, account 13 |
+| Cap set to 0 → three tool calls | ✅ all refused, audit code `E-COP-004`; exactly **one** "cap reached" event |
+| A person in the same account at the same time | ✅ not capped |
+| Cap back to 500 | ✅ allowed again |
+| Copilot switched off on Manage users → next call | ✅ refused, audit code `E-COP-001`; `GET account/copilot` shows `is_active: false` |
+| Switched back on | ✅ allowed |
+| Outside caller (q's token) passes the copilot's ticket to `create_journey_map` | ✅ the map is owned by **q (22)**, not the copilot — tickets are ignored outside |
+| Cap of −1 | ✅ refused, `E-COP-009` |
+| Regression: outside probe (enforce) / chat write | ✅ 16/16 / write landed |
+| `npm test` / `tsc` | ✅ 789/789 / clean |
+
+**Not done / follow-ups:**
+- Team page: show the copilot as "AI" and a "Create copilot" button (Sonnet; uses 633/634/635).
+- Refuse **Delete** on the copilot user once it has created anything (guard in api 20).
+- Nothing yet runs *as* the copilot in production: the map chat still acts as the signed-in person.
+  The copilot runs (business chat, scheduled runs) arrive in COP-3 and COP-5.
+- Test data in account 13: copilot user 26 and maps "(safe to delete)".

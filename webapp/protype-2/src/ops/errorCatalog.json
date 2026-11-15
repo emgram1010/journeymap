@@ -1756,5 +1756,65 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Check the id belongs to the account the person signed in with. A refusal for a business says 'Journey Architecture not found' under the same code."
+  },
+  "E-COP-004": {
+    "code": "E-COP-004",
+    "feature": "COP-1",
+    "user_message": "The copilot has reached today's limit and is paused until tomorrow.",
+    "what_happened": "The account's copilot (an AI identity) made as many AI tool calls today (UTC) as its daily limit allows. The gate refused the call before the tool ran. One 'cap reached' event is written per copilot per day.",
+    "likely_cause": "The limit is low for the work asked of it, or something is calling tools in a loop.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "An account admin can raise the limit (admin/copilot_cap). Check tool_call_log for that user today to see what used the calls."
+  },
+  "E-COP-006": {
+    "code": "E-COP-006",
+    "feature": "COP-1",
+    "user_message": "This account already has a copilot. Switch it off or rename it instead.",
+    "what_happened": "An admin tried to create a second copilot. The database refused it (one copilot per account is a unique index), so nothing was saved.",
+    "likely_cause": "Someone clicked create twice, or did not know the account already has one.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Use the existing copilot; GET account/copilot shows it."
+  },
+  "E-COP-007": {
+    "code": "E-COP-007",
+    "feature": "COP-1",
+    "user_message": "We could not create the copilot. Nothing was saved.",
+    "what_happened": "Creating the copilot's user row, its ai_identity row or its Intelligent Layer grant failed inside one transaction, so all three were rolled back. The underlying message is appended.",
+    "likely_cause": "A database rule refused one of the rows for a reason other than 'already has one'.",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "Read the appended message; if it names a validator, the account or user data may be unusual. Safe to retry."
+  },
+  "E-COP-008": {
+    "code": "E-COP-008",
+    "feature": "COP-1",
+    "user_message": "This account does not have a copilot yet.",
+    "what_happened": "A copilot action was asked for in an account that has no copilot, or by a user who is not in an account.",
+    "likely_cause": "The copilot has not been created for this account.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "An account admin can create one (admin/copilot_create)."
+  },
+  "E-COP-009": {
+    "code": "E-COP-009",
+    "feature": "COP-1",
+    "user_message": "The daily limit must be a whole number from 0 to 100000.",
+    "what_happened": "An admin sent a daily limit outside the allowed range. Nothing was changed.",
+    "likely_cause": "A typo, or a negative number.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Send a value from 0 (paused) to 100000."
+  },
+  "E-COP-010": {
+    "code": "E-COP-010",
+    "feature": "COP-1",
+    "user_message": "Your user is not in an account yet, so it cannot have a copilot.",
+    "what_happened": "An admin with no account (account_id 0) tried to create a copilot. Nothing was saved.",
+    "likely_cause": "An old sign-up from before accounts existed (see Epic-22 F-8).",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Put the user in an account first; then create the copilot."
   }
 }

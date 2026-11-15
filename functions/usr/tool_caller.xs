@@ -79,8 +79,11 @@ function "usr/tool_caller" {
       }
     }
 
+    // A ticket is for in-app agents only. On the outside tool address the caller's own token is the
+    // identity and any ticket is ignored — otherwise a leaked ticket plus any valid token would let
+    // one person act as another (COP-1 story 01 hardening, 2026-11-15).
     conditional {
-      if ($input.ticket != "") {
+      if ($input.ticket != "" && $is_outside == false) {
         var.update $via {
           value = "ticket"
         }
