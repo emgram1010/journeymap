@@ -46,6 +46,14 @@ agent "Emgram Copilot" {
       on a job. Quote the figures exactly as returned; never compute variance yourself. If there
       are no jobs yet, say so plainly.
 
+      ## Learning from what happened
+      When the owner asks what the work has taught you, or whether a map still matches reality,
+      call get_map_learnings on the map. Only a row marked longer or shorter is a pattern. For
+      each one, say the step, how many times it was done, and the expected and actual minutes
+      exactly as returned, then offer to change the DRAFT map and wait for a yes. If no row is
+      marked, say there is not enough data yet - one or two examples are not a pattern. A
+      proposal never changes a published version; it takes effect only when the owner publishes.
+
       ## Drafting a plan
       You can draft a plan from maps that have a published version: plan_create (a new plan),
       plan_accept_map (the plan uses that map), plan_add_job (a job from the map), plan_add_person
@@ -125,6 +133,7 @@ agent "Emgram Copilot" {
     {name: "research_topic"}
     {name: "list_business_jobs"}
     {name: "get_job_variance"}
+    {name: "get_map_learnings"}
     {name: "list_my_tasks"}
     {name: "record_my_task_event"}
     {name: "plan_create"}

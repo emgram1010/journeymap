@@ -177,8 +177,8 @@ Each has a default so the build is never blocked. Say the word to change one.
 | COP-1 | ✅ Built and reviewed (2026-11-15) |
 | COP-2 | ✅ Built and proven (2026-11-15) — Undo and per-business reminder times deferred |
 | COP-3 | ✅ Built (2026-11-15) — plan/work reading moves to COP-5; business-delete guard pending |
-| COP-4 | ✅ Built (2026-11-15) — story 05 (learning) waits for COP-5 |
-| COP-5 | 🟡 Mostly built (2026-11-15) — 01 (six planner tools), 03, 04 proven in the test account; 05, 06 and the live-endpoint switch not done |
+| COP-4 | ✅ Built (2026-11-15) — story 05: plan-vs-actual learning built and proven; "my edits teach it" not built |
+| COP-5 | 🟡 Mostly built (2026-11-15) — 01 (six planner tools + capacity warning), 03, 04, 05 (scheduled runs), 06 (copilot column) proven in the test account. Not done: four more planner tools, the server-side publish guard, the live-endpoint switch |
 | COP-7 | ✅ Built and proven (2026-11-15, Fable 5.2) — hardening from the Fable review; review pass pending |
 | COP-6 | 📋 Not started — **deferred on purpose** ("you don't have to do it right now") |
 | Approvals mock-up | 🧪 built, fake data, not committed |

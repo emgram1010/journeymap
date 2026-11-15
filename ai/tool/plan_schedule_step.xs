@@ -9,7 +9,7 @@
 //   - it cannot hand the step to someone other than the day's person (assignee is always 0).
 // A day that does not exist answers "Day not found". Nothing here publishes to live.
 tool plan_schedule_step {
-  instructions = "Put one job step (work_task_id) onto one person's day (timeline_id, from plan_start_day) in a plan of this business. The step then belongs to that day's person; you cannot give it to someone else here. duration_minutes is how long to set aside, 1 to 1440; leave it 0 to use the step's expected time. Only draft days can be changed: a day that is already live is refused, so tell the owner what you would change instead. A step that is already on the schedule, or whose job is cancelled, is refused. This never publishes anything to live."
+  instructions = "Put one job step (work_task_id) onto one person's day (timeline_id, from plan_start_day) in a plan of this business. The step then belongs to that day's person; you cannot give it to someone else here. duration_minutes is how long to set aside, 1 to 1440; leave it 0 to use the step's expected time. Only draft days can be changed: a day that is already live is refused, so tell the owner what you would change instead. A step that is already on the schedule, or whose job is cancelled, is refused. This never publishes anything to live. The answer says how full the day now is: if over_capacity is true, tell the owner that day is over that person's capacity by over_by_minutes minutes; do not move or remove work yourself."
 
   input {
     int work_task_id filters=min:1 {
@@ -60,8 +60,12 @@ tool plan_schedule_step {
     db.query planner_timeline {
       where = $db.planner_timeline.id == $input.timeline_id
       return = {type: "single"}
-      output = ["id", "workspace_id", "status"]
+      output = ["id", "workspace_id", "status", "agent_id"]
     } as $day
+
+    var $day_agent {
+      value = ($day|get:"agent_id":0) ?? 0
+    }
 
     var $day_id {
       value = ($day|get:"id":0) ?? 0
@@ -144,6 +148,66 @@ tool plan_schedule_step {
     var $scheduled_minutes {
       value = ($scheduled|get:"scheduled_minutes":0) ?? 0
     }
+
+    // COP-5 story 01 "respects capacity": after the step is on the day, add up the day and compare
+    // it with that person's daily capacity. A WARNING only - the screen warns and lets the planner
+    // decide too; the copilot reports it and does not move work by itself.
+    db.query planner_task {
+      where = $db.planner_task.timeline_id == $input.timeline_id
+      return = {type: "list"}
+      output = ["id", "duration_minutes"]
+    } as $day_slots
+
+    var $day_planned {
+      value = 0
+    }
+
+    foreach ($day_slots) {
+      each as $ds {
+        var.update $day_planned {
+          value = $day_planned + ($ds.duration_minutes ?? 0)
+        }
+      }
+    }
+
+    db.query planner_agent {
+      where = $db.planner_agent.id == $day_agent && $day_agent != 0
+      return = {type: "single"}
+      output = ["id", "daily_capacity_hours"]
+    } as $day_person
+
+    // An untouched decimal is 0, not null (CLAUDE.md): 0 means "not set", and the screen uses 8.
+    var $cap_hours {
+      value = ($day_person|get:"daily_capacity_hours":0) ?? 0
+    }
+
+    conditional {
+      if ($cap_hours == 0) {
+        var.update $cap_hours {
+          value = 8
+        }
+      }
+    }
+
+    var $cap_minutes {
+      value = $cap_hours * 60
+    }
+
+    var $over_capacity {
+      value = $day_planned > $cap_minutes
+    }
+
+    var $over_by {
+      value = 0
+    }
+
+    conditional {
+      if ($over_capacity == true) {
+        var.update $over_by {
+          value = $day_planned - $cap_minutes
+        }
+      }
+    }
   }
 
   response = {
@@ -152,5 +216,9 @@ tool plan_schedule_step {
     timeline_id      : $input.timeline_id
     expected_minutes : $expected_minutes
     scheduled_minutes: $scheduled_minutes
+    day_planned_minutes : $day_planned
+    day_capacity_minutes: $cap_minutes
+    over_capacity       : $over_capacity
+    over_by_minutes     : $over_by
   }
 }

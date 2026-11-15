@@ -1,6 +1,6 @@
 # EPIC-COP-4 — Think and learn: goals and research become maps; results become improvements
 
-**Status:** ✅ Built (Opus 5.5 + Sonnet 5.5 screens, 2026-11-15) — stories 01–04 and 06. Story 05 (learn from plan vs actual) waits for COP-5's plan/work read tools. See Test results.
+**Status:** ✅ Built (Opus 5.5 + Sonnet 5.5 screens, 2026-11-15) — stories 01–04 and 06. Story 05: the plan-vs-actual half is built and proven (Fable 5.2, 2026-11-15); "my edits teach it" is not built. See Test results.
 **Model:** **Sonnet 5.5.** Opus 5.5 (or Fable 5.2) review of story 03 (web text is data).
 **Depends on:** COP-2 (levels), COP-3 (chat, business scope). Can run in parallel with COP-5.
 **Risk:** medium. The danger is confident nonsense: invented numbers, or research that looks tested.
@@ -160,7 +160,7 @@ since) with **its own GET endpoint**, merged in the frontend — the plain map l
 it (CLAUDE.md, AUTH-1). No new column on `journey_map`.
 
 ### US-COP-4-05 — It learns from what happened
-**Status:** 📋 Not started — needs plan and work-record read tools (COP-5).
+**Status:** 🟡 Half built (Fable 5.2, 2026-11-15). Built: `get_map_learnings` - plan vs actual per step, with a minimum sample size. Not built: "My edits teach it" (nothing records how the owner edits the copilot's drafts, so there is nothing to learn from yet).
 
 **As an** owner, **I want** the copilot to notice where reality differs from the map,
 **so that** the maps get better instead of going stale.
@@ -267,3 +267,41 @@ cut off is lost with no reply and no event (needs a background job — later). T
 included time estimates ("15 min") presumably from general practice — the owner should check them.
 The hostile-page test could not be run against real search results; protection is structural.
 
+### Story 05 — learning from plan vs actual (2026-11-15, Fable 5.2)
+
+**Pushed (new):** tool `get_map_learnings` (177); agent 40 gained the tool and a "Learning from what happened"
+section. Nothing existing changed. No new table, no new code.
+
+**What it does.** For one map, it reads the plan-vs-actual report of its most recent jobs (up to 30) through
+`variance/task_report` - the same function the report screen uses - and only **adds the figures up** per step:
+how many finished examples, average expected and actual minutes, how often over or under. A step is flagged
+only when there are at least 3 examples (the owner or the copilot can ask for more, never fewer), most of
+them point the same way, and the average gap is 20% or more. It changes nothing. The copilot turns a flagged
+step into an offer to edit the **draft** map, with the figures, and waits for a yes.
+
+| Check (test account 13, map 261; the tool run with the Xano debug tool) | Result |
+|---|---|
+| 1 finished example of a step | ✅ not flagged, `enough: false` ("too little data is not a pattern") |
+| 3 finished examples, all far under the expected time | ✅ flagged `shorter`, 3 samples, 3 of 3 under |
+| The other step, 2 examples | ✅ not flagged |
+| Asking for a minimum of 1 | ✅ treated as 3 |
+| Asking for a minimum of 5 | ✅ the 3-example step is no longer flagged |
+| No ticket | ✅ refused |
+| A map in another account | ✅ "Not Found" |
+| `npm test`, `tsc` | ✅ see commit |
+
+Fixture: `tests/cop4_learnings_fixture.py` finished the remaining test steps through the live record-event
+endpoint (8 of 8 calls accepted).
+
+**Not proven**
+- The **"longer"** direction (a step that regularly runs over). Only "shorter" was produced: the test steps
+  were finished in seconds against 30 expected minutes. The rule is the mirror image, but it was not seen.
+- The real copilot using the tool in chat and making the offer (the tool was driven directly).
+- "Proposals are drafts": holds by the existing rules (the copilot cannot publish a version; edits go to
+  the draft), not re-tested here.
+- A business with many jobs: the tool reads at most 30 jobs, one report each - slow on a big map (4 s for 3).
+
+**Known limits**
+- Averages are whole minutes (a 20-second step shows as 0).
+- A step with expected time 0 or no recorded time is not counted.
+- Steps are matched by their keys in the map; a renamed or re-keyed step starts again from zero.

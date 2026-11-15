@@ -447,3 +447,22 @@ copilot's tasks are found by that login (`perform/resolve_agents`). What was mis
 - The older planner app (`webapp/planningFrontendv2`) was not touched.
 
 **Test data added:** plan person 55 ("Copilot column (probe)", AI, linked to copilot 26) on plan 46.
+
+### Story 01 — capacity warning added (2026-11-15, Fable 5.2)
+
+`plan_schedule_step` (176) now answers how full the day is after the step is placed:
+`day_planned_minutes`, `day_capacity_minutes`, `over_capacity`, `over_by_minutes`. A warning only - the screen
+also warns and lets the planner decide; the copilot is told to report it and not move work itself.
+
+| Check (plan 44, draft day 55, capacity 8 h) | Result |
+|---|---|
+| A 30-minute step onto a day holding 30 minutes | ✅ 60 of 480, not over |
+| A 600-minute step onto the same day | ✅ 660 of 480, over by 180 |
+
+Not proven: the copilot saying so in chat. The total is the day's own steps; a step given to someone else
+by an override still counts on the day it sits on.
+**Still not built in story 01:** time window, start time, unschedule, schedule a whole card, and live-day
+changes through approval (a live day is refused). Each needs one more endpoint rule copied into a shared
+function - better done after the founder decides on switching the six live endpoints, so the rules stop
+existing twice instead of doing so ten times.
+**Test data added:** job 146 (tasks 871, 872) on plan 44, both placed on draft day 55.
