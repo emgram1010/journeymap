@@ -57,6 +57,16 @@ tool get_workflow_state {
           field_name = "id"
           field_value = $input.execution_id
         } as $found_exec
+
+        // COP-1 review (2026-11-14): a run from another map (or account) answers "not found".
+        var $found_map {
+          value = $found_exec|get:"journey_map":0
+        }
+
+        precondition ($found_map == 0 || $found_map == $input.journey_map_id) {
+          error_type = "notfound"
+          error = "Workflow run not found"
+        }
       }
     }
   

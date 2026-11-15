@@ -69,6 +69,23 @@ query "admin/user_update" verb=POST {
       error = "We couldn't find that person in your account. (E-USR-002)"
     }
 
+    // COP-1 review (2026-11-14): the copilot's address is the reason it can never sign in
+    // (`.invalid` cannot receive a reset or magic link). Changing it to a real inbox would let an
+    // admin sign in AS the copilot and act outside the tool gate — no cap, no tool_call_log row.
+    // Its name may still be corrected.
+    function.run "copilot/identity_for_user" {
+      input = {user_id: $target_user.id}
+    } as $target_ai
+
+    var $copilot_email_change {
+      value = ($target_ai.is_ai == true && $input.email != "" && $input.email != $target_user.email)
+    }
+
+    precondition ($copilot_email_change == false) {
+      error_type = "accessdenied"
+      error = "The copilot's email address can't be changed — it is what stops anyone signing in as the copilot. You can still rename it. (E-COP-012)"
+    }
+
     // ── Resolve the final values before writing ──────────────────────────
     //
     // Each conditional's condition reads an INPUT, which is one of the three

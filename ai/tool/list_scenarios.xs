@@ -34,8 +34,10 @@ tool list_scenarios {
       value = $cop1_gate.account_id
     }
 
+    // COP-1 review (2026-11-14): never "see all". A caller with no account sees nothing
+    // (journey/visible_map_ids), even if they hold the Intelligent Layer.
     var $see_all {
-      value = ($caller_account == 0)
+      value = false
     }
 
     function.run "journey/visible_map_ids" {

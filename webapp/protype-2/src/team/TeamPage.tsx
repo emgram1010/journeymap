@@ -1,12 +1,15 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
-import {AlertCircle, Check, Loader2, Plus, ShieldCheck, Trash2, Users, X} from 'lucide-react';
+import {AlertCircle, Bot, Check, Loader2, Plus, ShieldCheck, Trash2, Users, X} from 'lucide-react';
 import {useAuth} from '../AuthContext';
 import {
+  createCopilot,
   createUser,
   deleteUser,
+  getAccountCopilot,
   listTeamMembers,
   listUserModuleAccess,
   listUserStatuses,
+  setCopilotCap,
   setUserActive,
   setUserModuleAccess,
   setUserRole,
@@ -15,7 +18,11 @@ import {
 } from '../xano';
 import {getCatalogEntry} from '../ops/errorCatalog';
 import {
+  canCreateCopilot,
   canManageTeam,
+  copilotCapProblem,
+  copilotRemoveBlockedBy,
+  isCopilotRow,
   createBlockedBy,
   deleteBlockedBy,
   grantChangeBlockedBy,
@@ -26,6 +33,7 @@ import {
   MODULES,
   MODULE_LABELS,
   type ModuleKey,
+  type CopilotInfo,
   type NewPersonDraft,
   type Role,
   type TeamMember,
@@ -77,6 +85,13 @@ export default function TeamPage() {
   // control on the page.
   const [confirmRemoveId, setConfirmRemoveId] = useState<number | null>(null);
 
+  // COP-1-01. A separate fetch. null = it failed or has not loaded: the page
+  // then shows no AI marking and no copilot controls, and works as before.
+  const [copilot, setCopilot] = useState<CopilotInfo | null>(null);
+  const [copilotName, setCopilotName] = useState('');
+  const [capText, setCapText] = useState('');
+  const [capError, setCapError] = useState<string | null>(null);
+
   const isAdmin = canManageTeam(user);
 
   const load = useCallback(async () => {
@@ -91,6 +106,13 @@ export default function TeamPage() {
         listUserModuleAccess(),
       ]);
       setTeam(mergeTeam(members, statuses, grants));
+      try {
+        const c = await getAccountCopilot();
+        setCopilot(c);
+        setCapText(String(c.daily_cap));
+      } catch {
+        setCopilot(null);
+      }
     } catch {
       setError('Unable to load your team right now.');
     } finally {
@@ -202,10 +224,26 @@ export default function TeamPage() {
     if (ok) setEditingId(null);
   };
 
+  const addCopilot = async () => {
+    // The typed name stays on failure: apply() never touches it when the call throws.
+    const ok = await apply(null, null, () => createCopilot(copilotName.trim()), 'Your copilot is ready.');
+    if (ok) setCopilotName('');
+  };
+
+  const saveCap = async () => {
+    const problem = copilotCapProblem(capText);
+    if (problem) {
+      setCapError(getCatalogEntry(problem)?.user_message ?? 'Enter a whole number from 0 to 100000.');
+      return;
+    }
+    setCapError(null);
+    await apply(null, null, () => setCopilotCap(Number(capText.trim())), 'Daily limit saved.');
+  };
+
   const removePerson = async (member: TeamMember) => {
     const ok = await apply(
       member.id,
-      deleteBlockedBy(user, member.id, team),
+      copilotRemoveBlockedBy(member.id, copilot) ?? deleteBlockedBy(user, member.id, team),
       () => deleteUser(member.id),
       `${member.name || member.email} has been removed.`,
     );
@@ -369,6 +407,78 @@ export default function TeamPage() {
           </form>
         )}
 
+        {/* ── COP-1-01: the account copilot ───────────────────────────────── */}
+        {canCreateCopilot(user, copilot) && (
+          <form
+            id="create-copilot-form"
+            className="mb-5 flex flex-wrap items-end gap-3 rounded-lg border border-zinc-200 bg-white p-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void addCopilot();
+            }}
+          >
+            <label className="block">
+              <span className="block text-xs font-medium text-zinc-600 mb-1">Copilot name (optional)</span>
+              <input
+                type="text"
+                value={copilotName}
+                placeholder="Copilot"
+                onChange={(e) => setCopilotName(e.target.value)}
+                className="rounded border border-zinc-300 px-2 py-1.5 text-sm"
+                autoComplete="off"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={savingId !== null}
+              className="inline-flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60"
+            >
+              <Bot className="w-4 h-4" />
+              Create copilot
+            </button>
+            <span className="text-[11px] text-zinc-500">
+              An AI helper for your account. It reaches the Intelligent Layer only, and you can switch it off any time.
+            </span>
+          </form>
+        )}
+
+        {isAdmin && copilot?.has_copilot && (
+          <form
+            id="copilot-cap-form"
+            className="mb-5 flex flex-wrap items-end gap-3 rounded-lg border border-zinc-200 bg-white p-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void saveCap();
+            }}
+          >
+            <label className="block">
+              <span className="block text-xs font-medium text-zinc-600 mb-1">
+                {copilot.name || 'Copilot'} daily limit (AI actions per day)
+              </span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={capText}
+                onChange={(e) => setCapText(e.target.value)}
+                className="w-28 rounded border border-zinc-300 px-2 py-1.5 text-sm"
+                autoComplete="off"
+              />
+            </label>
+            <button
+              type="submit"
+              className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+            >
+              Save limit
+            </button>
+            <span className="text-[11px] text-zinc-500">0 pauses it for the day. Maximum 100000.</span>
+            {capError && (
+              <span role="alert" className="basis-full text-xs text-amber-800">
+                {capError}
+              </span>
+            )}
+          </form>
+        )}
+
         <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden">
           <table className="w-full text-sm" id="team-table">
             <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
@@ -385,6 +495,7 @@ export default function TeamPage() {
                 const isSelf = user?.id === member.id;
                 const busy = savingId === member.id;
                 const isEditing = editingId === member.id;
+                const isAi = isCopilotRow(member.id, copilot);
                 return (
                   <tr key={member.id} data-user-id={member.id} className={member.is_active ? '' : 'bg-zinc-50/60'}>
                     <td className="px-4 py-3">
@@ -409,6 +520,12 @@ export default function TeamPage() {
                         <>
                           <div className="font-medium text-zinc-900 flex items-center gap-2">
                             {member.name || '—'}
+                            {isAi && (
+                              <span className="inline-flex items-center gap-1 rounded bg-violet-100 px-1.5 py-0.5 text-[11px] font-medium text-violet-700">
+                                <Bot className="w-3 h-3" />
+                                AI
+                              </span>
+                            )}
                             {isSelf && (
                               <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] font-normal text-zinc-500">
                                 you
@@ -421,7 +538,7 @@ export default function TeamPage() {
                     </td>
 
                     <td className="px-4 py-3">
-                      {isAdmin && !isSelf ? (
+                      {isAdmin && !isSelf && !isAi ? (
                         <select
                           aria-label={`Role for ${member.name || member.email}`}
                           className="rounded border border-zinc-300 bg-white px-2 py-1 text-sm disabled:opacity-50"
@@ -507,7 +624,7 @@ export default function TeamPage() {
                                 Cancel
                               </button>
                             </>
-                          ) : (
+                          ) : isAi ? null : (
                             <button
                               type="button"
                               className="rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
@@ -535,7 +652,18 @@ export default function TeamPage() {
                               (E-USR-013) — which the client cannot predict,
                               so this button is offered and the refusal is
                               shown honestly. */}
-                          {!isSelf && !isEditing && (
+                          {!isSelf && !isEditing && isAi && (
+                            <button
+                              type="button"
+                              disabled
+                              aria-label={`Remove ${member.name || member.email} (not allowed)`}
+                              title="Switch it off instead"
+                              className="rounded border border-zinc-200 p-1 text-zinc-300 cursor-not-allowed"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {!isSelf && !isEditing && !isAi && (
                             <>
                               {confirmRemoveId === member.id ? (
                                 <>

@@ -494,3 +494,42 @@ export function grantChangeBlockedBy(
   if (actor!.id === targetId) return 'E-USR-020';
   return null;
 }
+
+// ── COP-1-01 — the account copilot ───────────────────────────────────────────
+// Courtesy checks only; the server (E-COP-006..011) is the authority.
+
+/** As returned by `GET account/copilot`. `has_copilot: false` means the rest is empty. */
+export interface CopilotInfo {
+  has_copilot: boolean;
+  user_id: number;
+  name: string;
+  daily_cap: number;
+  is_active: boolean;
+}
+
+/** Mirrors the server's own limit in `admin/copilot_cap`. */
+export const COPILOT_CAP_MAX = 100000;
+
+/** `copilot` is null when its fetch failed — then nothing is marked, and the page works as before. */
+export function isCopilotRow(userId: number, copilot: CopilotInfo | null | undefined): boolean {
+  return copilot != null && copilot.has_copilot === true && copilot.user_id !== 0 && copilot.user_id === userId;
+}
+
+/** Only offered once we KNOW the account has none (a failed fetch must not invite a second create). */
+export function canCreateCopilot(
+  viewer: {role?: string | null} | null | undefined,
+  copilot: CopilotInfo | null | undefined,
+): boolean {
+  return viewer != null && canManageTeam(viewer) && copilot != null && copilot.has_copilot === false;
+}
+
+/** Null when the text is a whole number from 0 to the max; otherwise the catalog code to show. */
+export function copilotCapProblem(text: string): 'E-COP-009' | null {
+  const t = text.trim();
+  if (!/^[0-9]+$/.test(t)) return 'E-COP-009';
+  return Number(t) <= COPILOT_CAP_MAX ? null : 'E-COP-009';
+}
+
+export function copilotRemoveBlockedBy(userId: number, copilot: CopilotInfo | null | undefined): 'E-COP-011' | null {
+  return isCopilotRow(userId, copilot) ? 'E-COP-011' : null;
+}

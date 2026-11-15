@@ -1826,5 +1826,25 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Switch the copilot off on Manage users; its next tool call is then refused."
+    },
+  "E-COP-012": {
+    "code": "E-COP-012",
+    "feature": "COP-1",
+    "user_message": "The copilot's email address can't be changed — it is what stops anyone signing in as the copilot. You can still rename it.",
+    "what_happened": "An admin tried to change the copilot's email. Its .invalid address can never receive a reset or magic link, which is what keeps every copilot action inside the tool gate (daily limit and audit trail). The change was refused before anything was written.",
+    "likely_cause": "The copilot looked like any other person on Manage users.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Rename the copilot if needed; leave its address alone."
+  },
+  "E-COP-013": {
+    "code": "E-COP-013",
+    "feature": "COP-1",
+    "user_message": "The copilot's role can't be changed. What it can do is set by its module access.",
+    "what_happened": "An admin tried to promote or demote the copilot. The copilot always stays a member; its reach is set by module grants and the tool gate, never by an admin role.",
+    "likely_cause": "The copilot looked like any other person on Manage users.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Change the copilot's module access instead."
   }
 }

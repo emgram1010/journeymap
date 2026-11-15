@@ -32,15 +32,32 @@ tool export_workflow_output {
   }
 
   stack {
-    // COP-1: who is calling, and is this map theirs? Reports only until usr/tool_gate_mode says enforce.
-    function.run "journey/tool_gate" {
-      input = {journey_map_id: $input.journey_map_id, ticket: $input.ticket, tool: "export_workflow_output", kind: "write"}
-    } as $cop1_gate
-
+    // COP-1 review (2026-11-14): the run is loaded first and the gate checks the RUN's own map, so
+    // a run id from another account is refused even when journey_map_id is left out. Nothing from
+    // the run is returned before the gate passes. A missing run and a passed map id that does not
+    // match the run both answer "not found".
     db.get workflow_execution {
       field_name = "id"
       field_value = $input.execution_id
     } as $exec
+
+    var $exec_map {
+      value = $exec|get:"journey_map":0
+    }
+
+    var $map_mismatch {
+      value = ($input.journey_map_id != 0 && $input.journey_map_id != $exec_map)
+    }
+
+    precondition ($exec_map != 0 && $map_mismatch == false) {
+      error_type = "notfound"
+      error = "Workflow run not found"
+    }
+
+    // COP-1: who is calling, and is this map theirs?
+    function.run "journey/tool_gate" {
+      input = {journey_map_id: $exec_map, ticket: $input.ticket, tool: "export_workflow_output", kind: "write"}
+    } as $cop1_gate
   
     var $content {
       value = ""

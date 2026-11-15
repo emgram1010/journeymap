@@ -1583,6 +1583,37 @@ export async function listTeamMembers(): Promise<XanoTeamMember[]> {
   return xanoRequest<XanoTeamMember[]>('/account/my_team_members', {baseUrl: getXanoMembersBaseUrl()});
 }
 
+/** COP-1-01 — the signed-in person's account copilot. `has_copilot: false` when there is none. */
+export interface XanoCopilot {
+  has_copilot: boolean;
+  user_id: number;
+  name: string;
+  daily_cap: number;
+  is_active: boolean;
+}
+
+export async function getAccountCopilot(): Promise<XanoCopilot> {
+  return xanoRequest<XanoCopilot>('/account/copilot', {baseUrl: getXanoMembersBaseUrl()});
+}
+
+export async function createCopilot(
+  name: string,
+): Promise<{user_id: number; name: string; account_id: number; daily_cap: number; modules: string[]}> {
+  return xanoRequest('/admin/copilot_create', {
+    method: 'POST',
+    body: {name},
+    baseUrl: getXanoMembersBaseUrl(),
+  });
+}
+
+export async function setCopilotCap(dailyCap: number): Promise<{user_id: number; daily_cap: number}> {
+  return xanoRequest('/admin/copilot_cap', {
+    method: 'POST',
+    body: {daily_cap: dailyCap},
+    baseUrl: getXanoMembersBaseUrl(),
+  });
+}
+
 export async function listUserStatuses(): Promise<XanoUserStatus[]> {
   return xanoRequest<XanoUserStatus[]>('/user_status', {baseUrl: getXanoMembersBaseUrl()});
 }

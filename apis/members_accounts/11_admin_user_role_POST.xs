@@ -104,6 +104,17 @@ query "admin/user_role" verb=POST {
       error = "We couldn't find that person in your account. (E-USR-002)"
     }
 
+    // COP-1 review (2026-11-14): the copilot stays a member. Its reach is set by its module
+    // grants and the tool gate, never by an admin role.
+    function.run "copilot/identity_for_user" {
+      input = {user_id: $target_user.id}
+    } as $target_ai
+
+    precondition ($target_ai.is_ai == false) {
+      error_type = "accessdenied"
+      error = "The copilot's role can't be changed. What it can do is set by its module access. (E-COP-013)"
+    }
+
     // USR-1: only a DEMOTION of a current admin can reduce the count. A
     // promotion cannot, so it passes 0 ("exclude nobody") and the guard just
     // confirms the account still has one.

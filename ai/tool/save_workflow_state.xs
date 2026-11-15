@@ -76,6 +76,16 @@ tool save_workflow_state {
           field_name = "id"
           field_value = $input.execution_id
         } as $exec_record
+
+        // COP-1 review (2026-11-14): a run from another map (or account) is never updated.
+        var $record_map {
+          value = $exec_record|get:"journey_map":0
+        }
+
+        precondition ($record_map == $input.journey_map_id) {
+          error_type = "notfound"
+          error = "Workflow run not found"
+        }
       }
     }
   
@@ -223,11 +233,13 @@ tool save_workflow_state {
           }
         }
       
+        // COP-1 review (2026-11-14): the run's owner is whoever the gate says is calling.
+        // owner_user_id is still accepted (old agents send it) but ignored.
         conditional {
-          if ($input.owner_user_id != null) {
+          if ($cop1_gate.user_id != 0) {
             var.update $data {
               value = $data
-                |set:"owner_user":$input.owner_user_id
+                |set:"owner_user":$cop1_gate.user_id
             }
           }
         }

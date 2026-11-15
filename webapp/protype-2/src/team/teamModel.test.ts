@@ -631,3 +631,56 @@ test('UT-USR-2-32: a deactivated person may still be granted a module', () => {
   const team = mergeTeam([admin, member], [{user_id: 3, account_id: 2, is_active: false}], []);
   assert.equal(grantChangeBlockedBy(admin, 3, [{module: 'planning', granted: true}], team), null);
 });
+
+// ── COP-1-01 — the account copilot on Manage users ────────────────────────────
+import {
+  isCopilotRow,
+  canCreateCopilot,
+  copilotCapProblem,
+  copilotRemoveBlockedBy,
+  COPILOT_CAP_MAX,
+  type CopilotInfo,
+} from './teamModel';
+
+const COP: CopilotInfo = {has_copilot: true, user_id: 7, name: 'Copilot', daily_cap: 500, is_active: true};
+const NO_COP: CopilotInfo = {has_copilot: false, user_id: 0, name: '', daily_cap: 0, is_active: true};
+
+test('isCopilotRow: only the copilot user id matches', () => {
+  assert.equal(isCopilotRow(7, COP), true);
+  assert.equal(isCopilotRow(8, COP), false);
+});
+
+test('isCopilotRow: no copilot, a failed fetch, or id 0 never matches', () => {
+  assert.equal(isCopilotRow(0, NO_COP), false);
+  assert.equal(isCopilotRow(7, null), false);
+  assert.equal(isCopilotRow(7, NO_COP), false);
+});
+
+test('canCreateCopilot: admin with a loaded, copilot-less account only', () => {
+  assert.equal(canCreateCopilot({role: 'admin'}, NO_COP), true);
+  assert.equal(canCreateCopilot({role: 'member'}, NO_COP), false);
+  assert.equal(canCreateCopilot({role: 'admin'}, COP), false);
+});
+
+test('canCreateCopilot: a failed copilot fetch (null) never offers the button', () => {
+  assert.equal(canCreateCopilot({role: 'admin'}, null), false);
+  assert.equal(canCreateCopilot(null, NO_COP), false);
+});
+
+test('copilotCapProblem: whole numbers 0..max pass', () => {
+  assert.equal(copilotCapProblem('0'), null);
+  assert.equal(copilotCapProblem(' 250 '), null);
+  assert.equal(copilotCapProblem(String(COPILOT_CAP_MAX)), null);
+});
+
+test('copilotCapProblem: blank, decimals, negatives, text and too-big are refused with E-COP-009', () => {
+  for (const bad of ['', '  ', '1.5', '-1', 'abc', '1e3', String(COPILOT_CAP_MAX + 1)]) {
+    assert.equal(copilotCapProblem(bad), 'E-COP-009', `"${bad}"`);
+  }
+});
+
+test('copilotRemoveBlockedBy: blocks the copilot with E-COP-011, nobody else', () => {
+  assert.equal(copilotRemoveBlockedBy(7, COP), 'E-COP-011');
+  assert.equal(copilotRemoveBlockedBy(8, COP), null);
+  assert.equal(copilotRemoveBlockedBy(7, null), null);
+});
