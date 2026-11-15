@@ -73,7 +73,7 @@ query "workspace/{workspace_id}/timeline" verb=POST {
 
     util.get_raw_input {
       encoding = "json"
-      exclude_middleware = false
+      exclude_middleware = true
     } as $raw_input
 
     var $start_time {

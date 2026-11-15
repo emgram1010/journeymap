@@ -35,7 +35,7 @@ query "template" verb=POST {
 
     util.get_raw_input {
       encoding = "json"
-      exclude_middleware = false
+      exclude_middleware = true
     } as $raw_input
 
     var $window_days {

@@ -202,7 +202,7 @@ query "work_task/{work_task_id}/schedule" verb=POST {
 
     util.get_raw_input {
       encoding = "json"
-      exclude_middleware = false
+      exclude_middleware = true
     } as $raw_input
 
     var $caller_set_duration {

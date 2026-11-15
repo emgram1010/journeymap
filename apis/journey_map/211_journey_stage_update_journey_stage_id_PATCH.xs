@@ -25,7 +25,7 @@ query "journey_stage/update/{journey_stage_id}" verb=PATCH {
   stack {
     util.get_raw_input {
       encoding = "json"
-      exclude_middleware = false
+      exclude_middleware = true
     } as $raw_input
 
     precondition ($input.label != null && $input.label != "") {

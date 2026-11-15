@@ -35,7 +35,7 @@ query "journey_link/{journey_link_id}" verb=PATCH {
   
     util.get_raw_input {
       encoding = "json"
-      exclude_middleware = false
+      exclude_middleware = true
     } as $raw_input
   
     // Patch only fields the caller provided (excludes journey_link_id path param)

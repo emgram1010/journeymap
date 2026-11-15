@@ -32,7 +32,7 @@ query "journey_cell/update/{journey_cell_id}" verb=PATCH {
   stack {
     util.get_raw_input {
       encoding = "json"
-      exclude_middleware = false
+      exclude_middleware = true
     } as $raw_input
   
     db.get journey_cell {

@@ -62,7 +62,7 @@ query "workspace/{workspace_id}" verb=PATCH {
 
     util.get_raw_input {
       encoding = "json"
-      exclude_middleware = false
+      exclude_middleware = true
     } as $raw_input
 
     // --- Resolve every field to its post-save value -------------------

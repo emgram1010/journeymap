@@ -42,7 +42,7 @@ query "settings" verb=PATCH {
 
     util.get_raw_input {
       encoding = "json"
-      exclude_middleware = false
+      exclude_middleware = true
     } as $raw_input
 
     var $next_symbol {

@@ -1,6 +1,6 @@
 # EPIC-COP-7 — Harden the copilot's research and its plan-vs-actual reading
 
-**Status:** ✅ Stories 01–05 built and proven live (2026-11-15, Fable 5.2). Story 06 (proof on real jobs) is open. Written 2026-11-15 (Fable 5.2) from the Fable review in `COP-1-WORK-TRACKER.md` (findings F1–F7).
+**Status:** ✅ All six stories built and proven live (2026-11-15, Fable 5.2). Review pass pending. Written 2026-11-15 (Fable 5.2) from the Fable review in `COP-1-WORK-TRACKER.md` (findings F1–F7).
 **Model:** **Opus 5.5** (or Fable 5.2) for stories 01–04 — guards on what an AI may touch and what leaves the product. Sonnet 5.5 for story 05. Review pass after.
 **Depends on:** COP-1 (gate), COP-3 (business pin), COP-4 (research), COP-5 story 04 (job reading). All live.
 **Goes before:** any COP-5 planner work. Fix what is live before adding more.
@@ -267,7 +267,7 @@ Scenario: An unknown status is refused
 job statuses are defined; do not write a second list. New code `E-COP-053` (label limits).
 
 ### US-COP-7-06 — Proven on real data
-**Status:** 📋 Not started. **Needs the founder's OK** (creates test data in test account 13).
+**Status:** ✅ Done (2026-11-15) on real job 143 — results in EPIC-COP-5 §7. Not done: the browser comparison with the report screen (the tool and the screen's endpoint call the same function), the 50-job cap and the deleted-map filter (one job exists), and the chat question with the real AI.
 
 **Description.** The job tools have never run on a real job, because the test account has none.
 

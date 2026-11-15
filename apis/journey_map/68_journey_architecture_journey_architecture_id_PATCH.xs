@@ -32,7 +32,7 @@ query "journey_architecture/{journey_architecture_id}" verb=PATCH {
   
     util.get_raw_input {
       encoding = "json"
-      exclude_middleware = false
+      exclude_middleware = true
     } as $raw_input
   
     // Patch only the fields the caller provided

@@ -47,7 +47,7 @@ query "journey_lens/{journey_lens_id}" verb=PATCH {
 
     util.get_raw_input {
       encoding = "json"
-      exclude_middleware = false
+      exclude_middleware = true
     } as $raw_input
 
     function.run "journey/assert_map_owner" {

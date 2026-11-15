@@ -44,7 +44,7 @@ query "journey_stage/add/{journey_map_id}" verb=POST {
 
     util.get_raw_input {
       encoding = "json"
-      exclude_middleware = false
+      exclude_middleware = true
     } as $raw_input
 
     var $after_stage_id {

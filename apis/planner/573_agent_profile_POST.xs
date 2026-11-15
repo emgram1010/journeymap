@@ -30,7 +30,7 @@ query "agent-profile" verb=POST {
 
     util.get_raw_input {
       encoding = "json"
-      exclude_middleware = false
+      exclude_middleware = true
     } as $raw_input
 
     var $target_user_id {

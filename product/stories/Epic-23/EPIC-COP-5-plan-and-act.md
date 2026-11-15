@@ -1,6 +1,6 @@
 # EPIC-COP-5 — Plan and act: from an approved map to a plan, and from a plan to done
 
-**Status:** 🟡 Partly built (Opus 5.5, 2026-11-15) — story 04 only. Stories 01, 03, 05, 06 wait for a founder decision; 02 holds by design (no publish tool exists). See Test results.
+**Status:** 🟡 Partly built (2026-11-15) — stories 03 and 04 built and proven on a real job. Stories 01, 05, 06 not built; 02 holds by design (no publish tool exists). See Test results.
 **Model:** **Sonnet 5.5.** Opus 5.5 (or Fable 5.2) review of story 02 and anything near
 **Publish to live**.
 **Depends on:** COP-2 (levels), COP-3 (chat, read tools). Closes map 226 gaps 5 and 6.
@@ -104,7 +104,9 @@ Scenario: After I publish, it knows
 guard (identity kind), not only in the absence of a tool.
 
 ### US-COP-5-03 — Execution tools, for its own work
-**Status:** ⏸ Not built. Designed (actor from `planner/resolve_actor`, events through `log/record_task_event`, only tasks assigned to the copilot), but the test account has no jobs or tasks to prove it on, and it writes to the live activity log — not built unsupervised.
+**Status:** ✅ Built and proven on a real job (Fable 5.2, 2026-11-15): `list_my_tasks` (169), `record_my_task_event` (170). Not built: the last scenario (outside actions inside a task) — no outside action exists yet (COP-6).
+
+**Decision D-6 as built — how an AI may do work.** The copilot records work only on a task whose scheduled slot is on a **published** day and whose assignee is a plan person **linked to the copilot's own identity**; it needs the **Execution** grant like any performer; an unassigned or unscheduled task is not its task (a person may record those, the copilot may not). This still needs writing into USR-3's rule text — not done here (that document was not part of this request).
 
 **As an** owner, **I want** the copilot to do the work assigned to it and record it properly,
 **so that** its work shows up in plan vs actual like anyone's.
@@ -210,7 +212,7 @@ do not create a second "AI person".
 | Tables | A run log (one row per scheduled run, unique guard). No change to planner or execution tables |
 | Delete behaviour | The copilot never deletes a plan, a job or a record. Unschedule is allowed on draft days only |
 | Validation | The endpoint's own validation, unchanged. A tool never pre-validates differently from the server |
-| Error codes | Reuse each endpoint's codes. New: `E-COP-040` not your task · `E-COP-041` day is live — needs approval · `E-COP-042` run already in progress. Feature `COP-5` |
+| Error codes | Reuse each endpoint's codes. New: `E-COP-054` not your task (built). Still to number when built: day is live — needs approval; run already in progress. (`E-COP-040`–`042` named here originally were already taken by COP-3.) Feature `COP-5` |
 | Events | Plan drafted; day ready for review; each execution event (already logged); run started/finished/skipped/failed |
 
 ## 5. Counter-measures
@@ -248,3 +250,33 @@ do not create a second "AI person".
 
 **Gaps:** stories 01, 03, 05, 06 not built (founder decision on moving planner rules into shared functions). Variance read is unproven on real jobs.
 
+### Story 03 and the real-data proof (2026-11-15, Fable 5.2)
+
+**Test chain built through the product's own endpoints** (`tests/cop5_chain_fixture.py`, 7/7), test
+account 13, business 49: map 261 -> Publish version (version 28) -> plan 44 -> job 143 (2 tasks) ->
+two plan people (test admin; "Copilot", kind AI, linked to the copilot identity) -> a day each ->
+scheduled -> Publish to live (by the test admin) -> the person's task started and finished.
+
+**Pushed:** tools `list_my_tasks` (169), `record_my_task_event` (170); agent 40 (both tools and a
+"your own tasks" section); `E-COP-054` in `errorCatalog.json`.
+
+| Check (real job 143) | Result |
+|---|---|
+| `list_business_jobs`, copilot in business 49 / in business 48 | ✅ job 143 listed / empty |
+| `get_job_variance` 143: figures equal the report endpoint (same function); scheduled minutes appear once the day is live | ✅ |
+| `get_job_variance` 143 from a conversation about business 48 | ✅ refused |
+| `list_my_tasks` | ✅ exactly the copilot's task (866), not the person's (865) |
+| `record_my_task_event` on the person's task 865 | ✅ refused (`E-COP-054`), rejection logged |
+| Same, own task but from a conversation about another business | ✅ refused |
+| Missing task | ✅ "Not Found" |
+| Own task: started -> in progress; blocked with no reason -> the person's own refusal `E-LOG-002`; completed -> done, job completed | ✅ same rules as a person |
+| `npm test` / `tsc` | ✅ see commit |
+
+**Not proven:** skip / reopen / note; a task moved to the copilot by an assignee override; the
+Execution grant being missing; the real AI doing this in chat (tools were driven directly);
+`ops/audit_execution` was not re-run. The browser was not opened.
+
+**Test data left in the test account:** map 261, version 28, plan 44, job 143, plan people 51/52,
+days 53/54, publications; grants (planning + execution for test admin 22, execution for copilot 26)
+and the `publish_gate` switch for account 13. The USR-2 access matrices assumed user 22 held only
+the Intelligent Layer - re-check them, or remove grants 21 and 22, before relying on those results.

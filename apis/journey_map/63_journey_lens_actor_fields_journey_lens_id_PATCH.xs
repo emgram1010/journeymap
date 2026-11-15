@@ -77,7 +77,7 @@ query "journey_lens/actor_fields/{journey_lens_id}" verb=PATCH {
   
     util.get_raw_input {
       encoding = "json"
-      exclude_middleware = false
+      exclude_middleware = true
     } as $raw_input
   
     // Build patch data from only the fields present in the request body.

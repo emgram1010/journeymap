@@ -2206,5 +2206,15 @@
     "owner": "product_manager",
     "severity": "info",
     "fix_hint": "Nothing to fix: the label was not changed."
+  },
+  "E-COP-054": {
+    "code": "E-COP-054",
+    "feature": "COP-5",
+    "user_message": "That task isn't assigned to you on a published day, so you can't record work on it.",
+    "what_happened": "The copilot tried to record work on a task that is not its own.",
+    "likely_cause": "The task belongs to a person, is not scheduled, or its day has not been published to live.",
+    "owner": "product_manager",
+    "severity": "info",
+    "fix_hint": "Nothing to fix: nothing was recorded. To give the copilot the task, assign it on the plan and publish the day."
   }
 }

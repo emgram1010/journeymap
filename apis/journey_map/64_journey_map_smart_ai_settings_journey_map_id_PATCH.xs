@@ -73,7 +73,7 @@ query "journey_map/smart_ai_settings/{journey_map_id}" verb=PATCH {
   
     util.get_raw_input {
       encoding = "json"
-      exclude_middleware = false
+      exclude_middleware = true
     } as $raw_input
   
     var $merged_settings {

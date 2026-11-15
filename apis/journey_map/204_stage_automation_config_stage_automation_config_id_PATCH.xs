@@ -46,7 +46,7 @@ query "stage_automation_config/{stage_automation_config_id}" verb=PATCH {
   
     util.get_raw_input {
       encoding = "json"
-      exclude_middleware = false
+      exclude_middleware = true
     } as $raw_input
   
     // Patch only fields the caller provided; exclude the path param

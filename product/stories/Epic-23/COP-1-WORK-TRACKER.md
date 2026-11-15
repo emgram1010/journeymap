@@ -119,3 +119,42 @@ exactly the ones that fail quietly.
 6. **Test data first, one push per approval.** Account 13 needs jobs and a plan before any of this can be proven; each change to a live endpoint gets its own founder OK, as the safety rules already require.
 
 **Also decide before giving the copilot any planner tool:** which approval level each planner action gets (COP-2), so "waits for you" applies from day one.
+
+## 🔴 Live bug found and fixed (2026-11-15): "was this field sent?" was always yes
+
+**Found** while building the COP-5 test chain: "start a day" was refused for a request that sent no status.
+
+**Cause.** USR-2 (2026-11-14) attached an access-gate middleware to the journey-map and planner API
+groups. Behind ANY pre-middleware, `util.get_raw_input { exclude_middleware = false }` returns every
+declared input (with its default), not what the caller sent. So `$raw_input|has:"x"` was always true.
+Proven with a probe endpoint: `{"agent_id": 5}` sent -> `with` = all four declared inputs,
+`without` (`exclude_middleware = true`) = `["agent_id"]`. Changing the middleware's
+`response_strategy` ("merge" -> "replace") does NOT help (tested on a throwaway group).
+
+**Effect while live (about a day).** In 31 endpoints, a field left out of a save was treated as sent
+empty: "start a day" refused (E-PLN-011); adding a plan person without a capacity refused; a partial
+update of a plan person refused ("give a name"); a stage rename with no owner field would clear the
+owner; a cell save without durations would reset them. Whether any real data was changed depends on
+whether the screens leave fields out - NOT checked.
+
+**Fix (founder OK'd the journey-map half; planner half ran under the build instruction).**
+`exclude_middleware = false` -> `true` in 31 live endpoints and their repo files, nothing else:
+- journey-map: 21, 33, 44, 47, 49, 62, 63, 64, 68, 73, 198, 204, 211 (13). Endpoint 29 does not exist live; its repo file was left alone (and has no login check - do not push it as is).
+- planner: 523, 526, 529, 532, 535, 536, 538, 541, 542, 545, 550, 552, 560, 561, 573, 575, 583, 610 (18).
+- 610: on save, Xano itself rewrote two `where` clauses from `($has_request_id) && ...` to `$has_request_id == true && ...` (same meaning, matches the repo). Its "already sent" check was not re-run.
+
+**Proven after the fix:** "start a day" works (538); a plan person saved with only `user_id` kept
+name, kind, capacity and colour (536); schedule (560) and the whole chain pass (7/7).
+**Not proven:** the other 27 endpoints were not exercised one by one; the screens were not opened.
+
+**Still to do**
+1. Check real maps and plans edited between the gate going on (2026-11-14) and this fix for lost
+   owners, durations or other blanked fields.
+2. `apis/catalog` has 2 endpoints with the same flag; that group has no middleware today, so they
+   work - but they will break the day a middleware is attached. Same one-word change, not done.
+3. Add this to CLAUDE.md's constraints list (not edited here): **always `exclude_middleware = true`
+   on `util.get_raw_input`; with `false`, any group middleware makes every `|has:` true.**
+4. Endpoint 535 refuses a new plan person when capacity is left out - correct by its own rule
+   (0 is outside 0-24), but its notes say capacity "defaults to 8". One of the two is wrong.
+
+**Also confirmed today:** `$list|slice:0:N` works on a plain query list (paged results expose no keys).

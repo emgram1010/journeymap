@@ -34,7 +34,7 @@ query "workspace" verb=POST {
 
     util.get_raw_input {
       encoding = "json"
-      exclude_middleware = false
+      exclude_middleware = true
     } as $raw_input
 
     // Defaults: a two-week window starting today.

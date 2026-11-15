@@ -88,7 +88,7 @@ query "work-task/{work_task_id}/exception" verb=POST {
 
     util.get_raw_input {
       encoding = "json"
-      exclude_middleware = false
+      exclude_middleware = true
     } as $raw_input
 
     db.get work_task {
