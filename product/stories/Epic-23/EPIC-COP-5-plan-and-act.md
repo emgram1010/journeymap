@@ -152,7 +152,7 @@ Scenario: It never computes variance itself
 ```
 
 ### US-COP-5-05 — Scheduled runs, with nobody at the screen
-**Status:** ⏸ Waits for story 01.
+**Status:** ✅ Built and proven in the test account (Fable 5.2, 2026-11-15). Off by default; the owner switches it on per business on the approval-levels screen ("Work on its tasks on a schedule"). Scope as built: a run works on the copilot's **own tasks on published days** only - "when something arrives" (an incoming message waking it) is not built; nothing arrives yet (COP-6). See Test results.
 
 **As an** owner, **I want** the copilot to wake up on a schedule or when something arrives,
 **so that** the legwork happens without me opening the app.
@@ -344,3 +344,67 @@ returns bare numbers named `..._minutes`; worth either returning a ready-made ph
 telling the copilot not to restate figures in other units.
 
 **More test data:** one more plan ("COP-5 chat plan ..."), with a job, a person and a draft day.
+
+### Story 05 — scheduled runs (2026-11-15, Fable 5.2)
+
+**Pushed:** table `copilot_run` (155, new); functions `copilot/open_work` (352), `copilot/run_for_business` (353),
+`copilot/run_for_account` (354), `copilot/scheduled_run` (355); task `copilot_scheduled_run` (21, hourly, active);
+endpoint `GET copilot/runs` (655, journey-map group). **Changed (additive):** `copilot/action_types` (328) gained one
+type, `scheduled_work` (default "Waits for you" = off, not locked). `E-COP-056`, `E-COP-057` in the catalog.
+UI: "Scheduled runs" in the copilot panel (`copilotRunModel.ts` + 5 unit tests).
+
+**How it works**
+- **Off by default.** It is one more line on the approval-levels screen, per business. "Waits for you" = the copilot
+  only works when you ask in chat. "Runs, then tells you" or "Runs on its own" = it also works every hour. (Both mean
+  the same here: every run leaves a report either way.)
+- Every hour, for each switched-on business: find the copilot's open tasks (not started / in progress) on a
+  **published** day today. None -> a "nothing to do" row. Same tasks and statuses as when the last run ended -> a
+  "nothing to do" row, **no AI call** (cost guard). Otherwise the copilot runs AS ITSELF with a 15-minute ticket
+  pinned to that business - the same gate, approval levels and business pin as in chat - and the ticket is ended
+  and scrubbed from the report.
+- **Two runs never overlap:** a unique index on `lock_key` (not a transaction). The second run is recorded as skipped.
+- **A dead run cannot block a business:** a run still "running" after 30 minutes is marked failed by the next tick.
+- **Never silent:** every tick writes a `COP-5 run_tick` event; every switched-on business gets a row every tick.
+- **Counts come from the records** (approvals stored, tool calls refused), not from the copilot's words.
+- Decision made here, not in the spec: the on/off switch is an approval level, not an account flag. The flag table's
+  key is a fixed list, so a flag would have needed a change to an existing table.
+
+| Check (test account 13, business 49; engine driven with the function runner) | Result |
+|---|---|
+| Switched off (the default): a tick writes no row, one tick event | ✅ |
+| Switched on, no open task | ✅ one "nothing to do" row |
+| Switched on, one open task: a real run with the real AI (33 s) | ✅ row "finished", report under Did / Held / Failed, ticket expired, started + finished events |
+| A run starts while another is "running" | ✅ row "skipped" (`E-COP-056`), no AI call; the refused insert used up row id 4 (the index refused it) |
+| A run "running" for 40 minutes | ✅ next tick marked it failed (`E-COP-057`), failure event written (Health reads these), lock released, the business ran again |
+| Open tasks unchanged since the last run ended | ✅ "nothing to do - nothing has changed", 1.9 s, no AI call |
+| Copilot switched off in Manage users | ✅ one "skipped" row, nothing run (switched back on afterwards) |
+| Row count: 6 switched-on ticks -> 6 rows; 7 ticks -> 7 tick events | ✅ |
+| Screen side over HTTP (`tests/cop5_runs_probe.py`): the level appears, an admin switches it off and on, the run log follows, no ticket or lock key in it, another business sees none of it, another account 404, signed out refused | ✅ 13 of 13 |
+| The panel in the browser: "Scheduled runs" lists the runs, Details shows the report | ✅ (read from the page; the pane was hidden, so no screenshot) |
+| `npm test` 820 of 820, `tsc` clean | ✅ |
+
+**Found and fixed while testing**
+- The first real run **marked a task done that it could not have done** ("Deliver the order" - it made no tool call
+  for it). The run instruction now says: only work that happens inside Emgram; anything outside is blocked with a
+  note for a person; never complete a task you made no tool calls for. Re-run on the same task: it blocked it with
+  "physical delivery must be done by a person". This is the AI following an instruction - one re-test, not a guarantee.
+  The same weakness exists in chat ("Your own tasks" in the agent prompt is softer). Not changed there.
+- Two guard tests caught real gaps before commit: the new codes were missing from the catalog, and the three
+  `E-COP-057` messages differed (one code, one message - now identical).
+
+**Not proven**
+- "A run never takes a yes from what it reads": holds by construction (levels are decided by the gate from the
+  action type, never from text) plus the run instruction. No injected "pre-approved" text was tried.
+- A run that actually **holds** an action: no tool with an approval level above "own" was reached, so
+  `held_count` / `told_count` / `refused_count` have only been seen as 0.
+- The hourly task firing by itself (it was created at the end; the engine was driven by hand). Check the run log
+  after the next hour.
+- Two truly simultaneous ticks (the lock was tested with a pre-inserted running row, the same index path).
+- `workflow_tests/` and Playwright were not run (no tool can run workflow tests from a session).
+
+**Left as is, on purpose**
+- A switched-on business gets 24 rows a day even when idle. No pruning task yet.
+- If the copilot leaves a task in progress and nothing else changes, later runs do nothing until the next day or
+  until a task changes. That stops a stuck task burning an AI call every hour.
+- Test account: scheduled work is ON for business 49 (level "tell"); scratch function `scratch/cop5_run_probe` (356)
+  still exists for the hourly check.

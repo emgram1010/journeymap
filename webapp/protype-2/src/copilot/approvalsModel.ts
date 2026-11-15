@@ -86,6 +86,7 @@ export const ACTION_TYPE_LABELS: Record<string, string> = {
   customer_message: 'Send a message to a customer',
   booking_change: 'Create or change a booking',
   money_payment: 'Charge, pay or refund money',
+  scheduled_work: 'Work on its tasks on a schedule, with nobody at the screen',
 };
 
 export const actionTypeLabel = (key: string | null | undefined): string =>

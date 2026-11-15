@@ -7,6 +7,8 @@ import {
   getCopilotConversationMessages,
   getCopilotHome,
   getCopilotMemory,
+  getCopilotRuns,
+  type XanoCopilotRuns,
   removeCopilotNote,
   saveCopilotNote,
   setCopilotGoalStatus,
@@ -26,6 +28,7 @@ import {
   writeLastBusiness,
 } from './copilotChatModel';
 import {NOTE_MAX, goalStatusLabel, noteProblem} from './copilotMemoryModel';
+import {runCountsLine, runStatusLabel, runTone, runWhen, runsHeadline} from './copilotRunModel';
 
 /**
  * COP-3 — the copilot's chat panel. Opens beside the current page; one business at a time.
@@ -208,6 +211,72 @@ function MemorySection({businessId, isAdmin}: {businessId: number; isAdmin: bool
   );
 }
 
+/** COP-5 story 05 — what the copilot did on its own, on a schedule: one line per run, report on demand. */
+function RunsSection({businessId}: {businessId: number}) {
+  const [data, setData] = useState<XanoCopilotRuns | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [openId, setOpenId] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    setData(null);
+    setErr(null);
+    getCopilotRuns(businessId)
+      .then((d) => {
+        if (alive) setData(d);
+      })
+      .catch((e) => {
+        if (alive) setErr(e instanceof XanoHttpError ? e.message : "We couldn't load the scheduled runs. Try again.");
+      });
+    return () => {
+      alive = false;
+    };
+  }, [businessId]);
+
+  const toneClass = (status: string) => {
+    const t = runTone(status);
+    return t === 'bad' ? 'bg-red-100 text-red-800' : t === 'quiet' ? 'bg-zinc-100 text-zinc-600' : 'bg-emerald-100 text-emerald-800';
+  };
+
+  return (
+    <div className="px-4 py-2 border-b border-zinc-100 text-sm space-y-2 max-h-64 overflow-y-auto" data-testid="copilot-runs">
+      {err && <p role="alert" className="text-red-700">{err}</p>}
+      {!data && !err && <p className="text-zinc-500">Loading…</p>}
+      {data && (
+        <>
+          <p className="text-zinc-600">{runsHeadline(data.scheduled_work_on, data.runs.length)}</p>
+          <ul className="space-y-1">
+            {data.runs.map((r) => {
+              const counts = runCountsLine(r);
+              const detail = r.report || r.reason || '';
+              return (
+                <li key={r.id} className="rounded border border-zinc-200 px-2 py-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full text-xs px-2 py-0.5 ${toneClass(r.status)}`}>{runStatusLabel(r.status)}</span>
+                    <span className="text-xs text-zinc-500">{runWhen(r.started_at)}</span>
+                    {counts && <span className="text-xs text-zinc-700">{counts}</span>}
+                    {detail && (
+                      <button
+                        type="button"
+                        className="text-xs text-indigo-700 hover:underline ml-auto"
+                        aria-expanded={openId === r.id}
+                        onClick={() => setOpenId((v) => (v === r.id ? 0 : r.id))}
+                      >
+                        {openId === r.id ? 'Hide' : 'Details'}
+                      </button>
+                    )}
+                  </div>
+                  {openId === r.id && detail && <p className="mt-1 whitespace-pre-wrap text-zinc-800">{detail}</p>}
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function CopilotPanel({open, onClose, userId, isAdmin}: Props) {
   const {pathname, search} = useLocation();
   const [home, setHome] = useState<XanoCopilotHome | null>(null);
@@ -223,6 +292,7 @@ export default function CopilotPanel({open, onClose, userId, isAdmin}: Props) {
   const [settingUp, setSettingUp] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [showKnows, setShowKnows] = useState(false);
+  const [showRuns, setShowRuns] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const switchSeq = useRef(0);
 
@@ -441,9 +511,18 @@ export default function CopilotPanel({open, onClose, userId, isAdmin}: Props) {
               >
                 {showKnows ? 'Hide what the copilot knows' : 'What the copilot knows'}
               </button>
+              <button
+                type="button"
+                onClick={() => setShowRuns((v) => !v)}
+                aria-expanded={showRuns}
+                className="text-indigo-700 hover:underline ml-4"
+              >
+                {showRuns ? 'Hide scheduled runs' : 'Scheduled runs'}
+              </button>
             </div>
           )}
           {showKnows && businessId != null && <MemorySection key={businessId} businessId={businessId} isAdmin={isAdmin} />}
+          {showRuns && businessId != null && <RunsSection key={`runs-${businessId}`} businessId={businessId} />}
 
           {home && home.has_copilot && !home.has_home && isAdmin && (
             <div className="px-4 py-2 border-b border-zinc-100 text-sm">

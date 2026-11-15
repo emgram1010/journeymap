@@ -2293,5 +2293,29 @@ export const removeCopilotNote = (noteId: number) =>
 export const setCopilotGoalStatus = (goalId: number, status: 'confirmed' | 'done' | 'dropped') =>
   xanoRequest<{goal_id: number; status: string}>('/copilot/goal_status', {method: 'POST', body: {goal_id: goalId, status}});
 
+/* ── COP-5 story 05: the copilot's scheduled runs for one business ── */
+export interface XanoCopilotRuns {
+  journey_architecture_id: number;
+  scheduled_work_on: boolean;
+  runs: {
+    id: number;
+    journey_architecture_id?: number;
+    trigger?: string;
+    status: string;
+    started_at?: number | null;
+    finished_at?: number | null;
+    work_date?: string;
+    open_task_count?: number;
+    held_count?: number;
+    told_count?: number;
+    refused_count?: number;
+    report?: string;
+    reason?: string;
+  }[];
+}
+
+export const getCopilotRuns = (journeyArchitectureId: number): Promise<XanoCopilotRuns> =>
+  xanoRequest(`/copilot/runs?journey_architecture_id=${journeyArchitectureId}`);
+
 export const setCopilotMapLabel = (body: {journey_map_id: number; kind: string; tested: boolean}) =>
   xanoRequest<{journey_map_id: number; kind: string; tested: boolean}>('/copilot/map_label_set', {method: 'POST', body});

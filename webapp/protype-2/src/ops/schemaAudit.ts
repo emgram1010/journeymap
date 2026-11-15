@@ -108,6 +108,10 @@ export const TABLE_MANIFEST: Record<string, TableExpectation> = {
   copilot_action: {enumFields: ['status']},
   copilot_action_claim: {naturalKeys: [['copilot_action_id', 'kind']], enumFields: ['kind'], appendOnly: true},
   copilot_json_canon: {appendOnly: true},
+  // COP-5 story 05: one row per scheduled run. Written when the run starts and closed ONCE when
+  // it ends (`finished_at` is that moment), never edited after - so no `updated_at`, like a ticket.
+  // The unique `lock_key` is the 'two runs never overlap' guard.
+  copilot_run: {naturalKeys: [['lock_key']], enumFields: ['trigger', 'status'], appendOnly: true},
   // COP-3: written once; the business of a conversation never changes.
   copilot_home: {naturalKeys: [['account_id'], ['journey_architecture_id']], appendOnly: true},
   copilot_conversation: {naturalKeys: [['agent_conversation_id']], appendOnly: true},

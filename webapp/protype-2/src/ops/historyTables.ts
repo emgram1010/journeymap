@@ -65,6 +65,10 @@ export const HISTORY_TABLES: HistoryTable[] = [
     why: 'The once-only record that a copilot action was decided and run. It is what stops a double click acting twice.',
   },
   {
+    table: 'copilot_run',
+    why: "What the copilot did on its own, on a schedule, with nobody at the screen: each run's report, what it held for the owner and what failed. Delete it and nobody can say what the copilot did overnight.",
+  },
+  {
     table: 'event_log',
     why: 'The ops record behind the Health page. Support uses it to explain failures after the fact.',
   },

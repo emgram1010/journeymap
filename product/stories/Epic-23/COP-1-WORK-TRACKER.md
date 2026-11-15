@@ -176,10 +176,6 @@ name, kind, capacity and colour (536); schedule (560) and the whole chain pass (
 5. Test-account grants changed (user 22: planning + execution; copilot 26: planning + execution; `publish_gate` on for account 13) - keep, or remove before re-running the USR-2 matrices.
 6. The older open items above (chats shared or private, endpoint 69, long turns, research time estimates).
 
+## COP-5 story 05 done (2026-11-15)
 
-## Paused here (2026-11-15) - COP-5 story 05, scheduled runs
-
-- **Live:** table `copilot_run` (155), empty. Unique index on `lock_key` is the "two runs never overlap" guard. Nothing reads or writes it yet.
-- **Designed, not written:** `copilot/open_work`, `copilot/run_for_business`, `copilot/run_for_account`, `copilot/scheduled_run`, an hourly task, `GET copilot/runs`, a small list in the copilot panel, codes `E-COP-056` (skipped, previous run still going) and `E-COP-057` (run failed).
-- **Design decisions:** off by default per account (flag `copilot_scheduled_runs`, read by `ops/feature_enabled`); the AI is only called when the copilot has open tasks on a published day today AND they changed since the last run ended; a run stuck over 30 minutes is marked failed by the next tick; counts (held / told / refused) come from the records, not the copilot's words; per-account and per-business logic live in their own functions so no `conditional` sits inside a `foreach`.
-- **Resume with:** write the four functions (use the Write tool, not a heredoc - an apostrophe broke it), push, smoke-test in account 13, then the task, endpoint and UI.
+Scheduled runs are built and proven; details in EPIC-COP-5 section 7. Decision for the founder: the on/off switch is an approval level per business (off by default), not an account flag. Follow-ups: prune old run rows; tighten the chat prompt the same way the run instruction was tightened (never complete a task with no tool calls).

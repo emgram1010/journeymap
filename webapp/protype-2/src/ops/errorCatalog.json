@@ -2226,5 +2226,25 @@
     "owner": "product_manager",
     "severity": "info",
     "fix_hint": "Nothing to fix: the live day was not changed. Make the change yourself on the board if you want it."
+  },
+  "E-COP-056": {
+    "code": "E-COP-056",
+    "feature": "COP-5",
+    "user_message": "The previous run for this business is still going, so this one was skipped.",
+    "what_happened": "A scheduled copilot run started while the one before it had not finished.",
+    "likely_cause": "The earlier run is taking longer than an hour, or a run was started by hand at the same time.",
+    "owner": "product_manager",
+    "severity": "info",
+    "fix_hint": "Nothing to fix: the copilot did not do the same work twice. If runs keep being skipped, look at the run that is still going - after 30 minutes it is marked as failed."
+  },
+  "E-COP-057": {
+    "code": "E-COP-057",
+    "feature": "COP-5",
+    "user_message": "The copilot did not finish its scheduled run. Anything it did before stopping is in the activity log.",
+    "what_happened": "A scheduled copilot run could not start, stopped without an answer, or did not finish within 30 minutes.",
+    "likely_cause": "The AI service did not answer or took too long, or the run ran out of steps.",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "Open the run under Scheduled runs in the copilot panel to see what it held and did. The next hourly run tries again. If it keeps failing, check the AI service key and the copilot's daily cap."
   }
 }
