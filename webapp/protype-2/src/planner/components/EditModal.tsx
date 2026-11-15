@@ -24,6 +24,8 @@ import { listTeamMembers, type TeamMember } from '../plannerApi';
 import { startOverrideChange } from '../startOverrideModel';
 import type { TimeWindow } from '../timeWindowModel';
 import { TimeWindowChip } from './TimeWindowChip';
+import { agentUserIdToSave } from '../aiAgentModel';
+import { useAccountCopilot } from '../useAccountCopilot';
 
 interface EditModalProps {
   isOpen: boolean;
@@ -123,6 +125,9 @@ export function EditModal({
   // planner reads account members, same reasoning as the map picker in
   // WorkspaceSettingsModal.
   const [agentUserId, setAgentUserId] = useState<string>('');
+  // COP-5 story 06 - an AI column is either THE account copilot (its login) or nothing.
+  const [linkCopilot, setLinkCopilot] = useState(false);
+  const copilot = useAccountCopilot();
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [teamError, setTeamError] = useState(false);
   const [confirmRemoveAgent, setConfirmRemoveAgent] = useState(false);
@@ -164,6 +169,8 @@ export function EditModal({
         setAgentCapacity(entity.agent.dailyCapacityHours || 8);
         setAgentModelId(entity.agent.modelId || '');
         setAgentUserId(entity.agent.userId || '');
+        // An AI column with a login behind it can only be the copilot link.
+        setLinkCopilot(entity.agent.kind === 'ai' && !!entity.agent.userId);
         setConfirmRemoveAgent(false);
       } else {
         setAgentName('');
@@ -172,6 +179,7 @@ export function EditModal({
         setAgentCapacity(8);
         setAgentModelId('');
         setAgentUserId('');
+        setLinkCopilot(false);
       }
     }
   }, [entity]);
@@ -410,8 +418,9 @@ export function EditModal({
         color: agentColor,
         dailyCapacityHours: agentCapacity,
         modelId: agentKind === 'ai' ? (agentModelId || undefined) : undefined,
-        // An AI agent has no login to perform as, by definition.
-        userId: agentKind === 'person' ? agentUserId : '',
+        // A person performs as the login picked for them. An AI column performs as the account
+        // copilot when ticked, and as nobody otherwise (aiAgentModel holds the rule).
+        userId: String(agentUserIdToSave(agentKind, agentUserId, linkCopilot, copilot) || ''),
       });
       setIsSaving(false);
       if (result !== false) onClose();
@@ -794,7 +803,7 @@ export function EditModal({
                     className="w-full text-xs px-3 py-2 border border-neutral-200 rounded-md focus:outline-none focus:border-neutral-900 bg-white"
                   >
                     <option value="">Choose someone…</option>
-                    {teamMembers.map((m) => (
+                    {teamMembers.filter((m) => !copilot || !copilot.has_copilot || m.id !== copilot.user_id).map((m) => (
                       <option key={m.id} value={String(m.id)}>
                         {m.name} ({m.email})
                       </option>
@@ -814,6 +823,41 @@ export function EditModal({
                   <p id="agent-no-login-warning" className="text-[11px] text-amber-700 mt-1 flex items-start gap-1">
                     <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
                     Their name and their day in Execution both come from this.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* COP-5 story 06 - link this AI column to the account copilot, so work put on it is
+                work the copilot can see and do. One copilot per account; no second 'AI person'. */}
+            {agentKind === 'ai' && (
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1">Who does this work?</label>
+                {copilot && copilot.has_copilot ? (
+                  <>
+                    <label className="flex items-start gap-2 text-xs text-neutral-800">
+                      <input
+                        id="agent-link-copilot"
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={linkCopilot}
+                        onChange={(e) => { setLinkCopilot(e.target.checked); setHasChanges(true); }}
+                      />
+                      <span>The account copilot ({copilot.name || 'Copilot'}) - it sees this column's work and can do it</span>
+                    </label>
+                    {linkCopilot && !copilot.is_active && (
+                      <p id="agent-copilot-off-warning" className="text-[11px] text-amber-700 mt-1 flex items-start gap-1">
+                        <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+                        The copilot is switched off. It can't be given new work until an admin switches it on in Manage users.
+                      </p>
+                    )}
+                    {!linkCopilot && (
+                      <p className="text-[11px] text-neutral-500 mt-1">Not linked: you can plan on this column, but nothing does the work.</p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-[11px] text-neutral-500">
+                    {copilot ? "This account has no copilot yet. An admin can create one in Manage users." : "Couldn't check the account's copilot. You can still save."}
                   </p>
                 )}
               </div>

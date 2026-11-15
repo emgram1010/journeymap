@@ -20,6 +20,7 @@ import { AgentsPopover } from './AgentsPopover';
 import { cellPreview } from '../boardModel';
 import type { TimeWindow } from '../timeWindowModel';
 import { TimeWindowChip } from './TimeWindowChip';
+import AgentKindMark from './AgentKindMark';
 
 interface ScheduleGridProps {
   workspace: Workspace | null;
@@ -427,21 +428,7 @@ export function ScheduleGrid({
                         </span>
 
                         {/* Marker Shape (§8) */}
-                        {agent.kind === 'ai' ? (
-                          <span 
-                            className="text-[10px] text-purple-700 font-bold shrink-0"
-                            title="AI Agent"
-                          >
-                            ◆
-                          </span>
-                        ) : (
-                          <span 
-                            className="text-[9px] text-neutral-400 font-bold shrink-0"
-                            title="Person"
-                          >
-                            ●
-                          </span>
-                        )}
+                        <AgentKindMark agent={agent} />
                       </div>
 
                       <span className="text-[10px] font-mono text-neutral-400 shrink-0">

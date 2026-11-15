@@ -30,6 +30,7 @@ import { calculateAgentDayLoad } from '../utils/agentUtils';
 import { getTimelineReadiness } from '../utils/planningLogic';
 import { PlanCanvas } from './PlanCanvas';
 import { AgentsPopover } from './AgentsPopover';
+import AgentKindMark from './AgentKindMark';
 
 interface DayBoardProps {
   workspace: Workspace | null;
@@ -652,15 +653,7 @@ export function DayBoard({
                       <span className="text-xs font-bold text-neutral-900 truncate group-hover:text-neutral-700">
                         {agent.name}
                       </span>
-                      {agent.kind === 'ai' ? (
-                        <span className="text-[10px] text-purple-700 font-bold shrink-0">
-                          ◆
-                        </span>
-                      ) : (
-                        <span className="text-[9px] text-neutral-400 font-bold shrink-0">
-                          ●
-                        </span>
-                      )}
+                      <AgentKindMark agent={agent} />
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0">

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Users, Search, Eye, EyeOff, Pencil, Plus, AlertTriangle } from 'lucide-react';
 import { Agent } from '../types';
+import AgentKindMark from './AgentKindMark';
 
 interface AgentsPopoverProps {
   agents: Agent[];
@@ -120,11 +121,7 @@ export function AgentsPopover({
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="w-2.5 h-2.5 rounded-xs shrink-0" style={{ backgroundColor: agent.color }} />
                     <span className="truncate text-neutral-800 font-medium">{agent.name}</span>
-                    {agent.kind === 'ai' ? (
-                      <span className="text-[9px] text-purple-700 font-bold shrink-0">◆</span>
-                    ) : (
-                      <span className="text-[9px] text-neutral-400 font-bold shrink-0">●</span>
-                    )}
+                    <AgentKindMark agent={agent} />
                     {agent.kind === 'person' && !agent.userId && (
                       <span
                         className="shrink-0 text-amber-600"

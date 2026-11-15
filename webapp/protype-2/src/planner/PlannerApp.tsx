@@ -38,6 +38,8 @@ import { EditModal, ModalEntity } from './components/EditModal';
 import { ComponentSheetModal } from './components/ComponentSheetModal';
 import { getTimelineReadiness, formatMinutesToTime, parseTimeToMinutes } from './utils/planningLogic';
 import { formatShortDate, generateDaysList, getDaysDifference } from './utils/dateUtils';
+import { COPILOT_OFF_MESSAGE, isSwitchedOffCopilot } from './aiAgentModel';
+import { useAccountCopilot } from './useAccountCopilot';
 
 export default function PlannerApp() {
   const [dataLoaded, setDataLoaded] = useState(false);
@@ -104,6 +106,19 @@ export default function PlannerApp() {
   // duplicating that math client-side would just be a second place for
   // it to drift out of sync.
   const [actionError, setActionError] = useState<string | null>(null);
+  // COP-5 story 06 - a switched-off copilot is not given new work. The check is on the COLUMN
+  // the work would land on; unknown (still loading / failed to load) never blocks.
+  const accountCopilot = useAccountCopilot();
+  const refuseCopilotOff = (agentId: string | undefined): boolean => {
+    const agent = agentId ? agents.find(a => a.id === agentId) : undefined;
+    if (!agent || !isSwitchedOffCopilot(agent, accountCopilot)) return false;
+    setActionError(COPILOT_OFF_MESSAGE);
+    setTimeout(() => setActionError(null), 6000);
+    return true;
+  };
+  const refuseCopilotOffTimeline = (timelineId: string | undefined): boolean =>
+    refuseCopilotOff(timelineId ? timelines.find(t => t.id === timelineId)?.agentId : undefined);
+
   const reportActionError = (err: unknown) => {
     setActionError(err instanceof Error ? err.message : 'Something went wrong — please try again.');
     setTimeout(() => setActionError(null), 6000);
@@ -459,7 +474,9 @@ export default function PlannerApp() {
   ): Promise<boolean> => {
     // '' / undefined means "no login" — 0 is the backend's own sentinel
     // for that, and sending it explicitly is how a link gets CLEARED.
-    const nextUserId = updates.kind === 'person' && updates.userId ? Number(updates.userId) : 0;
+    // COP-5 story 06: the dialog already resolved WHO (a person's login, or the account copilot
+    // for an AI column) through aiAgentModel.agentUserIdToSave - one rule, not two.
+    const nextUserId = updates.userId ? Number(updates.userId) : 0;
     try {
       if (agentId) {
         await updateAgent(Number(agentId), {
@@ -755,7 +772,9 @@ export default function PlannerApp() {
     assignee?: string
   ) => {
     if (!activeWorkspaceId || !timelineId) return;
+    if (refuseCopilotOffTimeline(timelineId)) return;
     const agentOverride = assignee ? agentsInActiveWs.find(a => a.name === assignee) : undefined;
+    if (agentOverride && refuseCopilotOff(agentOverride.id)) return;
     createTask(Number(activeWorkspaceId), {
       title,
       duration_minutes: duration,
@@ -780,6 +799,7 @@ export default function PlannerApp() {
     targetTimelineId: string,
     targetIndex: number
   ) => {
+    if (refuseCopilotOffTimeline(targetTimelineId)) return;
     placeTask(Number(taskId), { timeline_id: Number(targetTimelineId), index: targetIndex })
       .then(() => refreshBoard())
       .catch(reportActionError);
@@ -790,6 +810,7 @@ export default function PlannerApp() {
   // that agent already has a day started, it just returns it.
   const handleMoveTaskToAgentDay = (taskId: string, agentId: string, day: string) => {
     if (!activeWorkspaceId) return;
+    if (refuseCopilotOff(agentId)) return;
     createTimeline(Number(activeWorkspaceId), Number(agentId), day)
       .then(({ timeline }) => placeTask(Number(taskId), { timeline_id: timeline.id }))
       .then(() => refreshBoard())
@@ -805,6 +826,7 @@ export default function PlannerApp() {
   ) => {
     const tlId = targetTimelineId || activeTimelineId;
     if (!tlId) return;
+    if (refuseCopilotOffTimeline(tlId)) return;
     placeTask(Number(taskId), { timeline_id: Number(tlId), ...(targetIndex !== undefined ? { index: targetIndex } : {}) })
       .then(() => refreshBoard())
       .catch(reportActionError);
@@ -823,6 +845,7 @@ export default function PlannerApp() {
     if (!activeWorkspaceId) return;
     const agent = agents.find(a => a.id === agentId);
     if (!agent) return;
+    if (refuseCopilotOff(agentId)) return;
     createTimeline(Number(activeWorkspaceId), Number(agentId), day)
       .then(({ timeline }) =>
         placeTask(Number(taskId), { timeline_id: timeline.id, ...(targetIndex !== undefined ? { index: targetIndex } : {}) })
@@ -845,6 +868,7 @@ export default function PlannerApp() {
   // opinion about how a day gets opened.
   const handleEnsureTimeline = async (agentId: string, date: string): Promise<string | null> => {
     if (!activeWorkspaceId) return null;
+    if (refuseCopilotOff(agentId)) return null;
     try {
       const { timeline } = await createTimeline(Number(activeWorkspaceId), Number(agentId), date);
       return String(timeline.id);
@@ -932,6 +956,7 @@ export default function PlannerApp() {
   const handleDropJobCard = (payload: {workItemId: number; lensKey: string}, timelineId: string) => {
     const minutes = dragJob?.workItemId === payload.workItemId ? dragJob.minutes : 0;
     setDragJob(null);
+    if (refuseCopilotOffTimeline(timelineId)) return;
     const tl = timelines.find(t => t.id === timelineId);
     void (async () => {
       if (tl && !(await confirmIfOverload(tl.agentId, tl.plannedDate, minutes))) return;
@@ -944,6 +969,7 @@ export default function PlannerApp() {
   const handleDropJobCardOnNewDay = (payload: {workItemId: number; lensKey: string}, agentId: string) => {
     const minutes = dragJob?.workItemId === payload.workItemId ? dragJob.minutes : 0;
     setDragJob(null);
+    if (refuseCopilotOff(agentId)) return;
     void (async () => {
       if (!(await confirmIfOverload(agentId, activeDay, minutes))) return;
       const timelineId = await handleEnsureTimeline(agentId, activeDay);
@@ -953,6 +979,7 @@ export default function PlannerApp() {
 
   // The click path (US-02's "Place…"), with the card's own who/day picks.
   const handlePlaceJobCard = async (card: BacklogCard, agentId: string, day: string): Promise<boolean> => {
+    if (refuseCopilotOff(agentId)) return false;
     if (!(await confirmIfOverload(agentId, day, card.expected_minutes ?? 0))) return false;
     const timelineId = await handleEnsureTimeline(agentId, day);
     if (!timelineId) return false;
@@ -1038,6 +1065,7 @@ export default function PlannerApp() {
   // existing day rather than erroring).
   const handleStartTimelineForAgentDay = (agentId: string, day: string) => {
     if (!activeWorkspaceId) return;
+    if (refuseCopilotOff(agentId)) return;
     createTimeline(Number(activeWorkspaceId), Number(agentId), day)
       .then(({ timeline }) => {
         setActiveTimelineId(String(timeline.id));
@@ -1053,6 +1081,7 @@ export default function PlannerApp() {
   // already has a timeline on that date — ONE AGENT, ONE TIMELINE, PER
   // DAY (§4) — so no client-side pre-check is needed to stay honest.
   const handleMoveTimelineCell = (timelineId: string, targetAgentId: string, targetDate: string) => {
+    if (refuseCopilotOff(targetAgentId)) return;
     updateTimeline(Number(timelineId), { agent_id: Number(targetAgentId), planned_date: targetDate })
       .then(() => refreshBoard())
       .catch(reportActionError);
@@ -1067,6 +1096,7 @@ export default function PlannerApp() {
   // timeline for that agent/day, then places the task into it. (§4)
   const handleDropTaskOnEmptyCell = (taskId: string, agentId: string, date: string) => {
     if (!activeWorkspaceId) return;
+    if (refuseCopilotOff(agentId)) return;
     createTimeline(Number(activeWorkspaceId), Number(agentId), date)
       .then(({ timeline }) => {
         setActiveTimelineId(String(timeline.id));

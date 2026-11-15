@@ -21,6 +21,7 @@ import {
 import { Task, Timeline, Agent, Workspace, AppSettings, Throughput } from '../types';
 import { getWindowBounds, getWindowDays, formatShortDate, isDateOutOfWindow } from '../utils/dateUtils';
 import { calculateWorkspaceCapacitySummary, calculateAgentDayLoad } from '../utils/agentUtils';
+import { splitCapacity } from '../aiAgentModel';
 import { calculateWorkspaceCostSummary, formatMoney } from '../utils/costUtils';
 import { listBacklogWork, getWorkItem, type BacklogCard, type BacklogCardStep } from '../plannerApi';
 import { cardStepsFromJobTasks } from '../backlogCardSteps';
@@ -489,6 +490,8 @@ export function BacklogDrawer({
   const capacitySummary = showCapacityPanel
     ? calculateWorkspaceCapacitySummary(agents, visibleDates, timelinesInWorkspace, tasks)
     : null;
+  // COP-5 story 06 - AI capacity is its own: never added to people's hours.
+  const capacityParts = capacitySummary ? splitCapacity(capacitySummary.perAgent) : null;
   const costSummary = showCapacityPanel
     ? calculateWorkspaceCostSummary(agents, visibleDates, timelinesInWorkspace, tasks, settings, throughput)
     : null;
@@ -1096,8 +1099,11 @@ export function BacklogDrawer({
               </div>
               <div className="px-2.5 py-1.5 bg-white border border-neutral-200 rounded-md">
                 <div className="text-[10px] text-neutral-500 leading-tight">Open capacity</div>
-                <div className="text-sm font-semibold text-neutral-900 leading-snug">{capacitySummary.openCapacityHours}h</div>
-                <div className="text-[10px] text-neutral-400 leading-tight">of {capacitySummary.totalCapacityHours}h</div>
+                <div className="text-sm font-semibold text-neutral-900 leading-snug" data-testid="people-open-capacity">{capacityParts ? capacityParts.people.openHours : capacitySummary.openCapacityHours}h</div>
+                <div className="text-[10px] text-neutral-400 leading-tight">of {capacityParts ? capacityParts.people.capacityHours : capacitySummary.totalCapacityHours}h, people</div>
+                {capacityParts && capacityParts.ai.count > 0 && (
+                  <div className="text-[10px] text-purple-700 leading-tight" data-testid="ai-open-capacity">AI: {capacityParts.ai.openHours}h of {capacityParts.ai.capacityHours}h</div>
+                )}
               </div>
               <div className="px-2.5 py-1.5 bg-white border border-neutral-200 rounded-md">
                 <div className="text-[10px] text-neutral-500 leading-tight">Unplanned</div>

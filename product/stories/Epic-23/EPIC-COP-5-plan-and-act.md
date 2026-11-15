@@ -185,7 +185,7 @@ runs and writes nothing looks healthy — each run writes a row even when it doe
 test compares row counts.
 
 ### US-COP-5-06 — The copilot as someone on the plan
-**Status:** ⏸ Waits for story 01.
+**Status:** 🟡 Built in the planner screen (Fable 5.2, 2026-11-15); the "not assignable when switched off" rule is in the **screen only** - the planner endpoints do not refuse it (they were not changed). See Test results.
 
 ```gherkin
 Scenario: It can be assigned work
@@ -408,3 +408,42 @@ UI: "Scheduled runs" in the copilot panel (`copilotRunModel.ts` + 5 unit tests).
   until a task changes. That stops a stuck task burning an AI call every hour.
 - Test account: scheduled work is ON for business 49 (level "tell"); scratch function `scratch/cop5_run_probe` (356)
   still exists for the hourly check.
+
+### Story 06 — the copilot as a column on the plan (2026-11-15, Fable 5.2)
+
+**No backend change.** The pieces already existed: a plan column has a kind (person / AI) and a login; the
+copilot's tasks are found by that login (`perform/resolve_agents`). What was missing was in the screen.
+
+**Built (`webapp/protype-2/src/planner`)**
+- `aiAgentModel.ts` (+ 11 unit tests) - the rules: a column linked to the copilot's login IS the copilot;
+  switched off = not given new work; unknown never blocks; an AI column is the copilot or nobody, never a
+  person's login; people's hours and AI hours are added up apart.
+- `useAccountCopilot.ts` - who the account's copilot is and whether it is on (the existing `account/copilot`).
+- `AgentKindMark.tsx` - "◆ AI" after the name on the day board, the schedule grid and the agents list, plus a
+  "Switched off" warning on the copilot's column.
+- Edit dialog: an AI column gets "Who does this work? - The account copilot". **Fixes a real bug:** saving an AI
+  column in this dialog used to clear its login, silently unlinking the copilot from its column.
+  The copilot's login is no longer offered in the person picker.
+- `PlannerApp.tsx`: 12 handlers that put work on a column refuse a switched-off copilot with a plain message.
+- Plan Health: "Open capacity" is people's hours; AI capacity is shown on its own line.
+
+| Check | Result |
+|---|---|
+| Unit rules (11 tests), `npm test` 830 of 830, `tsc` clean | ✅ |
+| In the browser, test plan 46: an AI column linked to the copilot shows "◆ AI" | ✅ |
+| Copilot switched off -> its column shows "Switched off" with the explanation | ✅ (switched back on afterwards) |
+
+**Not proven**
+- The edit dialog's new checkbox, the 12 "refuse new work" handlers and the Plan Health line were **not clicked
+  through** in the browser (the preview pane was hidden and would not take clicks). They are type-checked and
+  the rules behind them are unit-tested; the wiring itself is unverified.
+- Playwright specs were not run.
+
+**Gaps, on purpose**
+- **Screen only.** A direct call to the planner endpoints can still put work on a switched-off copilot's column.
+  The consequence is undone work, not an action: a switched-off copilot is refused by the gate on every tool
+  call and skipped by scheduled runs. A server rule belongs with the other live-endpoint changes (founder's OK).
+- "Existing work shows a warning" is the column warning; individual task cards are not marked.
+- The older planner app (`webapp/planningFrontendv2`) was not touched.
+
+**Test data added:** plan person 55 ("Copilot column (probe)", AI, linked to copilot 26) on plan 46.
