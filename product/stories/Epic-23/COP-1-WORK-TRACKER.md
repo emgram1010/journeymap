@@ -26,8 +26,13 @@ Rule: two tracks never touch the same files. Backend gate/tool files belong to t
 | 7 | Health refusal-log limit is global, not per account | Low | not yet | — |
 | 8 | Endpoint 209 has no owner check (pre-existing) | Low | owner check on target map and parent run | ✅ |
 
-## Waiting on the founder
-- Nothing right now.
+## Waiting on the founder (after the overnight build, 2026-11-15)
+1. **COP-5 planner tools:** OK to move the planner's rules out of live endpoints 538, 542, 545, 560, 583, 613, 617, 562, 535 into shared functions? Unblocks COP-5 stories 01, 03, 05, 06.
+2. **Copilot chats:** shared with everyone in the account, or private to the person who started them? (COP-3 review #5.)
+3. **Research drafts:** check the time estimates in map 259 ("15 min" etc.) — they came from general practice, not your business.
+4. **Endpoint 69:** the repo file is older than live (live has soft delete) — OK to refresh the file from live? Also: deleting a business does not yet check for a copilot home.
+5. **Long copilot turns** can hit the server time limit and vanish with no reply; fix needs a background job (later).
+6. **COP-6** left deferred, as you said. Nothing pushed to GitHub yet.
 
 ## Decided by the founder (2026-11-14)
 - `intent` column added to `journey_map` by hand (confirmed live: text, trim).

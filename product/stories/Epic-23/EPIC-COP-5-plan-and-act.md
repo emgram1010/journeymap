@@ -1,6 +1,6 @@
 # EPIC-COP-5 — Plan and act: from an approved map to a plan, and from a plan to done
 
-**Status:** 📋 Not started. Written 2026-11-14 (Fable 5.2).
+**Status:** 🟡 Partly built (Opus 5.5, 2026-11-15) — story 04 only. Stories 01, 03, 05, 06 wait for a founder decision; 02 holds by design (no publish tool exists). See Test results.
 **Model:** **Sonnet 5.5.** Opus 5.5 (or Fable 5.2) review of story 02 and anything near
 **Publish to live**.
 **Depends on:** COP-2 (levels), COP-3 (chat, read tools). Closes map 226 gaps 5 and 6.
@@ -47,7 +47,7 @@ Schedule or trigger ──▶ copilot wakes ──▶ does what is allowed ─�
 ## 3. Stories
 
 ### US-COP-5-01 — Planner tools
-**Status:** 📋 Not started.
+**Status:** ⏸ Waiting on the founder. The planner's rules live inside live endpoints (538, 542, 545, 560, 583, 613, 617, 562, 535); tools need those rules moved into shared functions first — a change to code the live planner runs on.
 
 **As an** owner, **I want** the copilot to draft a plan from a published map,
 **so that** I review a plan instead of building one.
@@ -83,7 +83,7 @@ copying it into the tool. Overload is advisory today (PUX-4); the tool surfaces 
 invent a new rule.
 
 ### US-COP-5-02 — Publish to live stays with the owner
-**Status:** 📋 Not started. **Opus review.**
+**Status:** ✅ Holds today by construction: the copilot has no Publish-to-live tool and no login. The endpoint-level guard is deferred until story 01 adds plan tools. **Opus review:** pending.
 
 ```gherkin
 Scenario: The copilot says the plan is ready
@@ -104,7 +104,7 @@ Scenario: After I publish, it knows
 guard (identity kind), not only in the absence of a tool.
 
 ### US-COP-5-03 — Execution tools, for its own work
-**Status:** 📋 Not started.
+**Status:** ⏸ Not built. Designed (actor from `planner/resolve_actor`, events through `log/record_task_event`, only tasks assigned to the copilot), but the test account has no jobs or tasks to prove it on, and it writes to the live activity log — not built unsupervised.
 
 **As an** owner, **I want** the copilot to do the work assigned to it and record it properly,
 **so that** its work shows up in plan vs actual like anyone's.
@@ -138,7 +138,7 @@ assignee is allowed (decision D-6) and write it into USR-3's rule, in one place.
 timestamps in every smoke test, never `0`.
 
 ### US-COP-5-04 — It can read plan vs actual
-**Status:** 📋 Not started.
+**Status:** ✅ Built: list_business_jobs (167), get_job_variance (168, quotes `variance/task_report`); both on the copilot.
 
 ```gherkin
 Scenario: A plain answer about how the week went
@@ -150,7 +150,7 @@ Scenario: It never computes variance itself
 ```
 
 ### US-COP-5-05 — Scheduled runs, with nobody at the screen
-**Status:** 📋 Not started.
+**Status:** ⏸ Waits for story 01.
 
 **As an** owner, **I want** the copilot to wake up on a schedule or when something arrives,
 **so that** the legwork happens without me opening the app.
@@ -183,7 +183,7 @@ runs and writes nothing looks healthy — each run writes a row even when it doe
 test compares row counts.
 
 ### US-COP-5-06 — The copilot as someone on the plan
-**Status:** 📋 Not started.
+**Status:** ⏸ Waits for story 01.
 
 ```gherkin
 Scenario: It can be assigned work
@@ -235,6 +235,16 @@ do not create a second "AI person".
 | UI-COP-5-01 | Browser | Copilot column on the board; draft plan appears; live day unchanged until approved |
 | REG | Suites | `npm test`, `tsc`, build; publication hash pins; `ops/audit_execution` clean |
 
-## 7. Test results
+## 7. Test results (2026-11-15, Opus 5.5)
 
-Not run. Nothing is built.
+**Pushed:** tools 167 `list_business_jobs`, 168 `get_job_variance`; agent 40 updated (both tools, plus "quote figures exactly, never compute variance").
+
+| Check | Result |
+|---|---|
+| Copilot ticket pinned to business 49 → list_business_jobs | ✅ answers, 0 jobs |
+| Person's ticket, no business pin → list_business_jobs | ✅ refused, E-COP-045 |
+| get_job_variance on a job that does not exist | ✅ refused, not found |
+| get_job_variance on real data, and on another business's job | ⚠️ not run — test account 13 has no jobs at all |
+
+**Gaps:** stories 01, 03, 05, 06 not built (founder decision on moving planner rules into shared functions). Variance read is unproven on real jobs.
+

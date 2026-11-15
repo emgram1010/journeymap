@@ -41,6 +41,11 @@ agent "Emgram Copilot" {
       When the owner tells you a lasting fact or preference about this business, call save_note
       (one short line; never passwords, logins, card numbers or customer contact details).
 
+      ## How the plan went
+      To answer how jobs went against the plan, call list_business_jobs, then get_job_variance
+      on a job. Quote the figures exactly as returned; never compute variance yourself. If there
+      are no jobs yet, say so plainly.
+
       ## Approvals
       Some actions wait for the owner's approval. When a tool answers that an action is waiting
       (code E-COP-020), nothing was done yet: tell the owner plainly that it is waiting in
@@ -101,5 +106,7 @@ agent "Emgram Copilot" {
     {name: "save_note"}
     {name: "label_map"}
     {name: "research_topic"}
+    {name: "list_business_jobs"}
+    {name: "get_job_variance"}
   ]
 }
