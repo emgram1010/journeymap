@@ -296,7 +296,6 @@ endpoint (8 of 8 calls accepted).
 **Not proven**
 - The **"longer"** direction (a step that regularly runs over). Only "shorter" was produced: the test steps
   were finished in seconds against 30 expected minutes. The rule is the mirror image, but it was not seen.
-- The real copilot using the tool in chat and making the offer (the tool was driven directly).
 - "Proposals are drafts": holds by the existing rules (the copilot cannot publish a version; edits go to
   the draft), not re-tested here.
 - A business with many jobs: the tool reads at most 30 jobs, one report each - slow on a big map (4 s for 3).
@@ -305,3 +304,9 @@ endpoint (8 of 8 calls accepted).
 - Averages are whole minutes (a 20-second step shows as 0).
 - A step with expected time 0 or no recorded time is not counted.
 - Steps are matched by their keys in the map; a renamed or re-keyed step starts again from zero.
+
+**The real copilot in chat (`tests/cop4_learn_chat_probe.py`, 3 of 3, 24 s):** asked what the finished work
+had taught it about the map, it named step s1 with "3 samples, expected 30 minutes" and "shorter", said s2 had
+"only 2 samples (need at least 3)" and was not a pattern, and changed nothing. One loose sentence: it said
+"4 finished jobs" where the tool returned 4 jobs found, not all finished. Not seen: the copilot offering
+and then making a draft edit after a yes.

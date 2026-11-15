@@ -179,3 +179,28 @@ name, kind, capacity and colour (536); schedule (560) and the whole chain pass (
 ## COP-5 story 05 done (2026-11-15)
 
 Scheduled runs are built and proven; details in EPIC-COP-5 section 7. Decision for the founder: the on/off switch is an approval level per business (off by default), not an account flag. Follow-ups: prune old run rows; tighten the chat prompt the same way the run instruction was tightened (never complete a task with no tool calls).
+
+## Where things stand (2026-11-15, end of the build - ready for the final Fable review)
+
+The review brief is `FABLE-REVIEW-PROMPT.md` (same folder). Nothing is on GitHub.
+
+| Epic | State |
+|---|---|
+| COP-1, COP-2, COP-3 | Built and reviewed once |
+| COP-4 | Built. Story 05: plan-vs-actual learning built and proven (`get_map_learnings`); "my edits teach it" not built |
+| COP-5 | 01 six planner tools + capacity warning; 03 its own tasks; 04 plan vs actual; 05 scheduled runs; 06 the copilot as a column (screen only). Not built: four more planner tools (time window, start time, unschedule, whole card), live-day changes through approval, the server-side publish guard (02) |
+| COP-6 | Not started. Needs new tables and the founder's decisions on stored logins - not something to build unattended |
+| COP-7 | Built and proven. Never reviewed |
+
+**New since the last list - decisions waiting for the founder**
+1. Scheduled work is switched on and off as an approval level per business (off by default), not as an account flag. Keep it that way?
+2. The hourly task (21) is live for every account. With every business off it only writes one event an hour. Leave it running?
+3. An AI can still mark its own task done on the strength of an instruction only. Add a server rule (for example: no "completed" without a tool call in between)?
+4. "Switched-off copilot is not given new work" is enforced in the planner screen only. Add it to the planner endpoints with the other live-endpoint changes?
+5. COP-6: approve the tables (a connections library, a per-business switch, a write-only secret store) and decide where logins are kept.
+6. Test account: scheduled work is ON for business 49 and writes a row an hour. Switch it off after the review?
+
+**Earlier decisions still waiting** (see "Where things stand" above this one): switching the six live planner
+endpoints to `planner_ops/*`; checking real data for fields blanked by the middleware bug; the CLAUDE.md
+additions; writing D-6 into USR-3; the test-account grants; catalog endpoints 594 and 599.
+
