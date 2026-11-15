@@ -1816,5 +1816,15 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Put the user in an account first; then create the copilot."
+  },
+  "E-COP-011": {
+    "code": "E-COP-011",
+    "feature": "COP-1",
+    "user_message": "The copilot can't be removed, because it is the record of everything the AI did. Switch it off instead.",
+    "what_happened": "An admin tried to delete the user row that is the account's copilot. Removing it would leave the AI audit trail and the maps it made pointing at nobody, so the delete was refused before anything changed.",
+    "likely_cause": "The copilot looked like any other person on Manage users.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Switch the copilot off on Manage users; its next tool call is then refused."
   }
 }

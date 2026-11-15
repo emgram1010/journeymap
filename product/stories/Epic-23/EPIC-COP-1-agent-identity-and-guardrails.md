@@ -593,7 +593,7 @@ the outside address). Error codes E-COP-004, 006, 007, 008, 009, 010 added to th
 
 **Not done / follow-ups:**
 - Team page: show the copilot as "AI" and a "Create copilot" button (Sonnet; uses 633/634/635).
-- Refuse **Delete** on the copilot user once it has created anything (guard in api 20).
+- ~~Refuse **Delete** on the copilot user~~ ✅ done 2026-11-15: `admin/user_delete` (api 589) refuses the copilot with `E-COP-011` ("switch it off instead"); proven — deleting user 26 refused, the self-delete and not-found refusals unchanged, the copilot still present. Noticed, not changed: that endpoint's "has work" check counts owned architectures but **not owned maps**, so a person who only made maps can still be deleted and leave maps owned by nobody.
 - Nothing yet runs *as* the copilot in production: the map chat still acts as the signed-in person.
   The copilot runs (business chat, scheduled runs) arrive in COP-3 and COP-5.
 - Test data in account 13: copilot user 26 and maps "(safe to delete)".

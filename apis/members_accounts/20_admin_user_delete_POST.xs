@@ -96,6 +96,19 @@ query "admin/user_delete" verb=POST {
       error = "You can't remove your own account. Ask another admin to do it. (E-USR-015)"
     }
 
+    // COP-1 (2026-11-15): the account's copilot is never removed. It is the identity behind
+    // everything the AI did (tool_call_log, the maps it made), and removing it would also leave
+    // its ai_identity row pointing at nothing. Switch it off instead. Asked through the one
+    // function that knows which users are AI.
+    function.run "copilot/identity_for_user" {
+      input = {user_id: $target_user.id}
+    } as $target_ai
+
+    precondition ($target_ai.is_ai == false) {
+      error_type = "accessdenied"
+      error = "The copilot can't be removed, because it is the record of everything the AI did. Switch it off instead. (E-COP-011)"
+    }
+
     // The same lockout rule as demotion and deactivation, from the same
     // single place. Deleting an admin reduces the admin count exactly as
     // demoting one does, so it passes the target's id as the admin who
