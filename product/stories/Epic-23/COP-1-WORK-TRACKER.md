@@ -204,3 +204,321 @@ The review brief is `FABLE-REVIEW-PROMPT.md` (same folder). Nothing is on GitHub
 endpoints to `planner_ops/*`; checking real data for fields blanked by the middleware bug; the CLAUDE.md
 additions; writing D-6 into USR-3; the test-account grants; catalog endpoints 594 and 599.
 
+
+## Final Fable review (2026-11-15)
+
+Review only. Nothing was pushed, run, created, changed or deleted in Xano; no code, test, epic or
+CLAUDE.md was edited; nothing was committed. This section is the only change.
+
+**How it was done.** Five read-only helper passes plus my own reading: (1) live source of 19
+functions/table/task/endpoint against the repo; (2) live source of 14 tools and both agents; (3) all
+31 flag-fix endpoints live, plus every endpoint in the journey-map (100) and planner (64) groups;
+(4) the six `planner_ops/*` functions against their source endpoints, `plan_in_business`, six `plan_*`
+tools; (5) the screen changes, the guard files, `npm test` and `tsc`. I read the gate, the ticket
+functions, the research and search checks, all four scheduled-run functions, the approval gate, the
+own-task tools and the learning tool myself, and read live rows in `copilot_run`, `event_log`,
+`tool_call_log`, `planner_agent`, `planner_timeline`, `journey_map`. **Nothing was executed**, so every
+"plausible" below is a code reading that still needs one run to prove.
+
+**Suites.** `npm test` 830 of 830, `npx tsc --noEmit` clean (real numbers, run once). Playwright specs
+exist (`webapp/protype-2/e2e/`) and `workflow_tests/` exist; **neither was run by me either.**
+
+### 1. Verdict
+
+| Epic | Verdict | Biggest reason |
+|---|---|---|
+| COP-1 identity, gate, cap | Safe to rely on | Live gate matches the repo; an AI is refused on any failed check; all four mode switches are "enforce" |
+| COP-2 approval levels | Safe with the listed fixes | The gate works, but only `publish_map` declares an action type - every other level on the screen does nothing (R1) |
+| COP-3 home and chat | Safe to rely on | The business pin is enforced in the gate for reads and writes (seen refusing live) |
+| COP-4 think and learn | Safe with the listed fixes | Notes become standing instructions with no level (R5); learning ignores outliers (R9) |
+| COP-5 plan and act | Planner tools: safe with fixes. Scheduled runs: **keep off in real accounts** until R1 and R2 are fixed | Nothing can be held for approval, and "done" rests on an instruction |
+| COP-6 connections | Not built | The docs say so honestly everywhere I looked |
+| COP-7 research and read hardening | Safe to rely on, with known limits | F1-F7 are really closed in code and live; the search check stops obvious shapes only (R13) |
+
+No cross-account or cross-business read or write path was found in any new tool, function or endpoint.
+
+### 2. Findings, most serious first
+
+**R1 - HIGH - confirmed. The approval levels are not connected to any new tool.**
+- Where: gate calls in `ai/tool/plan_create.xs:29`, `plan_accept_map.xs:26`, `plan_add_job.xs:33`,
+  `plan_add_person.xs:40`, `plan_start_day.xs:38`, `plan_schedule_step.xs:34` (tools 171-176),
+  `record_my_task_event.xs:27` (170), `save_note.xs:17`. `functions/journey/tool_gate.xs:380` runs the
+  approval gate only when `act_type` is sent. `grep act_type ai/tool` finds one tool: `publish_map`.
+- Given the owner sets "Draft a plan", "Update assigned work" or "Write an internal note" to
+  "Waits for you"; when the copilot drafts a plan, completes a task or saves a note, in chat or in a
+  scheduled run; then it happens at once, nothing waits, nothing is listed under "What the copilot did".
+- Consequences: story 05 scenario 1 ("holds the rest") cannot happen - there is nothing to hold, which is
+  why `held_count` and `told_count` were only ever 0. Decision D-6 ("each action type still follows its
+  level") is not what the code does. "A change to a live day waits for me" is a flat refusal.
+- Fix: pass `act_type` (+ payload and summary) in those eight gate calls and call `copilot/action_finish`
+  after the write. Tool pushes only; no endpoint or table change.
+
+**R2 - HIGH - confirmed (seen live). An AI can mark its own task done, or skipped, with no work behind it.**
+- Where: `ai/tool/record_my_task_event.xs:204` (170); the only guard is a sentence in
+  `functions/copilot/run_for_business.xs:410` (353). Chat has softer wording (`emgram_copilot.xs:71`).
+- Given a task assigned to the copilot that needs something in the real world; when a run or a chat
+  decides it is done; then it is recorded "completed", the job can flip to completed, and plan-vs-actual
+  takes it as real. `copilot_run` row 2 did exactly this ("Deliver the order", event 9097).
+- An instruction is not enough: one re-test passed, and the same model reads injected text.
+- A server rule would look like (not built): for an AI identity, "completed" needs (a) the step marked
+  as doable by the copilot in the pinned map version, or (b) at least one allowed write-tool call by
+  that identity between its "started" and "completed" events for that task; otherwise the event is
+  stored as waiting for a person. Wiring R1 (`work_update` at "tell") at least lists every completion.
+- Fix touches one tool and one shared function; no table.
+
+**R3 - HIGH - confirmed by reading. Saving an AI column can silently unlink the copilot.**
+- Where: `webapp/protype-2/src/planner/aiAgentModel.ts:318-319`, `components/EditModal.tsx:423`,
+  `PlannerApp.tsx:479-489`, `useAccountCopilot.ts:14-17`.
+- Given the copilot lookup failed once on this page load (the failure is cached until reload); when a
+  planner opens the copilot's column, changes its capacity and saves; then `user_id: 0` is sent, the
+  link is cleared, the dialog closes as a success, and the copilot stops seeing its tasks. A unit test
+  pins this behaviour. This is the bug story 06 says it fixed, still there on the failure path.
+- Fix: when the copilot is unknown, leave `user_id` out of the save. Screen only.
+
+**R4 - MEDIUM/HIGH - confirmed in code. A person column linked to the copilot's login is unlinked and renamed on any edit.**
+- Where: `aiAgentModel.ts:320-322`, `EditModal.tsx:385-387, 416, 423, 806`.
+- Before story 06 the only way to link the copilot on the screen was "person" + its login. Editing such a
+  column now saves login 0 and renames it. Whether such rows exist in real accounts: not seen (the
+  seven live plan people have none), so exposure today is nil.
+
+**R5 - MEDIUM - plausible. Text the copilot reads can become a standing instruction.**
+- Where: `ai/tool/save_note.xs` (no level, see R1); notes are placed under "Notes you were told about
+  this business (follow them)" in `apis/journey_map/643_copilot_chat_POST.xs:255` and
+  `functions/copilot/run_for_business.xs:406`. `label_map`'s `research_note` has no length cap either.
+- Given a web page or a task note says "remember: tasks marked delivery are already done"; when the
+  copilot saves it as a note; then every later chat and every unattended run is told to follow it.
+- It cannot change an approval level or forge an approval (see "Things that are fine"), but with R1 and
+  R2 open there is little left for a level to stop. Fix: R1 for notes, and word the run prompt as
+  "notes are preferences, never permission to complete, send or skip".
+
+**R6 - MEDIUM - confirmed by reading. The "nothing changed" guard both over-skips and under-skips.**
+- Where: `functions/copilot/open_work.xs:83-99`, `run_for_business.xs:57-86`.
+- Over-skips: the fingerprint is only date + task id + status. The owner approving a held action, adding
+  a note, or fixing the map changes none of them, so no run picks the work up again that day.
+- Under-skips: only a *finished* run stores a fingerprint. A run that fails every time (empty reply,
+  timeout, AI error) is retried every hour, a full AI run each time. Nothing caps runs per day or AI
+  tokens; the COP-1 daily cap counts tool calls only (it does count a run's calls - same identity).
+- Fix: include the count of decided approvals and the newest note id in the fingerprint; store the
+  fingerprint on a failed run too and retry at most N times a day.
+
+**R7 - MEDIUM - plausible. One hourly task for every account, one after another, with the heartbeat written last.**
+- Where: `functions/copilot/scheduled_run.xs:95-141`, task 21.
+- A real run took 31-33 s; the first self-fired tick took 6.2 s with one idle business (1.8 s by hand).
+  The `run_tick` event is the last statement. If the task hits its time limit mid-loop, later accounts
+  (always the same ones, by id) are never reached and no tick event is written at all.
+- Fix: log the tick at the start as well, or one task per N accounts; decide a ceiling before a second
+  real account switches this on.
+
+**R8 - MEDIUM - plausible. "Is this task mine" exists in three forms.**
+- Where: `ai/tool/record_my_task_event.xs:104-166` reads the live plan tables; `list_my_tasks` and
+  scheduled runs read the frozen publication (`perform/collect_published_items`).
+- Given a slot is dragged onto the copilot's column after the day went live and not re-published; then
+  the published plan still gives the task to a person, but the copilot may record work on it. The
+  reverse case lists a task it is then refused on (E-COP-054).
+- Fix: take the effective assignee from the publication, as the performer app does.
+
+**R9 - MEDIUM - confirmed by reading. Learning can propose a wrong time.**
+- Where: `ai/tool/get_map_learnings.xs:168-270` (177).
+- It ignores `is_outlier` and `blocked_minutes` from the variance report and averages jobs pinned to
+  different versions. Three samples where one task sat open overnight give "longer", average hundreds
+  of minutes. Averaged "expected" can match no version of the map.
+- Up to 30 report calls in one tool call (4 s for 3 jobs, so about 40 s for 30) inside a chat turn that
+  can already hit the server limit and vanish. The "longer" rule is the mirror image and untested.
+- Fix: drop outliers, subtract blocked time, use the newest version only (or group by version).
+
+**R10 - MEDIUM - confirmed. The planner tools do not always answer like the screen.**
+- Capacity 0 becomes 8 (`plan_add_person.xs:107-117`; screen: E-PLN-009). Duration 0 means "not sent"
+  (`plan_schedule_step.xs:120`; screen: E-SCHED-002). An empty start time takes the default
+  (`plan_start_day.xs:99`; screen: E-PLN-010). Dates are text: "2026-02-31" passes the shape check and
+  most likely ends in a raw database error (plausible).
+- `plan_schedule_step` writes the slot first and computes the capacity warning after, so "places it
+  only if I say so" is not met, and a failure in the warning leaves the step placed.
+- All five builder-listed endpoint bugs are real and **inherited unchanged** (none silently fixed), with
+  one correction: 570 with a repeated map id does not insert twice - the unique index fails the whole
+  transaction with a raw error. "554 picks an unpublished version" is mostly not real (versions have no
+  draft state).
+
+**R11 - MEDIUM - confirmed. Two test claims are weaker than written.**
+- `tests/cop5_tool_vs_endpoint.py` calls nine endpoints and prints the answers. There is no tool side,
+  no assert, no exit code, fixed ids. It is not an alarm for the two copies drifting.
+- `tests/cop7_hardening_probe.py` is named as COP-7's probe script; the file does not exist.
+- The "nothing has changed" proof used a hand-set row: `copilot_run` row 6 stores fingerprint
+  `866:in_progress`, but its own finish event (9108) says `open_after: 0`, and the task was unblocked by
+  a person 30 s later (event 9110).
+
+**R12 - MEDIUM - confirmed by reading. Story 06 screen gaps.**
+- The copilot lookup is cached for the page's life and Manage users is in the same app: switch the
+  copilot off, go back to the planner, and it is still offered; switch it on, and the planner keeps
+  refusing until a hard reload (`useAccountCopilot.ts:10-19`).
+- Ctrl/Cmd+Enter saves a stale "link copilot" tick (`EditModal.tsx:239`, dependency list).
+- An AI column linked to some other login is shown ticked and re-linked to the copilot on save
+  (`EditModal.tsx:173`).
+- "Not offered when assigning" is not built (it is offered, then refused). Three paths are unguarded:
+  assignee override on task save (`PlannerApp.tsx:636-659`), on backlog create (`:1042-1048`), and
+  Publish to live of the copilot's day (`:714`, `:1167`). The guard also blocks moving the copilot's
+  own existing day (`:1084`, `:802`).
+- Turning scheduled work on has no confirmation step on the Approvals screen.
+
+**R13 - LOW - confirmed by reading. What the search check lets through** (`functions/copilot/search_query_check.xs`, 340):
+figures with separators ("1,250,000"), an address written "name (at) domain", digits in other scripts,
+part of the business name (only the full title is matched), any title under 4 characters, and every
+customer name. A range like "2020 - 2025" is refused by mistake. It logs the reason only, never the query.
+
+**R14 - LOW - confirmed. Small probing differences.** `copilot/plan_in_business.xs:11-15, 85-91` returns
+another account's plan name on a miss (no tool reads it today). `plan_schedule_step.xs:60-64`: a missing
+day says "Day not found", another account's day says "Plan not found".
+
+**R15 - LOW - confirmed. Counts and records.** `refused_count` counts every refused call by that
+identity since the run began, including a chat in another business (`run_for_business.xs:479-482`).
+The audit row does not store the pinned business or the run, so a call cannot be tied to a run. Pin,
+research, unpinned-AI and approval refusals write the audit row but no Health event. E-COP-057 has one
+message for three situations ("did not finish" is wrong for "could not start"). If the lock insert
+loses to a run that ends a moment later, the skip is recorded as a red failure. Event 9041 was logged
+as E-COP-040, which now means something else.
+
+**R16 - LOW - plausible. An AI tool in the chat still uses the old flag.** `ai/tool/update_stage_contract.xs:42`
+has `exclude_middleware = false` and is on agent 40, which runs behind the gated chat endpoint 643. If a
+tool sees the request's raw input the way an endpoint does, a contract update that leaves a field out
+blanks it. Not traced; needs one run.
+
+**R17 - LOW - confirmed. Leftovers and growth.** `copilot_run` has no pruning (24 rows a day per
+switched-on business; `GET copilot/runs` loads 14 days then keeps 30). A business with a stored level
+keeps running after it is deleted. The table is marked append-only though a row is patched when a run
+ends, and can be patched twice (stale sweep, then a late finish). 39 `scratch/*` functions and two
+scratch API groups (29, 30) are still live, including ones that mint a token, create users and corrupt
+rows on purpose - reachable only with workspace access, and all older than this work.
+
+### 3. Things that are fine (checked hard)
+
+- **The gate order** is caller, map ownership, architecture, business pin, research rule, AI must be
+  pinned, daily cap, approval level, audit row. An AI is refused on any failed check in any mode. A
+  research refusal is audited exactly once. The response shape is unchanged; `ticket_source` is additive
+  and an old ticket with no source behaves as before. The research block cannot fire for another ticket.
+- **Research can only change maps the copilot made.** All four of the researcher's write tools pass the
+  map id and `kind: write`; none writes through a cell, stage or architecture id. A new map is stamped
+  with the caller as owner. A sub-map under a person's map is refused. Owner = caller is the safe-side
+  test: a map a person now owns is refused; a map handed to the copilot is editable.
+- **The researcher never gets the chat's ticket.** Its own ticket lives 15 minutes, is ended after the
+  run (also when the run throws), and both are scrubbed from the report. Agent 40 has no `web_search`.
+- **No text can approve anything.** Levels come from the action type in the gate. An approval id must be
+  this account's, this tool's, this map's, this type's, approved by a person, unused (unique claim), with
+  the exact input. No tool sets a level. Publish stays person-only.
+- **Scheduled runs are off unless a level row says otherwise.** Unknown type, business 0, a locked type
+  and "no row" all resolve to "wait". The two "is it on" checks cannot disagree in the unsafe direction:
+  a stale or foreign row fails the account check and writes nothing. An "off" account costs two small
+  queries, no row, no AI call.
+- **Two runs cannot act at once.** The unique index on `lock_key` exists live. A slow run marked stale
+  at 30 minutes has had a dead ticket for 15, so a second run never overlaps its actions; the late
+  finish only rewrites its own row.
+- **Worst case for an unattended run at default levels** (concrete): rewrite or strip the unpublished
+  content of any map in that business; create draft plans, jobs, people and days; complete, skip or
+  reopen its own tasks; save notes; send general web searches. It cannot publish, touch another
+  business or account, change a live day, change a level, or use a person's task.
+- **The 31-endpoint fix** is one word in each of 31 files and is live on all 31; no endpoint in either
+  gated group still has the old form. 610's race guard still holds (count taken with the checks; unique
+  index on parent + sequence exists live).
+- **Tenancy in the new tools:** user and account always come from the gate; nothing is read before it;
+  `plan_add_person` cannot link a login; `plan_start_day` cannot set a status; a business-B plan cannot
+  be reached by accepting a business-A map.
+- **Guard files:** nothing loosened; additions only. `perform/*` was not edited. Every E-COP code emitted
+  is in the catalog. The run report renders as plain text. `planningFrontendv2` is not in use (no Xano
+  calls since October) - story 06 is not half done on that account; CLAUDE.md and the PRD still name it.
+- **Trap sweep:** clear in the scheduled-run functions, `get_map_learnings`, the gate, the search check
+  and the three read tools. Two inherited hits in `planner_ops` (`create_agent.xs:138-148`, proven
+  working live in the endpoint; `schedule_work_task.xs:165-176`, no live proof, same in endpoint 560).
+
+### 4. Claims I could not confirm
+
+| Claim | Status |
+|---|---|
+| The hourly task fires by itself | **Confirmed once**: 21:20:01 UTC, one history entry, one `run_tick`, one row (9). Second firing not yet due when I stopped |
+| "It blocked the task" on the re-test | Confirmed (tool call 257, event 9107) |
+| "Nothing has changed" proven | Plausible; the row it relied on was hand-set (R11) |
+| Same answers as the screen, 9 of 9 | Plausible; the script compares nothing (R11) |
+| `scratch/cop5_run_probe` (356) still exists | **Contradicted** - 356 is not live |
+| COP-7 probe script exists | **Contradicted** - no such file |
+| A run that holds an action; counts above 0 | Unproven, and unreachable today (R1) |
+| Injected "pre-approved" text changes nothing | Holds by code for approvals; not for "done" (R2, R5) |
+| What the agent returns at `max_steps` | Unproven; an empty reply fails, partial text counts as "finished" |
+| The "longer" learning rule; a plan person override; the Execution or Planner grant missing | Unproven |
+| Edit dialog tick, 12 handlers, Plan Health line | Unproven in a browser; three bugs found by reading (R3, R4, R12) |
+| 27 of the 31 fixed endpoints behave | Plausible; source is correct live, none exercised |
+
+### 5. Drift report
+
+| Object | Result |
+|---|---|
+| Functions 309, 311, 328, 339, 340, 344, 346-355 | Same logic. Only Xano's save-time formatting |
+| Tools 39, 165-177 | Same logic |
+| Agents 40 (33 tools, 18 steps) and 41 (8 tools, 10 steps) | Same; prompts word for word |
+| Table 155 | Same; trim kept on all five text columns; unique index on `lock_key` live |
+| Task 21 | Same; active, hourly from 21:20 UTC |
+| Endpoint 655 | Same; no dynamic `copilot/{x}` route exists to shadow it |
+| 31 fixed endpoints | 18 identical; 13 formatting only |
+
+Xano's rewrites to know about: it drops `== true` in conditions, expands objects, and **removes
+parentheses around a piped value inside an object** (for example 583's `($c.duration_minutes ?? 0)`).
+Never paste live text back into the repo and push it - that is the CLAUDE.md "drops later keys" trap.
+Compared by reading, not by a byte diff.
+
+### 6. Damage check (the "was this field sent" bug, 14 Nov about 17:50 UTC to 15 Nov about 16:20 UTC)
+
+- **Plans: none found.** Every plan person and day in a real account was last changed between
+  27 October and 2 November; names, capacity, login, start time and status are intact (people 48, 49;
+  days 40-45). Nothing in `plan_change_log` in the window.
+- **Maps: not fully checked.** Real account 2 has ten maps touched on 14 November (225-234), some
+  inside the window. Their map-level fields are intact. Stage owners and cell durations on those maps
+  were not read row by row.
+- All other activity in the window was test account 13.
+- Separately, the fix exposes clears that never worked: a cleared link label (`ArchitectureGraph.tsx:174`)
+  and a cleared cell duration (`App.tsx:1642, 2241`) are dropped by the screen; a cleared business
+  description or cost rate is most likely dropped by the server's empty-text filter (endpoints 68, 33).
+
+### 7. Test data and leftovers (listed, not deleted)
+
+Test account 13 only: map 261 and version 28; plans 44-46; jobs 143-146; plan people 51-55; days 53-56;
+`copilot_run` rows 1-9; scheduled work **ON** for business 49 (task 866 is in progress, so each hour
+writes one "nothing changed" row and no AI call); grants on users 22 and 26; the `publish_gate` flag.
+Nothing of the kind was found in a real account.
+
+### 8. Decisions for the founder
+
+1. Keep scheduled work off in real accounts until levels are wired (R1) and "done" has a server rule (R2)?
+2. Wire the levels to the eight tools now (tool pushes only)?
+3. Which server rule for an AI completing a task: proof of work, or always "waits for a person"?
+4. Fix the copilot-column save (R3, R4) before anyone edits a copilot column?
+5. Should notes need your OK before the copilot follows them (R5)?
+6. Open maps 225-234 and check stage owners and durations, or have them read row by row?
+7. Switch scheduled work off for test business 49 and remove the test data?
+8. Is a run report for everyone with the Intelligent Layer, or admins only?
+9. Delete the 39 scratch functions and the two scratch API groups?
+10. The earlier open items still stand: the six-endpoint switch, catalog 594/599, the CLAUDE.md additions.
+
+
+## R3 and R1 fixes - paused mid-way (2026-11-15, Fable 5.2)
+
+Nothing is committed. `npm test` 847 of 847, `tsc` clean. Copilot (user 26) is switched ON.
+
+**R3 / R4 / part of R12 - done, screen only, NOT clicked in a browser.**
+- `aiAgentModel.agentUserIdToSave` now returns `null` = "leave the login as it is"; the save then omits `user_id` (endpoint 536 keeps it).
+- Covers: copilot lookup failed (R3), a person column linked to the copilot login (R4, no rename either), an AI column linked to another login, the stale Ctrl+Enter save.
+- Not done from R12: the cached copilot lookup, the three unguarded paths, "not offered when assigning".
+
+**R1 - 7 of 8 tools live and proven. `plan_schedule_step` (176) is NOT pushed.**
+- 🔴 Drift on purpose: `ai/tool/plan_schedule_step.xs` in the repo is already wired; live tool 176 is the old one. Push it next, then test (own level + one refusal).
+- Bigger than the review said. The review's "tool pushes only" would have used the DEFAULT levels, because these tools name no map and no business. Also changed:
+  - `journey/tool_gate` (311): the level is looked up in the pinned business when the tool names none.
+  - new `copilot/action_close` (358): marks the action executed / failed and passes the tool's error on with its own kind.
+  - `copilot/action_types` (328): `plan_draft`, `note_internal`, `work_update` now say `wired: true`.
+- Each tool: `approval_id` input, action type + exact input + a summary to the gate, body inside `try_catch`.
+- Proven live with `debugTool` as the test copilot, business 49:
+  - `save_note` (163): tell -> listed; bad note -> "failed"; wait -> E-COP-020, changed input -> E-COP-027, exact input -> saved and "executed", again -> E-COP-030; own -> no row.
+  - `record_my_task_event` (170): note on task 866 -> "told"; not its task -> refused, "failed"; bad event -> E-LOG-001 text kept.
+  - `plan_create` 171, `plan_accept_map` 172, `plan_add_job` 173, `plan_start_day` 175: one success and one refusal each, error kind kept.
+  - `plan_add_person` (174): wait -> approved through the REAL endpoint 639 -> ran (decimal input matched); an approved duplicate name -> E-PLN-007 and "failed".
+- Gate smoke after the change: a read tool allowed, `publish_map` still E-COP-025, a bad ticket refused.
+- Not proven: the real AI in chat following a "waiting" answer; a scheduled run with held_count above 0; the Approvals screen showing these rows; an "edited" approval.
+- Known weak spots: an invalid request can be queued for the owner (the level check runs before the tool's own checks); summaries show ids ("plan #47"), not names.
+- Found on the way: `$error.message ?? "x"` always gives the fallback (read `$error` whole, then `|get:"message"`). `run_for_business.xs:210, 439` and endpoints 643, 633 use the broken form, so their failure messages are always the generic one.
+
+**Left in the test account:** plan 47 "R1 test plan" (job 147, people 56-57, day 58), notes 3-5, copilot_action rows 17-24, `scratch/r1_probe` (359, still useful for 176 - delete after), `tests/r1_decide_probe.py` (new, writes).

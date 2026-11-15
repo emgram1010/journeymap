@@ -6,6 +6,7 @@ import {
   aiAgentState,
   isCopilotAgent,
   isSwitchedOffCopilot,
+  pickedPersonMember,
   splitCapacity,
   type CopilotInfo,
 } from './aiAgentModel';
@@ -64,6 +65,56 @@ test('what login is saved: a person keeps the picked login; an AI is the copilot
   assert.equal(agentUserIdToSave('ai', '', true, null), 0);
   // a person can never be saved as the copilot login
   assert.equal(agentUserIdToSave('person', '26', false, on), 0);
+});
+
+// Final Fable review R3 - `null` means "leave the login exactly as it is" (the save omits it).
+test('R3: when the copilot could not be checked, saving an existing AI column leaves its login alone', () => {
+  const linked = {kind: 'ai' as const, userId: '26'};
+  assert.equal(agentUserIdToSave('ai', '26', false, null, linked), null);
+  assert.equal(agentUserIdToSave('ai', '26', true, null, linked), null);
+  // the account reports no copilot, yet the column has a login: not ours to clear on a capacity edit
+  assert.equal(agentUserIdToSave('ai', '26', false, none, linked), null);
+  // an unlinked AI column stays unlinked either way
+  assert.equal(agentUserIdToSave('ai', '', false, null, {kind: 'ai', userId: ''}), null);
+});
+
+test('R3: a known copilot still links and unlinks on purpose', () => {
+  const linked = {kind: 'ai' as const, userId: '26'};
+  assert.equal(agentUserIdToSave('ai', '26', true, on, linked), 26);
+  assert.equal(agentUserIdToSave('ai', '26', false, on, linked), 0); // unticked = unlink
+  assert.equal(agentUserIdToSave('ai', '', true, on, {kind: 'ai', userId: ''}), 26);
+});
+
+test('R3: turning a person column into an AI column never keeps the person login', () => {
+  const person = {kind: 'person' as const, userId: '22'};
+  assert.equal(agentUserIdToSave('ai', '22', false, null, person), 0);
+  assert.equal(agentUserIdToSave('ai', '22', false, on, person), 0);
+  assert.equal(agentUserIdToSave('ai', '22', true, on, person), 26);
+});
+
+test('R12: an AI column linked to some other login is left alone unless the copilot is ticked', () => {
+  const other = {kind: 'ai' as const, userId: '99'};
+  assert.equal(agentUserIdToSave('ai', '99', false, on, other), null);
+  assert.equal(agentUserIdToSave('ai', '99', true, on, other), 26);
+});
+
+test('R4: a person column already linked to the copilot login keeps it on an ordinary edit', () => {
+  const legacy = {kind: 'person' as const, userId: '26'};
+  assert.equal(agentUserIdToSave('person', '26', false, on, legacy), null);
+  assert.equal(agentUserIdToSave('person', '26', false, off, legacy), null);
+  // picking a real person instead still works
+  assert.equal(agentUserIdToSave('person', '22', false, on, legacy), 22);
+  // a NEW person, or one linked to somebody else, can still never be set to the copilot login
+  assert.equal(agentUserIdToSave('person', '26', false, on, {kind: 'person', userId: '22'}), 0);
+  assert.equal(agentUserIdToSave('person', '26', false, on, null), 0);
+});
+
+test('R4: the copilot login never renames a person column', () => {
+  const members = [{id: 22, name: 'Ana'}, {id: 26, name: 'Copilot'}];
+  assert.equal(pickedPersonMember(members, '22', on)?.name, 'Ana');
+  assert.equal(pickedPersonMember(members, '26', on), undefined);
+  assert.equal(pickedPersonMember(members, '', on), undefined);
+  assert.equal(pickedPersonMember(members, '26', null)?.name, 'Copilot'); // unknown copilot: cannot tell
 });
 
 test('capacity: people and AI are added up apart', () => {

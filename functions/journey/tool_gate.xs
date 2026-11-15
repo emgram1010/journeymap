@@ -376,6 +376,21 @@ function "journey/tool_gate" {
       value = 0
     }
 
+    // Final review R1: the level is looked up in a business. A tool that names neither a map nor
+    // a business (the plan tools, notes, the copilot's own tasks) works in the business this
+    // conversation is pinned to, so the owner's level for THAT business applies - not the defaults.
+    var $act_arch {
+      value = $input.journey_architecture_id
+    }
+
+    conditional {
+      if ($act_arch == 0 && $pin != 0) {
+        var.update $act_arch {
+          value = $pin
+        }
+      }
+    }
+
     conditional {
       if ($ok == true && $input.act_type != "") {
         function.run "copilot/action_gate" {
@@ -385,7 +400,7 @@ function "journey/tool_gate" {
             act_type           : $input.act_type
             act_tool           : $input.tool
             act_map_id         : $input.journey_map_id
-            act_architecture_id: $input.journey_architecture_id
+            act_architecture_id: $act_arch
             act_payload        : $input.act_payload
             act_summary        : $input.act_summary
             act_amount         : $input.act_amount

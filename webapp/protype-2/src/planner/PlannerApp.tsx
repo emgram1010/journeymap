@@ -476,6 +476,9 @@ export default function PlannerApp() {
     // for that, and sending it explicitly is how a link gets CLEARED.
     // COP-5 story 06: the dialog already resolved WHO (a person's login, or the account copilot
     // for an AI column) through aiAgentModel.agentUserIdToSave - one rule, not two.
+    // Review R3: `userId` left out entirely means "leave the login as it is" - `user_id` is then
+    // not sent, and endpoint 536 keeps what is stored.
+    const keepLogin = updates.userId === undefined;
     const nextUserId = updates.userId ? Number(updates.userId) : 0;
     try {
       if (agentId) {
@@ -485,7 +488,7 @@ export default function PlannerApp() {
           color: updates.color,
           daily_capacity_hours: updates.dailyCapacityHours,
           model_id: updates.kind === 'ai' && updates.modelId ? Number(updates.modelId) : 0,
-          user_id: nextUserId,
+          ...(keepLogin ? {} : {user_id: nextUserId}),
         });
       } else {
         if (!activeWorkspaceId) return false;

@@ -44,18 +44,53 @@ export const isSwitchedOffCopilot = (agent: AgentLike, copilot: CopilotInfo | nu
 /**
  * The login to save on a column. A person keeps the login picked for them (never the copilot's).
  * An AI column is either the account copilot (ticked) or nothing — an AI is never a person's login.
+ *
+ * Returns `null` for "leave the login exactly as it is" — the save must then OMIT `user_id`
+ * (endpoint 536 keeps what is stored when the field is not sent). Final Fable review R3/R4/R12:
+ * an edit that says nothing about the login must never clear it. That is the case when
+ *  - the column was already an AI column and we cannot act on a known copilot (lookup failed, the
+ *    account reports none, or it is linked to some other login and the box was not ticked);
+ *  - a person column was already linked to the copilot's login (the old way of linking it).
+ * `existing` is the column as stored; leave it out (or null) for a new column.
  */
 export function agentUserIdToSave(
   kind: 'person' | 'ai',
   pickedUserId: string | undefined,
   linkCopilot: boolean,
   copilot: CopilotInfo | null | undefined,
-): number {
+  existing?: AgentLike | null,
+): number | null {
   const copilotId = copilot && copilot.has_copilot ? copilot.user_id || 0 : 0;
-  if (kind === 'ai') return linkCopilot ? copilotId : 0;
+  const existingId = existing && existing.userId ? Number(existing.userId) || 0 : 0;
+  if (kind === 'ai') {
+    if (copilotId !== 0 && linkCopilot) return copilotId;
+    // Changing a person into an AI (or a new column): an AI never carries a person's login.
+    if (!existing || existing.kind !== 'ai') return 0;
+    // Already an AI column. Unticking a known copilot link (or an unlinked column) is a real "nothing".
+    if (copilotId !== 0 && (existingId === 0 || existingId === copilotId)) return 0;
+    return null;
+  }
   const picked = pickedUserId ? Number(pickedUserId) : 0;
   if (!picked || Number.isNaN(picked)) return 0;
-  return copilotId !== 0 && picked === copilotId ? 0 : picked;
+  if (copilotId !== 0 && picked === copilotId) {
+    return existing && existing.kind === 'person' && existingId === picked ? null : 0;
+  }
+  return picked;
+}
+
+/**
+ * The team member a PERSON column takes its name from. The copilot's own login is never that
+ * member: a person column linked to it the old way keeps the name it has (review R4).
+ */
+export function pickedPersonMember<M extends {id: number}>(
+  members: M[],
+  pickedUserId: string | undefined,
+  copilot: CopilotInfo | null | undefined,
+): M | undefined {
+  if (!pickedUserId) return undefined;
+  const copilotId = copilot && copilot.has_copilot ? copilot.user_id || 0 : 0;
+  const member = members.find((m) => String(m.id) === String(pickedUserId));
+  return member && copilotId !== 0 && member.id === copilotId ? undefined : member;
 }
 
 export interface CapacityPart {

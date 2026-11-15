@@ -24,7 +24,7 @@ import { listTeamMembers, type TeamMember } from '../plannerApi';
 import { startOverrideChange } from '../startOverrideModel';
 import type { TimeWindow } from '../timeWindowModel';
 import { TimeWindowChip } from './TimeWindowChip';
-import { agentUserIdToSave } from '../aiAgentModel';
+import { agentUserIdToSave, isCopilotAgent, pickedPersonMember } from '../aiAgentModel';
 import { useAccountCopilot } from '../useAccountCopilot';
 
 interface EditModalProps {
@@ -45,7 +45,7 @@ interface EditModalProps {
   // GAP-FIX W2: `userId` joins the save payload — '' means "no login".
   // It is deliberately NOT optional-by-omission: the planner clearing a
   // link has to be distinguishable from a caller that never asked.
-  onSaveAgent?: (agentId: string | null, updates: { name: string; kind: AgentKind; color: string; dailyCapacityHours: number; modelId?: string; userId: string }) => boolean | void | Promise<boolean | void>;
+  onSaveAgent?: (agentId: string | null, updates: { name: string; kind: AgentKind; color: string; dailyCapacityHours: number; modelId?: string; userId?: string }) => boolean | void | Promise<boolean | void>;
   // PLN-6 (US-PLN-6-05), wired 2026-10-16. Optional for the same
   // reason as onDeleteAgent: when it isn't passed, no delete control
   // renders at all, rather than offering one that can't work.
@@ -169,8 +169,7 @@ export function EditModal({
         setAgentCapacity(entity.agent.dailyCapacityHours || 8);
         setAgentModelId(entity.agent.modelId || '');
         setAgentUserId(entity.agent.userId || '');
-        // An AI column with a login behind it can only be the copilot link.
-        setLinkCopilot(entity.agent.kind === 'ai' && !!entity.agent.userId);
+        // The copilot tick is set by its own effect below, once the copilot is known.
         setConfirmRemoveAgent(false);
       } else {
         setAgentName('');
@@ -183,6 +182,14 @@ export function EditModal({
       }
     }
   }, [entity]);
+
+  // Review R12 - ticked only when this column really is the account copilot. An AI column linked
+  // to some other login is shown unticked and left alone on save (aiAgentModel holds the rule).
+  // The checkbox is not drawn until the copilot is known, so this never overwrites a user's tick.
+  useEffect(() => {
+    if (entity?.type !== 'agent' || !entity.agent) return;
+    setLinkCopilot(entity.agent.kind === 'ai' && isCopilotAgent(entity.agent, copilot));
+  }, [entity, copilot]);
 
   // GAP-FIX W2 — the account's logins, for the "Who does this work?"
   // picker. A failure here is not fatal: the picker degrades to a
@@ -236,7 +243,7 @@ export function EditModal({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, hasChanges, entity, taskTitle, taskDuration, taskStart, startUseComputed, taskAssignee, taskStatus, taskNotes, taskNeedsInfoReason, tlDate, tlStartTime, agentName, agentKind, agentColor, agentCapacity]);
+  }, [isOpen, hasChanges, entity, taskTitle, taskDuration, taskStart, startUseComputed, taskAssignee, taskStatus, taskNotes, taskNeedsInfoReason, tlDate, tlStartTime, agentName, agentKind, agentColor, agentCapacity, agentModelId, agentUserId, linkCopilot, copilot, teamMembers]);
 
   if (!isOpen || !entity) return null;
 
@@ -382,7 +389,8 @@ export function EditModal({
       // The person picker is the required field now; the name comes from the
       // user record. An AI agent still needs a typed name: there is no user
       // record to take one from.
-      const pickedMember = teamMembers.find((m) => String(m.id) === String(agentUserId));
+      // Review R4 - the copilot's own login is never the member a person column is named after.
+      const pickedMember = pickedPersonMember(teamMembers, agentUserId, copilot);
       const resolvedName = agentKind === 'person'
         ? (pickedMember?.name?.trim() || agentName.trim())
         : agentName.trim();
@@ -411,6 +419,9 @@ export function EditModal({
         setErrors(newErrors);
         return;
       }
+      // Review R3/R4 - `null` means "this edit says nothing about the login": leave `userId` out
+      // so the save omits it and the stored link survives (a failed copilot lookup must not unlink).
+      const loginToSave = agentUserIdToSave(agentKind, agentUserId, linkCopilot, copilot, entity.agent ?? null);
       setIsSaving(true);
       const result = await onSaveAgent?.(entity.agent?.id || null, {
         name: resolvedName,
@@ -420,7 +431,7 @@ export function EditModal({
         modelId: agentKind === 'ai' ? (agentModelId || undefined) : undefined,
         // A person performs as the login picked for them. An AI column performs as the account
         // copilot when ticked, and as nobody otherwise (aiAgentModel holds the rule).
-        userId: String(agentUserIdToSave(agentKind, agentUserId, linkCopilot, copilot) || ''),
+        ...(loginToSave === null ? {} : {userId: String(loginToSave || '')}),
       });
       setIsSaving(false);
       if (result !== false) onClose();

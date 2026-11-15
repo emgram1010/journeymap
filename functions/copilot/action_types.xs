@@ -9,10 +9,10 @@ function "copilot/action_types" {
         map_read           : {key: "map_read", name: "Read maps and plans", touches: "internal", reversible: true, default_level: "own", locked: true, person_only: false, has_limit: false, wired: true}
         map_draft          : {key: "map_draft", name: "Edit draft maps", touches: "internal", reversible: true, default_level: "own", locked: true, person_only: false, has_limit: false, wired: true}
         map_publish_version: {key: "map_publish_version", name: "Publish a map version", touches: "internal", reversible: false, default_level: "wait", locked: true, person_only: true, has_limit: false, wired: true}
-        plan_draft         : {key: "plan_draft", name: "Draft a plan", touches: "internal", reversible: true, default_level: "own", locked: false, person_only: false, has_limit: false, wired: false}
+        plan_draft         : {key: "plan_draft", name: "Draft a plan", touches: "internal", reversible: true, default_level: "own", locked: false, person_only: false, has_limit: false, wired: true}
         plan_publish_live  : {key: "plan_publish_live", name: "Publish a plan to live", touches: "internal", reversible: false, default_level: "wait", locked: true, person_only: true, has_limit: false, wired: false}
-        note_internal      : {key: "note_internal", name: "Write an internal note", touches: "internal", reversible: true, default_level: "tell", locked: false, person_only: false, has_limit: false, wired: false}
-        work_update        : {key: "work_update", name: "Update assigned work", touches: "internal", reversible: true, default_level: "tell", locked: false, person_only: false, has_limit: false, wired: false}
+        note_internal      : {key: "note_internal", name: "Write an internal note", touches: "internal", reversible: true, default_level: "tell", locked: false, person_only: false, has_limit: false, wired: true}
+        work_update        : {key: "work_update", name: "Update assigned work", touches: "internal", reversible: true, default_level: "tell", locked: false, person_only: false, has_limit: false, wired: true}
         customer_message   : {key: "customer_message", name: "Send a message to a customer", touches: "customer", reversible: false, default_level: "wait", locked: false, person_only: false, has_limit: false, wired: false}
         booking_change     : {key: "booking_change", name: "Create or change a booking", touches: "booking", reversible: true, default_level: "wait", locked: false, person_only: false, has_limit: false, wired: false}
         money_payment      : {key: "money_payment", name: "Charge, pay or refund money", touches: "money", reversible: false, default_level: "wait", locked: false, person_only: false, has_limit: true, wired: false}

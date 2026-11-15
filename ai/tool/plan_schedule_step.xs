@@ -24,15 +24,45 @@ tool plan_schedule_step {
       description = "Minutes to set aside, 1 to 1440. Leave 0 to use the step's expected time."
     }
 
+    int approval_id? {
+      description = "Leave 0. Only when the owner approved a waiting action: its item number, sent with exactly the approved input."
+    }
+
     text ticket? filters=trim {
       description = "COP-1 run ticket from your context. If you were given one, pass it on every tool call exactly as given. Otherwise leave it empty."
     }
   }
 
   stack {
+    // Final review R1: the tool declares its action type, so the owner's level for it is really
+    // applied (runs on its own / runs then tells you / waits for you). The summary is what the
+    // owner reads; the payload is this tool's exact input, never the ticket.
+    var $act_summary {
+      value = "Put job step #" ~ ($input.work_task_id|to_text) ~ " on day #" ~ ($input.timeline_id|to_text)
+    }
+
     function.run "journey/tool_gate" {
-      input = {journey_map_id: 0, ticket: $input.ticket, tool: "plan_schedule_step", kind: "write"}
+      input = {journey_map_id: 0, ticket: $input.ticket, tool: "plan_schedule_step", kind: "write", act_type: "plan_draft", act_payload: {work_task_id: $input.work_task_id, timeline_id: $input.timeline_id, duration_minutes: $input.duration_minutes}, act_summary: $act_summary, act_approval_id: $input.approval_id}
     } as $cop1_gate
+
+    var $act_action_id {
+      value = $cop1_gate.action_id ?? 0
+    }
+
+    var $act_account_id {
+      value = $cop1_gate.account_id ?? 0
+    }
+
+    // Everything from here runs inside a try, so a refusal or a failed write is reported to the
+    // approval list (copilot/action_close) before it is passed on unchanged.
+    var $act_error {
+      value = null
+    }
+
+    try_catch {
+      try {
+        group {
+          stack {
 
     var $pin {
       value = $cop1_gate.pin_architecture_id ?? 0
@@ -208,6 +238,21 @@ tool plan_schedule_step {
         }
       }
     }
+          }
+        }
+      }
+
+      catch {
+        var.update $act_error {
+          value = $error
+        }
+      }
+    }
+
+    // How it ended goes to the approval list; any error is then passed on with its own kind.
+    function.run "copilot/action_close" {
+      input = {action_id: $act_action_id, account_id: $act_account_id, error: $act_error}
+    } as $_act_closed
   }
 
   response = {
