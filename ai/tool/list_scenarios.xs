@@ -14,7 +14,7 @@ tool list_scenarios {
   stack {
     // COP-1: who is calling, and is this map theirs? Reports only until usr/tool_gate_mode says enforce.
     function.run "journey/tool_gate" {
-      input = {journey_map_id: 0, ticket: $input.ticket, tool: "list_scenarios", kind: "read"}
+      input = {journey_map_id: 0, journey_architecture_id: $input.journey_architecture_id, ticket: $input.ticket, tool: "list_scenarios", kind: "read"}
     } as $cop1_gate
 
     db.get journey_architecture {
@@ -27,8 +27,27 @@ tool list_scenarios {
       error = "Journey Architecture not found"
     }
   
+    // COP-1: a known caller sees only their own account's maps (journey/visible_map_ids, the
+    // same rule the screens use). An unknown caller is only possible while the gate is in
+    // report mode, and then the list is unchanged.
+    var $caller_account {
+      value = $cop1_gate.account_id
+    }
+
+    var $see_all {
+      value = ($caller_account == 0)
+    }
+
+    function.run "journey/visible_map_ids" {
+      input = {caller_account_id: $caller_account}
+    } as $visible
+
+    var $visible_ids {
+      value = $visible.map_ids
+    }
+
     db.query journey_map {
-      where = $db.journey_map.journey_architecture == $input.journey_architecture_id
+      where = $db.journey_map.journey_architecture == $input.journey_architecture_id && (($see_all == true) || ($db.journey_map.id in $visible_ids))
       sort = {updated_at: "desc"}
       return = {type: "list"}
     } as $maps

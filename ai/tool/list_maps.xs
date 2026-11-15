@@ -30,8 +30,28 @@ tool list_maps {
       input = {journey_map_id: 0, ticket: $input.ticket, tool: "list_maps", kind: "read"}
     } as $cop1_gate
 
-    // Load all maps — filter in-memory for flexibility
+    // COP-1: a known caller sees only their own account's maps (journey/visible_map_ids, the
+    // same rule the screens use). An unknown caller is only possible while the gate is in
+    // report mode, and then the list is unchanged.
+    var $caller_account {
+      value = $cop1_gate.account_id
+    }
+
+    var $see_all {
+      value = ($caller_account == 0)
+    }
+
+    function.run "journey/visible_map_ids" {
+      input = {caller_account_id: $caller_account}
+    } as $visible
+
+    var $visible_ids {
+      value = $visible.map_ids
+    }
+
+    // Load the caller's maps — filter in-memory for flexibility
     db.query journey_map {
+      where = ($see_all == true) || ($db.journey_map.id in $visible_ids)
       sort = {last_interaction_at: "desc"}
       return = {type: "list"}
     } as $all_maps

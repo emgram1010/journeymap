@@ -2,6 +2,7 @@
 function "journey/tool_gate" {
   input {
     int journey_map_id?
+    int journey_architecture_id?
     text ticket? filters=trim
     text tool? filters=trim
     text kind? filters=trim
@@ -109,6 +110,46 @@ function "journey/tool_gate" {
       }
     }
 
+    // The architecture (business), when the tool names one. Same answer for "someone else's"
+    // and "does not exist". Account 0 owns nothing.
+    var $what {
+      value = "map"
+    }
+
+    conditional {
+      if ($ok == true && $input.journey_architecture_id != 0) {
+        db.query journey_architecture {
+          where = $db.journey_architecture.id == $input.journey_architecture_id
+          return = {type: "single"}
+          output = ["id", "account_id"]
+        } as $arch_row
+
+        var $arch_id {
+          value = $arch_row|get:"id":0
+        }
+
+        var $arch_account {
+          value = $arch_row|get:"account_id":0
+        }
+
+        conditional {
+          if ($arch_id == 0 || $caller.account_id == 0 || $arch_account != $caller.account_id) {
+            var.update $ok {
+              value = false
+            }
+
+            var.update $code {
+              value = "E-COP-002"
+            }
+
+            var.update $what {
+              value = "architecture"
+            }
+          }
+        }
+      }
+    }
+
     var $recent_logs {
       value = 0
     }
@@ -171,7 +212,11 @@ function "journey/tool_gate" {
     }
 
     var $refuse_map {
-      value = ($refuse == true && $code == "E-COP-002")
+      value = ($refuse == true && $code == "E-COP-002" && $what == "map")
+    }
+
+    var $refuse_arch {
+      value = ($refuse == true && $code == "E-COP-002" && $what == "architecture")
     }
 
     precondition ($refuse_signin == false) {
@@ -187,6 +232,11 @@ function "journey/tool_gate" {
     precondition ($refuse_map == false) {
       error_type = "notfound"
       error = "Journey map not found"
+    }
+
+    precondition ($refuse_arch == false) {
+      error_type = "notfound"
+      error = "Journey Architecture not found"
     }
   }
 

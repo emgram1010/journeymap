@@ -402,3 +402,30 @@ the repo file. An oversized MCP result is saved to a file, which makes an exact 
 2. **Before the outside path is switched to refuse:** tools that create things must stamp the
    caller's owner and account; `list_maps` / `search_maps` / `list_scenarios` must filter by
    account; maps 226–234 (account 0) need an owner, or the founder loses them through the tools.
+
+### Roll-out step 2b — the outside door's three prerequisites (2026-11-15)
+
+Done, with the gate still in `report` mode (nothing refused):
+
+| Item | Result |
+|---|---|
+| Maps 227–234 and architecture 46 given an owner | ✅ moved to user 2 / account 2 (the founder). Map 226 was already theirs. Nothing in the system now has account 0 (checked both maps and architectures) |
+| Tools that create things stamp the caller | ✅ `create_workspace`, `create_journey_map`, `clone_scenario` — owner and account come from the caller; an `account_id` sent by the model is ignored |
+| Lists show only the caller's account | ✅ `list_maps`, `search_maps`, `list_scenarios`, using the same `journey/visible_map_ids` the screens use |
+| Gate also checks "is this business yours" | ✅ `journey_architecture_id` added to `journey/tool_gate`; same "not found" answer as for one that does not exist |
+| `search_maps` "Invalid pipe." | ✅ fixed (`|lowercase` → `|lower`); it had been broken since 2026-06-04 |
+
+**Real HTTP test, `tests/cop1_outside_probe.py`, test user in account 13, report mode: 12/12.**
+Workspace and both kinds of map stamped to the caller; lists show only own maps; another account's
+business lists nothing; a clone is owned by its maker; `search_maps` runs.
+
+**Not yet run:** the same script with `COP1_EXPECT=enforce` (cross-account read, write and create
+must be refused, with the same answer as a map that does not exist). That is the check to run
+right after the switch below.
+
+**To switch the outside door to refuse:** set `outside_read` and `outside_write` to `"enforce"` in
+`usr/tool_gate_mode` (fn 310). Rollback is the same edit back to `"report"`. Any assistant on the
+tool address (including the founder's) is then limited to its own account's maps.
+
+Test data left in test account 13: maps 235 and 236 plus the probe's "(safe to delete)" workspace
+and maps.

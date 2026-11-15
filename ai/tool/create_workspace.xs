@@ -24,6 +24,28 @@ tool create_workspace {
       error = "title is required"
     }
   
+    // COP-1: a workspace belongs to whoever made it. When the caller is known, the account
+    // and owner come from the caller and the account_id input is ignored.
+    var $stamp_account {
+      value = $input.account_id
+    }
+
+    var $stamp_owner {
+      value = 0
+    }
+
+    conditional {
+      if ($cop1_gate.user_id != 0) {
+        var.update $stamp_account {
+          value = $cop1_gate.account_id
+        }
+
+        var.update $stamp_owner {
+          value = $cop1_gate.user_id
+        }
+      }
+    }
+
     db.add journey_architecture {
       enforce_hidden_fields = false
       data = {
@@ -32,7 +54,8 @@ tool create_workspace {
         title      : $input.title
         description: $input.description
         status     : "draft"
-        account_id : $input.account_id
+        account_id : $stamp_account
+        owner_user : $stamp_owner
       }
     } as $architecture
   }

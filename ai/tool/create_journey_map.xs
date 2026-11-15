@@ -27,7 +27,7 @@ tool create_journey_map {
   stack {
     // COP-1: who is calling, and is this map theirs? Reports only until usr/tool_gate_mode says enforce.
     function.run "journey/tool_gate" {
-      input = {journey_map_id: $input.parent_map_id, ticket: $input.ticket, tool: "create_journey_map", kind: "write"}
+      input = {journey_map_id: $input.parent_map_id, journey_architecture_id: $input.journey_architecture_id, ticket: $input.ticket, tool: "create_journey_map", kind: "write"}
     } as $cop1_gate
 
     precondition ($input.title != null && $input.title != "") {
@@ -66,6 +66,24 @@ tool create_journey_map {
       }
     }
   
+    // COP-1: a map belongs to whoever made it. When the caller is known, the account and
+    // owner come from the caller - never 0, never from the model's input.
+    var $stamp_owner {
+      value = 0
+    }
+
+    conditional {
+      if ($cop1_gate.user_id != 0) {
+        var.update $resolved_account_id {
+          value = $cop1_gate.account_id
+        }
+
+        var.update $stamp_owner {
+          value = $cop1_gate.user_id
+        }
+      }
+    }
+
     // Create the map
     db.add journey_map {
       enforce_hidden_fields = false
@@ -77,6 +95,7 @@ tool create_journey_map {
         last_interaction_at : "now"
         journey_architecture: $resolved_architecture
         account_id          : $resolved_account_id
+        owner_user          : $stamp_owner
         intent              : $input.intent
         map_level           : $input.map_level
         parent_map_id       : $input.parent_map_id

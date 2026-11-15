@@ -37,7 +37,7 @@ tool clone_scenario {
   stack {
     // COP-1: who is calling, and is this map theirs? Reports only until usr/tool_gate_mode says enforce.
     function.run "journey/tool_gate" {
-      input = {journey_map_id: $input.source_map_id, ticket: $input.ticket, tool: "clone_scenario", kind: "write"}
+      input = {journey_map_id: $input.source_map_id, journey_architecture_id: $input.journey_architecture_id, ticket: $input.ticket, tool: "clone_scenario", kind: "write"}
     } as $cop1_gate
 
     db.get journey_architecture {
@@ -88,6 +88,7 @@ tool clone_scenario {
         status              : "draft"
         journey_architecture: $input.journey_architecture_id
         account_id          : $arch.account_id
+        owner_user          : $cop1_gate.user_id
         cloned_from_map_id  : $input.source_map_id
       }
     } as $new_map
