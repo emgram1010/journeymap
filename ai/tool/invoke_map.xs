@@ -48,6 +48,7 @@ tool invoke_map {
         created_at         : "now"
         updated_at         : "now"
         journey_map        : $input.target_map_id
+        owner_user         : $cop1_gate.user_id
         subject_label      : $input.subject_label
         status             : "running"
         execution_mode     : "auto"
@@ -74,9 +75,10 @@ tool invoke_map {
       }
     }
 
-    // Build context message for the sub-agent
+    // Build context message for the sub-agent. COP-1 review (2026-11-14): each piped value is
+    // wrapped in its own parentheses before `??` — unwrapped, the filter swallowed the rest.
     var $invoke_msg {
-      value = `"## Map Invocation (Sub-Agent Mode)\nParent execution: " ~ ($input.parent_execution_id|to_text ?? "none") ~ "\nSubject: " ~ ($input.subject_label ?? "unspecified") ~ "\nInput context: " ~ ($input.input_data|json_encode ?? "{}") ~ "\n- ticket: " ~ $nested_ticket`
+      value = `"## Map Invocation (Sub-Agent Mode)\nParent execution: " ~ (($input.parent_execution_id|to_text) ?? "none") ~ "\nSubject: " ~ ($input.subject_label ?? "unspecified") ~ "\nInput context: " ~ (($input.input_data|json_encode) ?? "{}") ~ "\n- ticket: " ~ $nested_ticket`
     }
   
     var $invoke_messages {

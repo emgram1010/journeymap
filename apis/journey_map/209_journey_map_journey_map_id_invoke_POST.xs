@@ -31,18 +31,54 @@ query "journey_map/{journey_map_id}/invoke" verb=POST {
       error_type = "notfound"
       error = "Target journey map not found"
     }
-  
-    // Circular invocation guard — check parent execution's map is not the same map
+
+    // COP-1 review (2026-11-14): the target map must be in the caller's account. Before this, any
+    // signed-in person could start an agent run against another account's map (the tools then
+    // refused, but the run, its ticket and its context were created first).
+    db.get user {
+      field_name = "id"
+      field_value = $auth.id
+      output = ["id", "account_id"]
+    } as $caller
+
+    function.run "journey/assert_map_owner" {
+      input = {
+        journey_map_id   : $input.journey_map_id
+        caller_account_id: $caller.account_id
+        user_id          : $auth.id
+        step             : "journey_map/invoke"
+      }
+    } as $_owner
+
+    // Circular invocation guard — check parent execution's map is not the same map. The parent
+    // run must also be in the caller's account (same answer as "not found").
     conditional {
       if ($input.parent_execution_id != null) {
         db.get workflow_execution {
           field_name = "id"
           field_value = $input.parent_execution_id
         } as $parent_exec
-      
-        precondition ($parent_exec == null || $parent_exec.journey_map != $input.journey_map_id) {
+
+        var $parent_map {
+          value = $parent_exec|get:"journey_map":0
+        }
+
+        precondition ($parent_map == 0 || $parent_map != $input.journey_map_id) {
           error_type = "inputerror"
           error = "Circular map invocation detected: a map cannot invoke itself"
+        }
+
+        conditional {
+          if ($parent_map != 0) {
+            function.run "journey/assert_map_owner" {
+              input = {
+                journey_map_id   : $parent_map
+                caller_account_id: $caller.account_id
+                user_id          : $auth.id
+                step             : "journey_map/invoke_parent"
+              }
+            } as $_parent_owner
+          }
         }
       }
     }
@@ -68,9 +104,10 @@ query "journey_map/{journey_map_id}/invoke" verb=POST {
       input = {user_id: $auth.id, journey_map_id: $input.journey_map_id, journey_architecture_id: 0, source: "invoke", ttl_seconds: 0}
     } as $cop1_ticket
 
-    // Build agent messages — inject input_data as the opening context
+    // Build agent messages — inject input_data as the opening context. COP-1 review: each piped
+    // value is wrapped in its own parentheses before `??`.
     var $invoke_context {
-      value = `"## Map Invocation\nThis map has been invoked programmatically.\nParent execution ID: " ~ ($input.parent_execution_id|to_text ?? "none") ~ "\nSubject: " ~ ($input.subject_label ?? $input.subject_id ?? "unspecified") ~ "\nInput context:\n" ~ ($input.input_data|json_encode ?? "{}") ~ "\n- ticket: " ~ $cop1_ticket.ticket`
+      value = `"## Map Invocation\nThis map has been invoked programmatically.\nParent execution ID: " ~ (($input.parent_execution_id|to_text) ?? "none") ~ "\nSubject: " ~ ($input.subject_label ?? $input.subject_id ?? "unspecified") ~ "\nInput context:\n" ~ (($input.input_data|json_encode) ?? "{}") ~ "\n- ticket: " ~ $cop1_ticket.ticket`
     }
   
     var $invoke_messages {

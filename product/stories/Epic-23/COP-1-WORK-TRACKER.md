@@ -9,7 +9,7 @@ Rule: two tracks never touch the same files. Backend gate/tool files belong to t
 | A | Team page: copilot shown as "AI", "Create copilot" button, daily-limit control | Sonnet 5.5 helper | `webapp/protype-2/src/team/*`, `src/xano.ts` (copilot calls only), new tests | ✅ built, 7 new tests, npm 796/796; not yet seen in a browser |
 | F | Fix the review's confirmed findings | Opus 5.5 (main) | see below | ✅ pushed live and checked (founder OK 2026-11-14) |
 | B | Health page: view of `tool_call_log` (needs one new GET endpoint) | Sonnet 5.5 helper | `src/health/*`, new endpoint file | ⏳ after F (endpoint push) |
-| C | Old bug: endpoint 209 + `invoke_map` unwrapped filter | Opus 5.5 (main) | `apis/journey_map/209*`, `ai/tool/invoke_map.xs` | ⏳ after R (in review scope) |
+| C | Old bug: endpoint 209 + `invoke_map` unwrapped filter | Opus 5.5 (main) | `apis/journey_map/209*`, `ai/tool/invoke_map.xs` | ✅ pushed (api 209, tool 53) and checked |
 | E | Scaffold all-or-nothing (founder decision) + confirm `intent` now saves | Opus 5.5 (main) | `ai/tool/scaffold_structure.xs`, `ai/tool/scaffold_map.xs` | ✅ pushed live and checked |
 | D | Delete endpoint: count owned maps as "has work" | Opus 5.5 (main) | `apis/members_accounts/20_admin_user_delete_POST.xs` | ✅ pushed (api 589); count query checked live (copilot owns 1 → counted). Not exercised end-to-end, to avoid a real delete |
 
@@ -24,7 +24,7 @@ Rule: two tracks never touch the same files. Backend gate/tool files belong to t
 | 5 | Ticket not pinned to its map (same account only) | Low | COP-3 pinning (known) | — |
 | 6 | Cap fails open if the audit insert fails; some tools count 2 | Low | not yet | — |
 | 7 | Health refusal-log limit is global, not per account | Low | not yet | — |
-| 8 | Endpoint 209 has no owner check (pre-existing) | Low | with track C | — |
+| 8 | Endpoint 209 has no owner check (pre-existing) | Low | owner check on target map and parent run | ✅ |
 
 ## Waiting on the founder
 - Nothing right now.
@@ -51,3 +51,6 @@ Rule: two tracks never touch the same files. Backend gate/tool files belong to t
   - Found live: a tool that fails inside `tool.call` does NOT throw — the caller gets `{code, message, payload}` back. Check `|has:"success"` after any `tool.call`.
   - Found live: `ops/log_event` outcome must be success | rejected | failure ("failed" is refused).
   - Fixture left in account 13: map 257 "COP-1 intent check (safe to delete)".
+- 2026-11-15 — Tracks C and D done.
+  - 209 + invoke_map: the context message now builds (checked on a scratch copy of the exact expression, with and without values). 209 now checks the target map (and any parent run) is in the caller's account: test admin q calling it on another account's map 176 → 403, and no workflow run was created. invoke_map now stamps the run's owner. A full agent run was not triggered (it costs an AI call); the chat path that uses the same tools was proven earlier.
+  - Delete (api 589) counts owned maps.
