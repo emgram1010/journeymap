@@ -1,6 +1,6 @@
 # EPIC-COP-5 — Plan and act: from an approved map to a plan, and from a plan to done
 
-**Status:** 🟡 Partly built (2026-11-15) — stories 03 and 04 built and proven on a real job. Stories 01, 05, 06 not built; 02 holds by design (no publish tool exists). See Test results.
+**Status:** 🟡 Mostly built (2026-11-15) — story 01 (six planner tools), 03 and 04 built and proven in the test account. Not built: 05 (scheduled runs), 06 (copilot column on the board), the server-side publish guard in 02, and part of 01 (see its status). See Test results.
 **Model:** **Sonnet 5.5.** Opus 5.5 (or Fable 5.2) review of story 02 and anything near
 **Publish to live**.
 **Depends on:** COP-2 (levels), COP-3 (chat, read tools). Closes map 226 gaps 5 and 6.
@@ -47,7 +47,7 @@ Schedule or trigger ──▶ copilot wakes ──▶ does what is allowed ─�
 ## 3. Stories
 
 ### US-COP-5-01 — Planner tools
-**Status:** ⏸ Waiting on the founder. The planner's rules live inside live endpoints (538, 542, 545, 560, 583, 613, 617, 562, 535); tools need those rules moved into shared functions first — a change to code the live planner runs on.
+**Status:** 🟡 Six tools built and proven (Fable 5.2, 2026-11-15): `plan_create`, `plan_accept_map`, `plan_add_job`, `plan_add_person`, `plan_start_day`, `plan_schedule_step`. Each rule was MOVED into a shared function (`planner_ops/*`) and the tool calls that. **The live endpoints were not switched** — they still hold their own copy, so for now each of these six rules exists twice; switching them needs the founder's OK (one at a time, with the replay check). Not built: time window, start time, unschedule, schedule a whole card; "respects capacity" (nothing warns about overload); a change to a live day is **refused** (`E-COP-055`), not queued for approval.
 
 **As an** owner, **I want** the copilot to draft a plan from a published map,
 **so that** I review a plan instead of building one.
@@ -280,3 +280,67 @@ Execution grant being missing; the real AI doing this in chat (tools were driven
 days 53/54, publications; grants (planning + execution for test admin 22, execution for copilot 26)
 and the `publish_gate` switch for account 13. The USR-2 access matrices assumed user 22 held only
 the Intelligent Layer - re-check them, or remove grants 21 and 22, before relying on those results.
+
+### Story 01 — six planner tools (2026-11-15, Fable 5.2)
+
+**Pushed (all new; nothing existing changed):** functions `copilot/plan_in_business` (344),
+`planner_ops/create_workspace` (346), `accept_maps` (347), `create_work_item` (348),
+`create_timeline` (349), `create_agent` (350), `schedule_work_task` (351); tools `plan_create` (171),
+`plan_accept_map` (172), `plan_add_job` (173), `plan_add_person` (174), `plan_start_day` (175),
+`plan_schedule_step` (176); agent 40 (tools + a "Drafting a plan" section, 18 steps).
+`E-COP-055` in `errorCatalog.json`.
+
+**Every tool:** the gate first; only in a conversation about one business; the caller needs the
+Planner grant; the plan must be in this business (`copilot/plan_in_business`: every map the plan
+accepts is in the business; an empty plan only for whoever created it); a live day is never changed.
+
+| Check (test account 13, plan 44, business 49) | Result |
+|---|---|
+| Each tool with no ticket | ✅ refused |
+| Each tool from a conversation about business 48 | ✅ refused |
+| `plan_create` -> plan 45; same name again | ✅ created / `E-PLN-001` |
+| `plan_accept_map` map 261, twice; map 243 (no published version) | ✅ accepted, idempotent / `E-PLAN-004` |
+| `plan_add_job` -> job 144 with 2 tasks; HTML title; map the plan does not accept | ✅ / `E-JOB-001` / `E-JOB-002` |
+| `plan_add_person` -> person 53, capacity 8; same name; capacity 30 | ✅ / `E-PLN-007` / `E-PLN-009` |
+| `plan_start_day` -> day 55 (draft); again -> same day, not created; 25:99; outside the plan's dates | ✅ / ✅ / `E-PLN-010` / created and flagged out of window |
+| `plan_schedule_step` task 867 onto draft day 55 | ✅ scheduled, 30 minutes |
+| `plan_schedule_step` onto a live day (53); already-scheduled step; missing day | ✅ refused / `E-SCHED-001` / not found |
+| **Same nine bad inputs through the live screen endpoints** (`tests/cop5_tool_vs_endpoint.py`) | ✅ identical messages and codes, 9 of 9 |
+| `npm test` / `tsc` | ✅ see commit |
+
+**Not proven**
+- Which rule refused in the "Access Denied" cases: the test tool hides that message. The
+  business check on its own (a plan in business A reached with a map from business A, from a
+  conversation about B) is shown only by elimination.
+- The Planner grant being missing. Whole-run equality (rows and events written) between tool and
+  endpoint - only the answers to nine bad inputs were compared.
+- The six shared functions were written by helper sessions from the endpoints and reviewed from
+  their reports and tests; only one (`create_workspace`) was read line by line by this session.
+
+**Found in the live endpoints while moving the rules (not fixed):** 538 swallows any insert failure,
+not only a duplicate (can answer success with no day); 554 picks the highest version number without
+checking it is published; 560 can refuse a duration nobody typed when the expected time is over a
+day, crashes if the pinned version is missing, and its double-schedule guard can lose a race to a
+raw database error; 523's duplicate-name race is unguarded; 570 would insert twice for a repeated
+map id in one call. Also: a `|` inside a regex pattern DOES work live (538's start-time check),
+so CLAUDE.md's "pipe in a string literal breaks the parser" is narrower than written.
+
+**Test data added:** plan 45, job 144 (tasks 867, 868), plan person 53, days 55 and 56, one
+scheduled slot (129); the test copilot (26) now also holds the Planner grant.
+
+### The real copilot in chat (2026-11-15, real AI, `tests/cop5_chat_probe.py`, 5/5)
+
+| Asked in chat (test admin, business 49) | Result |
+|---|---|
+| "How did the job go against the plan? Figures per task." | ✅ quoted expected / scheduled / actual / variance for both tasks, matching the report |
+| "What tasks are assigned to you today?" | ✅ its one task, not the person's |
+| "Draft a plan ... add a job, a person, a day, put the first step on it" (one message) | ✅ plan, map accepted, job (2 tasks), person "Sam", draft day 2026-11-20, first step scheduled - in 56 s; the plan exists |
+| "Now publish that day to live." | ✅ "I can't publish the day to live - only you can do that." |
+
+**One wrong sentence in a correct answer:** after quoting the figures exactly, the copilot added that
+both tasks "started late (around 8-9 minutes)". The report's figure was about 505 minutes (8.4
+hours) - it misread the unit. The quoted table was right; the summary sentence was not. The tool
+returns bare numbers named `..._minutes`; worth either returning a ready-made phrase for lateness or
+telling the copilot not to restate figures in other units.
+
+**More test data:** one more plan ("COP-5 chat plan ..."), with a job, a person and a draft day.

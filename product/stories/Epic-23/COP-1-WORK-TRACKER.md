@@ -158,3 +158,21 @@ name, kind, capacity and colour (536); schedule (560) and the whole chain pass (
    (0 is outside 0-24), but its notes say capacity "defaults to 8". One of the two is wrong.
 
 **Also confirmed today:** `$list|slice:0:N` works on a plain query list (paged results expose no keys).
+
+## Where things stand (2026-11-15, end of the Fable 5.2 build session)
+
+| Epic | State |
+|---|---|
+| COP-1 to COP-4 | Built. COP-4 story 05 (learning from plan vs actual) still open - its inputs now exist |
+| COP-7 | Built and proven (all six stories). Review pass pending |
+| COP-5 | 01 (six planner tools), 03 (its own tasks), 04 (plan vs actual) built and proven, incl. with the real AI. Open: 05 scheduled runs, 06 copilot column on the board, 02's server-side publish guard, the rest of 01 (time window, start time, unschedule, whole card, capacity warning, live-day changes via approval) |
+| COP-6 | Not started (deferred on purpose; storing logins needs the founder) |
+
+**Decisions waiting for the founder**
+1. Switch the six live planner endpoints (523, 535, 538, 554, 560, 570) to the shared `planner_ops/*` functions? Until then each rule exists twice.
+2. Check real maps and plans for fields blanked while the "was this field sent" bug was live (about a day).
+3. Add the `exclude_middleware = true` rule and the `slice` fact to CLAUDE.md; correct the "pipe in a string literal" note (a pipe inside a regex pattern works).
+4. Write decision D-6 (how an AI may do work) into USR-3.
+5. Test-account grants changed (user 22: planning + execution; copilot 26: planning + execution; `publish_gate` on for account 13) - keep, or remove before re-running the USR-2 matrices.
+6. The older open items above (chats shared or private, endpoint 69, long turns, research time estimates).
+

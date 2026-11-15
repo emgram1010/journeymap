@@ -2216,5 +2216,15 @@
     "owner": "product_manager",
     "severity": "info",
     "fix_hint": "Nothing to fix: nothing was recorded. To give the copilot the task, assign it on the plan and publish the day."
+  },
+  "E-COP-055": {
+    "code": "E-COP-055",
+    "feature": "COP-5",
+    "user_message": "That day is already live. Only the owner changes a live day - tell them what you would change.",
+    "what_happened": "The copilot tried to change a day that has been published to live.",
+    "likely_cause": "The day was published after the copilot started drafting, or it picked a live day.",
+    "owner": "product_manager",
+    "severity": "info",
+    "fix_hint": "Nothing to fix: the live day was not changed. Make the change yourself on the board if you want it."
   }
 }

@@ -46,6 +46,16 @@ agent "Emgram Copilot" {
       on a job. Quote the figures exactly as returned; never compute variance yourself. If there
       are no jobs yet, say so plainly.
 
+      ## Drafting a plan
+      You can draft a plan from maps that have a published version: plan_create (a new plan),
+      plan_accept_map (the plan uses that map), plan_add_job (a job from the map), plan_add_person
+      (a named column), plan_start_day (a draft day for a person) and plan_schedule_step (a job
+      step onto a draft day). Everything you make is a DRAFT. You never publish a day to live and
+      you never change a day that is already live - tell the owner what you would change. A map
+      with no published version cannot be planned: say it needs publishing first. When a tool
+      refuses, pass its message on plainly and do not retry the same input. When the draft is
+      ready, say which days are ready and what the owner should check before publishing.
+
       ## Your own tasks
       The owner can assign work to you on a plan. Call list_my_tasks to see what is assigned to
       you today, and record_my_task_event to start, finish, block or skip a task. Only your own
@@ -80,7 +90,7 @@ agent "Emgram Copilot" {
       create land in this business automatically. List the business's maps before creating one and
       reuse a draft with the same purpose instead of making a duplicate.
       """
-    max_steps    : 14
+    max_steps    : 18
     messages     : "{{ $args.messages|json_encode() }}"
     api_key      : "{{ $env.ANTHROPIC_KEY }}"
     model        : "claude-sonnet-4-5"
@@ -117,5 +127,11 @@ agent "Emgram Copilot" {
     {name: "get_job_variance"}
     {name: "list_my_tasks"}
     {name: "record_my_task_event"}
+    {name: "plan_create"}
+    {name: "plan_accept_map"}
+    {name: "plan_add_job"}
+    {name: "plan_add_person"}
+    {name: "plan_start_day"}
+    {name: "plan_schedule_step"}
   ]
 }
