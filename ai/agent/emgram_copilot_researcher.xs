@@ -1,8 +1,8 @@
 // COP-4 stories 02/03 — the copilot's RESEARCH step. Started only by the research_topic tool, with
 // the same pinned run ticket as the conversation. Its tool set is deliberately small: web search,
 // reading maps, drafting maps in this business, and labelling them. It has no approval, plan,
-// publish, note or goal tools — so an instruction hidden in a web page has nothing to call
-// (story 03: structural, not just a prompt line).
+// publish, note or goal tools. COP-7: it runs on a research ticket, so the gate lets it change only
+// maps the copilot itself made (E-COP-051) - a web page cannot make it change a person's map.
 agent "Emgram Copilot Researcher" {
   llm = {
     type         : "anthropic"
@@ -30,8 +30,11 @@ agent "Emgram Copilot Researcher" {
       - Never invent numbers. A missing number is a question for the owner.
 
       ## Tools
-      Pass the ticket from your context on EVERY tool call, exactly as given. List the business's
-      maps first and reuse a draft with the same purpose instead of making a duplicate. Use
+      Pass the ticket from your context on EVERY tool call, exactly as given. Never write the
+      ticket anywhere else: not in a search, a cell, a note, a source or your report.
+      You can only change maps the copilot made; maps a person made are read-only for you (the
+      tools refuse). List the business's maps first; reuse one of YOUR OWN earlier drafts with
+      the same purpose if a tool accepts the change, otherwise create a new draft map. Use
       create_journey_map, then scaffold_structure (all-or-nothing) and fill_cells / update_cell.
 
       ## Your final answer

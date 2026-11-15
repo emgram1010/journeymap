@@ -218,6 +218,43 @@ function "journey/tool_gate" {
       }
     }
 
+    // COP-7 story 01: a research run (a ticket minted by research_topic, source "research") may
+    // only change maps the copilot itself made. Text from a web page can therefore never make it
+    // change or strip a map a person made. Unknown maker = refused. Refused in any mode.
+    var $research_refused {
+      value = false
+    }
+
+    conditional {
+      if ($ok == true && $caller.ticket_source == "research" && $kind == "write" && $input.journey_map_id != 0) {
+        db.query journey_map {
+          where = $db.journey_map.id == $input.journey_map_id
+          return = {type: "single"}
+          output = ["id", "owner_user"]
+        } as $research_map
+
+        var $research_owner {
+          value = ($research_map|get:"owner_user":0) ?? 0
+        }
+
+        conditional {
+          if ($research_owner == 0 || $research_owner != $caller.user_id) {
+            var.update $ok {
+              value = false
+            }
+
+            var.update $code {
+              value = "E-COP-051"
+            }
+
+            var.update $research_refused {
+              value = true
+            }
+          }
+        }
+      }
+    }
+
     // COP-3 review fix: an AI identity always works inside one business. A copilot call that arrives
     // with no business pin (a ticket from another chat, or none) is refused, so a person cannot hand
     // the copilot an unpinned ticket and a copilot ticket cannot be used unpinned elsewhere.
@@ -417,7 +454,7 @@ function "journey/tool_gate" {
     }
 
     conditional {
-      if ($ok == false && $recent_logs < 60 && $action_refused == false && $pin_refused == false && $ai_unpinned == false) {
+      if ($ok == false && $recent_logs < 60 && $action_refused == false && $pin_refused == false && $ai_unpinned == false && $research_refused == false) {
         function.run "ops/log_event" {
           input = {
             feature    : "COP-1"
@@ -444,7 +481,7 @@ function "journey/tool_gate" {
     }
 
     conditional {
-      if ($ok == false && ($mode == "enforce" || $action_refused == true || $pin_refused == true || $over_cap == true || $ai_unpinned == true)) {
+      if ($ok == false && ($mode == "enforce" || $action_refused == true || $pin_refused == true || $over_cap == true || $ai_unpinned == true || $research_refused == true)) {
         var.update $verdict {
           value = "refused"
         }
@@ -515,6 +552,12 @@ function "journey/tool_gate" {
     precondition ($ai_unpinned == false) {
       error_type = "accessdenied"
       error = "The copilot only works inside a conversation about one business. (E-COP-048)"
+    }
+
+    // COP-7: a research run touching a map the copilot did not make — refused in any mode.
+    precondition ($research_refused == false) {
+      error_type = "accessdenied"
+      error = "Research can only change maps the copilot made. Make a new draft map instead. (E-COP-051)"
     }
 
     // COP-3: outside the business this conversation is pinned to — refused in any mode.

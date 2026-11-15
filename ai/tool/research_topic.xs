@@ -2,6 +2,9 @@
 // ("Emgram Copilot Researcher"), which works with the SAME pinned run ticket (same identity, same
 // business, same daily cap and approval levels) but only has search + draft-map tools. Returns the
 // researcher's short report. Logged as a research run (topic length only, never the topic text).
+// COP-7 (2026-11-15): the researcher gets its OWN short-lived ticket, source "research" - the gate
+// then lets it change only maps the copilot made (E-COP-051). That ticket is ended when the run
+// ends, and both tickets are scrubbed from the report.
 tool research_topic {
   instructions = "Research a topic for this business and draft it as maps (journey, sub-journeys, exceptions) with sources. Use when the owner asks how to do something you don't know. Pass a generic topic (no customer names, contact details or figures). Returns a short report of what was drafted, the sources, and open questions."
 
@@ -39,8 +42,25 @@ tool research_topic {
       error = "Give a short research topic (up to 300 characters)."
     }
 
+    var $fit_len {
+      value = $input.fit_notes|strlen
+    }
+
+    precondition ($fit_len <= 500) {
+      error_type = "inputerror"
+      error = "Keep the fit notes short (up to 500 characters)."
+    }
+
+    function.run "usr/mint_tool_ticket" {
+      input = {user_id: $cop1_gate.user_id, journey_map_id: 0, journey_architecture_id: $pin, source: "research", ttl_seconds: 900}
+    } as $research_ticket
+
+    var $rticket {
+      value = $research_ticket.ticket
+    }
+
     var $ctx {
-      value = "## Business\n- journey_architecture_id: " ~ ($pin|to_text) ~ "\n\n## Fit to this business\n- " ~ $input.fit_notes ~ "\n\n## Tool Logging\n- ticket: " ~ $input.ticket ~ "\n"
+      value = "## Business\n- journey_architecture_id: " ~ ($pin|to_text) ~ "\n\n## Fit to this business\n- " ~ $input.fit_notes ~ "\n\n## Tool Logging\n- ticket: " ~ $rticket ~ "\n"
     }
 
     var $msgs {
@@ -72,6 +92,15 @@ tool research_topic {
           value = ""
         }
       }
+    }
+
+    // The research ticket stops working the moment the run ends, and no ticket leaves in the report.
+    function.run "usr/expire_tool_ticket" {
+      input = {ticket: $rticket}
+    } as $_expired
+
+    var.update $report {
+      value = $report|replace:$rticket:"[hidden]"|replace:$input.ticket:"[hidden]"
     }
 
     var $ok {

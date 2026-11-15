@@ -2176,5 +2176,15 @@
     "owner": "engineer",
     "severity": "info",
     "fix_hint": "Use the buttons on the goals list."
+  },
+  "E-COP-051": {
+    "code": "E-COP-051",
+    "feature": "COP-7",
+    "user_message": "Research can only change maps the copilot made. Make a new draft map instead.",
+    "what_happened": "A copilot research run tried to change a map that a person made.",
+    "likely_cause": "The research step tried to reuse an existing map, or a web page told it to.",
+    "owner": "product_manager",
+    "severity": "info",
+    "fix_hint": "Nothing to fix: the map was not changed. Ask the copilot in chat if you do want that map edited."
   }
 }

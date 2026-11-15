@@ -33,6 +33,11 @@ function "usr/tool_caller" {
       value = 0
     }
 
+    // COP-7: which step made the ticket ("research" = a research run; the gate narrows it).
+    var $ticket_source {
+      value = ""
+    }
+
     var $authz {
       value = ""
     }
@@ -121,6 +126,10 @@ function "usr/tool_caller" {
 
             var.update $ticket_architecture_id {
               value = $row|get:"journey_architecture_id":0
+            }
+
+            var.update $ticket_source {
+              value = ($row|get:"source":"") ?? ""
             }
 
             var.update $reason {
@@ -217,5 +226,6 @@ function "usr/tool_caller" {
     reason                : $reason
     ticket_map_id         : $ticket_map_id
     ticket_architecture_id: $ticket_architecture_id
+    ticket_source         : $ticket_source
   }
 }

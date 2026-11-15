@@ -59,3 +59,63 @@ Rule: two tracks never touch the same files. Backend gate/tool files belong to t
 - 2026-11-15 — Tracks C and D done.
   - 209 + invoke_map: the context message now builds (checked on a scratch copy of the exact expression, with and without values). 209 now checks the target map (and any parent run) is in the caller's account: test admin q calling it on another account's map 176 → 403, and no workflow run was created. invoke_map now stamps the run's owner. A full agent run was not triggered (it costs an AI call); the chat path that uses the same tools was proven earlier.
   - Delete (api 589) counts owned maps.
+
+## Fable review (2026-11-15, Fable 5.2) — review only, nothing pushed or changed
+
+**Scope:** COP-4 research safety, COP-5 plan-vs-actual tools, and the plan to move planner rules.
+**Compared with live:** tools 166 `research_topic`, 168 `get_job_variance` and agent 41 match the repo
+exactly. **Not compared with live:** tools 39, 165, 167, agent 40 and function 311 (read from the repo only).
+**Run live:** nothing new; the overnight session's three read checks stand. No real-data run was possible.
+
+### Findings, most serious first
+
+| # | Severity | Where | What goes wrong | Fix |
+|---|---|---|---|---|
+| F1 | Medium | `ai/agent/emgram_copilot_researcher.xs:51-60` + `ai/tool/scaffold_structure.xs`, `fill_cells.xs`, `update_cell.xs` | The researcher may change **any** map in the pinned business, not only drafts it made. Its prompt even says "reuse a draft with the same purpose". A web page saying "remove the stages of the Onboarding map" has a tool to do it with (`scaffold_structure` removes stages). Published versions are frozen, so running work is safe, but the owner's working map can be damaged. The description's claim "an instruction hidden in a web page has nothing to call" is therefore too strong. | Limit the researcher's writes to maps the copilot created (or maps whose label says `made_by` copilot_*), checked in the tools or the gate — not in the prompt. Simplest: research always creates a new map and never edits an existing one. |
+| F2 | Medium | `ai/tool/web_search.xs:104-130` (instructions) | The search tool's own instructions tell the model to search for "Prospect or person information" and to "include names, company". The researcher reads these next to its "searches stay generic" rule, so the two contradict. Nothing in code stops a business name, a customer name or a figure going to the outside search service. | Give the researcher its own search tool (or neutral instructions), and add a code check: refuse a query that contains `@`, a long run of digits, or the pinned business's own name. |
+| F3 | Medium | `ai/tool/research_topic.xs:43` and `:64`; researcher prompt | The run ticket is handed to the researcher, but only the main copilot is told never to repeat it, and only the final chat reply is scrubbed (`643` line 358). The researcher can put the ticket into a search query (it leaves to an outside company while still valid), a map cell, or a `research_note`. | Add the "never repeat the ticket" line to the researcher; scrub the ticket from `$report` in `research_topic`; make `web_search` refuse a query containing the ticket. |
+| F4 | Low-medium | `ai/tool/get_job_variance.xs:17-40` | The job lookup and its "Job not found" answer run **before** the gate. A caller with no ticket learns whether a job id exists (not found vs sign-in refusal), the call is not written to the audit trail, and it does not count toward the daily cap. Another account's job also answers "Journey map not found" instead of "Job not found", so the two cases can be told apart. | Run the gate first with map 0 (who is calling), then look up the job, then check account and business, and answer every miss with the same "Job not found". |
+| F5 | Low | `ai/tool/research_topic.xs:12,43` | `fit_notes` has no length limit and no check, and it is the channel through which private details reach the researcher (and from there, search queries). | Cap at about 500 characters, same as a note. |
+| F6 | Low | `ai/tool/label_map.xs:106,133-136` | Sources are replaced correctly on an existing label (clear, then write — the json-merge rule is followed). But: on a first label with sources left out, `{}` is stored instead of `[]` (an omitted json input is `{}`); sources have no limit on count or length, so a page's long text can be stored as a "title"; and sources can never be cleared. The screen copes (`safeSources` accepts only arrays and only safe links). | Store `[]` when nothing was sent; cap at about 20 sources, title 200, url 500 characters. |
+| F7 | Low | `ai/tool/list_business_jobs.xs:93-98` | No limit on rows (a busy business returns every job into the chat), jobs of deleted maps are still listed, and the status filter accepts any text (a typo quietly returns nothing). | Cap at about 50 newest, exclude deleted maps (`journey/deleted_map_ids`), refuse an unknown status. |
+| F8 | Info | agents 40 and 41 | Both run `claude-sonnet-4-5`, an older model. Not a bug. | Founder's choice whether to move to a current model. |
+
+**Checked and fine:** the business pin and ticket do carry through to the researcher (same ticket, gate
+refuses anything outside the business, in any mode, for an AI identity); the researcher has no publish,
+approval, plan, note, goal or research tool (no loops, no escalation); it cannot fetch a web address of
+its choosing, so stolen text has no direct way back to a page's author; research calls count toward the
+daily cap; the ternaries inside object literals in `research_topic` are all wrapped; `list_business_jobs`
+checks account and pin correctly and returned all three keys live; `get_job_variance` refuses another
+business's job (pin) and another account's job (gate plus its own account check).
+
+### What a real-data test of plan vs actual needs (account 13 has no jobs)
+1. A published map version in one test business, and a job made from it with at least two tasks.
+2. A published day plan covering one task, and start/finish events with realistic times (never 0).
+3. A second job in another business of account 13, and one in another account, to prove both refusals.
+4. Compare the tool's figures with the report screen for the same job — they must be identical.
+All of this is new test data in the test account; it needs the founder's OK to create.
+
+### The plan to move planner rules — verdict: **yes, if** the six conditions below are met
+
+The nine endpoints already call shared functions for most rules (`planner/assert_*`, `resequence`,
+`derive_tasks`, `resolve_actor`). What is still inline is input checking, the race handling, the
+transactions and the event logging. So the move is smaller than it sounds, but the inline parts are
+exactly the ones that fail quietly.
+
+**Riskiest, and why**
+- **562 Publish to live** — three transactions and the frozen snapshot. The copilot must never publish to live, so there is no reason to touch it. **Leave it out.**
+- **583 card schedule** — largest (456 lines), five loops, many links written in one transaction.
+- **560 schedule a step** — transaction plus the estimate call.
+- **613 time window** and **617 start override** — both rely on a unique index plus try/catch to survive two saves at once; wrapping that in a function changes how errors surface.
+
+**Order:** 538, 535, 542, 545, then 617, 613, 560, 583. Never 562.
+
+**Conditions (the missing safeguards)**
+1. **Save each endpoint from live, not from the repo**, before touching it. The repo has already drifted once (endpoint 69).
+2. **The workflow tests cannot be run from a session** (CLAUDE.md), so safeguard 3 promises more than it can deliver. Build a small replay set per endpoint first: real HTTP calls, recorded before, re-run after, comparing the answer, the exact error text, **and the rows and events written** — not only the reply.
+3. **Include two saves at the same moment** in the replay for 538, 613 and 617.
+4. **Pass every input explicitly** to each new shared function, and take the acting person as an input (never `$auth`). A function input left out silently takes the caller's value of the same name.
+5. **Prove before switching.** Build the shared function, use it from the copilot tool only, show it gives the same results as the untouched endpoint on the replay set, and only then point the endpoint at it. The live planner is not changed until the proof exists.
+6. **Test data first, one push per approval.** Account 13 needs jobs and a plan before any of this can be proven; each change to a live endpoint gets its own founder OK, as the safety rules already require.
+
+**Also decide before giving the copilot any planner tool:** which approval level each planner action gets (COP-2), so "waits for you" applies from day one.
