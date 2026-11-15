@@ -454,23 +454,41 @@ already receives (next to `turn_id`). The tools' `ticket` input says to pass it 
 | File | Change | Ticket life | Pushed? |
 |---|---|---|---|
 | `ai/tool/invoke_map.xs` (tool 53) | the nested agent gets its own ticket for the same person | 30 min | ✅ pushed |
-| `apis/journey_map/52_…_ai_message_POST.xs` (the map chat) | +6 lines | 30 min | ⏳ **founder pushes** |
-| `apis/journey_map/129_…_compare_message_POST.xs` | +5 lines | 30 min | ⏳ **founder pushes** |
-| `apis/journey_map/130_…_build_full_POST.xs` | +5 lines | 2 hours (a build loops) | ⏳ **founder pushes** |
-| `apis/journey_map/209_…_invoke_POST.xs` | +5 lines | 30 min | ⏳ **founder pushes** |
+| `apis/journey_map/52_…_ai_message_POST.xs` (the map chat) | +6 lines | 30 min | ✅ pushed 2026-11-15 |
+| `apis/journey_map/129_…_compare_message_POST.xs` | +5 lines | 30 min | ✅ pushed 2026-11-15 |
+| `apis/journey_map/130_…_build_full_POST.xs` | +5 lines | 2 hours (a build loops) | ✅ pushed 2026-11-15 |
+| `apis/journey_map/209_…_invoke_POST.xs` | +5 lines | 30 min | ✅ pushed 2026-11-15 |
 
-**Why the founder pushes these four:** they are 150–3,800 lines each and Xano's own rendering of
+**Why this needed care:** they are 150–3,800 lines each and Xano's own rendering of
 them is not safe to push back (see the bracket rule above). The repo copies were compared with live
 and are the same (the chat endpoint line-for-line, ignoring whitespace and brackets; 129, 130 and
 209 by reading), so pushing the repo file is the safe direction.
 
-**How:** in the Xano VS Code extension, open each file above and use *Push to Xano* (one at a time,
-chat endpoint first). Then tell me — I run one chat turn and read the gate log: a ticketed turn
-must show no `no_token` rows and `via: ticket`.
+**Pushed by Claude at the founder's request (2026-11-15), through the Xano connection.** The chat
+endpoint was re-fetched and compared with the intended file: identical except that Xano re-wrapped
+one line I had written on a single line (3,125 vs 3,131 lines once whitespace and comments are
+ignored; no code differs).
+
+**Result, as the test user (account 13), gate in `report` mode:**
+
+| Check | Result |
+|---|---|
+| Map chat, one read turn and one write turn | ✅ both answered; the write landed |
+| A ticket was minted per turn, and the gate logged **0** refusals for those turns | ✅ every tool call carried its ticket (before: each chat tool call logged `inapp … no_token`) |
+| Compare, build-full and invoke each minted a ticket | ✅ 3 tickets (`compare_message`, `build_full`, `invoke`) |
+| Tool calls inside compare and build-full | 🟡 not proven: the compare agent made no tool call, and build-full's first phase runs an agent with an empty name (see below) |
+| `invoke` endpoint | 🔴 returns 500 "Invalid syntax. Please wrap your filter with parentheses." — **already broken before this change**: the original context line `($input.parent_execution_id|to_text ?? "none")` fails the same way in a scratch function. Same expression in the `invoke_map` tool |
+
+**Found, not fixed (pre-existing, 2026-11-15):**
+- `POST journey_map/{id}/invoke` (api 209) and the `invoke_map` tool: the context line needs its
+  filters wrapped, e.g. `(($input.parent_execution_id|to_text) ?? "none")` and
+  `(($input.input_data|json_encode) ?? "{}")`. Until then neither can run an agent.
+- `POST journey_map/{id}/build_full` (api 130): phases 0, 1 and 7 call `ai.agent.run ""` (an empty
+  agent name), so they fail inside a `try_catch`; only the "fast builder" phases can work.
 
 **Not a leak:** the model sees the ticket in its context. It only works for the person who started
 the turn, expires in 30 minutes (2 hours for a build), and the tools still check that person's
 account and the Intelligent Layer on every call.
 
-**After that, to switch in-app agents to refuse:** `inapp_read` and `inapp_write` to `"enforce"` in
+**Next, to switch in-app agents to refuse (founder to confirm first):** `inapp_read` and `inapp_write` to `"enforce"` in
 `usr/tool_gate_mode`, then run `tests/cop1_outside_probe.py` plus one real chat turn.
