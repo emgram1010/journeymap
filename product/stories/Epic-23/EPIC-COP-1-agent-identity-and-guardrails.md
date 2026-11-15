@@ -229,7 +229,7 @@ Scenario: The daily cap pauses it politely
 cap; store it per account in a side table.
 
 ### US-COP-1-06 — The four map-tool bugs are fixed
-**Status:** 🟡 3 of 5 fixed (see Story 06 results); `intent` needs a schema decision; all-or-nothing scaffold needs a behaviour decision. **Model: Sonnet 5.5.**
+**Status:** ✅ 5 of 5 (2026-11-14): founder added the `intent` column (now saves); founder chose all-or-nothing for scaffold (built and proven — see COP-1-WORK-TRACKER.md). **Model: Sonnet 5.5.**
 
 ```gherkin
 Scenario: Adding a stage without a primary actor works

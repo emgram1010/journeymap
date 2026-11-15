@@ -1846,5 +1846,25 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Change the copilot's module access instead."
+    },
+  "E-COP-014": {
+    "code": "E-COP-014",
+    "feature": "COP-1",
+    "user_message": "Nothing was changed. Some of the keys in the bulk map change are not in this map.",
+    "what_happened": "The AI sent a bulk map change (scaffold) naming a stage or row key the map does not have. Every key is checked before anything is written, so the whole change was refused and the map is exactly as it was. The message names the missing keys.",
+    "likely_cause": "The AI used keys from an older view of the map, or guessed a key.",
+    "owner": "product_manager",
+    "severity": "info",
+    "fix_hint": "Ask the AI to read the map again and resend the change with the keys it actually has."
+  },
+  "E-COP-015": {
+    "code": "E-COP-015",
+    "feature": "COP-1",
+    "user_message": "Nothing was changed. One step of the bulk map change could not be applied, so the whole change was undone.",
+    "what_happened": "A bulk map change (scaffold) failed part-way, for example removing a stage that live work depends on, or adding a row with an unknown actor type. Every step runs inside one transaction, so all earlier steps in the same call were rolled back too; the map is exactly as it was. The Health event names the failed step.",
+    "likely_cause": "A remove blocked by live work, or an invalid value in one operation.",
+    "owner": "product_manager",
+    "severity": "warn",
+    "fix_hint": "Fix or drop the step named in the message and send the change again."
   }
 }

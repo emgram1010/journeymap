@@ -10,7 +10,7 @@ Rule: two tracks never touch the same files. Backend gate/tool files belong to t
 | F | Fix the review's confirmed findings | Opus 5.5 (main) | see below | ✅ pushed live and checked (founder OK 2026-11-14) |
 | B | Health page: view of `tool_call_log` (needs one new GET endpoint) | Sonnet 5.5 helper | `src/health/*`, new endpoint file | ⏳ after F (endpoint push) |
 | C | Old bug: endpoint 209 + `invoke_map` unwrapped filter | Opus 5.5 (main) | `apis/journey_map/209*`, `ai/tool/invoke_map.xs` | ⏳ after R (in review scope) |
-| E | Scaffold all-or-nothing (founder decision) + confirm `intent` now saves | Opus 5.5 (main) | `ai/tool/scaffold_structure.xs`, `ai/tool/scaffold_map.xs` | ⏳ next |
+| E | Scaffold all-or-nothing (founder decision) + confirm `intent` now saves | Opus 5.5 (main) | `ai/tool/scaffold_structure.xs`, `ai/tool/scaffold_map.xs` | ✅ pushed live and checked |
 | D | Delete endpoint: count owned maps as "has work" | Opus 5.5 (main) | `apis/members_accounts/20_admin_user_delete_POST.xs` | ⏳ after R (in review scope) |
 
 ## Review findings (2026-11-14)
@@ -40,3 +40,14 @@ Rule: two tracks never touch the same files. Backend gate/tool files belong to t
   - Outside door (`cop1_review_fixes_probe.py`, test admin q): copilot email change refused E-COP-012, rename still works, role change refused E-COP-013, a person's rename/role still work, list_maps/search_maps still list. 9/9 on these.
   - In-app workflow tools (Xano `debugTool` with a real run ticket for q; run 1 is on map 244): own run loads / saves / exports ✅; same run named under map 235 (same account) refused by get, save and export ✅; save did NOT change run 1's status ✅; export with no ticket refused (Access Denied) ✅.
   - Learned: a function cannot `tool.call` a tool (it returns instantly with nothing); use `debugTool` to run a tool for a test.
+- 2026-11-14 — Track E done. `scaffold_structure` (tool 7) is all-or-nothing; `scaffold_map` (56) passes the refusal on. Checked live on fixture map 236 with `debugTool` + a real ticket:
+  - unknown key mixed with a good rename → refused E-COP-014 naming the key; nothing renamed ✅
+  - good rename + bad lens actor type → refused E-COP-015 naming the step; rename undone ✅
+  - stage REMOVE (its own inner transaction) + rename + bad step → refused; the stage, its 4 cells and the rename all came back ✅
+  - good rename + add → applied (stage added with 4 cells) ✅; plain remove → applied, 4 cells removed ✅
+  - `scaffold_map` with an unknown key → passes the inner message on (was crashing "Unable to locate var: r.errors") ✅; good rename → success ✅
+  - `intent` now saves: `create_journey_map` with intent automation → map 257 shows it; `list_maps` intent filter returns just that map ✅
+  - Proven first on scratch functions: a helper's inner `db.transaction` commits with, and rolls back with, the outer one.
+  - Found live: a tool that fails inside `tool.call` does NOT throw — the caller gets `{code, message, payload}` back. Check `|has:"success"` after any `tool.call`.
+  - Found live: `ops/log_event` outcome must be success | rejected | failure ("failed" is refused).
+  - Fixture left in account 13: map 257 "COP-1 intent check (safe to delete)".

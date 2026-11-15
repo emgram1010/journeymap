@@ -13,7 +13,7 @@
 // Behaviour change: `position` on a stage operation is no longer read (scaffold_structure always
 // appends). Use mutate_structure with after_stage_key / after_lens_key to place a column or row.
 tool scaffold_map {
-  instructions = "Apply a structural blueprint to a journey map in one call. Pass journey_map_id, stage_operations (array of {action, key?, label, stage_goal?, primary_actor_lens?}), and lens_operations (array of {action, key?, label, actor_type?}). Actions: 'rename', 'add', 'remove'. For rename, stage_goal (exit condition one-liner) and primary_actor_lens (lens key that owns the stage, e.g. lens-3) are optional extras; a field you leave out is left alone. Adds append to the end. Returns counts of stages/lenses added/renamed/removed and cells created, and errors[] for any single operation that could not be applied."
+  instructions = "Apply a structural blueprint to a journey map in one call. Pass journey_map_id, stage_operations (array of {action, key?, label, stage_goal?, primary_actor_lens?}), and lens_operations (array of {action, key?, label, actor_type?}). Actions: 'rename', 'add', 'remove'. For rename, stage_goal (exit condition one-liner) and primary_actor_lens (lens key that owns the stage, e.g. lens-3) are optional extras; a field you leave out is left alone. Adds append to the end. All or nothing: if any key is not in the map, or any step fails, nothing is changed and the error names the key or step. Returns counts of stages/lenses added/renamed/removed and cells created."
 
   input {
     int journey_map_id filters=min:1
@@ -60,6 +60,22 @@ tool scaffold_map {
         ticket          : $input.ticket
       }
     } as $r
+
+    // COP-1 (2026-11-14): a refused inner call does NOT throw through tool.call — $r comes back as
+    // {code, message, payload} instead of the success fields (found live). Pass the inner
+    // message on instead of crashing on $r.errors.
+    var $inner_ok {
+      value = ($r|has:"success")
+    }
+
+    var $inner_msg {
+      value = $r|get:"message":"The bulk map change was refused; nothing was changed."
+    }
+
+    precondition ($inner_ok == true) {
+      error_type = "inputerror"
+      error = $inner_msg
+    }
 
     var $errs {
       value = $r.errors
