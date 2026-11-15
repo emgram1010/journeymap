@@ -218,6 +218,37 @@ function "journey/tool_gate" {
       }
     }
 
+    // COP-3 review fix: an AI identity always works inside one business. A copilot call that arrives
+    // with no business pin (a ticket from another chat, or none) is refused, so a person cannot hand
+    // the copilot an unpinned ticket and a copilot ticket cannot be used unpinned elsewhere.
+    var $ai_unpinned {
+      value = false
+    }
+
+    conditional {
+      if ($ok == true && $pin == 0 && $caller.user_id != 0) {
+        function.run "copilot/identity_for_user" {
+          input = {user_id: $caller.user_id}
+        } as $pin_ai
+
+        conditional {
+          if ($pin_ai.is_ai == true) {
+            var.update $ok {
+              value = false
+            }
+
+            var.update $code {
+              value = "E-COP-048"
+            }
+
+            var.update $ai_unpinned {
+              value = true
+            }
+          }
+        }
+      }
+    }
+
     // COP-1 story 05: an AI identity (copilot) has a daily cap on tool calls, counted per UTC day
     // from the audit trail. People have no cap. One "cap reached" event per copilot per day.
     var $over_cap {
@@ -386,7 +417,7 @@ function "journey/tool_gate" {
     }
 
     conditional {
-      if ($ok == false && $recent_logs < 60 && $action_refused == false && $pin_refused == false) {
+      if ($ok == false && $recent_logs < 60 && $action_refused == false && $pin_refused == false && $ai_unpinned == false) {
         function.run "ops/log_event" {
           input = {
             feature    : "COP-1"
@@ -413,7 +444,7 @@ function "journey/tool_gate" {
     }
 
     conditional {
-      if ($ok == false && ($mode == "enforce" || $action_refused == true || $pin_refused == true || $over_cap == true)) {
+      if ($ok == false && ($mode == "enforce" || $action_refused == true || $pin_refused == true || $over_cap == true || $ai_unpinned == true)) {
         var.update $verdict {
           value = "refused"
         }
@@ -478,6 +509,12 @@ function "journey/tool_gate" {
 
     var $refuse_cap {
       value = ($refuse == true && $code == "E-COP-004")
+    }
+
+    // COP-3 review fix: the copilot outside a one-business conversation — refused in any mode.
+    precondition ($ai_unpinned == false) {
+      error_type = "accessdenied"
+      error = "The copilot only works inside a conversation about one business. (E-COP-048)"
     }
 
     // COP-3: outside the business this conversation is pinned to — refused in any mode.

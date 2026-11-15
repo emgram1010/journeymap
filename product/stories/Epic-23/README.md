@@ -177,6 +177,7 @@ Each has a default so the build is never blocked. Say the word to change one.
 | COP-1 | ✅ Built and reviewed (2026-11-15) |
 | COP-2 | ✅ Built and proven (2026-11-15) — Undo and per-business reminder times deferred |
 | COP-3 | ✅ Built (2026-11-15) — plan/work reading moves to COP-5; business-delete guard pending |
-| COP-4, COP-5 | 📋 Not started |
+| COP-4 | ✅ Built (2026-11-15) — story 05 (learning) waits for COP-5 |
+| COP-5 | 📋 Not started |
 | COP-6 | 📋 Not started — **deferred on purpose** ("you don't have to do it right now") |
 | Approvals mock-up | 🧪 built, fake data, not committed |

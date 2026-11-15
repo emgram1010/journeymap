@@ -1,6 +1,6 @@
 # EPIC-COP-4 — Think and learn: goals and research become maps; results become improvements
 
-**Status:** 📋 Not started. Written 2026-11-14 (Fable 5.2).
+**Status:** ✅ Built (Opus 5.5 + Sonnet 5.5 screens, 2026-11-15) — stories 01–04 and 06. Story 05 (learn from plan vs actual) waits for COP-5's plan/work read tools. See Test results.
 **Model:** **Sonnet 5.5.** Opus 5.5 (or Fable 5.2) review of story 03 (web text is data).
 **Depends on:** COP-2 (levels), COP-3 (chat, business scope). Can run in parallel with COP-5.
 **Risk:** medium. The danger is confident nonsense: invented numbers, or research that looks tested.
@@ -45,7 +45,7 @@ they improve with use.
 ## 3. Stories
 
 ### US-COP-4-01 — A goal becomes a strategy draft
-**Status:** 📋 Not started.
+**Status:** ✅ Built (record_goal; proposed until the owner confirms; strategy-draft rules in the copilot's instructions).
 
 **As an** owner, **I want** to state a goal and get a strategy drafted as maps,
 **so that** I can react to something concrete.
@@ -78,7 +78,7 @@ Uses the existing map tools (create, scaffold, fill, link) — which is why COP-
 first. Targets written to a map are labelled "proposed" until the owner confirms them.
 
 ### US-COP-4-02 — Research becomes maps, with sources
-**Status:** 📋 Not started.
+**Status:** ✅ Built and proven with a real web search (sources stored per map).
 
 **As an** owner, **I want** the copilot to research a topic and write it up as maps,
 **so that** know-how I do not have becomes a process I can review.
@@ -105,7 +105,7 @@ in the side table from story 04, not buried in cell text. Copyright: summarise; 
 passages from a source into a cell.
 
 ### US-COP-4-03 — Text from the web is data, never instructions
-**Status:** 📋 Not started. **Opus review.**
+**Status:** ✅ Built structurally (research runs in a separate agent with only search + draft-map tools). Hostile-page fixture test not run (real web results can't be planted). **Opus review:** pending.
 
 **As an** owner, **I want** the copilot to ignore instructions hidden in pages it reads,
 **so that** a web page cannot make it act.
@@ -132,7 +132,7 @@ junk-input fixture of hostile page texts (Haiku) and a test that runs research a
 asserts zero non-draft tool calls in the log (COP-1 story 04 makes that checkable).
 
 ### US-COP-4-04 — Every map says what kind it is
-**Status:** 📋 Not started.
+**Status:** ✅ Built (labels and sources on the business screen; only a person marks Tested).
 
 **As an** owner, **I want** to tell research from a tested process at a glance,
 **so that** I do not plan work from something nobody has tried.
@@ -160,7 +160,7 @@ since) with **its own GET endpoint**, merged in the frontend — the plain map l
 it (CLAUDE.md, AUTH-1). No new column on `journey_map`.
 
 ### US-COP-4-05 — It learns from what happened
-**Status:** 📋 Not started.
+**Status:** 📋 Not started — needs plan and work-record read tools (COP-5).
 
 **As an** owner, **I want** the copilot to notice where reality differs from the map,
 **so that** the maps get better instead of going stale.
@@ -188,7 +188,7 @@ it, never recomputes it. A proposal is a draft change on the map plus a short "w
 figures. Minimum sample size is a setting with a safe default.
 
 ### US-COP-4-06 — What it has been told, in one visible place
-**Status:** 📋 Not started.
+**Status:** ✅ Built (notes per business, read into every chat for that business; owner edits/removes).
 
 ```gherkin
 Scenario: It remembers my decisions for this business
@@ -240,6 +240,30 @@ scoped by business, never holding secrets (COP-6 story 02).
 | UI-COP-4-01 | Browser | Labels on the architecture screen; sources open; "What the copilot knows" |
 | REG | Suites | `npm test`, `tsc`, build; publish gate tests (PUB-1) untouched |
 
-## 7. Test results
+## 7. Test results (2026-11-15, Opus 5.5)
 
-Not run. Nothing is built.
+**Pushed:** tables 152 `copilot_goal`, 153 `copilot_map_profile`, 154 `copilot_note`; tools
+record_goal (162), save_note (163), get_business_memory (164), label_map (165), research_topic (166);
+agent 41 Emgram Copilot Researcher (search + draft-map tools only); agent 40 updated (new tools and
+instructions); endpoints 648 business_memory, 649 note_save, 650 note_remove, 651 goal_status,
+652 map_label_set; chat (643) now reads this business's goals and notes into every conversation.
+Screens: "What the copilot knows" in the copilot panel; labels and sources on the business screen.
+
+| Check (test admin q, business 49; real AI and real web search) | Result |
+|---|---|
+| "Our goal: twice as many bookings by June 2027" → recorded as proposed, figures copied exactly | ✅ goal 2 |
+| "Remember: we never take jobs on Sundays" → note saved for this business | ✅ |
+| A new conversation in business 48 does not know business 49's note | ✅ |
+| Research ("how rental companies handle returns and damage checks") → drafted a runnable 7-stage map, labelled copilot_research, not tested | ✅ map 259 |
+| Research records sources | 🔴→✅ the existing web_search tool had **never returned results** (it read the reply from the wrong place); fixed, then 6 sources recorded |
+| Research run too heavy (502 once) | fixed by trimming search results to ~600 characters and capping research at 3 searches; next run 179 s, OK |
+| label_map: sources replaced, not merged (json-merge rule); research note kept when omitted | ✅ |
+| Copilot cannot mark tested; owner can (map_label_set) | ✅ by design + endpoint |
+| Browser: business screen shows "Runnable · Researched, not tested · Sources (6)"; panel shows goal (Confirm → Confirmed), note (Edit/Remove), "1 labelled map" | ✅ |
+| `npm test` / `tsc` | ✅ 815/815 / clean |
+
+**Gaps:** story 05 not built. Long research turns run near the server's time limit; a turn that is
+cut off is lost with no reply and no event (needs a background job — later). The research draft
+included time estimates ("15 min") presumably from general practice — the owner should check them.
+The hostile-page test could not be run against real search results; protection is structural.
+

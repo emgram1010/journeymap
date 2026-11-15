@@ -200,6 +200,45 @@ query "copilot/chat" verb=POST {
       return = {type: "count"}
     } as $waiting_count
 
+    // COP-4 story 06: what the copilot was told about THIS business (never another business's).
+    db.query copilot_note {
+      where = $db.copilot_note.account_id == $account_id && $db.copilot_note.journey_architecture_id == $input.journey_architecture_id
+      sort = {created_at: "asc"}
+      return = {type: "list"}
+      output = ["note"]
+    } as $notes
+
+    db.query copilot_goal {
+      where = $db.copilot_goal.account_id == $account_id && $db.copilot_goal.journey_architecture_id == $input.journey_architecture_id && $db.copilot_goal.status != "dropped"
+      sort = {created_at: "asc"}
+      return = {type: "list"}
+      output = ["goal_text", "target", "target_date", "status"]
+    } as $goals
+
+    var $notes_text {
+      value = ""
+    }
+
+    foreach ($notes) {
+      each as $n {
+        var.update $notes_text {
+          value = $notes_text ~ "- " ~ $n.note ~ "\n"
+        }
+      }
+    }
+
+    var $goals_text {
+      value = ""
+    }
+
+    foreach ($goals) {
+      each as $g {
+        var.update $goals_text {
+          value = $goals_text ~ "- " ~ $g.goal_text ~ " (target: " ~ $g.target ~ "; by: " ~ $g.target_date ~ "; " ~ $g.status ~ ")\n"
+        }
+      }
+    }
+
     var $screen {
       value = "nothing specific"
     }
@@ -213,7 +252,7 @@ query "copilot/chat" verb=POST {
     }
 
     var $ctx {
-      value = "## Business you are working on\n- name: " ~ $arch_title ~ "\n- journey_architecture_id: " ~ ($input.journey_architecture_id|to_text) ~ "\n\n## Who you are talking to\n- " ~ ($me|get:"name":"the owner") ~ "\n\n## What the owner is looking at\n- " ~ $screen ~ "\n\n## Waiting for the owner\n- " ~ ($waiting_count|to_text) ~ " item(s) waiting in Approvals for this business\n\n## Tool Logging\n- conversation_id: " ~ ($conv_id|to_text) ~ "\n- turn_id: " ~ $turn_id ~ "\n- ticket: " ~ $ticket.ticket ~ "\n"
+      value = "## Business you are working on\n- name: " ~ $arch_title ~ "\n- journey_architecture_id: " ~ ($input.journey_architecture_id|to_text) ~ "\n\n## Who you are talking to\n- " ~ ($me|get:"name":"the owner") ~ "\n\n## What the owner is looking at\n- " ~ $screen ~ "\n\n## Waiting for the owner\n- " ~ ($waiting_count|to_text) ~ " item(s) waiting in Approvals for this business\n\n## Goals for this business\n" ~ $goals_text ~ "\n## Notes you were told about this business (follow them)\n" ~ $notes_text ~ "\n## Tool Logging\n- conversation_id: " ~ ($conv_id|to_text) ~ "\n- turn_id: " ~ $turn_id ~ "\n- ticket: " ~ $ticket.ticket ~ "\n"
     }
 
     var $agent_msgs {
@@ -312,6 +351,11 @@ query "copilot/chat" verb=POST {
           }
         } as $_fail_logged
       }
+    }
+
+    // COP-3 review fix: the ticket is never shown or stored, even if the model repeats it.
+    var.update $reply {
+      value = $reply|replace:$ticket.ticket:"[hidden]"
     }
 
     db.add agent_message {

@@ -21,7 +21,12 @@ import {
   type JourneyMapStatus,
   type JourneyLinkType,
   friendlyError,
+  getCopilotMemory,
+  setCopilotMapLabel,
 } from './xano';
+import {useAuth} from './AuthContext';
+import {canManageTeam} from './team/teamModel';
+import {mapLabelChips, profileByMap, safeSources, type MapProfile} from './copilot/copilotMemoryModel';
 import ScenariosTab from './ScenariosTab';
 import CompareHealthView from './CompareHealthView';
 
@@ -72,7 +77,92 @@ const LINK_TYPE_ICONS: Record<JourneyLinkType, string> = {
 };
 
 // ── Map tile (reused pattern from Dashboard) ─────────────────────────────────
+const CHIP_STYLES = {kind: 'bg-sky-50 text-sky-700', tested: 'bg-emerald-50 text-emerald-700', warn: 'bg-amber-50 text-amber-800'};
+
+/** COP-4: label chips, sources and (admin) label control. Renders nothing for a map with no profile. */
+function MapLabels({mapId, profile, isAdmin, onSet}: {
+  mapId: number;
+  profile: MapProfile | undefined;
+  isAdmin: boolean;
+  onSet: (mapId: number, kind: string, tested: boolean) => Promise<string | null>;
+}) {
+  const [showSources, setShowSources] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [kind, setKind] = useState('');
+  const [tested, setTested] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const chips = mapLabelChips(profile);
+  const sources = safeSources(profile?.sources);
+  if (chips.length === 0 && sources.length === 0 && !isAdmin) return null;
+  return (
+    <div className="flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {chips.map((c) => (
+          <span key={c.text} className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${CHIP_STYLES[c.tone]}`}>{c.text}</span>
+        ))}
+        {sources.length > 0 && (
+          <button type="button" aria-expanded={showSources} onClick={() => setShowSources((v) => !v)} className="text-[11px] text-indigo-600 hover:underline">
+            Sources ({sources.length})
+          </button>
+        )}
+        {isAdmin && !editing && (
+          <button
+            type="button"
+            onClick={() => {setKind(profile?.kind === 'runnable' ? 'runnable' : 'insight'); setTested(!!profile?.tested_since); setErr(null); setEditing(true);}}
+            className="text-[11px] text-zinc-500 hover:underline"
+          >
+            Label
+          </button>
+        )}
+      </div>
+      {showSources && (
+        <ul className="text-[11px] list-disc pl-4 space-y-0.5">
+          {sources.map((s, i) => (
+            <li key={`${s.url}-${i}`}>
+              {s.safe ? (
+                <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 underline break-all">{s.title}</a>
+              ) : (
+                <span className="text-zinc-500 break-all">{s.title}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {editing && (
+        <div className="flex items-center gap-2 flex-wrap text-[11px]">
+          <select aria-label="Map kind" value={kind} onChange={(e) => setKind(e.target.value)} className="border border-zinc-300 rounded px-1 py-0.5 bg-white">
+            <option value="insight">Insight</option>
+            <option value="runnable">Runnable</option>
+          </select>
+          <label className="inline-flex items-center gap-1">
+            <input type="checkbox" checked={tested} onChange={(e) => setTested(e.target.checked)} /> Tested
+          </label>
+          <button
+            type="button"
+            disabled={busy}
+            className="border border-zinc-300 rounded px-1.5 py-0.5 hover:bg-zinc-50 disabled:opacity-50"
+            onClick={async () => {
+              setBusy(true);
+              const m = await onSet(mapId, kind, tested);
+              setBusy(false);
+              if (m) setErr(m); else setEditing(false);
+            }}
+          >
+            Save
+          </button>
+          <button type="button" className="text-zinc-500 hover:underline" onClick={() => setEditing(false)}>Cancel</button>
+          {err && <span role="alert" className="text-red-700 w-full">{err}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface MapTileProps {
+  profile?: MapProfile;
+  isAdmin?: boolean;
+  onSetLabel?: (mapId: number, kind: string, tested: boolean) => Promise<string | null>;
   map: XanoJourneyMap;
   links: XanoJourneyLink[];
   allMaps: XanoJourneyMap[];
@@ -86,7 +176,7 @@ interface MapTileProps {
   onRemoveLink: (linkId: number) => Promise<void>;
 }
 
-function MapTile({map, links, allMaps, onOpen, onRename, onDelete, onArchive, onDuplicate, onExportMarkdownBundle, onExportNotebookLM, onRemoveLink}: MapTileProps) {
+function MapTile({profile, isAdmin = false, onSetLabel, map, links, allMaps, onOpen, onRename, onDelete, onArchive, onDuplicate, onExportMarkdownBundle, onExportNotebookLM, onRemoveLink}: MapTileProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(map.title);
@@ -143,6 +233,7 @@ function MapTile({map, links, allMaps, onOpen, onRename, onDelete, onArchive, on
         ) : (
           <h3 className="text-sm font-semibold text-zinc-900 truncate pr-6">{map.title}</h3>
         )}
+        {onSetLabel && <MapLabels mapId={map.id} profile={profile} isAdmin={isAdmin} onSet={onSetLabel} />}
         <div className="flex items-center gap-2 mt-auto pt-2 flex-wrap">
           <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${MAP_STATUS_STYLES[map.status]}`}>{map.status}</span>
           {map.map_level && MAP_LEVEL_STYLES[map.map_level] && (
@@ -230,6 +321,9 @@ export default function ArchitectureDetail() {
   const [arch, setArch] = useState<XanoJourneyArchitecture | null>(null);
   const [maps, setMaps] = useState<XanoJourneyMap[]>([]);
   const [links, setLinks] = useState<XanoJourneyLink[]>([]);
+  const {user} = useAuth();
+  const isAdmin = canManageTeam(user);
+  const [profiles, setProfiles] = useState<Map<number, MapProfile>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [isCreatingMap, setIsCreatingMap] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -295,6 +389,27 @@ export default function ArchitectureDetail() {
   };
 
   useEffect(() => { void load(); }, [archId]);
+
+  /* COP-4 labels: best effort. A failure here must never break this screen. */
+  const loadProfiles = async () => {
+    try {
+      const m = await getCopilotMemory(archId);
+      setProfiles(profileByMap(m.map_profiles));
+    } catch {
+      setProfiles(new Map());
+    }
+  };
+  useEffect(() => { void loadProfiles(); }, [archId]);
+
+  const handleSetLabel = async (mapId: number, kind: string, tested: boolean): Promise<string | null> => {
+    try {
+      await setCopilotMapLabel({journey_map_id: mapId, kind, tested});
+      await loadProfiles();
+      return null;
+    } catch (err) {
+      return friendlyError(err, 'Could not save the label.');
+    }
+  };
 
   const patchArch = async (data: Parameters<typeof updateJourneyArchitecture>[1]) => {
     if (!arch) return;
@@ -639,6 +754,9 @@ export default function ArchitectureDetail() {
               <MapTile
                 key={map.id}
                 map={map}
+                profile={profiles.get(map.id)}
+                isAdmin={isAdmin}
+                onSetLabel={handleSetLabel}
                 links={links.filter((l) => l.source_map === map.id)}
                 allMaps={maps}
                 onOpen={() => navigate(`/maps/${map.id}?arch=${archId}`)}

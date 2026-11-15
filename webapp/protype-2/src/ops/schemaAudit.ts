@@ -111,6 +111,10 @@ export const TABLE_MANIFEST: Record<string, TableExpectation> = {
   // COP-3: written once; the business of a conversation never changes.
   copilot_home: {naturalKeys: [['account_id'], ['journey_architecture_id']], appendOnly: true},
   copilot_conversation: {naturalKeys: [['agent_conversation_id']], appendOnly: true},
+  // COP-4: goals, map labels (one per map) and notes, all scoped by business.
+  copilot_goal: {enumFields: ['status']},
+  copilot_map_profile: {naturalKeys: [['journey_map_id']], enumFields: ['kind', 'made_by']},
+  copilot_note: {},
   plan_publication: {naturalKeys: [['timeline_id', 'version']], appendOnly: true},
   plan_change_log: {enumFields: ['change_type'], appendOnly: true},
   activity_log: {naturalKeys: [['client_event_id']], enumFields: ['event_type', 'source'], appendOnly: true},

@@ -98,8 +98,29 @@ tool web_search {
         |push:"Content-Type: application/json"
     } as $tavily_response
   
+    // COP-4 (2026-11-15): api.request wraps the reply as {response: {result: <body>, status}}. This
+    // read $tavily_response.results (always missing), so every search returned 0 results — found
+    // when the copilot's research said "web search did not return results".
+    var $tavily_status {
+      value = $tavily_response|get:"response"|get:"status":0
+    }
+
+    var $raw_results {
+      value = ($tavily_response|get:"response"|get:"result"|get:"results":[]) ?? []
+    }
+
+    // Keep each result short (title, link, ~600 characters): agents pass these through their whole
+    // conversation, and full page extracts made research runs too heavy (found live: a 502).
     var $results {
-      value = $tavily_response.results ?? []
+      value = []
+    }
+
+    foreach ($raw_results) {
+      each as $r {
+        array.push $results {
+          value = {title: ($r.title ?? ""), url: ($r.url ?? ""), content: (($r.content ?? "")|substr:0:600)}
+        }
+      }
     }
   
     conditional {
@@ -122,6 +143,7 @@ tool web_search {
   response = {
     query  : $input.query
     count  : $results|count
+    status : $tavily_status
     results: $results
   }
 

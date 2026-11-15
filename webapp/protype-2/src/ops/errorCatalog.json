@@ -2116,5 +2116,65 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Open the existing 'Copilot's own' business."
+  },
+  "E-COP-045": {
+    "code": "E-COP-045",
+    "feature": "COP-4",
+    "user_message": "This only works in a copilot conversation about one business.",
+    "what_happened": "A copilot tool that works inside one business (goals, notes, research, business memory) was called outside a one-business conversation.",
+    "likely_cause": "The tool was called from another chat or without a business.",
+    "owner": "engineer",
+    "severity": "info",
+    "fix_hint": "Use it from the copilot panel with a business picked."
+  },
+  "E-COP-046": {
+    "code": "E-COP-046",
+    "feature": "COP-4",
+    "user_message": "kind is insight or runnable; made_by is copilot_research, copilot_strategy or copilot_draft.",
+    "what_happened": "A map label was set with a value that isn't allowed. The copilot can never mark a map tested.",
+    "likely_cause": "A wrong label value.",
+    "owner": "engineer",
+    "severity": "info",
+    "fix_hint": "Use one of the allowed values."
+  },
+  "E-COP-047": {
+    "code": "E-COP-047",
+    "feature": "COP-4",
+    "user_message": "Research returned nothing usable this time. Nothing was drafted.",
+    "what_happened": "The copilot's research step finished without a usable result, so no maps were drafted.",
+    "likely_cause": "Search found little, or the research step failed.",
+    "owner": "product_manager",
+    "severity": "warn",
+    "fix_hint": "Ask the copilot to try a more specific topic, or try again later."
+  },
+  "E-COP-048": {
+    "code": "E-COP-048",
+    "feature": "COP-3",
+    "user_message": "The copilot only works inside a conversation about one business.",
+    "what_happened": "A tool call arrived as the copilot without a business pin (for example a ticket from another chat). It was refused so the copilot can never work across businesses.",
+    "likely_cause": "A ticket was reused outside the copilot chat.",
+    "owner": "engineer",
+    "severity": "warn",
+    "fix_hint": "Use the copilot from its panel with a business picked."
+  },
+  "E-COP-049": {
+    "code": "E-COP-049",
+    "feature": "COP-4",
+    "user_message": "A note is one short line (up to 500 characters).",
+    "what_happened": "A copilot note was empty or too long.",
+    "likely_cause": "Too much text in one note.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Keep each note to one short line."
+  },
+  "E-COP-050": {
+    "code": "E-COP-050",
+    "feature": "COP-4",
+    "user_message": "Choose confirmed, done or dropped.",
+    "what_happened": "A goal's status was set to a value that isn't allowed.",
+    "likely_cause": "A screen or script sent a bad value.",
+    "owner": "engineer",
+    "severity": "info",
+    "fix_hint": "Use the buttons on the goals list."
   }
 }

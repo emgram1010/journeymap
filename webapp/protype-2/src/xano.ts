@@ -2265,3 +2265,33 @@ export const getCopilotHome = (): Promise<XanoCopilotHome> => xanoRequest<XanoCo
 
 export const createCopilotHome = (): Promise<{journey_architecture_id: number}> =>
   xanoRequest('/copilot/home_create', {method: 'POST', body: {}});
+
+/* ── COP-4: what the copilot knows, and map labels ── */
+export interface XanoCopilotMemory {
+  journey_architecture_id: number;
+  goals: {id: number; goal_text?: string; target?: string; target_date?: string; status: string}[];
+  notes: {id: number; note: string}[];
+  map_profiles: {
+    journey_map_id: number;
+    kind: string;
+    made_by: string;
+    sources?: {title: string; url: string}[] | null;
+    research_note?: string | null;
+    tested_since: number;
+  }[];
+}
+
+export const getCopilotMemory = (journeyArchitectureId: number): Promise<XanoCopilotMemory> =>
+  xanoRequest(`/copilot/business_memory?journey_architecture_id=${journeyArchitectureId}`);
+
+export const saveCopilotNote = (body: {journey_architecture_id: number; note_id: number; note: string}) =>
+  xanoRequest<{note_id: number; note: string}>('/copilot/note_save', {method: 'POST', body});
+
+export const removeCopilotNote = (noteId: number) =>
+  xanoRequest<{note_id: number; removed: boolean}>('/copilot/note_remove', {method: 'POST', body: {note_id: noteId}});
+
+export const setCopilotGoalStatus = (goalId: number, status: 'confirmed' | 'done' | 'dropped') =>
+  xanoRequest<{goal_id: number; status: string}>('/copilot/goal_status', {method: 'POST', body: {goal_id: goalId, status}});
+
+export const setCopilotMapLabel = (body: {journey_map_id: number; kind: string; tested: boolean}) =>
+  xanoRequest<{journey_map_id: number; kind: string; tested: boolean}>('/copilot/map_label_set', {method: 'POST', body});

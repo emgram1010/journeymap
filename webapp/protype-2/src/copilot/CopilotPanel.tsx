@@ -6,6 +6,11 @@ import {
   createDraftJourneyMap,
   getCopilotConversationMessages,
   getCopilotHome,
+  getCopilotMemory,
+  removeCopilotNote,
+  saveCopilotNote,
+  setCopilotGoalStatus,
+  type XanoCopilotMemory,
   listCopilotConversations,
   listJourneyArchitectures,
   sendCopilotChat,
@@ -20,6 +25,7 @@ import {
   screenContextSummary,
   writeLastBusiness,
 } from './copilotChatModel';
+import {NOTE_MAX, goalStatusLabel, noteProblem} from './copilotMemoryModel';
 
 /**
  * COP-3 — the copilot's chat panel. Opens beside the current page; one business at a time.
@@ -57,6 +63,151 @@ const serverText = (e: unknown, fallback: string): string => {
   return fallback;
 };
 
+function MemorySection({businessId, isAdmin}: {businessId: number; isAdmin: boolean}) {
+  const [mem, setMem] = useState<XanoCopilotMemory | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [newNote, setNewNote] = useState('');
+  const [editId, setEditId] = useState(0);
+  const [editText, setEditText] = useState('');
+  const [removeId, setRemoveId] = useState(0);
+  const seq = useRef(0);
+
+  const load = useCallback(async () => {
+    const my = ++seq.current;
+    try {
+      const m = await getCopilotMemory(businessId);
+      if (my === seq.current) {
+        setMem(m);
+        setErr(null);
+      }
+    } catch (e) {
+      if (my === seq.current) setErr(serverText(e, 'Unable to load what the copilot knows.'));
+    }
+  }, [businessId]);
+
+  useEffect(() => {
+    setMem(null);
+    setEditId(0);
+    setRemoveId(0);
+    void load();
+  }, [load]);
+
+  const run = async (fn: () => Promise<unknown>, after?: () => void) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await fn();
+      after?.();
+      await load();
+    } catch (e) {
+      setErr(serverText(e, 'That did not save. Your text is still here.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addNote = () => {
+    const p = noteProblem(newNote);
+    if (p) return setErr(p);
+    void run(() => saveCopilotNote({journey_architecture_id: businessId, note_id: 0, note: newNote.trim()}), () => setNewNote(''));
+  };
+  const saveEdit = () => {
+    const p = noteProblem(editText);
+    if (p) return setErr(p);
+    void run(() => saveCopilotNote({journey_architecture_id: businessId, note_id: editId, note: editText.trim()}), () => setEditId(0));
+  };
+
+  const labelled = (mem?.map_profiles ?? []).filter((p) => p.kind === 'insight' || p.kind === 'runnable').length;
+  const btn = 'rounded border border-zinc-300 px-1.5 py-0.5 text-xs hover:bg-zinc-50 disabled:opacity-50';
+
+  return (
+    <div className="px-4 py-2 border-b border-zinc-100 text-sm space-y-2 max-h-64 overflow-y-auto">
+      {err && <p role="alert" className="text-red-700">{err}</p>}
+      {!mem && !err && <p className="text-zinc-500">Loading…</p>}
+      {mem && (
+        <>
+          <h3 className="font-medium text-zinc-800">Goals</h3>
+          {mem.goals.length === 0 && <p className="text-zinc-500">No goals yet.</p>}
+          {mem.goals.map((g) => (
+            <div key={g.id} className="space-y-1">
+              <p className="text-zinc-900">
+                {g.goal_text}
+                {g.target ? ` — ${g.target}` : ''}
+                {g.target_date ? ` by ${g.target_date}` : ''}
+              </p>
+              <p className="text-xs text-zinc-500">{goalStatusLabel(g.status)}</p>
+              {isAdmin && (
+                <div className="flex gap-1">
+                  {g.status === 'proposed' && (
+                    <button type="button" className={btn} disabled={busy} onClick={() => void run(() => setCopilotGoalStatus(g.id, 'confirmed'))}>Confirm</button>
+                  )}
+                  {g.status !== 'done' && (
+                    <button type="button" className={btn} disabled={busy} onClick={() => void run(() => setCopilotGoalStatus(g.id, 'done'))}>Done</button>
+                  )}
+                  {g.status !== 'dropped' && (
+                    <button type="button" className={btn} disabled={busy} onClick={() => void run(() => setCopilotGoalStatus(g.id, 'dropped'))}>Drop</button>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+
+          <h3 className="font-medium text-zinc-800 pt-1">Notes</h3>
+          {mem.notes.length === 0 && <p className="text-zinc-500">No notes yet.</p>}
+          {mem.notes.map((n) => (
+            <div key={n.id} className="space-y-1">
+              {editId === n.id ? (
+                <div className="flex gap-1">
+                  <input
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    aria-label="Edit note"
+                    className="flex-1 min-w-0 rounded border border-zinc-300 px-1.5 py-0.5"
+                  />
+                  <button type="button" className={btn} disabled={busy} onClick={saveEdit}>Save</button>
+                  <button type="button" className={btn} onClick={() => setEditId(0)}>Cancel</button>
+                </div>
+              ) : (
+                <p className="text-zinc-900 break-words">{n.note}</p>
+              )}
+              {isAdmin && editId !== n.id && removeId !== n.id && (
+                <div className="flex gap-1">
+                  <button type="button" className={btn} onClick={() => {setEditId(n.id); setEditText(n.note); setRemoveId(0);}}>Edit</button>
+                  <button type="button" className={btn} onClick={() => setRemoveId(n.id)}>Remove</button>
+                </div>
+              )}
+              {isAdmin && removeId === n.id && (
+                <div className="flex items-center gap-1 text-xs">
+                  <span>Remove this note?</span>
+                  <button type="button" className={btn} disabled={busy} onClick={() => void run(() => removeCopilotNote(n.id), () => setRemoveId(0))}>Yes, remove</button>
+                  <button type="button" className={btn} onClick={() => setRemoveId(0)}>Keep</button>
+                </div>
+              )}
+            </div>
+          ))}
+          {isAdmin && (
+            <div className="flex gap-1">
+              <input
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                maxLength={NOTE_MAX + 50}
+                aria-label="Add a note"
+                placeholder="Add a note for the copilot"
+                className="flex-1 min-w-0 rounded border border-zinc-300 px-1.5 py-0.5"
+              />
+              <button type="button" className={btn} disabled={busy || newNote.trim() === ''} onClick={addNote}>Add</button>
+            </div>
+          )}
+          <p className="text-xs text-zinc-500">
+            {labelled === 0 ? 'No labelled maps yet.' : `${labelled} labelled ${labelled === 1 ? 'map' : 'maps'}.`}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function CopilotPanel({open, onClose, userId, isAdmin}: Props) {
   const {pathname, search} = useLocation();
   const [home, setHome] = useState<XanoCopilotHome | null>(null);
@@ -71,6 +222,7 @@ export default function CopilotPanel({open, onClose, userId, isAdmin}: Props) {
   const [waiting, setWaiting] = useState(0);
   const [settingUp, setSettingUp] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [showKnows, setShowKnows] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const switchSeq = useRef(0);
 
@@ -278,6 +430,20 @@ export default function CopilotPanel({open, onClose, userId, isAdmin}: Props) {
               ))}
             </select>
           </div>
+
+          {businessId != null && (
+            <div className="px-4 py-1 border-b border-zinc-100 text-sm">
+              <button
+                type="button"
+                onClick={() => setShowKnows((v) => !v)}
+                aria-expanded={showKnows}
+                className="text-indigo-700 hover:underline"
+              >
+                {showKnows ? 'Hide what the copilot knows' : 'What the copilot knows'}
+              </button>
+            </div>
+          )}
+          {showKnows && businessId != null && <MemorySection key={businessId} businessId={businessId} isAdmin={isAdmin} />}
 
           {home && home.has_copilot && !home.has_home && isAdmin && (
             <div className="px-4 py-2 border-b border-zinc-100 text-sm">

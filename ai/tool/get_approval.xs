@@ -18,14 +18,19 @@ tool get_approval {
     db.query copilot_action {
       where = $db.copilot_action.id == $input.approval_id
       return = {type: "single"}
-      output = ["id", "account_id", "status", "tool", "journey_map_id", "action_type", "summary", "approved_payload", "reason"]
+      output = ["id", "account_id", "journey_architecture_id", "status", "tool", "journey_map_id", "action_type", "summary", "approved_payload", "reason"]
     } as $act
 
     var $act_account {
       value = $act|get:"account_id":0
     }
 
-    precondition ($act_account != 0 && $act_account == $cop1_gate.account_id) {
+    // COP-3 review fix: in a one-business conversation, only that business's approvals.
+    var $act_pin_ok {
+      value = (($cop1_gate.pin_architecture_id ?? 0) == 0 || ($act|get:"journey_architecture_id":0) == $cop1_gate.pin_architecture_id)
+    }
+
+    precondition ($act_account != 0 && $act_account == $cop1_gate.account_id && $act_pin_ok) {
       error_type = "notfound"
       error = "That approval was not found for this tool. Nothing was done. (E-COP-036)"
     }
