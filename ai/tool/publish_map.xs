@@ -2,7 +2,7 @@
 // Sets status to active, compiles automation snapshot, and pushes webhooks.
 // Maps to POST /journey_map/{id}/publish
 tool publish_map {
-  instructions = "Publish a journey map. Pass journey_map_id. Sets the map status to active, compiles the automation snapshot, and pushes to all registered webhook connections. Returns version number and push results."
+  instructions = "Publish a journey map (a person only — if you are the copilot this is refused; tell the owner the map is ready for them to publish). Pass journey_map_id. Sets the map status to active, compiles the automation snapshot, and pushes to all registered webhook connections. Returns version number and push results."
 
   input {
     int journey_map_id filters=min:1
@@ -13,9 +13,10 @@ tool publish_map {
   }
 
   stack {
-    // COP-1: who is calling, and is this map theirs? Reports only until usr/tool_gate_mode says enforce.
+    // COP-1: who is calling, and is this map theirs? COP-2 story 08: Publish version is person-only,
+    // so the copilot is refused here (E-COP-025) and tells the owner the map is ready to publish.
     function.run "journey/tool_gate" {
-      input = {journey_map_id: $input.journey_map_id, ticket: $input.ticket, tool: "publish_map", kind: "write"}
+      input = {journey_map_id: $input.journey_map_id, ticket: $input.ticket, tool: "publish_map", kind: "write", act_type: "map_publish_version", act_payload: {journey_map_id: $input.journey_map_id}, act_summary: "Publish a version of this map"}
     } as $cop1_gate
 
     db.get journey_map {

@@ -2130,3 +2130,84 @@ export const getAccountMe = (): Promise<XanoAccount> =>
 
 export const updateAccountMe = (data: Partial<Pick<XanoAccount, 'name' | 'description' | 'location' | 'ai_context'>>): Promise<XanoAccount> =>
   xanoRequest<XanoAccount>('/account/me', {method: 'PATCH', body: data as Record<string, unknown>});
+
+// -- COP-2: copilot approvals (Members & Accounts group) ---------------------
+
+export interface XanoCopilotAction {
+  id: number;
+  created_at?: number | string | null;
+  updated_at?: number | string | null;
+  journey_architecture_id?: number | null;
+  journey_map_id?: number | null;
+  action_type?: string | null;
+  tool?: string | null;
+  payload?: unknown;
+  approved_payload?: unknown;
+  summary?: string | null;
+  status: string;
+  reason?: string | null;
+}
+
+export interface XanoCopilotActions {
+  waiting: XanoCopilotAction[];
+  done: XanoCopilotAction[];
+  waiting_count: number;
+  unseen_count: number;
+}
+
+export interface XanoCopilotLevelRow {
+  key: string;
+  name: string;
+  touches: string;
+  reversible: boolean;
+  level: 'own' | 'tell' | 'wait';
+  locked: boolean;
+  person_only: boolean;
+  has_limit: boolean;
+  limit_amount: number;
+  wired: boolean;
+  decided: number;
+  edited: number;
+  suggest_down: boolean;
+}
+
+export const listCopilotActions = (): Promise<XanoCopilotActions> =>
+  xanoRequest<XanoCopilotActions>('/copilot/actions', {baseUrl: getXanoMembersBaseUrl()});
+
+export const getCopilotActionsCount = (): Promise<{waiting: number; unseen: number}> =>
+  xanoRequest('/copilot/actions_count', {baseUrl: getXanoMembersBaseUrl()});
+
+export const decideCopilotAction = (
+  actionId: number,
+  decision: 'approve' | 'edit' | 'reject',
+  editedPayload?: unknown,
+): Promise<{action_id: number; status: string; note: string}> =>
+  xanoRequest('/copilot/action_decide', {
+    method: 'POST',
+    body:
+      decision === 'edit'
+        ? {action_id: actionId, decision, edited_payload: editedPayload}
+        : {action_id: actionId, decision},
+    baseUrl: getXanoMembersBaseUrl(),
+  });
+
+export const markCopilotActionSeen = (actionId: number): Promise<{action_id: number; status: string}> =>
+  xanoRequest('/copilot/action_seen', {
+    method: 'POST',
+    body: {action_id: actionId},
+    baseUrl: getXanoMembersBaseUrl(),
+  });
+
+export const listCopilotLevels = (
+  journeyArchitectureId: number,
+): Promise<{journey_architecture_id: number; types: XanoCopilotLevelRow[]}> =>
+  xanoRequest(`/copilot/levels?journey_architecture_id=${journeyArchitectureId}`, {baseUrl: getXanoMembersBaseUrl()});
+
+export const setCopilotLevel = (body: {
+  journey_architecture_id: number;
+  action_type: string;
+  level: string;
+  limit_amount: number;
+  confirm_irreversible?: boolean;
+}): Promise<{level: string; limit_amount: number}> =>
+  xanoRequest('/copilot/level_set', {method: 'POST', body, baseUrl: getXanoMembersBaseUrl()});

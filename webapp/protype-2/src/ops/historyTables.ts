@@ -57,6 +57,14 @@ export const HISTORY_TABLES: HistoryTable[] = [
     why: "Who an AI acted for, which tool it used and on which map, and whether the gate allowed it. The only audit trail of what an AI did: delete it and the question 'did your AI touch my map?' has no answer.",
   },
   {
+    table: 'copilot_action',
+    why: "Everything the copilot asked to do and what the owner decided: the exact content approved, edited or rejected, and what ran. Delete it and nobody can say why a message went out.",
+  },
+  {
+    table: 'copilot_action_claim',
+    why: 'The once-only record that a copilot action was decided and run. It is what stops a double click acting twice.',
+  },
+  {
     table: 'event_log',
     why: 'The ops record behind the Health page. Support uses it to explain failures after the fact.',
   },

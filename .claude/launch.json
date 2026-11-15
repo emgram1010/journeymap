@@ -4,8 +4,25 @@
     {
       "name": "copilot-approvals-mock",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "5180", "--directory", "webapp/copilot-approvals-mock"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5180",
+        "--directory",
+        "webapp/copilot-approvals-mock"
+      ],
       "port": 5180
+    },
+    {
+      "name": "protype-2",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "webapp/protype-2",
+        "run",
+        "dev"
+      ],
+      "port": 3000
     }
   ]
 }

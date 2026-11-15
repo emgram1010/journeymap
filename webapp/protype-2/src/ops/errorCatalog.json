@@ -1826,7 +1826,7 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Switch the copilot off on Manage users; its next tool call is then refused."
-    },
+  },
   "E-COP-012": {
     "code": "E-COP-012",
     "feature": "COP-1",
@@ -1846,7 +1846,7 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Change the copilot's module access instead."
-    },
+  },
   "E-COP-014": {
     "code": "E-COP-014",
     "feature": "COP-1",
@@ -1866,5 +1866,175 @@
     "owner": "product_manager",
     "severity": "warn",
     "fix_hint": "Fix or drop the step named in the message and send the change again."
+  },
+  "E-COP-020": {
+    "code": "E-COP-020",
+    "feature": "COP-2",
+    "user_message": "The copilot wants to do something that waits for your approval. Nothing was done yet.",
+    "what_happened": "A copilot action whose level is 'Waits for you' was stored as a waiting item in Approvals instead of being carried out. The copilot was told to say so.",
+    "likely_cause": "Expected: this kind of action waits for the owner.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Open Approvals and approve, edit or reject the item."
+  },
+  "E-COP-021": {
+    "code": "E-COP-021",
+    "feature": "COP-2",
+    "user_message": "This item has already been decided.",
+    "what_happened": "A second Approve/Edit/Reject was refused by the once-only guard (a unique index), so nothing was decided twice.",
+    "likely_cause": "A double click, or the copilot repeating a call.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Nothing to do; check the item's status in Approvals."
+  },
+  "E-COP-022": {
+    "code": "E-COP-022",
+    "feature": "COP-2",
+    "user_message": "This is out of date: the map changed after the copilot drafted it. Nothing was done; ask the copilot to draft it again.",
+    "what_happened": "On approval, the map the action targets had a newer write than when the item was drafted, so the item was marked rejected (out of date) instead of running on old information.",
+    "likely_cause": "Someone (or the copilot) changed the map while the item waited.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Ask the copilot to draft it again from the current map."
+  },
+  "E-COP-023": {
+    "code": "E-COP-023",
+    "feature": "COP-2",
+    "user_message": "This kind of action is locked and its level can't be changed.",
+    "what_happened": "Someone tried to change the approval level of a locked or person-only action type (for example Publish version). Those levels are fixed by design.",
+    "likely_cause": "Locked types are not adjustable.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Nothing to do; locked types stay as they are."
+  },
+  "E-COP-024": {
+    "code": "E-COP-024",
+    "feature": "COP-2",
+    "user_message": "This item expired without an answer, so it was never carried out. The copilot can draft it again.",
+    "what_happened": "A waiting copilot action passed 72 hours without a decision and was marked expired. Silence never approves anything.",
+    "likely_cause": "The owner did not answer in time.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Ask the copilot to draft it again if it is still wanted."
+  },
+  "E-COP-025": {
+    "code": "E-COP-025",
+    "feature": "COP-2",
+    "user_message": "Only a person can do this. It is ready for the owner to do themselves.",
+    "what_happened": "The copilot tried a person-only action (Publish version or Publish to live) and was refused at the gate. Nothing changed.",
+    "likely_cause": "These two actions always need a person (decision D-4).",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Open the map or plan and click Publish yourself when ready."
+  },
+  "E-COP-026": {
+    "code": "E-COP-026",
+    "feature": "COP-2",
+    "user_message": "This kind of action can't be undone once done. Confirm that the copilot may do it without asking you first.",
+    "what_happened": "A level change that would let the copilot do an irreversible, outside-reaching action without asking first was sent without the confirmation.",
+    "likely_cause": "The confirmation step was skipped.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Confirm the change on the Approval levels tab, or keep it at 'Waits for you'."
+  },
+  "E-COP-027": {
+    "code": "E-COP-027",
+    "feature": "COP-2",
+    "user_message": "The input does not match what the owner approved. Send exactly the approved input. Nothing was done.",
+    "what_happened": "The copilot tried to run an approved action with different content from what the owner approved, or an action that is not approved. The gate refused it and nothing ran.",
+    "likely_cause": "The copilot changed the content after approval, or reused an item that was rejected.",
+    "owner": "product_manager",
+    "severity": "warn",
+    "fix_hint": "Check the item in Approvals; ask the copilot to send exactly the approved version."
+  },
+  "E-COP-028": {
+    "code": "E-COP-028",
+    "feature": "COP-2",
+    "user_message": "Only a person can approve or reject the copilot's actions.",
+    "what_happened": "An AI identity tried to approve, edit or reject a copilot action. Only a signed-in person may decide.",
+    "likely_cause": "An AI calling a person-only endpoint.",
+    "owner": "engineer",
+    "severity": "warn",
+    "fix_hint": "Nothing to do for the owner; decide the item yourself in Approvals."
+  },
+  "E-COP-029": {
+    "code": "E-COP-029",
+    "feature": "COP-2",
+    "user_message": "We couldn't find that item.",
+    "what_happened": "The copilot action or business named does not exist in this account. Items in other accounts answer the same way.",
+    "likely_cause": "A wrong id, or an item from another account.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Refresh Approvals."
+  },
+  "E-COP-030": {
+    "code": "E-COP-030",
+    "feature": "COP-2",
+    "user_message": "That approved action has already been carried out.",
+    "what_happened": "The copilot called a tool again with an approval that had already been used. The once-only guard refused it, so the action did not run twice.",
+    "likely_cause": "The copilot repeated a call.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Nothing to do."
+  },
+  "E-COP-031": {
+    "code": "E-COP-031",
+    "feature": "COP-2",
+    "user_message": "Only a person can change approval levels.",
+    "what_happened": "An AI identity tried to change an approval level. Levels move only when a person moves them.",
+    "likely_cause": "An AI calling a person-only endpoint.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Change levels yourself on the Approval levels tab."
+  },
+  "E-COP-032": {
+    "code": "E-COP-032",
+    "feature": "COP-2",
+    "user_message": "Choose approve, edit or reject.",
+    "what_happened": "A decision other than approve, edit or reject was sent.",
+    "likely_cause": "A screen or script sent a bad value.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Use the buttons on the Approvals screen."
+  },
+  "E-COP-033": {
+    "code": "E-COP-033",
+    "feature": "COP-2",
+    "user_message": "Add your edited version before sending it.",
+    "what_happened": "Edit was chosen but no edited content was sent.",
+    "likely_cause": "The edit box was empty or not valid JSON.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Fill in the edited version, then send."
+  },
+  "E-COP-034": {
+    "code": "E-COP-034",
+    "feature": "COP-2",
+    "user_message": "Choose runs on its own, runs then tells you, or waits for you, and a limit of 0 or more.",
+    "what_happened": "A level change named a level that does not exist, or a negative limit.",
+    "likely_cause": "A screen or script sent a bad value.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Pick one of the three levels and a limit of 0 or more."
+  },
+  "E-COP-035": {
+    "code": "E-COP-035",
+    "feature": "COP-2",
+    "user_message": "We couldn't find that business.",
+    "what_happened": "The business named for the approval levels does not exist in this account. Businesses in other accounts answer the same way.",
+    "likely_cause": "A wrong id.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Pick the business again."
+  },
+  "E-COP-036": {
+    "code": "E-COP-036",
+    "feature": "COP-2",
+    "user_message": "That approval was not found for this tool. Nothing was done.",
+    "what_happened": "The copilot passed an approval number that does not exist, belongs to another account, or was for a different tool.",
+    "likely_cause": "The copilot used a wrong approval number.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Check Approvals for the right item."
   }
 }

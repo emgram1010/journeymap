@@ -1,9 +1,10 @@
-import React, {useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {NavLink, useLocation} from 'react-router-dom';
 import {useAuth} from './AuthContext';
 import {canManageTeam, hasModule, type ModuleKey} from './team/teamModel';
 import {useMyModules} from './team/useMyModules';
-import {Sparkles, CalendarRange, PlayCircle, Users, Boxes, BarChart3, Menu, X, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen} from 'lucide-react';
+import {getCopilotActionsCount} from './xano';
+import {Sparkles, CalendarRange, PlayCircle, Users, Boxes, BarChart3, Menu, X, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, ClipboardCheck} from 'lucide-react';
 
 /**
  * Persistent app chrome for every signed-in route.
@@ -118,6 +119,16 @@ const NAV_ITEMS: NavItem[] = [
     icon: Users,
     to: '/team',
     matches: (p: string) => p.startsWith('/team'),
+    adminOnly: true,
+  },
+  /* COP-2: the copilot's approvals inbox and approval levels. Admin-only like Manage users;
+     the endpoints refuse a non-admin on their own. The badge is the waiting count. */
+  {
+    id: 'nav-approvals',
+    label: 'Approvals',
+    icon: ClipboardCheck,
+    to: '/approvals',
+    matches: (p: string) => p.startsWith('/approvals'),
     adminOnly: true,
   },
   /* CAT-1 (phase-6): the item-type / method catalog. No module gate and
@@ -250,6 +261,31 @@ export default function AppLayout({children}: {children: React.ReactNode}) {
      than null, which is why that test lives in one place. */
   const isAdmin = canManageTeam(user);
 
+  /* COP-2: waiting count for the Approvals badge. A failure means no badge, never an error. */
+  const [waitingCount, setWaitingCount] = useState(0);
+  /* Bumped when the Approvals page changes something, so the badge does not wait for a navigation. */
+  const [badgeTick, setBadgeTick] = useState(0);
+  useEffect(() => {
+    const bump = () => setBadgeTick((n) => n + 1);
+    window.addEventListener('copilot-actions-changed', bump);
+    return () => window.removeEventListener('copilot-actions-changed', bump);
+  }, []);
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    getCopilotActionsCount()
+      .then((r) => {
+        if (!cancelled) setWaitingCount(Number(r?.waiting) || 0);
+      })
+      .catch(() => {
+        if (!cancelled) setWaitingCount(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, pathname, badgeTick]);
+  const badgeFor = (id: string) => (id === 'nav-approvals' && waitingCount > 0 ? waitingCount : 0);
+
   /* USR-2. `isLoading` matters: filtering before the answer arrives would
      draw an empty sidebar for a fraction of a second on every page load, and
      a menu that flickers is read as a bug. Everything shows until the answer
@@ -326,6 +362,11 @@ export default function AppLayout({children}: {children: React.ReactNode}) {
             >
               <Icon className="w-4 h-4 shrink-0" />
               {!collapsed && <span>{label}</span>}
+              {!collapsed && badgeFor(id) > 0 && (
+                <span className="ml-auto rounded-full bg-red-600 text-white text-xs px-1.5 py-0.5" aria-label={`${badgeFor(id)} waiting`}>
+                  {badgeFor(id)}
+                </span>
+              )}
             </NavLink>
           );
         })}
@@ -399,6 +440,9 @@ export default function AppLayout({children}: {children: React.ReactNode}) {
               >
                 <Icon className="w-5 h-5 shrink-0" />
                 <span>{label}</span>
+                {badgeFor(id) > 0 && (
+                  <span className="ml-auto rounded-full bg-red-600 text-white text-xs px-1.5 py-0.5">{badgeFor(id)}</span>
+                )}
               </NavLink>
             );
           })}

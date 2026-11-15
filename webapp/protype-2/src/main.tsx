@@ -11,6 +11,7 @@ import App from './App.tsx';
 import AccountSettings from './AccountSettings.tsx';
 import CatalogPage from './catalog/CatalogPage.tsx';
 import TeamPage from './team/TeamPage.tsx';
+import ApprovalsPage from './copilot/ApprovalsPage.tsx';
 import {canManageTeam, hasModule, type ModuleKey} from './team/teamModel';
 import {useMyModules} from './team/useMyModules';
 import NoAccessPage from './team/NoAccessPage.tsx';
@@ -174,6 +175,7 @@ createRoot(document.getElementById('root')!).render(
               that reasoning was sound and is overruled. A member typing the
               URL is sent to the architectures list. */}
           <Route path="/team" element={<AccountAdminRoute><AppLayout><TeamPage /></AppLayout></AccountAdminRoute>} />
+          <Route path="/approvals" element={<AccountAdminRoute><AppLayout><ApprovalsPage /></AppLayout></AccountAdminRoute>} />
           <Route path="/health" element={<AdminRoute><AppLayout><HealthPage /></AppLayout></AdminRoute>} />
           {/* USR-2: where somebody with no grants lands. SIGNED-IN ONLY,
               gated on nothing else, and nothing may ever redirect away

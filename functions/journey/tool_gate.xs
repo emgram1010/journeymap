@@ -1,4 +1,4 @@
-// COP-1 — the first line of every AI tool: who is calling (usr/tool_caller: ticket or request token, switched on, Intelligent Layer) and is this map in their account (journey/assert_map_owner). No rule is written here; it makes the calls in order and returns one verdict. In "report" mode (usr/tool_gate_mode, set separately for outside assistants and in-app agents) it logs what it would refuse (at most 60 rows an hour) and lets the tool carry on. A map in another account answers exactly like one that does not exist. Returns the caller's user_id and account_id so a tool that creates something can stamp it.
+// COP-1/COP-2 — the first line of every AI tool: who is calling (usr/tool_caller: ticket or request token, switched on, Intelligent Layer) and is this map in their account (journey/assert_map_owner). No rule is written here; it makes the calls in order and returns one verdict. In "report" mode (usr/tool_gate_mode, set separately for outside assistants and in-app agents) it logs what it would refuse (at most 60 rows an hour) and lets the tool carry on. A map in another account answers exactly like one that does not exist. Returns the caller's user_id and account_id so a tool that creates something can stamp it.
 function "journey/tool_gate" {
   input {
     int journey_map_id?
@@ -6,6 +6,16 @@ function "journey/tool_gate" {
     text ticket? filters=trim
     text tool? filters=trim
     text kind? filters=trim
+
+    // COP-2: the approval level check. A tool that declares an action type passes it here; the
+    // names start with act_ so no tool's own input of the same name is inherited by accident
+    // (an omitted function input inherits the caller's same-named input — CLAUDE.md).
+    text act_type? filters=trim
+    json act_payload?
+    text act_summary? filters=trim
+    int act_amount?
+    bool act_has_amount?
+    int act_approval_id?
   }
 
   stack {
@@ -222,6 +232,72 @@ function "journey/tool_gate" {
       }
     }
 
+    // COP-2: approval levels, for AI identities, when the tool declares an action type. A refusal
+    // here is enforced whatever usr/tool_gate_mode says: "waits for you" must be a real stop.
+    var $action_refused {
+      value = false
+    }
+
+    var $action_msg {
+      value = ""
+    }
+
+    var $action_level {
+      value = ""
+    }
+
+    var $action_id {
+      value = 0
+    }
+
+    conditional {
+      if ($ok == true && $input.act_type != "") {
+        function.run "copilot/action_gate" {
+          input = {
+            user_id            : $caller.user_id
+            account_id         : $caller.account_id
+            act_type           : $input.act_type
+            act_tool           : $input.tool
+            act_map_id         : $input.journey_map_id
+            act_architecture_id: $input.journey_architecture_id
+            act_payload        : $input.act_payload
+            act_summary        : $input.act_summary
+            act_amount         : $input.act_amount
+            act_has_amount     : $input.act_has_amount
+            act_approval_id    : $input.act_approval_id
+          }
+        } as $act_gate
+
+        var.update $action_level {
+          value = $act_gate.level
+        }
+
+        var.update $action_id {
+          value = $act_gate.action_id
+        }
+
+        conditional {
+          if ($act_gate.proceed != true) {
+            var.update $ok {
+              value = false
+            }
+
+            var.update $code {
+              value = $act_gate.code
+            }
+
+            var.update $action_refused {
+              value = true
+            }
+
+            var.update $action_msg {
+              value = $act_gate.message
+            }
+          }
+        }
+      }
+    }
+
     var $recent_logs {
       value = 0
     }
@@ -252,7 +328,7 @@ function "journey/tool_gate" {
     }
 
     conditional {
-      if ($ok == false && $recent_logs < 60) {
+      if ($ok == false && $recent_logs < 60 && $action_refused == false) {
         function.run "ops/log_event" {
           input = {
             feature    : "COP-1"
@@ -279,7 +355,7 @@ function "journey/tool_gate" {
     }
 
     conditional {
-      if ($ok == false && $mode == "enforce") {
+      if ($ok == false && ($mode == "enforce" || $action_refused == true)) {
         var.update $verdict {
           value = "refused"
         }
@@ -339,6 +415,12 @@ function "journey/tool_gate" {
       value = ($refuse == true && $code == "E-COP-004")
     }
 
+    // COP-2: waiting for approval, person-only, or a bad approval — refused in any mode.
+    precondition ($action_refused == false) {
+      error_type = "accessdenied"
+      error = $action_msg
+    }
+
     precondition ($refuse_cap == false) {
       error_type = "accessdenied"
       error = "The copilot has reached today's limit and is paused until tomorrow. (E-COP-004)"
@@ -374,5 +456,7 @@ function "journey/tool_gate" {
     context   : $caller.context
     user_id   : $caller.user_id
     account_id: $caller.account_id
+    action_level: $action_level
+    action_id : $action_id
   }
 }

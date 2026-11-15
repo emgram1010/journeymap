@@ -1,6 +1,6 @@
 # EPIC-COP-2 — Approval levels: do this yourself, ask me for that
 
-**Status:** 📋 Not started. Written 2026-11-14 (Fable 5.2).
+**Status:** ✅ Built and proven (Opus 5.5 gate + Sonnet 5.5 screens, 2026-11-15). Undo (story 04) and per-business reminder times (story 06) deferred — see Test results.
 **Model:** **Opus 5.5** (or Fable 5.2) for the gate — stories 01, 02, 06, 08. Sonnet 5.5 for the
 screens — stories 03, 04, 05, 07. Review pass after.
 **Depends on:** COP-1 (identity, log).
@@ -55,7 +55,7 @@ Runs on its own     Runs, then tells you        Waits for you
 ## 3. Stories
 
 ### US-COP-2-01 — Action types and their levels
-**Status:** 📋 Not started.
+**Status:** ✅ Built (2026-11-15).
 
 **As an** owner, **I want** each kind of action to have its own level,
 **so that** I decide once per type, not once per action.
@@ -86,7 +86,7 @@ table with a unique index on (business, action type). Every write tool declares 
 the same list COP-1 uses for modules. The lookup is **one function**. Default levels: decision D-8.
 
 ### US-COP-2-02 — A waiting action is stored, not done
-**Status:** 📋 Not started.
+**Status:** ✅ Built (2026-11-15).
 
 **As an** owner, **I want** a waiting action to do nothing until I decide,
 **so that** "Waits for you" is a real stop, not a suggestion.
@@ -128,7 +128,7 @@ own call only creates the row. Double-approve is stopped by a **unique index**, 
 on approval; build the fingerprint by explicit concatenation, never `json_encode`.
 
 ### US-COP-2-03 — The approvals inbox
-**Status:** 📋 Not started. **Model: Sonnet 5.5.**
+**Status:** ✅ Built, seen in a browser on real data (2026-11-15). **Model: Sonnet 5.5.**
 
 **As an** owner, **I want** one screen with everything waiting for me,
 **so that** I can clear it in a minute.
@@ -151,7 +151,7 @@ Scenario: Nothing waiting
 Approval levels. Pure logic in a model file with tests; components thin.
 
 ### US-COP-2-04 — "Runs, then tells you", honestly
-**Status:** 📋 Not started. **Model: Sonnet 5.5.**
+**Status:** 🟡 Built except Undo: reversible items show a disabled Undo ("arrives with the first copilot tool of this type"); irreversible show "Can't be undone". No tool of a reversible "tell" type exists yet (COP-5). **Model: Sonnet 5.5.**
 
 ```gherkin
 Scenario: I can see what it did without being asked
@@ -172,7 +172,7 @@ Scenario: Irreversible customer-facing types are flagged when lowered
 ```
 
 ### US-COP-2-05 — Limits inside a type
-**Status:** 📋 Not started. **Model: Sonnet 5.5.**
+**Status:** ✅ Built (2026-11-15).
 
 ```gherkin
 Scenario: Under my limit, it does not wait
@@ -194,7 +194,7 @@ as `0`, never `null` — `0` is deliberately the "always wait" value, so no flag
 The amount comes from the action's stored input, validated server-side; a missing amount waits.
 
 ### US-COP-2-06 — When the owner does not answer
-**Status:** 📋 Not started.
+**Status:** ✅ Built with fixed times (remind 24 h, expire 72 h); per-business times and "the copilot says what it held" wait for scheduled runs (COP-5).
 
 ```gherkin
 Scenario: A reminder, then expiry
@@ -215,7 +215,7 @@ expiry; compute cutoffs into a `var` before the `where`. How the owner is told (
 first; text or email later) is an open decision in the illustration — in-app is the default.
 
 ### US-COP-2-07 — The copilot suggests, the owner decides
-**Status:** 📋 Not started. **Model: Sonnet 5.5.**
+**Status:** ✅ Built (suggestion computed server-side; only the owner's click moves a level). **Model: Sonnet 5.5.**
 
 ```gherkin
 Scenario: A suggestion after a good track record
@@ -230,7 +230,7 @@ Scenario: Locked types are never suggested
 ```
 
 ### US-COP-2-08 — Publish stays human
-**Status:** 📋 Not started.
+**Status:** ✅ Built (publish_map refuses an AI caller; both publish types locked).
 
 ```gherkin
 Scenario: The copilot cannot publish a map version
@@ -283,7 +283,51 @@ refuse an AI caller once COP-1's identity exists.
 | UI-COP-2-02 | Browser | Levels screen: change, locked, limit, suggestion |
 | REG | Suites | `npm test`, `tsc`, build, COP-1 matrices |
 
-## 7. Test results
+## 7. Test results (2026-11-15, Opus 5.5)
 
-Not run. Nothing is built. The mock-up was clicked through once (approve → moved to the log; no
-console errors) — that proves the screen idea, not the feature.
+**How it works (as built).** Every AI tool already calls `journey/tool_gate`. A tool that declares
+an action type (`act_type`, plus `act_payload` / `act_summary` / `act_amount`) now also goes through
+`copilot/action_gate` — **for AI identities only; people are never stopped**. One catalogue
+(`copilot/action_types`), one lookup (`copilot/action_level`). "Waits for you" stores the tool and
+its exact input in `copilot_action` and refuses (E-COP-020). Approving records what may run; the
+copilot carries it out by calling the same tool again with `approval_id`, and the gate lets it
+through **once** (unique index on `copilot_action_claim`) and **only for the approved content**.
+Approval refusals are enforced whatever the report/enforce switch says.
+
+**Pushed:** tables 146 `copilot_action_level`, 147 `copilot_action`, 148 `copilot_action_claim`,
+149 `copilot_json_canon`; functions `copilot/action_types` (328), `action_level` (329),
+`action_gate` (330), `canon_json` (332), `expire_waiting` (333); `journey/tool_gate` (311);
+endpoints 637–642 (Members & Accounts); task 20 `copilot_expire_waiting` (hourly); tool
+`publish_map` (55). Screens: `/approvals` (three tabs) + menu badge.
+
+| Check | Result |
+|---|---|
+| Levels: customer message waits, unknown type waits, internal note tells, map read/draft run on their own | ✅ |
+| Copilot attempts a waiting type → stored, nothing done, E-COP-020 with item number | ✅ |
+| Same waiting action again → reuses the item (no duplicate) | ✅ (after fix: a json column re-orders keys; both sides now pass through `copilot/canon_json`) |
+| A person attempting the same → goes straight through | ✅ |
+| Copilot calls `publish_map` on its own map | ✅ refused (E-COP-025), map unchanged; its draft edit on the same map still works |
+| Owner inbox / badge / member blocked from inbox and deciding | ✅ / ✅ / ✅ 403 |
+| Reject; decide again (E-COP-021); map changed since draft (E-COP-022); bad decision (E-COP-032); unknown item (E-COP-029) | ✅ all |
+| Edit with no content (E-COP-033) | 🔴→✅ an omitted json input arrived as `{}` and passed; fixed and re-proven |
+| Edit with content → the copilot's original is refused (E-COP-027), the owner's version runs | ✅ |
+| **4 parallel approves → exactly one wins** | ✅ [200, 400, 400, 400] |
+| Approved item runs once (keys in a different order still match); second run E-COP-030; changed content E-COP-027; rejected item E-COP-027; wrong tool E-COP-036 | ✅ all |
+| Levels: all 10 types; lowering Publish (E-COP-023); irreversible customer type without confirm (E-COP-026); bad level (E-COP-034); another account's business (E-COP-035); member blocked | ✅ all |
+| Money limit 100: 50 → runs, then tells you; 100 → waits; no amount → waits | ✅ |
+| Expiry: 73 h old → expired; 25 h old → one reminder; second run changes nothing | ✅ |
+| Regression: list_maps / scaffold_map as a person after the gate change | ✅ |
+| Browser (localhost, test admin): inbox shows item, reason, exact payload; Approve and Reject work; done list with "New" + Mark as seen; levels tab with locked / person-only / not-used-yet; COP-1 Manage users AI badge + limit | ✅ (badge refresh and plain type names fixed after the first look) |
+| `npm test` / `tsc` | ✅ 804/804 / clean |
+
+**Found live (CLAUDE.md-worthy):** a `json` column returns its keys re-ordered (by length, then
+alphabetically), so a stored value never json_encodes like a fresh one — compare through
+`copilot/canon_json`. An omitted optional `json` input arrives as `{}`, not null. `tool.call` is
+unavailable from a function or endpoint, so an approved action is carried out by the copilot's own
+re-call, not by the approve button.
+
+**Not done / honest gaps:** no real customer/booking/money tool exists yet — the waiting path was
+proven with the gate and a stand-in tool name; real tools arrive in COP-5/COP-6 and only need to
+pass `act_type`. Undo has no backend (no reversible "tell" tool yet). Reminder/expiry times are
+fixed. Test fixtures in account 13: copilot_action items 1–14 (all decided or expired), a money
+limit row (arch 0, limit 100).

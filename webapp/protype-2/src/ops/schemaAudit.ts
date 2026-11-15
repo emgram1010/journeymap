@@ -102,6 +102,12 @@ export const TABLE_MANIFEST: Record<string, TableExpectation> = {
   tool_call_log: {appendOnly: true},
   // COP-1: one copilot per account; one identity per user. Has updated_at (the cap changes).
   ai_identity: {naturalKeys: [['user_id'], ['account_id']]},
+  // COP-2: one level per (business, action type); the decision/run race guard is written once;
+  // the canon row is transient (written and deleted in one function call).
+  copilot_action_level: {naturalKeys: [['journey_architecture_id', 'action_type']], enumFields: ['level']},
+  copilot_action: {enumFields: ['status']},
+  copilot_action_claim: {naturalKeys: [['copilot_action_id', 'kind']], enumFields: ['kind'], appendOnly: true},
+  copilot_json_canon: {appendOnly: true},
   plan_publication: {naturalKeys: [['timeline_id', 'version']], appendOnly: true},
   plan_change_log: {enumFields: ['change_type'], appendOnly: true},
   activity_log: {naturalKeys: [['client_event_id']], enumFields: ['event_type', 'source'], appendOnly: true},
