@@ -89,6 +89,20 @@ test('R10: planner tools refuse a date that does not exist (2026-02-31), not jus
   }
 });
 
+test('R14: the plan check returns nothing about a plan it did not find', () => {
+  const src = read('functions/copilot/plan_in_business.xs');
+  const resp = src.slice(src.indexOf('response = {'));
+  assert.ok(!resp.includes('$plan|get'), 'the response reads no plan field directly');
+  assert.match(src, /if \(\$found == true\) \{\s*var\.update \$safe_name/);
+});
+
+test('R16 probe: clearing a stage goal or owner writes an empty value, never null (db.edit ignores null)', () => {
+  const src = read('ai/tool/update_stage_contract.xs');
+  assert.ok(!src.includes('? null :'), 'no field is cleared by writing null');
+  assert.match(src, /var\.update \$stage_goal_to_write \{\s*value = \$input\.stage_goal/);
+  assert.ok(src.includes('(($clearing_lens == true) ? "" : $input.primary_actor_lens)'));
+});
+
 test('R7: a tick is logged when it starts, before any account is run', () => {
   const src = read('functions/copilot/scheduled_run.xs');
   const startAt = src.indexOf('step: "run_tick_started"');

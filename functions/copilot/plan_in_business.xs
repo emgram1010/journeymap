@@ -80,13 +80,43 @@ function "copilot/plan_in_business" {
         }
       }
     }
+
+    // Final review R14: on a miss nothing about the plan is returned - not even its name - so
+    // another account's plan can never be read through this answer.
+    var $safe_name {
+      value = ""
+    }
+
+    var $safe_archived {
+      value = false
+    }
+
+    var $safe_count {
+      value = 0
+    }
+
+    conditional {
+      if ($found == true) {
+        var.update $safe_name {
+          value = (($plan|get:"name":"") ?? "")
+        }
+
+        var.update $safe_archived {
+          value = (($plan|get:"is_archived":false) ?? false)
+        }
+
+        var.update $safe_count {
+          value = $total
+        }
+      }
+    }
   }
 
   response = {
     ok         : ($reason == "")
     reason     : $reason
-    map_count  : $total
-    is_archived: (($plan|get:"is_archived":false) ?? false)
-    name       : (($plan|get:"name":"") ?? "")
+    map_count  : $safe_count
+    is_archived: $safe_archived
+    name       : $safe_name
   }
 }

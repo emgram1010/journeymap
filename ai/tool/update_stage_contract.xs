@@ -74,8 +74,12 @@ tool update_stage_contract {
 
     conditional {
       if ($has_stage_goal == true) {
+        // Final review R16 probe (2026-11-16): "pass null to clear" never cleared. `== null` is
+        // loose (an empty text equals null), the old code then wrote null, and db.edit keeps the
+        // old text when given null. Clearing now writes "" (the column's own empty value);
+        // $input.stage_goal is already "" for both null and "".
         var.update $stage_goal_to_write {
-          value = ($stage_goal_raw == null ? null : $input.stage_goal)
+          value = $input.stage_goal
         }
       }
     }
@@ -99,7 +103,7 @@ tool update_stage_contract {
     conditional {
       if ($has_lens == true) {
         var.update $primary_actor_lens_to_write {
-          value = ($clearing_lens == true ? null : $input.primary_actor_lens)
+          value = (($clearing_lens == true) ? "" : $input.primary_actor_lens)
         }
       }
     }
