@@ -563,3 +563,12 @@ My call on decision 3 (R2): completions WAIT by default, and the owner can loose
 - Test rows (plan 47): slot 133 removed, slot 137 holds 873+874; a time window for job 147; a start override row left orphaned on slot 133.
 - `npm test` 879/879, tsc clean.
 - R10 not changed: capacity 0 = 8 and duration 0 = "use expected" (both are written in the tool instructions for the AI); writing the slot before the capacity warning.
+
+## Finishing the initiative (2026-11-16, Opus 5.5) - founder: "update the epics and continue until this AI copilot initiative is complete"
+- **Epic status lines** brought up to date (COP-1, 2, 3, 5, SEC-3 were stale since 15 Nov).
+- **COP-6 story 02** logins encrypted in Xano - done; keyed run 12/12 (see EPIC-COP-6).
+- **SEC-3 05/06** refusals logged max 5 per reason per hour (16 calls -> 5 rows); nightly door check inside task 19 (plan allows 10 tasks, all used). Live: `state: shut`.
+- **R8** `record_my_task_event` (170) now asks the frozen publication, like `list_my_tasks`. Live: own task 866 note recorded; task 873 (draft day) refused.
+- **R15** run function (353): a refused lock that lost to a run which just ended is now a skip, not a red failure; "could not start" has its own code **E-COP-070** (GUARD-REG-01 refused reusing 057); refused calls counted for this business (or calls naming none) only. Real AI run 30 finished cleanly after the push. Not done: storing the run id on each tool-call row (needs a table change - ask first).
+- **633** copilot create: reads the caught error safely, logs the database's words to the event log (E-COP-007), shows only the plain sentence. Live: second copilot -> E-COP-006.
+- **COP-1 04 Health view** "AI tool calls" panel (endpoint 660, function 379).

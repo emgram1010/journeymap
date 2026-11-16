@@ -44,6 +44,15 @@ test('R2: record_my_task_event sends completed and skipped as work_complete, eve
   assert.match(pick, /var\.update \$act_type \{\s*value = "work_complete"/);
 });
 
+test('R8: "is this task mine" reads the frozen publication, like list_my_tasks and the performer app', () => {
+  const src = read('ai/tool/record_my_task_event.xs');
+  assert.ok(src.includes('function.run "perform/collect_published_items"'), 'the publication is the answer');
+  assert.ok(src.includes('$db.work_task.id in $pub_wt_ids'), 'membership through a where clause, never |contains');
+  assert.match(src, /var \$is_mine \{\s*value = \(\$in_publication > 0 && \$day_status == "published"\)/);
+  assert.ok(!src.includes('$eff_agent'), 'the live-slot assignee is no longer a second answer');
+  assert.ok(read('ai/tool/list_my_tasks.xs').includes('function.run "perform/collect_published_items"'));
+});
+
 test('R5: notes are preferences, never permission - in the scheduled run and in chat', () => {
   for (const path of ['functions/copilot/run_for_business.xs', 'apis/journey_map/643_copilot_chat_POST.xs']) {
     const src = read(path);

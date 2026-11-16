@@ -2287,6 +2287,16 @@
     "severity": "warn",
     "fix_hint": "Switch the copilot back on in Manage users, or give the work to someone else."
   },
+  "E-COP-070": {
+    "code": "E-COP-070",
+    "feature": "COP-5",
+    "user_message": "The copilot's scheduled run could not start, so nothing was done. The next hourly run tries again.",
+    "what_happened": "A scheduled copilot run could not record its start (the run row was refused), and no other run for that business was going.",
+    "likely_cause": "A short database problem while starting the run.",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "Nothing to do if the next hourly run starts. If it keeps happening, look at the run_failed events with stage 'lock' on Health."
+  },
   "E-COP-060": {
     "code": "E-COP-060",
     "feature": "COP-6",

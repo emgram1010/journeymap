@@ -1,6 +1,6 @@
 # EPIC-COP-1 — Agent identity and guardrails
 
-**Status:** 🟡 Nearly done (updated 2026-11-16). Stories 02, 03, 04, 05, 06 ✅ (03's per-business pin is enforced in `journey/tool_gate`, proven with COP-3; 05's scheduled-run skips arrived with COP-5). Open: story 01's Team page "AI" label and story 04's Health view (screens). See section 7.
+**Status:** ✅ Done (updated 2026-11-16). Stories 02, 03, 04, 05, 06 ✅ (03's per-business pin is enforced in `journey/tool_gate`, proven with COP-3; 05's scheduled-run skips arrived with COP-5). All six stories done: the Team page "AI" label was already built (Manage users marks the copilot row); story 04's Health view added 2026-11-16. See section 7.
 **Model:** **Opus 5.5** (or Fable 5.2). Guards and tenancy. Story 06 is Sonnet 5.5. Review pass after.
 **Depends on:** SEC-3 (the tool door), USR-2 (access gates, live). Closes map 226 gaps 2, 3 and 4.
 **Risk:** high. A mistake here lets an AI act on the wrong customer's data, or locks the chat out.
@@ -89,7 +89,7 @@ tools last; (4) probe: account A's token and ticket cannot read or change accoun
 **Status:** Moved to its own epic: `EPIC-SEC-3-lock-the-ai-tool-door.md`. Do that first.
 
 ### US-COP-1-01 — The copilot has its own identity
-**Status:** ✅ Built and proven (Opus 5.5, 2026-11-15) — backend. Team page "AI" label not built (screen work).
+**Status:** ✅ Built and proven (Opus 5.5, 2026-11-15). The Team page marks the copilot row "AI" (`isCopilotRow`, Manage users).
 
 **As an** owner, **I want** the copilot to be a named member of my account,
 **so that** everything it creates says who made it.
@@ -178,7 +178,7 @@ check. Resolve every target (map, plan, job, task) to its architecture, then com
 for other accounts, never "forbidden" — do not confirm that an id exists.
 
 ### US-COP-1-04 — Every tool call is logged with who
-**Status:** ✅ Built and proven (Sonnet 5.5, 2026-11-15). Health page view not built.
+**Status:** ✅ Built and proven (Sonnet 5.5, 2026-11-15). Health view added 2026-11-16 (Opus 5.5): "AI tool calls" panel - last 24 h, allowed/refused/outside, 20 newest refusals explained from the catalog (`ops/tool_calls` 660, `ops/tool_calls_panel` 379). Live on real data: 166 calls, 27 refused. Endpoint refuses a non-platform-admin (E-OBS-001). Not seen in a browser (the test admin is not a platform admin).
 
 **As** the only support person, **I want** one log row for every tool call, naming who acted,
 **so that** I can explain afterwards what the copilot did.

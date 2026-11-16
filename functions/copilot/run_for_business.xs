@@ -247,12 +247,19 @@ function "copilot/run_for_business" {
       return = {type: "count"}
     } as $running_now
 
+    // Final review R15: the other run may have ended between our refused insert and this check.
+    // A run for this business that ended after we started means we lost a race - a skip, not a failure.
+    db.query copilot_run {
+      where = $db.copilot_run.account_id == $input.account_id && $db.copilot_run.journey_architecture_id == $input.journey_architecture_id && $db.copilot_run.finished_at >= $started_ms && $db.copilot_run.status != "skipped"
+      return = {type: "count"}
+    } as $ended_since_start
+
     var $is_skip {
-      value = ($attempt == true) && ($locked == false) && ($running_now > 0)
+      value = ($attempt == true) && ($locked == false) && (($running_now > 0) || ($ended_since_start > 0))
     }
 
     var $is_start_fail {
-      value = ($attempt == true) && ($locked == false) && ($running_now == 0)
+      value = ($attempt == true) && ($locked == false) && ($running_now == 0) && ($ended_since_start == 0)
     }
 
     conditional {
@@ -319,7 +326,7 @@ function "copilot/run_for_business" {
             finished_at            : $started_ms
             work_date              : $input.date
             open_task_count        : $before.open_count
-            reason                 : "The copilot did not finish its scheduled run. Anything it did before stopping is in the activity log. (E-COP-057)"
+            reason                 : "The copilot's scheduled run could not start, so nothing was done. The next hourly run tries again. (E-COP-070)"
           }
         } as $sf_row
 
@@ -346,7 +353,7 @@ function "copilot/run_for_business" {
             entity_type   : "copilot_run"
             entity_id     : $sf_row.id
             correlation_id: ""
-            error_code    : "E-COP-057"
+            error_code    : "E-COP-070"
             message       : "A scheduled copilot run could not start."
             duration_ms   : 0
             metadata      : {journey_architecture_id: $input.journey_architecture_id, stage: "lock", detail: $lock_err}
@@ -529,7 +536,7 @@ function "copilot/run_for_business" {
         } as $told
 
         db.query tool_call_log {
-          where = $db.tool_call_log.user_id == $input.copilot_user_id && $db.tool_call_log.created_at >= $started_ms && $db.tool_call_log.verdict == "refused"
+          where = $db.tool_call_log.user_id == $input.copilot_user_id && $db.tool_call_log.created_at >= $started_ms && $db.tool_call_log.verdict == "refused" && ($db.tool_call_log.journey_architecture_id == $input.journey_architecture_id || $db.tool_call_log.journey_architecture_id == 0)
           return = {type: "count"}
         } as $refused
 

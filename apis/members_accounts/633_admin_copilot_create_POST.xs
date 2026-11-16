@@ -122,8 +122,13 @@ query "admin/copilot_create" verb=POST {
           value = true
         }
 
+        // Read the caught error whole first (reading a field straight off $error is unreliable).
+        var $caught {
+          value = $error
+        }
+
         var.update $fail_msg {
-          value = $error.message
+          value = ($caught|get:"message":"") ?? ""
         }
       }
     }
@@ -146,13 +151,19 @@ query "admin/copilot_create" verb=POST {
       error = "This account already has a copilot. Switch it off or rename it instead. (E-COP-006)"
     }
 
-    var $other_msg {
-      value = "We could not create the copilot. Nothing was saved. (E-COP-007) " ~ $fail_msg
+    // Final review follow-up (2026-11-16): the database's own words go to the event log for
+    // support, never to the person's screen.
+    conditional {
+      if ($other_failure == true) {
+        function.run "ops/log_event" {
+          input = {feature: "COP-1", step: "copilot_create", outcome: "failure", severity: "error", error_code: "E-COP-007", message: "Creating the copilot failed; nothing was saved.", user_id: $admin_user.id, account_id: $account_id, entity_type: "account", entity_id: $account_id, metadata: {detail: $fail_msg}}
+        } as $_fail_logged
+      }
     }
 
     precondition ($other_failure == false) {
       error_type = "inputerror"
-      error = $other_msg
+      error = "We could not create the copilot. Nothing was saved. (E-COP-007)"
     }
 
     function.run "ops/log_event" {

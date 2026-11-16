@@ -4,8 +4,8 @@
 // plan-vs-actual are exactly a person's. source is "ai".
 // Narrower than a person, on purpose (decision D-6, how an AI may do work):
 //   - only in a copilot conversation about one business, and the job's map must be in it;
-//   - only a task whose scheduled slot is on a PUBLISHED day and whose effective assignee (the
-//     slot's own override, else the day's person) is a plan person linked to the caller. An
+//   - only a task on a PUBLISHED day that the frozen publication gives to a plan person linked to
+//     the caller (R8: the same answer list_my_tasks and the performer app give). An
 //     unassigned or unscheduled task is NOT the copilot's (a person may record those; it may not);
 //   - the caller needs the Execution grant, like any performer (usr/assert_module_access).
 // Every miss answers "Task not found"; not-yours answers E-COP-054.
@@ -144,7 +144,7 @@ tool record_my_task_event {
       error = "That belongs to another business. This conversation works on one business only; switch business to work on it. (E-COP-038)"
     }
 
-    // Is it mine? The slot this task is scheduled on, its day, and the effective assignee.
+    // Is it mine? The slot this task is scheduled on and its day (to find the publication).
     db.query planner_task_work_task {
       where = $db.planner_task_work_task.work_task_id == $input.work_task_id
       return = {type: "single"}
@@ -165,48 +165,60 @@ tool record_my_task_event {
       value = ($slot|get:"timeline_id":0) ?? 0
     }
 
-    var $override_agent {
-      value = ($slot|get:"assignee_agent_id":0) ?? 0
-    }
-
     db.query planner_timeline {
       where = $db.planner_timeline.id == $timeline_id && $timeline_id != 0
       return = {type: "single"}
-      output = ["id", "agent_id", "status"]
+      output = ["id", "agent_id", "status", "planned_date"]
     } as $day
-
-    var $day_agent {
-      value = ($day|get:"agent_id":0) ?? 0
-    }
 
     var $day_status {
       value = ($day|get:"status":"") ?? ""
     }
 
-    var $eff_agent {
-      value = $day_agent
+    // Final review R8 (2026-11-16): "is this task mine" has ONE answer - the frozen publication,
+    // the same one list_my_tasks, scheduled runs and the performer app read
+    // (perform/collect_published_items). A slot dragged onto or off the copilot after the day went
+    // live, and not re-published, no longer gives two answers. The live slot is used only to find
+    // which day's publication to read.
+    var $day_date {
+      value = (($day|get:"planned_date":"") ?? "")|to_text
+    }
+
+    var $pub_wt_ids {
+      value = [-1]
     }
 
     conditional {
-      if ($override_agent != 0) {
-        var.update $eff_agent {
-          value = $override_agent
+      if ($day_date != "" && $day_status == "published") {
+        function.run "perform/resolve_agents" {
+          input = {account_id: $caller_account, user_id: $caller_user}
+        } as $resolved
+
+        function.run "perform/collect_published_items" {
+          input = {account_id: $caller_account, date: $day_date, agent_ids: $resolved.agent_ids}
+        } as $collected
+
+        foreach ($collected.items) {
+          each as $pi {
+            foreach ($pi.work_task_ids) {
+              each as $pw {
+                array.push $pub_wt_ids {
+                  value = $pw
+                }
+              }
+            }
+          }
         }
       }
     }
 
-    db.query planner_agent {
-      where = $db.planner_agent.id == $eff_agent && $eff_agent != 0
-      return = {type: "single"}
-      output = ["id", "user_id"]
-    } as $assignee
-
-    var $assignee_user {
-      value = ($assignee|get:"user_id":0) ?? 0
-    }
+    db.query work_task {
+      where = $db.work_task.id == $input.work_task_id && $db.work_task.id in $pub_wt_ids
+      return = {type: "count"}
+    } as $in_publication
 
     var $is_mine {
-      value = ($assignee_user != 0 && $assignee_user == $caller_user && $day_status == "published")
+      value = ($in_publication > 0 && $day_status == "published")
     }
 
     conditional {

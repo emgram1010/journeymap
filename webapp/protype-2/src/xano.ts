@@ -1885,6 +1885,29 @@ export interface OpsExceptionsResponse {
 
 export const getOpsExceptions = () => xanoRequest<OpsExceptionsResponse>('/ops/exceptions', {baseUrl: getXanoOpsBaseUrl()});
 
+/** COP-1 story 04 - Health page "AI tool calls" panel (last 24 hours, platform-wide). */
+export interface OpsToolCallRefusal {
+  id: number;
+  at: number;
+  tool: string;
+  code: string;
+  context: 'outside' | 'inapp' | '';
+  account_id: number;
+  user_id: number;
+}
+
+export interface OpsToolCallsResponse {
+  since_hours: number;
+  total: number;
+  allowed: number;
+  refused: number;
+  outside: number;
+  writes: number;
+  recent_refusals: OpsToolCallRefusal[];
+}
+
+export const getOpsToolCalls = () => xanoRequest<OpsToolCallsResponse>('/ops/tool_calls', {baseUrl: getXanoOpsBaseUrl()});
+
 export const getOpsBundle = (params: {correlationId?: string; entityType?: string; entityId?: number; accountId?: number}) => {
   const query = new URLSearchParams();
   if (params.correlationId) query.set('correlation_id', params.correlationId);
