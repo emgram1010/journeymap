@@ -2212,6 +2212,18 @@ export const setCopilotLevel = (body: {
 }): Promise<{level: string; limit_amount: number}> =>
   xanoRequest('/copilot/level_set', {method: 'POST', body, baseUrl: getXanoMembersBaseUrl()});
 
+// ── COP-6: connections library (Members & Accounts group). A login is never returned. ──
+export const listCopilotConnections = (
+  journeyArchitectureId: number,
+): Promise<{journey_architecture_id: number; connections: import('./copilot/connectionsModel').ConnectionRow[]}> =>
+  xanoRequest(`/copilot/connections?journey_architecture_id=${journeyArchitectureId}`, {baseUrl: getXanoMembersBaseUrl()});
+
+export const addCopilotConnection = (body: {key: string; name: string; description: string}): Promise<{id: number}> =>
+  xanoRequest('/copilot/connection', {method: 'POST', body, baseUrl: getXanoMembersBaseUrl()});
+
+export const switchCopilotConnection = (body: {journey_architecture_id: number; connection_id: number; is_on: boolean}): Promise<{is_on: boolean}> =>
+  xanoRequest('/copilot/connection_switch', {method: 'POST', body, baseUrl: getXanoMembersBaseUrl()});
+
 // ── COP-3: copilot chat (journey-map group, the default base URL) ────────────
 
 export interface XanoCopilotChatResult {

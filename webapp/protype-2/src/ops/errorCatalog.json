@@ -2256,5 +2256,65 @@
     "owner": "engineer",
     "severity": "warn",
     "fix_hint": "Open the failed runs under Scheduled runs to see why they stopped. Runs start again tomorrow; a manual run still goes today."
+  },
+  "E-COP-059": {
+    "code": "E-COP-059",
+    "feature": "COP-5",
+    "user_message": "The copilot is switched off, so it can't be given new work. An admin can switch it back on in Manage users, or pick someone else.",
+    "what_happened": "Someone tried to start a day, schedule a step or card, place a task, or move a day onto the plan column of a copilot that is switched off. The server refused it.",
+    "likely_cause": "The copilot was switched off on Manage users, and the planner screen was opened before that (or the work came from a tool).",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Switch the copilot back on in Manage users, or give the work to someone else."
+  },
+  "E-COP-060": {
+    "code": "E-COP-060",
+    "feature": "COP-6",
+    "user_message": "That connection is not switched on for this business. The owner can switch it on under Connections.",
+    "what_happened": "The copilot tried to use an outside connection that is off for the business it is working on.",
+    "likely_cause": "The connection is switched on for a different business, or not at all.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Switch it on for this business under Connections, if you want the copilot to use it here."
+  },
+  "E-COP-062": {
+    "code": "E-COP-062",
+    "feature": "COP-6",
+    "user_message": "That connection has no working login for this business yet.",
+    "what_happened": "A connection was switched on, or used, for a business that has no stored login for it.",
+    "likely_cause": "No login was added for this business. Logins are per business and never shared.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Add the connection's login for this business first, then switch it on."
+  },
+  "E-COP-064": {
+    "code": "E-COP-064",
+    "feature": "COP-6",
+    "user_message": "A connection needs a short key (lower-case letters, digits and dashes, 2 to 40), a name (up to 80 characters) and a description of up to 300.",
+    "what_happened": "A connection was added to the library with a key, name or description that breaks the rule.",
+    "likely_cause": "The key has spaces or capitals, or a field is empty or too long.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Use a key like booking-tool, a short name, and a short description."
+  },
+  "E-COP-065": {
+    "code": "E-COP-065",
+    "feature": "COP-6",
+    "user_message": "There is no connection with that name in this account.",
+    "what_happened": "A connection was switched or used that is not in this account's library, or has been retired.",
+    "likely_cause": "A stale screen, or a connection from another account.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload Connections and pick one from the list."
+  },
+  "E-COP-066": {
+    "code": "E-COP-066",
+    "feature": "COP-6",
+    "user_message": "This account already has a connection with that key. Pick another key.",
+    "what_happened": "A connection was added with a key the account's library already uses.",
+    "likely_cause": "The same system was added twice.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Use the existing entry, or choose a different key."
   }
 }

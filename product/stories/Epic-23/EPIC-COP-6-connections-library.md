@@ -200,4 +200,16 @@ account or enters a password on anyone's behalf.
 
 ## 7. Test results
 
-Not run. Nothing is built. The spike has not been done.
+### 2026-11-16 (Opus 5.5) - story 01 built; 02 to 05 wait
+
+Founder: yes to the three tables; hold the first outside connection (story 05).
+
+- **Error codes differ from section 4:** E-COP-050 to 053 were already taken by COP-4/COP-7, so COP-6 uses **E-COP-060** (not switched on), **062** (no working login), **064** (library entry rule), **065** (no such connection), **066** (key taken). 061 (could not reach) and 063 (tool not classified) are reserved for when a real connection exists. Section 4 not edited - founder to confirm.
+- **Tables (live):** `copilot_connection` 156 (library, unique account + key), `copilot_connection_switch` 157 (per business, unique business + connection, holds last worked / failing since), `copilot_connection_secret` 158 (write-only login, private column; **nothing writes to it yet**).
+- **Function:** `copilot/connection_reachable` 364 - the one gate answer. Live: off -> E-COP-060; another account -> E-COP-065.
+- **Endpoints (Members & Accounts):** `GET copilot/connections` 656, `POST copilot/connection` 657, `POST copilot/connection_switch` 658. Admin person only.
+- **Screen:** Approvals -> Approval levels -> pick a business -> "Connections" (list, state in words, add form). Not clicked in a browser.
+- **FT-COP-6-01** `tests/cop6_connections_probe.py` over real HTTP: **9 of 9** - bad key E-COP-064, add 200, duplicate E-COP-066, listed off with no login, no login value in the list, another account's business E-COP-035, switch ON refused E-COP-062, switch OFF 200, unknown E-COP-065.
+- Unit: `connectionsModel.test.ts` (5).
+- **Not built:** story 02 (where logins live - founder decision), 03 (read/write tools need a real connection), 04 (Health grouping - columns exist, nothing writes them), 05 (on hold). Switching ON is impossible until 02 exists - by design.
+- Test data: library entry 1 "Probe booking tool" in account 13 (retire later).

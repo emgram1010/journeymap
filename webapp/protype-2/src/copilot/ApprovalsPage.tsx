@@ -26,6 +26,7 @@ import {
   type Level,
   actionTypeLabel,
 } from './approvalsModel';
+import ConnectionsSection from './ConnectionsSection';
 
 /**
  * COP-2 — Approvals. Three tabs: Waiting for you, What the copilot did, Approval levels.
@@ -362,6 +363,7 @@ function LevelsTab() {
           ))}
         </ul>
       )}
+      {archId !== 0 && <ConnectionsSection archId={archId} />}
     </div>
   );
 }
