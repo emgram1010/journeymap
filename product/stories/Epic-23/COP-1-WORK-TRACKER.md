@@ -554,4 +554,12 @@ My call on decision 3 (R2): completions WAIT by default, and the owner can loose
 - All pushes: no logic drift found; 538/545/541 descriptions refreshed from the repo. Copilot back ON; scratch 365/366 deleted.
 - Gaps: 542 with a copilot's day but no override is not checked; 543 ignores a task's existing override.
 - Test rows: timelines 60, 61; planner tasks 134, 135, 136 (steps 868, 870 now scheduled).
+## Handoff 4-B - four copilot planner tools (2026-11-16, helper agent, checked by Opus 5.5)
+- Shared rules copied from the live endpoints: `planner_ops/unschedule_step` 367 (576), `set_start_override` 368 (617), `set_time_window` 369 (613), `schedule_card` 370 (583, keeps the E-COP-059 guard).
+- Tools (R1 shape, `plan_draft`): `plan_unschedule_step` 178 (draft days only), `plan_set_start_time` 179, `plan_set_time_window` 180 (date read-back), `plan_schedule_card` 181 (assignee always 0, capacity warning). Agent 40 now has 37 tools.
+- debugTool as the copilot: each one success + refusals (E-SCHED-009/010/001, E-TW-002, "date does not exist", E-COP-055 on published day 53, not found).
+- Found: live endpoint 576 says "this card" where its repo file and the catalog say "this step" (existing drift, not touched).
+- Not done: `tests/cop5_tool_vs_endpoint.py` not extended; time window on a live job and E-COP-059 via schedule_card not exercised. Each rule now exists twice until 4-C.
+- Test rows (plan 47): slot 133 removed, slot 137 holds 873+874; a time window for job 147; a start override row left orphaned on slot 133.
+- `npm test` 879/879, tsc clean.
 - R10 not changed: capacity 0 = 8 and duration 0 = "use expected" (both are written in the tool instructions for the AI); writing the slot before the capacity warning.

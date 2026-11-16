@@ -17,6 +17,10 @@ const WIRED: Record<string, string> = {
   plan_add_person: 'plan_draft',
   plan_start_day: 'plan_draft',
   plan_schedule_step: 'plan_draft',
+  plan_schedule_card: 'plan_draft',
+  plan_unschedule_step: 'plan_draft',
+  plan_set_start_time: 'plan_draft',
+  plan_set_time_window: 'plan_draft',
   record_my_task_event: '$act_type',
   save_note: 'note_internal',
 };
