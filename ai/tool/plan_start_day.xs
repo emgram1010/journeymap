@@ -99,6 +99,17 @@ tool plan_start_day {
       error = "Give the date as YYYY-MM-DD."
     }
 
+    // Final review R10: the shape alone let "2026-02-31" through, and the database quietly moved
+    // it to 3 March. A real calendar date reads back as itself.
+    var $date_back {
+      value = ($input.planned_date|to_timestamp:"UTC")|format_timestamp:"Y-m-d":"UTC"
+    }
+
+    precondition ($date_back == $input.planned_date) {
+      error_type = "inputerror"
+      error = "That date does not exist. Give a real calendar date as YYYY-MM-DD."
+    }
+
     // Is this plan part of this business? The one rule, in one place.
     function.run "copilot/plan_in_business" {
       input = {account_id: $caller_account, workspace_id: $input.workspace_id, architecture_id: $pin, user_id: $caller_user}

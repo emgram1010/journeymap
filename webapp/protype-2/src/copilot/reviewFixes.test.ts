@@ -63,6 +63,32 @@ test('R6: a business stops retrying after three failed runs in one day', () => {
   assert.ok(src.includes('Three runs failed today, so it stopped trying until tomorrow. (E-COP-058)'));
 });
 
+test('R9: learning uses the newest version only, takes blocked time off and leaves outliers out', () => {
+  const src = read('ai/tool/get_map_learnings.xs');
+  assert.match(src, /sort = \{journey_map_version\.id: "desc"\}[\s\S]*?\} as \$all_versions/);
+  assert.match(src, /var \$versions \{\s*value = \$all_versions\|slice:0:1/);
+  assert.ok(src.includes('($t.actual_minutes ?? 0) - ($t.blocked_minutes ?? 0)'), 'blocked minutes are taken off');
+  assert.ok(src.includes('(($t.is_outlier ?? false) == true)'), 'outliers are read through ??');
+  assert.ok(src.includes('&& ($outlier == false))|to_int'), 'an outlier is not a sample');
+  assert.match(src, /\$all_jobs\|slice:0:15/, 'at most 15 report calls in one chat turn');
+});
+
+test('R10: planner tools refuse a date that does not exist (2026-02-31), not just a bad shape', () => {
+  for (const tool of ['plan_start_day', 'plan_create']) {
+    const src = read(`ai/tool/${tool}.xs`);
+    assert.match(src, /\|to_timestamp:"UTC"\)\|format_timestamp:"Y-m-d":"UTC"/, `${tool} reads the date back`);
+    assert.ok(src.includes('That date does not exist. Give a real calendar date as YYYY-MM-DD.'), `${tool} says so`);
+  }
+});
+
+test('R7: a tick is logged when it starts, before any account is run', () => {
+  const src = read('functions/copilot/scheduled_run.xs');
+  const startAt = src.indexOf('step: "run_tick_started"');
+  assert.ok(startAt > 0, 'a start event exists');
+  assert.ok(startAt < src.indexOf('db.query copilot_run'), 'it is the first thing written');
+  assert.ok(src.includes('step          : "run_tick"'), 'the end event still exists');
+});
+
 test('the run reads a caught error whole - $error.message ?? x always gives the fallback', () => {
   const src = read('functions/copilot/run_for_business.xs');
   assert.ok(!src.includes('$error.message ??'), 'no $error.message ?? left');

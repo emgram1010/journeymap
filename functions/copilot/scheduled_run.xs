@@ -30,6 +30,12 @@ function "copilot/scheduled_run" {
       value = $now_ms - 1800000
     }
 
+    // Final review R7: the tick is also logged as it STARTS. If the task hits its time limit part
+    // way through the accounts, a "started" with no matching "run_tick" shows it, instead of silence.
+    function.run "ops/log_event" {
+      input = {feature: "COP-5", step: "run_tick_started", outcome: "success", severity: "info", user_id: 0, account_id: 0, entity_type: "", entity_id: 0, correlation_id: "", error_code: "", message: "Scheduled copilot runs started a tick.", duration_ms: 0, metadata: {account_id: $input.account_id, trigger: $trigger}}
+    } as $_tick_started_logged
+
     // -- Close runs that never finished --
     db.query copilot_run {
       where = $db.copilot_run.status == "running" && $db.copilot_run.started_at < $cutoff && (($all == true) || ($db.copilot_run.account_id == $input.account_id))

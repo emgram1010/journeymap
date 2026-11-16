@@ -1,5 +1,6 @@
 // COP-4 story 05 - "where does reality differ from this map?" For ONE map: every finished step of its
-// most recent jobs (up to 30), grouped by step (stage + lens), with how many times it was done, the
+// most recent jobs on its NEWEST version (up to 15; time spent blocked taken off; outliers left
+// out - final review R9), grouped by step (stage + lens), with how many times it was done, the
 // average expected and actual minutes, and how often it ran over or under. The figures come from
 // variance/task_report - the same function the report screen uses - and are only ADDED UP here,
 // never recomputed. A step is flagged (`longer` / `shorter`) only when there are enough samples
@@ -71,11 +72,18 @@ tool get_map_learnings {
       }
     }
 
+    // Final review R9: only jobs pinned to the NEWEST version, so "expected" is one version's figure,
+    // never an average of figures from different versions.
     db.query journey_map_version {
       where = $db.journey_map_version.journey_map_id == $input.journey_map_id
+      sort = {journey_map_version.id: "desc"}
       return = {type: "list"}
       output = ["id"]
-    } as $versions
+    } as $all_versions
+
+    var $versions {
+      value = $all_versions|slice:0:1
+    }
 
     var $version_ids {
       value = [-1]
@@ -97,7 +105,7 @@ tool get_map_learnings {
     } as $all_jobs
 
     var $jobs {
-      value = $all_jobs|slice:0:30
+      value = $all_jobs|slice:0:15
     }
 
     var $job_total {
@@ -165,6 +173,10 @@ tool get_map_learnings {
       value = 0
     }
 
+    var $outlier {
+      value = false
+    }
+
     foreach ($jobs) {
       each as $j {
         function.run "variance/task_report" {
@@ -181,13 +193,19 @@ tool get_map_learnings {
               value = $t.expected_minutes ?? 0
             }
 
+            // R9: time spent blocked is not working time, so it is taken off.
             var.update $a {
-              value = $t.actual_minutes ?? 0
+              value = ($t.actual_minutes ?? 0) - ($t.blocked_minutes ?? 0)
             }
 
-            // A sample counts when the step is done and both figures are real (above zero).
+            var.update $outlier {
+              value = (($t.is_outlier ?? false) == true)
+            }
+
+            // A sample counts when the step is done, both figures are real (above zero) and the
+            // variance report did not mark it an outlier (R9: one task left open overnight).
             var.update $use {
-              value = (($t.status == "done") && ($e > 0) && ($a > 0))|to_int
+              value = (($t.status == "done") && ($e > 0) && ($a > 0) && ($outlier == false))|to_int
             }
 
             var.update $stage_of {

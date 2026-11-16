@@ -538,3 +538,9 @@ My call on decision 3 (R2): completions WAIT by default, and the owner can loose
 - Tests: `reviewFixes.test.ts` (6) + R1 wiring test updated; 17 of 17.
 - Not proven: a full AI scheduled run with these changes (the date rolled to 16 Nov; the copilot has no published day today). The idle path wrote the new fingerprint (run row 18).
 - Left: item 25 waiting in business 49, on purpose, so the Approvals screen has a real example.
+
+## Review fixes R7, R9, R10 (2026-11-16, Opus 5.5)
+- **R7** `copilot/scheduled_run` (355 live) logs `run_tick_started` first, `run_tick` last. Live: events 9200 then 9201. A start with no end = the task was cut off. No per-tick ceiling yet (still one task for every account).
+- **R9** `get_map_learnings` (177 live): newest version only, blocked minutes taken off, outliers left out, at most 15 jobs. Live on map 261: 5 jobs read, rows as before.
+- **R10 date bug (worse than the review said):** `plan_start_day` with "2026-02-31" did not error - it silently made a day on 3 March (day 59, plan 47, left in the test account). Both `plan_start_day` (175) and `plan_create` (171) now read the date back and refuse one that does not exist. Live: 2026-02-30 and 2026-04-31 refused; 2026-03-03 still works. Probe function 360 deleted.
+- R10 not changed: capacity 0 = 8 and duration 0 = "use expected" (both are written in the tool instructions for the AI); writing the slot before the capacity warning.

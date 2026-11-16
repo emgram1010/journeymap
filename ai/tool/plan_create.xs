@@ -96,6 +96,28 @@ tool plan_create {
       error = "Give each date as YYYY-MM-DD, or leave it empty for the default."
     }
 
+    // Final review R10: a real calendar date reads back as itself ("2026-02-31" does not).
+    var $start_probe {
+      value = (($input.planning_window_start != "") ? $input.planning_window_start : "2000-01-01")
+    }
+
+    var $end_probe {
+      value = (($input.planning_window_end != "") ? $input.planning_window_end : "2000-01-01")
+    }
+
+    var $start_back {
+      value = ($start_probe|to_timestamp:"UTC")|format_timestamp:"Y-m-d":"UTC"
+    }
+
+    var $end_back {
+      value = ($end_probe|to_timestamp:"UTC")|format_timestamp:"Y-m-d":"UTC"
+    }
+
+    precondition ($start_back == $start_probe && $end_back == $end_probe) {
+      error_type = "inputerror"
+      error = "That date does not exist. Give a real calendar date as YYYY-MM-DD."
+    }
+
     var $has_start {
       value = ($input.planning_window_start != "")
     }
