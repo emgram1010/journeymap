@@ -13,6 +13,7 @@ function "copilot/action_types" {
         plan_publish_live  : {key: "plan_publish_live", name: "Publish a plan to live", touches: "internal", reversible: false, default_level: "wait", locked: true, person_only: true, has_limit: false, wired: false}
         note_internal      : {key: "note_internal", name: "Write an internal note", touches: "internal", reversible: true, default_level: "tell", locked: false, person_only: false, has_limit: false, wired: true}
         work_update        : {key: "work_update", name: "Update assigned work", touches: "internal", reversible: true, default_level: "tell", locked: false, person_only: false, has_limit: false, wired: true}
+        work_complete      : {key: "work_complete", name: "Mark its own work done or skipped", touches: "internal", reversible: true, default_level: "wait", locked: false, person_only: false, has_limit: false, wired: true}
         customer_message   : {key: "customer_message", name: "Send a message to a customer", touches: "customer", reversible: false, default_level: "wait", locked: false, person_only: false, has_limit: false, wired: false}
         booking_change     : {key: "booking_change", name: "Create or change a booking", touches: "booking", reversible: true, default_level: "wait", locked: false, person_only: false, has_limit: false, wired: false}
         money_payment      : {key: "money_payment", name: "Charge, pay or refund money", touches: "money", reversible: false, default_level: "wait", locked: false, person_only: false, has_limit: true, wired: false}
@@ -21,7 +22,7 @@ function "copilot/action_types" {
     }
 
     var $order {
-      value = ["map_read", "map_draft", "map_publish_version", "plan_draft", "plan_publish_live", "note_internal", "work_update", "customer_message", "booking_change", "money_payment", "scheduled_work"]
+      value = ["map_read", "map_draft", "map_publish_version", "plan_draft", "plan_publish_live", "note_internal", "work_update", "work_complete", "customer_message", "booking_change", "money_payment", "scheduled_work"]
     }
   }
 

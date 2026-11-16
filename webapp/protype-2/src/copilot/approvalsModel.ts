@@ -83,6 +83,7 @@ export const ACTION_TYPE_LABELS: Record<string, string> = {
   plan_publish_live: 'Publish a plan to live',
   note_internal: 'Write an internal note',
   work_update: 'Update assigned work',
+  work_complete: 'Mark its own work done or skipped',
   customer_message: 'Send a message to a customer',
   booking_change: 'Create or change a booking',
   money_payment: 'Charge, pay or refund money',

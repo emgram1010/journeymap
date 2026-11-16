@@ -521,4 +521,20 @@ Nothing is committed. `npm test` 847 of 847, `tsc` clean. Copilot (user 26) is s
 - Known weak spots: an invalid request can be queued for the owner (the level check runs before the tool's own checks); summaries show ids ("plan #47"), not names.
 - Found on the way: `$error.message ?? "x"` always gives the fallback (read `$error` whole, then `|get:"message"`). `run_for_business.xs:210, 439` and endpoints 643, 633 use the broken form, so their failure messages are always the generic one.
 
-**Left in the test account:** plan 47 "R1 test plan" (job 147, people 56-57, day 58), notes 3-5, copilot_action rows 17-24, `scratch/r1_probe` (359, still useful for 176 - delete after), `tests/r1_decide_probe.py` (new, writes).
+**Left in the test account:** plan 47 "R1 test plan" (job 147, people 56-57, day 58, slot 133), notes 3-5, copilot_action rows 17-24, `tests/r1_decide_probe.py` (new, writes).
+
+**R1 finished (2026-11-16, Opus 5.5).** `plan_schedule_step` (176) pushed - no drift left. Own level: step 873 on day 58 -> slot 133, capacity 390, not over; same step again -> E-SCHED-001 text kept; unknown day -> not found. Three calls logged, no approval rows (correct at "own"). `scratch/r1_probe` (359) deleted. Copilot (user 26) still active.
+
+## Review fixes R2, R5, R6 (2026-11-16, Opus 5.5)
+
+Founder: "continue to build out, validate test all the remaining epics"; hold the outside connection.
+My call on decision 3 (R2): completions WAIT by default, and the owner can loosen it - safest, reversible, uses the existing levels.
+- **R2** new action type `work_complete` "Mark its own work done or skipped", default wait, not locked (328 live). `record_my_task_event` (170 live) sends completed/skipped as `work_complete`, everything else as `work_update`.
+  - Live, tool: "completed" on own task 866 -> stored waiting (item 25), task stays in progress; a note -> runs, listed as told (item 26).
+  - Live, real chat over HTTP (`tests/r2_chat_probe.py`): copilot answered "waiting for approval, item 25"; no duplicate item; 866 still in progress.
+- **R5** notes heading is now "preferences only" with a stated limit, in the run prompt (353) and the chat (643). Both live.
+- **R6** fingerprint adds decided approvals and the newest note (352 live: `... a:2 n:4@5@...`). After 3 failed runs in a day a business waits until tomorrow (manual runs still go), new code E-COP-058 (catalog entry added; the code guard caught the first try reusing 057). A run is told the approved items it may now send.
+- `$error.message ??` fixed in 353 and 643 (read `$error` whole). Endpoint 633 still has it.
+- Tests: `reviewFixes.test.ts` (6) + R1 wiring test updated; 17 of 17.
+- Not proven: a full AI scheduled run with these changes (the date rolled to 16 Nov; the copilot has no published day today). The idle path wrote the new fingerprint (run row 18).
+- Left: item 25 waiting in business 49, on purpose, so the Approvals screen has a real example.

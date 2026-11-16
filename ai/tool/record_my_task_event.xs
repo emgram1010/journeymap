@@ -35,8 +35,22 @@ tool record_my_task_event {
       value = "Record '" ~ $input.event_type ~ "' on its task #" ~ ($input.work_task_id|to_text)
     }
 
+    // Final review R2: marking its own work done or skipped is its own action type (work_complete),
+    // which waits for the owner unless the owner loosens it. An AI's word alone never closes a task.
+    var $act_type {
+      value = "work_update"
+    }
+
+    conditional {
+      if ($input.event_type == "completed" || $input.event_type == "skipped") {
+        var.update $act_type {
+          value = "work_complete"
+        }
+      }
+    }
+
     function.run "journey/tool_gate" {
-      input = {journey_map_id: 0, ticket: $input.ticket, tool: "record_my_task_event", kind: "write", act_type: "work_update", act_payload: {work_task_id: $input.work_task_id, event_type: $input.event_type, reason_code: $input.reason_code, note: $input.note}, act_summary: $act_summary, act_approval_id: $input.approval_id}
+      input = {journey_map_id: 0, ticket: $input.ticket, tool: "record_my_task_event", kind: "write", act_type: $act_type, act_payload: {work_task_id: $input.work_task_id, event_type: $input.event_type, reason_code: $input.reason_code, note: $input.note}, act_summary: $act_summary, act_approval_id: $input.approval_id}
     } as $cop1_gate
 
     var $act_action_id {

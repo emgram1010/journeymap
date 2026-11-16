@@ -2246,5 +2246,15 @@
     "owner": "engineer",
     "severity": "error",
     "fix_hint": "Open the run under Scheduled runs in the copilot panel to see what it held and did. The next hourly run tries again. If it keeps failing, check the AI service key and the copilot's daily cap."
+  },
+  "E-COP-058": {
+    "code": "E-COP-058",
+    "feature": "COP-5",
+    "user_message": "Three runs failed today, so it stopped trying until tomorrow.",
+    "what_happened": "Scheduled work for this business failed three times today, so the hourly runs stopped for the rest of the day instead of paying for a full AI run every hour.",
+    "likely_cause": "The same problem as the failed runs before it (E-COP-057): the AI service did not answer, timed out, or ran out of steps.",
+    "owner": "engineer",
+    "severity": "warn",
+    "fix_hint": "Open the failed runs under Scheduled runs to see why they stopped. Runs start again tomorrow; a manual run still goes today."
   }
 }

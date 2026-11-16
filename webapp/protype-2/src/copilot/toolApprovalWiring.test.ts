@@ -17,7 +17,7 @@ const WIRED: Record<string, string> = {
   plan_add_person: 'plan_draft',
   plan_start_day: 'plan_draft',
   plan_schedule_step: 'plan_draft',
-  record_my_task_event: 'work_update',
+  record_my_task_event: '$act_type',
   save_note: 'note_internal',
 };
 
@@ -29,7 +29,8 @@ for (const [tool, actType] of Object.entries(WIRED)) {
     const gate = gateCalls[0];
     assert.ok(gate.includes(`tool: "${tool}"`), 'the gate is told the tool name');
     assert.ok(gate.includes('kind: "write"'), 'it is a write');
-    assert.ok(gate.includes(`act_type: "${actType}"`), 'the action type is declared');
+    const declared = actType.startsWith('$') ? `act_type: ${actType}` : `act_type: "${actType}"`;
+    assert.ok(gate.includes(declared), 'the action type is declared');
     assert.ok(gate.includes('act_payload: {'), 'the exact input is sent, so "waits for you" can store it');
     assert.ok(gate.includes('act_summary: $act_summary'), 'the owner gets a sentence to read');
     assert.ok(gate.includes('act_approval_id: $input.approval_id'), 'an approved action can be run');
@@ -48,7 +49,8 @@ for (const [tool, actType] of Object.entries(WIRED)) {
 
 test('R1: every action type a tool declares exists in the catalogue and is marked as used', () => {
   const catalogue = read('functions/copilot/action_types.xs');
-  for (const actType of new Set(Object.values(WIRED))) {
+  const declared = [...Object.values(WIRED).filter((t) => !t.startsWith('$')), 'work_update', 'work_complete'];
+  for (const actType of new Set(declared)) {
     const line = catalogue.split('\n').find((l) => l.trim().startsWith(`${actType} `) || l.trim().startsWith(`${actType}:`));
     assert.ok(line, `${actType} is in copilot/action_types`);
     assert.ok(line!.includes('wired: true'), `${actType} says a copilot tool uses it`);

@@ -1,4 +1,4 @@
-// COP-5 story 05 - the copilot's OPEN tasks (not started or in progress) in ONE business, out of a list of task ids already known to be assigned to it on published days. Returns how many and a fingerprint (the date plus each task id and status, in id order) so a scheduled run can tell "nothing has changed since last time". The business filter is done by constraining the queries (maps of the business, their versions, their jobs), never by an if inside a loop.
+// COP-5 story 05 - the copilot's OPEN tasks (not started or in progress) in ONE business, out of a list of task ids already known to be assigned to it on published days. Returns how many and a fingerprint (the date plus each task id and status, in id order, plus how many held actions the owner has decided and the newest note) so a scheduled run can tell "nothing has changed since last time". The business filter is done by constraining the queries (maps of the business, their versions, their jobs), never by an if inside a loop.
 function "copilot/open_work" {
   input {
     int account_id
@@ -95,6 +95,44 @@ function "copilot/open_work" {
 
     var $open_count {
       value = $open|count
+    }
+
+    // Final review R6: the owner deciding a held action, or adding or editing a note, is new work
+    // for the copilot even when no task changed, so both are part of the fingerprint.
+    db.query copilot_action {
+      where = $db.copilot_action.account_id == $input.account_id && $db.copilot_action.journey_architecture_id == $input.journey_architecture_id && $db.copilot_action.status in ["approved", "edited", "rejected", "executed"]
+      return = {type: "count"}
+    } as $decided
+
+    db.query copilot_note {
+      where = $db.copilot_note.account_id == $input.account_id && $db.copilot_note.journey_architecture_id == $input.journey_architecture_id
+      sort = {copilot_note.updated_at: "desc"}
+      return = {type: "list"}
+      output = ["id", "updated_at"]
+    } as $notes
+
+    var $newest_note {
+      value = $notes|slice:0:1
+    }
+
+    var $note_count {
+      value = $notes|count
+    }
+
+    var $note_mark {
+      value = ($note_count|to_text)
+    }
+
+    foreach ($newest_note) {
+      each as $nn {
+        var.update $note_mark {
+          value = $note_mark ~ "@" ~ ($nn.id|to_text) ~ "@" ~ ($nn.updated_at|to_text)
+        }
+      }
+    }
+
+    var.update $fingerprint {
+      value = $fingerprint ~ " a:" ~ ($decided|to_text) ~ " n:" ~ $note_mark
     }
   }
 
