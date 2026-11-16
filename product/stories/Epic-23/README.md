@@ -106,6 +106,21 @@ the copilot once it exists — not platform features.
 
 ---
 
+## Status (2026-11-16, end of build)
+
+| Epic | State |
+|---|---|
+| SEC-3 | ✅ All six stories (refusal logging and nightly door check added 2026-11-16) |
+| COP-1 | ✅ All six stories (Health "AI tool calls" panel added 2026-11-16) |
+| COP-2 | ✅ All eight stories (real Undo for a saved note added 2026-11-16). Per-business reminder times not built (fixed times kept) |
+| COP-3 | ✅ Built. Open: the copilot's own business can still be deleted (needs a change to live delete endpoint 69 - founder's call) |
+| COP-4 | ✅ All six stories ("my edits teach it" added 2026-11-16) |
+| COP-5 | ✅ All six stories (live-day changes now wait for approval, 2026-11-16). Open: 4-C, switching the live planner endpoints to the shared rules (founder's OK) |
+| COP-6 | 🟡 Stories 01 and 02 done (logins encrypted in Xano). 03-05 wait for a real outside system (on hold by the founder) |
+| COP-7 | ✅ All six stories |
+
+Details per epic in each file's Test results; the running log is `COP-1-WORK-TRACKER.md`.
+
 ## 5. Build order and models
 
 | # | Epic | Depends on | Model | Why that model |
