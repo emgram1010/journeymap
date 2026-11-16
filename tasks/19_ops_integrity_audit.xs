@@ -64,6 +64,23 @@ task ops_integrity_audit {
     function.run "ops/audit_rates" {
       input = {}
     } as $rate_audit
+
+    // SEC-3 story 06 (2026-11-16) - prove the AI tool address is still shut to a caller with no
+    // sign-in. Lives here because the Xano plan allows 10 tasks and all 10 are used. An OPEN door
+    // logs E-SEC-021 (error); a check that cannot run logs E-SEC-022.
+    try_catch {
+      try {
+        function.run "ops/mcp_door_check" {
+          input = {}
+        } as $door
+      }
+
+      catch {
+        function.run "ops/log_event" {
+          input = {feature: "SEC-3", step: "mcp_door_check", outcome: "failure", severity: "warn", user_id: 0, account_id: 0, entity_type: "mcp_server", entity_id: 8, correlation_id: "", error_code: "E-SEC-022", message: "Nightly check of the AI tool address could not run.", metadata: {}}
+        } as $_door_failed
+      }
+    }
   }
 
   schedule = [{starts_on: 2026-10-14 04:00:00+0000, freq: 86400}]

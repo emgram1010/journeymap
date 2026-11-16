@@ -1,6 +1,6 @@
 # EPIC-COP-5 — Plan and act: from an approved map to a plan, and from a plan to done
 
-**Status:** 🟡 Mostly built (2026-11-15) — story 01 (six planner tools), 03 and 04 built and proven in the test account. Not built: 05 (scheduled runs), 06 (copilot column on the board), the server-side publish guard in 02, and part of 01 (see its status). See Test results.
+**Status:** 🟡 Nearly done (updated 2026-11-16). Stories 02-06 ✅; story 01 has ten planner tools + the capacity warning. Open in 01: a change to a live day is refused (E-COP-055), not queued for approval; and the live endpoints still hold their own copy of each rule (4-C, founder's OK needed). See Test results.
 **Model:** **Sonnet 5.5.** Opus 5.5 (or Fable 5.2) review of story 02 and anything near
 **Publish to live**.
 **Depends on:** COP-2 (levels), COP-3 (chat, read tools). Closes map 226 gaps 5 and 6.
@@ -47,7 +47,7 @@ Schedule or trigger ──▶ copilot wakes ──▶ does what is allowed ─�
 ## 3. Stories
 
 ### US-COP-5-01 — Planner tools
-**Status:** 🟡 Six tools built and proven (Fable 5.2, 2026-11-15): `plan_create`, `plan_accept_map`, `plan_add_job`, `plan_add_person`, `plan_start_day`, `plan_schedule_step`. Each rule was MOVED into a shared function (`planner_ops/*`) and the tool calls that. **The live endpoints were not switched** — they still hold their own copy, so for now each of these six rules exists twice; switching them needs the founder's OK (one at a time, with the replay check). Not built: time window, start time, unschedule, schedule a whole card; "respects capacity" (nothing warns about overload); a change to a live day is **refused** (`E-COP-055`), not queued for approval.
+**Status:** 🟡 Six tools built and proven (Fable 5.2, 2026-11-15): `plan_create`, `plan_accept_map`, `plan_add_job`, `plan_add_person`, `plan_start_day`, `plan_schedule_step`. Each rule was MOVED into a shared function (`planner_ops/*`) and the tool calls that. **The live endpoints were not switched** — they still hold their own copy, so for now each of these six rules exists twice; switching them needs the founder's OK (one at a time, with the replay check). **Added 2026-11-15/16:** capacity warning; `plan_unschedule_step` 178, `plan_set_start_time` 179, `plan_set_time_window` 180, `plan_schedule_card` 181 (4-B), all wired to the `plan_draft` level. Still not built: a change to a live day is **refused** (`E-COP-055`), not queued for approval.
 
 **As an** owner, **I want** the copilot to draft a plan from a published map,
 **so that** I review a plan instead of building one.
@@ -83,7 +83,7 @@ copying it into the tool. Overload is advisory today (PUX-4); the tool surfaces 
 invent a new rule.
 
 ### US-COP-5-02 — Publish to live stays with the owner
-**Status:** ✅ Holds today by construction: the copilot has no Publish-to-live tool and no login. The endpoint-level guard is deferred until story 01 adds plan tools. **Opus review:** pending.
+**Status:** ✅ Built: the copilot has no Publish-to-live tool, and since 2026-11-16 Publish to live (562) refuses an AI identity on the server (`copilot/assert_person_only`, E-COP-025, 4-A). Publish success path not re-proven (no ready day).
 
 ```gherkin
 Scenario: The copilot says the plan is ready
@@ -185,7 +185,7 @@ runs and writes nothing looks healthy — each run writes a row even when it doe
 test compares row counts.
 
 ### US-COP-5-06 — The copilot as someone on the plan
-**Status:** 🟡 Built in the planner screen (Fable 5.2, 2026-11-15); the "not assignable when switched off" rule is in the **screen only** - the planner endpoints do not refuse it (they were not changed). See Test results.
+**Status:** ✅ Built (Fable 5.2, 2026-11-15) and closed 2026-11-16: the "not assignable when switched off" rule is now also a server rule (`planner_ops/assert_agent_assignable`, E-COP-059) on every planner path that assigns work (4-A). See Test results.
 
 ```gherkin
 Scenario: It can be assigned work

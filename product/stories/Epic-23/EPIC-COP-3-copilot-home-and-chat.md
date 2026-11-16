@@ -172,7 +172,7 @@ Scenario: It reports plainly
 **Build notes.** Depends on COP-2 for the link; until then, show "needs your OK" inline.
 
 ### US-COP-3-06 — It can read the whole business
-**Status:** 🟡 Maps only. Plan and work-record read tools do not exist yet; built with COP-5's planner tools.
+**Status:** ✅ Built with COP-5: maps, plans and jobs (`list_business_jobs` 167, `get_job_variance` 168), its own work (`list_my_tasks` 169) and what was learned (`get_map_learnings` 177). (Updated 2026-11-16.)
 
 **As an** owner, **I want** the copilot to see the maps, plans and work record of its business,
 **so that** its answers are about what is really there.

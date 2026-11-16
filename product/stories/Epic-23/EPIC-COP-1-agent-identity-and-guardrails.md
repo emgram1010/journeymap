@@ -1,6 +1,6 @@
 # EPIC-COP-1 — Agent identity and guardrails
 
-**Status:** 🟡 Mostly built (2026-11-15). Stories 02, 04, 05 ✅; 01 ✅ backend; 03 🟡 (account boundary done, per-business pinning waits for COP-3); 06 🟡 (two decisions open). See section 7.
+**Status:** 🟡 Nearly done (updated 2026-11-16). Stories 02, 03, 04, 05, 06 ✅ (03's per-business pin is enforced in `journey/tool_gate`, proven with COP-3; 05's scheduled-run skips arrived with COP-5). Open: story 01's Team page "AI" label and story 04's Health view (screens). See section 7.
 **Model:** **Opus 5.5** (or Fable 5.2). Guards and tenancy. Story 06 is Sonnet 5.5. Review pass after.
 **Depends on:** SEC-3 (the tool door), USR-2 (access gates, live). Closes map 226 gaps 2, 3 and 4.
 **Risk:** high. A mistake here lets an AI act on the wrong customer's data, or locks the chat out.
@@ -151,7 +151,7 @@ tool to exactly one module in **one** table/list, with a test that fails if a ne
 without one. Capture a before/after replay of the existing chat's tool calls.
 
 ### US-COP-1-03 — Pinned to one business at a time
-**Status:** 🟡 Account boundary built and proven (another account's map or business = "not found"). Pinning a session to ONE business inside an account waits for COP-3 (the business chat), which is where a session gets its business.
+**Status:** ✅ Built and proven. Account boundary (another account's map or business = "not found") and, since COP-3, the per-business pin in `journey/tool_gate` for reads and writes (seen refusing live; levels are looked up in the pinned business since R1, 2026-11-15/16).
 
 **As an** owner with more than one business, **I want** the copilot working on one business per
 session, **so that** it never mixes them.
@@ -204,7 +204,7 @@ table or a new log table (design note; `agent_tool_log` has no text validators �
 Surface on the Health page under its own feature code.
 
 ### US-COP-1-05 — An off switch and a daily cap
-**Status:** ✅ Built and proven (Opus 5.5, 2026-11-15). "Scheduled run skips" waits for COP-5 (no scheduled runs exist).
+**Status:** ✅ Built and proven (Opus 5.5, 2026-11-15). Scheduled runs (COP-5 story 05) skip a switched-off copilot and stop after 3 failed runs a day (E-COP-058, 2026-11-16).
 
 ```gherkin
 Scenario: Switched off stops it on the next call

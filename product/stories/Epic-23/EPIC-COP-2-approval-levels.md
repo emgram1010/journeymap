@@ -194,7 +194,7 @@ as `0`, never `null` — `0` is deliberately the "always wait" value, so no flag
 The amount comes from the action's stored input, validated server-side; a missing amount waits.
 
 ### US-COP-2-06 — When the owner does not answer
-**Status:** ✅ Built with fixed times (remind 24 h, expire 72 h); per-business times and "the copilot says what it held" wait for scheduled runs (COP-5).
+**Status:** ✅ Built with fixed times (remind 24 h, expire 72 h). Since COP-5 a scheduled run reports what it held (`held_count`) and is told which approved items it may now send (R6). Per-business reminder times: not built (fixed times kept).
 
 ```gherkin
 Scenario: A reminder, then expiry

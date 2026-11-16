@@ -1727,6 +1727,26 @@
     "severity": "info",
     "fix_hint": "The note is a short reason, like \"site opens at 9\". Put longer detail on the job itself. Your typing was kept."
   },
+  "E-SEC-021": {
+    "code": "E-SEC-021",
+    "feature": "SEC-3",
+    "user_message": "The AI tool address answered without a sign-in.",
+    "what_happened": "The nightly check called the AI tool address with no token and it listed tools or returned a map. Anyone with the address could read or change maps.",
+    "likely_cause": "The Auth Gate trigger on the journey_map tool server was edited or switched off.",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "Restore the Auth Gate trigger from ai/mcp_server/trigger/auth_gate.xs at once, then run product/stories/Epic-23/tests/sec3_probe.py."
+  },
+  "E-SEC-022": {
+    "code": "E-SEC-022",
+    "feature": "SEC-3",
+    "user_message": "The nightly check of the AI tool address could not confirm it is shut.",
+    "what_happened": "The nightly check called the AI tool address but did not get the expected 'no tools' answer, or could not run.",
+    "likely_cause": "The address was down or slow, or its answer changed shape.",
+    "owner": "engineer",
+    "severity": "warn",
+    "fix_hint": "Run product/stories/Epic-23/tests/sec3_probe.py by hand. If it passes, the address was briefly unreachable."
+  },
   "E-SEC-020": {
     "code": "E-SEC-020",
     "feature": "SEC-3",

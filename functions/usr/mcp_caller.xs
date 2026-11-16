@@ -17,8 +17,8 @@
 // address can end up in logs on the caller's side — the header is safer where it is possible.
 //
 // Passes are not logged (this runs on every connection). A refused module check is logged by
-// `usr/assert_module_access` itself. A missing or bad token is NOT logged yet — a public
-// address could flood the log; see US-SEC-3-05.
+// `usr/assert_module_access` itself. A missing or bad token is logged at most 5 times per
+// reason per hour (US-SEC-3-05), so a public address cannot flood the log.
 function "usr/mcp_caller" {
   input {
     // The raw Authorization header, or "" when there is none.
@@ -149,6 +149,54 @@ function "usr/mcp_caller" {
 
           catch {
             var.update $allowed {
+              value = false
+            }
+          }
+        }
+      }
+    }
+
+    // US-SEC-3-05 (2026-11-16): a refusal for no token, a bad token or a failed check is logged
+    // so Health shows it (E-SEC-020, reason in metadata) - but at most 5 rows per reason per hour,
+    // so a public address hammered with no token cannot flood event_log. Counted with a plain
+    // db.query count against a cutoff var (no redis on this plan; OBS-1 pattern). Never logs the
+    // token, the header or the address. "not_allowed" is already logged by usr/assert_module_access.
+    var $log_refusal {
+      value = ($reason == "no_token") || ($reason == "bad_token") || ($reason == "check_failed")
+    }
+
+    conditional {
+      if ($log_refusal == true) {
+        try_catch {
+          try {
+            var $now_ms {
+              value = now|to_int
+            }
+
+            var $cutoff {
+              value = $now_ms - 3600000
+            }
+
+            var $step_name {
+              value = "mcp_connect_refused_" ~ $reason
+            }
+
+            db.query event_log {
+              where = $db.event_log.feature == "SEC-3" && $db.event_log.step == $step_name && $db.event_log.created_at >= $cutoff
+              return = {type: "count"}
+            } as $recent
+
+            conditional {
+              if ($recent < 5) {
+                function.run "ops/log_event" {
+                  input = {feature: "SEC-3", step: $step_name, outcome: "rejected", severity: "warn", user_id: 0, account_id: 0, entity_type: "mcp_server", entity_id: 8, correlation_id: "", error_code: "E-SEC-020", message: "The AI tool address refused a caller with no valid sign-in. At most 5 of these are logged per hour per reason.", metadata: {reason: $reason, logged_this_hour: ($recent + 1)}}
+                } as $_logged
+              }
+            }
+          }
+
+          catch {
+            var.update $log_refusal {
               value = false
             }
           }

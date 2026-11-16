@@ -1,6 +1,6 @@
 # EPIC-SEC-3 — Lock the AI tool door
 
-**Status:** 🟡 **The door is shut and proven (stories 01–03 ✅, 2026-11-14, Fable 5.2).** Stories 04 (tenancy inside tools → COP-1), 05 (refusal logging) and part of 06 (nightly probe) are open. Founder said "yes on the sign-in" 2026-11-14.
+**Status:** ✅ **The door is shut and proven (stories 01–03 ✅, 2026-11-14, Fable 5.2).** All six stories done (04 inside COP-1; 05 and 06 on 2026-11-16). Founder said "yes on the sign-in" 2026-11-14.
 **Model:** **Opus 5.5** (or Fable 5.2). A guard on a public address. Review pass after.
 **Depends on:** USR-2 (live). **Goes before COP-1** — COP-1's stories assume this door is shut.
 **Risk:** high both ways: left open, anyone reads any customer's maps; shut wrongly, every
@@ -130,7 +130,7 @@ explicitly. ⚠️ The last scenario holds only while new sign-ups get no grants
 give a new account's admin all three modules** — story 04 must be done before PADM-2 ships.
 
 ### US-SEC-3-04 — A caller only reaches their own account's maps
-**Status:** 📋 Not started — **handed to COP-1 stories 02 and 03**, tracked here so it is not lost.
+**Status:** ✅ Done in COP-1 stories 02 and 03 (the gate refuses another account's map or business, and pins the session to one business).
 
 ```gherkin
 Scenario: Another account's map is "not found"
@@ -144,7 +144,7 @@ Scenario: Maps made through a tool belong to the caller
 ```
 
 ### US-SEC-3-05 — Refusals are visible, and cannot flood the log
-**Status:** 📋 Not started.
+**Status:** ✅ Built and proven live (Opus 5.5, 2026-11-16). See section 8.
 
 ```gherkin
 Scenario: A refused connection shows on Health
@@ -160,7 +160,7 @@ Scenario: A thousand refusals do not write a thousand rows
 writing, cutoff computed into a `var` first (the OBS-1 pattern in `apis/ops/1_ops_event_POST.xs`).
 
 ### US-SEC-3-06 — The door cannot be quietly opened again
-**Status:** 🟡 Probe written and passing; local files match live. Not yet run on a schedule.
+**Status:** ✅ Probe passing, and since 2026-11-16 a nightly check runs inside the 04:00 UTC integrity audit (task 19). See section 8.
 
 ```gherkin
 Scenario: A probe proves the door is shut
@@ -231,6 +231,15 @@ list of probes run before a release. A nightly check would be better; that is a 
 
 **Seen again, as predicted:** the granted test user (account 13) could read map 226, which is not
 theirs. That is story 04 — tenancy inside the tools — and is **still open**.
+
+### 2026-11-16 (Opus 5.5) - stories 05 and 06
+
+- **05 Refusals logged, capped.** `usr/mcp_caller` (307 live) logs a no-token / bad-token / failed-check refusal as `SEC-3.mcp_connect_refused_<reason>`, E-SEC-020, outcome `rejected`, reason in metadata - never the token, header or address. At most **5 rows per reason per hour** (plain `db.query` count against a cutoff var; no redis). "Signed in but not allowed" was already logged by `usr/assert_module_access`.
+  - Live: `sec3_probe.py` x3 -> 3/3 each run, rows 9346-9348 written. Then 16 more no-token calls in a row -> **exactly 5 rows** this hour. Health's issue list includes `rejected` rows, so they show there (platform view; account 0).
+- **06 Nightly check.** New `ops/mcp_door_check` (378): calls the address with no token; `tools/list` must be empty and `tools/call get_map` refused. One event a night: success, **E-SEC-021** (OPEN, error) or **E-SEC-022** (could not tell). Live run: `state: shut`.
+  - **Runs inside task 19** (`ops_integrity_audit`, 04:00 UTC), wrapped in try_catch: a new task was refused - "Your plan only supports 10 tasks" and all 10 are used.
+  - Not proven: the "open" answer (proving it would mean opening the door).
+- Unit: `sec3Door.test.ts` (2). Codes E-SEC-021/022 added to the catalog.
 
 ## 9. What was pushed, and how to reconnect an assistant
 
