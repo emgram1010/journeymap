@@ -136,3 +136,17 @@ test('the run reads a caught error whole - $error.message ?? x always gives the 
   const src = read('functions/copilot/run_for_business.xs');
   assert.ok(!src.includes('$error.message ??'), 'no $error.message ?? left');
 });
+
+test('COP-4-05: "my edits teach it" reads drafted vs approved, needs 3 edits, and never writes', () => {
+  const src = read('ai/tool/get_my_edit_patterns.xs');
+  assert.ok(src.includes('kind: "read"'), 'a read tool');
+  assert.ok(!/db\.(add|edit|patch|del) /.test(src), 'it changes nothing');
+  assert.ok(src.includes('$db.copilot_action.journey_architecture_id == $pin'), 'this business only');
+  assert.ok(src.includes('$db.copilot_action.requested_by_user_id == $caller_user'), 'this copilot only');
+  assert.match(src, /var \$min \{\s*value = \(\(\$input\.min_samples > 3\) \? \$input\.min_samples : 3\)/, 'never below 3');
+  assert.ok(src.includes('pattern: ($n >= $min)'));
+  assert.ok(!src.includes('|set:$key:($'), 'no expression nested inside a filter argument');
+  const agent = read('ai/agent/emgram_copilot.xs');
+  assert.ok(agent.includes('{name: "get_my_edit_patterns"}'), 'the copilot has the tool');
+  assert.ok(agent.includes('Save it with save_note only after'), 'it asks before it saves');
+});

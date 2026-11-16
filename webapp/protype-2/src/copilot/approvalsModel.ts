@@ -98,6 +98,7 @@ export const ACTION_TYPE_LABELS: Record<string, string> = {
   map_draft: 'Edit draft maps',
   map_publish_version: 'Publish a map version',
   plan_draft: 'Draft a plan',
+  plan_live_change: 'Change a day that is already live',
   plan_publish_live: 'Publish a plan to live',
   note_internal: 'Write an internal note',
   work_update: 'Update assigned work',

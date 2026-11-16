@@ -323,7 +323,7 @@ planner replay set.
 
 ## 7. Test plan
 
-Tests are written first. Probe script: `tests/cop7_hardening_probe.py`.
+Tests are written first. **Correction (2026-11-16, final review R11):** no standalone probe script was ever written - `tests/cop7_hardening_probe.py` does not exist. The live proof was done with the Xano debug tool and real research runs, recorded in section 7.
 
 | ID | Kind | What |
 |---|---|---|

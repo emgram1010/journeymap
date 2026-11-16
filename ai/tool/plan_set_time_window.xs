@@ -53,8 +53,19 @@ tool plan_set_time_window {
       value = "Set the time window of job #" ~ ($input.work_item_id|to_text) ~ " to " ~ $input.start_date ~ " " ~ $input.start_time ~ " - " ~ $input.end_date ~ " " ~ $input.end_time
     }
 
+    // COP-5 story 01 (2026-11-16): a change to a day that is already live is its own action type,
+    // plan_live_change, which always waits for the owner (locked). copilot/live_target answers only
+    // for the caller's own account, so it reveals nothing about anyone else's days.
+    function.run "copilot/live_target" {
+      input = {ticket: $input.ticket, timeline_id: 0, planner_task_id: 0, work_task_id: 0, work_item_id: $input.work_item_id}
+    } as $live_target
+
+    var $act_type {
+      value = ((($live_target.live ?? false) == true) ? "plan_live_change" : "plan_draft")
+    }
+
     function.run "journey/tool_gate" {
-      input = {journey_map_id: 0, ticket: $input.ticket, tool: "plan_set_time_window", kind: "write", act_type: "plan_draft", act_payload: {work_item_id: $input.work_item_id, start_date: $input.start_date, start_time: $input.start_time, end_date: $input.end_date, end_time: $input.end_time, note: $input.note}, act_summary: $act_summary, act_approval_id: $input.approval_id}
+      input = {journey_map_id: 0, ticket: $input.ticket, tool: "plan_set_time_window", kind: "write", act_type: $act_type, act_payload: {work_item_id: $input.work_item_id, start_date: $input.start_date, start_time: $input.start_time, end_date: $input.end_date, end_time: $input.end_time, note: $input.note}, act_summary: $act_summary, act_approval_id: $input.approval_id}
     } as $cop1_gate
 
     var $act_action_id {
@@ -177,7 +188,7 @@ tool plan_set_time_window {
       value = (($live_now|get:"live":false) ?? false) == true
     }
 
-    precondition ($is_live == false) {
+    precondition ($is_live == false || $act_type == "plan_live_change") {
       error_type = "accessdenied"
       error = "That day is already live. Only the owner changes a live day - tell them what you would change. (E-COP-055)"
     }

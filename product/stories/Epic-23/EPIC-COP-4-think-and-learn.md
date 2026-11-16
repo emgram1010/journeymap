@@ -1,6 +1,6 @@
 # EPIC-COP-4 — Think and learn: goals and research become maps; results become improvements
 
-**Status:** ✅ Built (Opus 5.5 + Sonnet 5.5 screens, 2026-11-15) — stories 01–04 and 06. Story 05: the plan-vs-actual half is built and proven (Fable 5.2, 2026-11-15); "my edits teach it" is not built. See Test results.
+**Status:** ✅ Built (Opus 5.5 + Sonnet 5.5 screens, 2026-11-15) — all six stories (05's second half on 2026-11-16). Story 05: the plan-vs-actual half is built and proven (Fable 5.2, 2026-11-15); "my edits teach it" built 2026-11-16. See Test results.
 **Model:** **Sonnet 5.5.** Opus 5.5 (or Fable 5.2) review of story 03 (web text is data).
 **Depends on:** COP-2 (levels), COP-3 (chat, business scope). Can run in parallel with COP-5.
 **Risk:** medium. The danger is confident nonsense: invented numbers, or research that looks tested.
@@ -160,7 +160,7 @@ since) with **its own GET endpoint**, merged in the frontend — the plain map l
 it (CLAUDE.md, AUTH-1). No new column on `journey_map`.
 
 ### US-COP-4-05 — It learns from what happened
-**Status:** 🟡 Half built (Fable 5.2, 2026-11-15). Built: `get_map_learnings` - plan vs actual per step, with a minimum sample size. Not built: "My edits teach it" (nothing records how the owner edits the copilot's drafts, so there is nothing to learn from yet).
+**Status:** ✅ Built. Plan vs actual: `get_map_learnings` (Fable 5.2, 2026-11-15). "My edits teach it" (Opus 5.5, 2026-11-16): `get_my_edit_patterns` (tool 182, read-only) compares what the copilot drafted with what the owner approved after editing (both already stored on each approval), counts per kind of action and field, and calls it a pattern only at 3+ edits; the copilot proposes one drafting change and saves it as a note only after a yes. Live with 3 planted edits: `note_internal.note` edits 3, pattern true, newest example returned; untouched fields 0; with min 4 -> pattern false. Planted rows deleted. Limit: it learns from edits made in the Approvals screen only, not from hand edits to maps the copilot drafted (nothing records those).
 
 **As an** owner, **I want** the copilot to notice where reality differs from the map,
 **so that** the maps get better instead of going stale.

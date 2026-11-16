@@ -10,6 +10,7 @@ function "copilot/action_types" {
         map_draft          : {key: "map_draft", name: "Edit draft maps", touches: "internal", reversible: true, default_level: "own", locked: true, person_only: false, has_limit: false, wired: true}
         map_publish_version: {key: "map_publish_version", name: "Publish a map version", touches: "internal", reversible: false, default_level: "wait", locked: true, person_only: true, has_limit: false, wired: true}
         plan_draft         : {key: "plan_draft", name: "Draft a plan", touches: "internal", reversible: true, default_level: "own", locked: false, person_only: false, has_limit: false, wired: true}
+        plan_live_change   : {key: "plan_live_change", name: "Change a day that is already live", touches: "internal", reversible: true, default_level: "wait", locked: true, person_only: false, has_limit: false, wired: true}
         plan_publish_live  : {key: "plan_publish_live", name: "Publish a plan to live", touches: "internal", reversible: false, default_level: "wait", locked: true, person_only: true, has_limit: false, wired: false}
         note_internal      : {key: "note_internal", name: "Write an internal note", touches: "internal", reversible: true, default_level: "tell", locked: false, person_only: false, has_limit: false, wired: true}
         work_update        : {key: "work_update", name: "Update assigned work", touches: "internal", reversible: true, default_level: "tell", locked: false, person_only: false, has_limit: false, wired: true}
@@ -22,7 +23,7 @@ function "copilot/action_types" {
     }
 
     var $order {
-      value = ["map_read", "map_draft", "map_publish_version", "plan_draft", "plan_publish_live", "note_internal", "work_update", "work_complete", "customer_message", "booking_change", "money_payment", "scheduled_work"]
+      value = ["map_read", "map_draft", "map_publish_version", "plan_draft", "plan_live_change", "plan_publish_live", "note_internal", "work_update", "work_complete", "customer_message", "booking_change", "money_payment", "scheduled_work"]
     }
   }
 

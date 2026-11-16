@@ -1,6 +1,6 @@
 # EPIC-COP-5 — Plan and act: from an approved map to a plan, and from a plan to done
 
-**Status:** 🟡 Nearly done (updated 2026-11-16). Stories 02-06 ✅; story 01 has ten planner tools + the capacity warning. Open in 01: a change to a live day is refused (E-COP-055), not queued for approval; and the live endpoints still hold their own copy of each rule (4-C, founder's OK needed). See Test results.
+**Status:** 🟡 Nearly done (updated 2026-11-16). Stories 02-06 ✅; story 01 has ten planner tools + the capacity warning. Open in 01: only that the live endpoints still hold their own copy of each rule (4-C, founder's OK needed). See Test results.
 **Model:** **Sonnet 5.5.** Opus 5.5 (or Fable 5.2) review of story 02 and anything near
 **Publish to live**.
 **Depends on:** COP-2 (levels), COP-3 (chat, read tools). Closes map 226 gaps 5 and 6.
@@ -47,7 +47,7 @@ Schedule or trigger ──▶ copilot wakes ──▶ does what is allowed ─�
 ## 3. Stories
 
 ### US-COP-5-01 — Planner tools
-**Status:** 🟡 Six tools built and proven (Fable 5.2, 2026-11-15): `plan_create`, `plan_accept_map`, `plan_add_job`, `plan_add_person`, `plan_start_day`, `plan_schedule_step`. Each rule was MOVED into a shared function (`planner_ops/*`) and the tool calls that. **The live endpoints were not switched** — they still hold their own copy, so for now each of these six rules exists twice; switching them needs the founder's OK (one at a time, with the replay check). **Added 2026-11-15/16:** capacity warning; `plan_unschedule_step` 178, `plan_set_start_time` 179, `plan_set_time_window` 180, `plan_schedule_card` 181 (4-B), all wired to the `plan_draft` level. Still not built: a change to a live day is **refused** (`E-COP-055`), not queued for approval.
+**Status:** 🟡 Six tools built and proven (Fable 5.2, 2026-11-15): `plan_create`, `plan_accept_map`, `plan_add_job`, `plan_add_person`, `plan_start_day`, `plan_schedule_step`. Each rule was MOVED into a shared function (`planner_ops/*`) and the tool calls that. **The live endpoints were not switched** — they still hold their own copy, so for now each of these six rules exists twice; switching them needs the founder's OK (one at a time, with the replay check). **Added 2026-11-15/16:** capacity warning; `plan_unschedule_step` 178, `plan_set_start_time` 179, `plan_set_time_window` 180, `plan_schedule_card` 181 (4-B), all wired to the `plan_draft` level. **Live-day changes (2026-11-16):** new locked action type `plan_live_change` "Change a day that is already live" (always waits). `copilot/live_target` (380) picks it before the gate - only for the caller's own account. Wired into `plan_schedule_step`, `plan_schedule_card`, `plan_set_start_time`, `plan_set_time_window`. Live: start time on live day 53 -> stored waiting (item 29) -> approved through endpoint 639 -> ran with the approval id -> item executed; a draft-day slot still runs on its own. `plan_unschedule_step` keeps refusing a live day (the shared rule refuses people too - same as the screen).
 
 **As an** owner, **I want** the copilot to draft a plan from a published map,
 **so that** I review a plan instead of building one.
@@ -305,7 +305,7 @@ accepts is in the business; an empty plan only for whoever created it); a live d
 | `plan_start_day` -> day 55 (draft); again -> same day, not created; 25:99; outside the plan's dates | ✅ / ✅ / `E-PLN-010` / created and flagged out of window |
 | `plan_schedule_step` task 867 onto draft day 55 | ✅ scheduled, 30 minutes |
 | `plan_schedule_step` onto a live day (53); already-scheduled step; missing day | ✅ refused / `E-SCHED-001` / not found |
-| **Same nine bad inputs through the live screen endpoints** (`tests/cop5_tool_vs_endpoint.py`) | ✅ identical messages and codes, 9 of 9 |
+| **Same nine bad inputs through the live screen endpoints** (`tests/cop5_tool_vs_endpoint.py`) | ✅ identical codes, 9 of 9. Until 2026-11-16 the script only printed answers (R11); it now checks each against the tool's code and exits 1 on any difference - re-run 9/9 |
 | `npm test` / `tsc` | ✅ see commit |
 
 **Not proven**

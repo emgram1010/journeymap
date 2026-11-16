@@ -16,11 +16,11 @@ const WIRED: Record<string, string> = {
   plan_add_job: 'plan_draft',
   plan_add_person: 'plan_draft',
   plan_start_day: 'plan_draft',
-  plan_schedule_step: 'plan_draft',
-  plan_schedule_card: 'plan_draft',
+  plan_schedule_step: '$act_type',
+  plan_schedule_card: '$act_type',
   plan_unschedule_step: 'plan_draft',
-  plan_set_start_time: 'plan_draft',
-  plan_set_time_window: 'plan_draft',
+  plan_set_start_time: '$act_type',
+  plan_set_time_window: '$act_type',
   record_my_task_event: '$act_type',
   save_note: 'note_internal',
 };
@@ -53,7 +53,7 @@ for (const [tool, actType] of Object.entries(WIRED)) {
 
 test('R1: every action type a tool declares exists in the catalogue and is marked as used', () => {
   const catalogue = read('functions/copilot/action_types.xs');
-  const declared = [...Object.values(WIRED).filter((t) => !t.startsWith('$')), 'work_update', 'work_complete'];
+  const declared = [...Object.values(WIRED).filter((t) => !t.startsWith('$')), 'work_update', 'work_complete', 'plan_draft', 'plan_live_change'];
   for (const actType of new Set(declared)) {
     const line = catalogue.split('\n').find((l) => l.trim().startsWith(`${actType} `) || l.trim().startsWith(`${actType}:`));
     assert.ok(line, `${actType} is in copilot/action_types`);
@@ -73,4 +73,18 @@ test('R1: the ending is passed on with its own kind of error, from one shared fu
   for (const kind of ['accessdenied', 'notfound', 'inputerror']) {
     assert.ok(close.includes(`error_type = "${kind}"`), `${kind} is passed on`);
   }
+});
+
+test('COP-5-01: a change to a live day is plan_live_change, which always waits (locked), chosen before the gate', () => {
+  const line = read('functions/copilot/action_types.xs').split('\n').find((l) => l.trim().startsWith('plan_live_change '));
+  assert.ok(line && line.includes('default_level: "wait"') && line.includes('locked: true'));
+  for (const tool of ['plan_schedule_step', 'plan_schedule_card', 'plan_set_start_time', 'plan_set_time_window']) {
+    const src = read(`ai/tool/${tool}.xs`);
+    assert.ok(src.indexOf('function.run "copilot/live_target"') < src.indexOf('function.run "journey/tool_gate"'), `${tool}: chosen before the gate`);
+    assert.ok(src.includes('"plan_live_change" : "plan_draft"'), `${tool}: live -> plan_live_change`);
+    assert.ok(src.includes('|| $act_type == "plan_live_change") {'), `${tool}: an approved live change is no longer refused`);
+  }
+  const lt = read('functions/copilot/live_target.xs');
+  assert.ok(lt.includes('function.run "usr/tool_caller"') && lt.includes('== $account_id'), "only the caller's own account can be live");
+  assert.ok(read('ai/tool/plan_unschedule_step.xs').includes('act_type: "plan_draft"'), 'unschedule keeps the screen rule (no unscheduling from a live day)');
 });

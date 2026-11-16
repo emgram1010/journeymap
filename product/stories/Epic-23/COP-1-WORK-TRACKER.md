@@ -572,3 +572,7 @@ My call on decision 3 (R2): completions WAIT by default, and the owner can loose
 - **R15** run function (353): a refused lock that lost to a run which just ended is now a skip, not a red failure; "could not start" has its own code **E-COP-070** (GUARD-REG-01 refused reusing 057); refused calls counted for this business (or calls naming none) only. Real AI run 30 finished cleanly after the push. Not done: storing the run id on each tool-call row (needs a table change - ask first).
 - **633** copilot create: reads the caught error safely, logs the database's words to the event log (E-COP-007), shows only the plain sentence. Live: second copilot -> E-COP-006.
 - **COP-1 04 Health view** "AI tool calls" panel (endpoint 660, function 379).
+- **COP-2 04 Undo** endpoint 661: a saved note is really undone; work updates say where to change them. Probe 4/4, browser Undo worked.
+- **COP-5 01 live-day changes** wait for approval (`plan_live_change`, function 380, tools 176/179/180/181). Full cycle proven (item 29 waiting -> approved -> executed). Test leftover: start override 09:30 on slot 127 (live day 53), 10:00 on slot 137.
+- **COP-4 05 "my edits teach it"** tool 182 on agent 40. Proven with planted rows (deleted).
+- **R11** `cop5_tool_vs_endpoint.py` now asserts and exits 1 on drift (9/9); COP-7's missing probe script corrected in its epic.

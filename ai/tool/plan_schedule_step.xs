@@ -41,8 +41,19 @@ tool plan_schedule_step {
       value = "Put job step #" ~ ($input.work_task_id|to_text) ~ " on day #" ~ ($input.timeline_id|to_text)
     }
 
+    // COP-5 story 01 (2026-11-16): a change to a day that is already live is its own action type,
+    // plan_live_change, which always waits for the owner (locked). copilot/live_target answers only
+    // for the caller's own account, so it reveals nothing about anyone else's days.
+    function.run "copilot/live_target" {
+      input = {ticket: $input.ticket, timeline_id: $input.timeline_id, planner_task_id: 0, work_task_id: 0, work_item_id: 0}
+    } as $live_target
+
+    var $act_type {
+      value = ((($live_target.live ?? false) == true) ? "plan_live_change" : "plan_draft")
+    }
+
     function.run "journey/tool_gate" {
-      input = {journey_map_id: 0, ticket: $input.ticket, tool: "plan_schedule_step", kind: "write", act_type: "plan_draft", act_payload: {work_task_id: $input.work_task_id, timeline_id: $input.timeline_id, duration_minutes: $input.duration_minutes}, act_summary: $act_summary, act_approval_id: $input.approval_id}
+      input = {journey_map_id: 0, ticket: $input.ticket, tool: "plan_schedule_step", kind: "write", act_type: $act_type, act_payload: {work_task_id: $input.work_task_id, timeline_id: $input.timeline_id, duration_minutes: $input.duration_minutes}, act_summary: $act_summary, act_approval_id: $input.approval_id}
     } as $cop1_gate
 
     var $act_action_id {
@@ -138,7 +149,7 @@ tool plan_schedule_step {
     }
 
     // The copilot edits draft days only.
-    precondition ($day_status != "published") {
+    precondition ($day_status != "published" || $act_type == "plan_live_change") {
       error_type = "accessdenied"
       error = "That day is already live. Only the owner changes a live day - tell them what you would change. (E-COP-055)"
     }
