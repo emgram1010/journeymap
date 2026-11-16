@@ -2,11 +2,11 @@
 // be set, replaced and removed; it is never returned by any endpoint, screen or tool, never logged,
 // and is attached to the outgoing request by the server only (the copilot never sees it).
 //
-// NOTHING WRITES HERE YET: how the value is protected (encrypted in Xano with a key held outside
-// the database, or an outside secret store with only a reference kept here) is the founder's
-// decision, still open. `secret_value` is therefore described neutrally and is private.
-// Removing a login clears the value immediately (two-step patch for any json, CLAUDE.md) and is
-// logged without the value. Unique (journey_architecture_id, connection_id).
+// Founder decision 2026-11-16: ENCRYPTED IN XANO. Written only by POST copilot/connection_login
+// (659) through copilot/login_seal (JWE A256KW + A256GCM, key = env COPILOT_SECRET_KEY, never in
+// the database); opened only by the server-only copilot/login_open. Removing a login deletes the
+// row and switches the connection off, logged without the value. Unique (journey_architecture_id,
+// connection_id). (The live column description still says "encrypted value, or a reference".)
 //
 // GOV-1: S1 primary key; S2 created_at + updated_at; S3 references declared and indexed;
 // S6 unique natural key.

@@ -28,6 +28,14 @@ export function connectionEntryProblem(key: string, name: string, description: s
   return null;
 }
 
+const LOGIN_MESSAGE = "A login can't be empty, and can be up to 4000 characters. (E-COP-068)";
+
+/** Mirror of POST copilot/connection_login's rule. null = fine. The login itself is never trimmed or changed. */
+export function loginProblem(login: string): string | null {
+  if (login.trim().length < 1 || login.length > 4000) return LOGIN_MESSAGE;
+  return null;
+}
+
 export function connectionStateLabel(r: Pick<ConnectionRow, 'is_on' | 'has_login' | 'failing_since' | 'last_ok_at'>): string {
   if (!r.is_on) return r.has_login ? 'Off' : 'Off - needs a login first';
   if (r.failing_since && r.failing_since > 0) return 'On - failing';

@@ -69,7 +69,7 @@ Scenario: One business's connection never serves another
 ```
 
 ### US-COP-6-02 — Logins are stored safely
-**Status:** 📋 Not started. **Opus.**
+**Status:** 🟡 Built and tested; waits for the server key (`COPILOT_SECRET_KEY`) before a login can be saved. **Opus.**
 
 **As an** owner, **I want** an outside system's login kept where nothing can read it back,
 **so that** connecting a system does not create a leak.
@@ -213,3 +213,19 @@ Founder: yes to the three tables; hold the first outside connection (story 05).
 - Unit: `connectionsModel.test.ts` (5).
 - **Not built:** story 02 (where logins live - founder decision), 03 (read/write tools need a real connection), 04 (Health grouping - columns exist, nothing writes them), 05 (on hold). Switching ON is impossible until 02 exists - by design.
 - Test data: library entry 1 "Probe booking tool" in account 13 (retire later).
+
+### 2026-11-16 (Opus 5.5) - story 02 built: logins encrypted in Xano
+
+Founder decision: **encrypted in Xano**.
+
+- **Spike:** `jwe_encode`/`jwe_decode` (A256KW + A256GCM) round-trips in this workspace (scratch probe, fake value, deleted). Authenticated: a changed key or tampered value fails to open, it does not open to garbage.
+- **Key:** workspace environment variable `COPILOT_SECRET_KEY` (32+ characters), never in the database. **Not set yet** - the MCP tools cannot create workspace variables; the founder adds it in the Xano dashboard. Until then every save is refused with E-COP-067 and nothing is stored.
+- **Functions:** `copilot/login_seal` 372 (encrypt; refuses a missing/short key), `copilot/login_open` 373 (server only; E-COP-062 none, 067 no key, 069 cannot open). No endpoint calls `login_open` (unit test enforces it).
+- **Endpoint:** `POST copilot/connection_login` 659 - set, replace (overwrites in place, old one stops at once) or remove (deletes the row and switches the connection off, one transaction). Answers only `has_login`. Login input marked sensitive.
+- **New codes:** E-COP-067 (no server key), E-COP-068 (empty / over 4000), E-COP-069 (stored login cannot be opened).
+- **FT-COP-6-02** `tests/cop6_login_probe.py` over real HTTP: **8 of 8** (unkeyed mode) - blank E-COP-068, another account E-COP-035, unknown E-COP-065, no key E-COP-067 with nothing stored, remove-when-none 200, fake secret in no response.
+- **Request history:** Xano shows the login as `*** HIDDEN ***` (checked live). **Event log:** failure rows 9323/9325/9329 carry no value.
+- **Screen:** each connection has a password field, Save / Replace / Remove login, "can never be shown again" note. Browser check: the refusal shows the plain sentence and keeps the typing. Errors now use `friendlyError` (story 01's messages were showing raw technical text - fixed too).
+- Unit: `connectionLogin.test.ts` (6). npm test 885/885, tsc clean.
+- **Not proven yet (needs the key):** the keyed cycle - set, switch on, replace, remove (`cop6_login_probe.py - --keyed`), and `login_open` reading back the right value after a replace.
+- Test data: library entries 2 and 3 "Login probe" in account 13 (retire later).

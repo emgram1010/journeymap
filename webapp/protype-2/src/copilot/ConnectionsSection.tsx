@@ -1,14 +1,85 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {AlertCircle, Loader2, Plug} from 'lucide-react';
-import {addCopilotConnection, listCopilotConnections, switchCopilotConnection} from '../xano';
-import {connectionEntryProblem, connectionStateLabel, type ConnectionRow} from './connectionsModel';
+import {addCopilotConnection, friendlyError, listCopilotConnections, setCopilotConnectionLogin, switchCopilotConnection} from '../xano';
+import {connectionEntryProblem, connectionStateLabel, loginProblem, type ConnectionRow} from './connectionsModel';
 
 /**
- * COP-6 story 01 - the outside systems this account could connect, and which are on for this
- * business. Logins cannot be added yet (story 02 waits on the founder's storage decision), so
- * switching ON is refused by the server (E-COP-062) and the screen says so up front.
+ * COP-6 stories 01 + 02 - the outside systems this account could connect, which are on for this
+ * business, and each one's login. A login is WRITE-ONLY: it can be saved, replaced or removed, and
+ * the screen only ever knows whether one is stored. The typed value is cleared once it is saved,
+ * kept on a refusal (CLAUDE.md), and never logged.
  */
-const errText = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
+// The server's own sentence, never the raw technical string (friendlyError).
+const errText = (e: unknown, fallback: string) => friendlyError(e, fallback);
+
+function LoginForm({archId, row, onChanged}: {archId: number; row: ConnectionRow; onChanged: () => Promise<void>}) {
+  const [login, setLogin] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const save = async () => {
+    const problem = loginProblem(login);
+    if (problem) {
+      setMsg(problem);
+      return;
+    }
+    setBusy(true);
+    setMsg(null);
+    try {
+      await setCopilotConnectionLogin({journey_architecture_id: archId, connection_id: row.id, login});
+      setLogin('');
+      await onChanged();
+    } catch (e) {
+      setMsg(errText(e, 'The login did not save. Nothing was changed.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!window.confirm(`Remove the login for ${row.name}? It stops working at once and the connection is switched off for this business.`)) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      await setCopilotConnectionLogin({journey_architecture_id: archId, connection_id: row.id, remove: true});
+      await onChanged();
+    } catch (e) {
+      setMsg(errText(e, 'The login was not removed. Nothing was changed.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="password"
+          autoComplete="new-password"
+          aria-label={`Login for ${row.name}`}
+          placeholder={row.has_login ? 'A login is saved - type a new one to replace it' : 'Login or key for this business'}
+          value={login}
+          onChange={(e) => setLogin(e.target.value)}
+          className="rounded-md border border-zinc-300 px-2 py-1 text-sm flex-1 min-w-[14rem]"
+        />
+        <button onClick={save} disabled={busy} className="px-3 py-1.5 rounded-md border border-zinc-300 text-sm disabled:opacity-50">
+          {row.has_login ? 'Replace login' : 'Save login'}
+        </button>
+        {row.has_login && (
+          <button onClick={remove} disabled={busy} className="px-3 py-1.5 rounded-md border border-red-300 text-red-700 text-sm disabled:opacity-50">
+            Remove login
+          </button>
+        )}
+      </div>
+      <p className="text-xs text-zinc-500 mt-1">Saved logins are encrypted and can never be shown again - not here, not to the copilot.</p>
+      {msg && (
+        <p role="alert" className="flex items-start gap-2 text-sm text-red-700 mt-1">
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {msg}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function ConnectionsSection({archId}: {archId: number}) {
   const [rows, setRows] = useState<ConnectionRow[]>([]);
@@ -90,20 +161,23 @@ export default function ConnectionsSection({archId}: {archId: number}) {
       ) : (
         <ul className="flex flex-col gap-2 mt-3">
           {rows.map((r) => (
-            <li key={r.id} className="rounded-lg border border-zinc-200 bg-white p-3 flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-zinc-900">{r.name}</p>
-                {r.description && <p className="text-xs text-zinc-500">{r.description}</p>}
-                <p className="text-xs text-zinc-700 mt-1">{connectionStateLabel(r)}</p>
+            <li key={r.id} className="rounded-lg border border-zinc-200 bg-white p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-zinc-900">{r.name}</p>
+                  {r.description && <p className="text-xs text-zinc-500">{r.description}</p>}
+                  <p className="text-xs text-zinc-700 mt-1">{connectionStateLabel(r)}</p>
+                </div>
+                <button
+                  onClick={() => toggle(r)}
+                  disabled={!r.is_on && !r.has_login}
+                  title={!r.is_on && !r.has_login ? 'Needs a login for this business first' : undefined}
+                  className="px-3 py-1.5 rounded-md border border-zinc-300 text-sm disabled:opacity-50"
+                >
+                  {r.is_on ? 'Switch off' : 'Switch on'}
+                </button>
               </div>
-              <button
-                onClick={() => toggle(r)}
-                disabled={!r.is_on && !r.has_login}
-                title={!r.is_on && !r.has_login ? 'Needs a login for this business first' : undefined}
-                className="px-3 py-1.5 rounded-md border border-zinc-300 text-sm disabled:opacity-50"
-              >
-                {r.is_on ? 'Switch off' : 'Switch on'}
-              </button>
+              <LoginForm archId={archId} row={r} onChanged={load} />
             </li>
           ))}
         </ul>

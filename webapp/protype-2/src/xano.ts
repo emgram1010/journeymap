@@ -2224,6 +2224,15 @@ export const addCopilotConnection = (body: {key: string; name: string; descripti
 export const switchCopilotConnection = (body: {journey_architecture_id: number; connection_id: number; is_on: boolean}): Promise<{is_on: boolean}> =>
   xanoRequest('/copilot/connection_switch', {method: 'POST', body, baseUrl: getXanoMembersBaseUrl()});
 
+/**
+ * COP-6 story 02 - set, replace or remove a connection's login for one business. WRITE-ONLY: the
+ * server answers only whether a login is stored, never the login. Never log `login` anywhere.
+ */
+export const setCopilotConnectionLogin = (
+  body: {journey_architecture_id: number; connection_id: number; login?: string; remove?: boolean},
+): Promise<{has_login: boolean}> =>
+  xanoRequest('/copilot/connection_login', {method: 'POST', body, baseUrl: getXanoMembersBaseUrl()});
+
 // ── COP-3: copilot chat (journey-map group, the default base URL) ────────────
 
 export interface XanoCopilotChatResult {

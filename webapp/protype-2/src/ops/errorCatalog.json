@@ -2316,5 +2316,35 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Use the existing entry, or choose a different key."
+  },
+  "E-COP-067": {
+    "code": "E-COP-067",
+    "feature": "COP-6",
+    "user_message": "Logins can't be saved yet: the server's protection key isn't set up. Nothing was stored.",
+    "what_happened": "Someone tried to save a connection login, but the server has no encryption key, so it refused to store anything.",
+    "likely_cause": "The COPILOT_SECRET_KEY environment variable is missing in Xano, or shorter than 32 characters.",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "In Xano, add the COPILOT_SECRET_KEY environment variable (a random value of at least 32 characters), then save the login again."
+  },
+  "E-COP-068": {
+    "code": "E-COP-068",
+    "feature": "COP-6",
+    "user_message": "A login can't be empty, and can be up to 4000 characters.",
+    "what_happened": "A connection login was saved empty or too long.",
+    "likely_cause": "The field was left blank, or something other than a login was pasted.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Paste the login or key the outside system gave you."
+  },
+  "E-COP-069": {
+    "code": "E-COP-069",
+    "feature": "COP-6",
+    "user_message": "A saved login could not be opened. Save the login again.",
+    "what_happened": "The server could not decrypt a stored connection login when it needed it.",
+    "likely_cause": "The COPILOT_SECRET_KEY was changed after the login was saved, or the stored value was altered.",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "Save the login again under Connections. If many fail at once, check whether the key was changed."
   }
 }
