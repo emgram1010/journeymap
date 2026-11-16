@@ -2,7 +2,15 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import test from 'node:test';
-import {actionTypeLabel} from './approvalsModel';
+import {actionTypeLabel, scheduledWorkTurnsOn} from './approvalsModel';
+
+test('R12: switching scheduled work on asks once; other changes and switching off do not', () => {
+  assert.equal(scheduledWorkTurnsOn('scheduled_work', 'wait', 'tell'), true);
+  assert.equal(scheduledWorkTurnsOn('scheduled_work', 'wait', 'own'), true);
+  assert.equal(scheduledWorkTurnsOn('scheduled_work', 'tell', 'wait'), false);
+  assert.equal(scheduledWorkTurnsOn('scheduled_work', 'tell', 'own'), false);
+  assert.equal(scheduledWorkTurnsOn('plan_draft', 'wait', 'own'), false);
+});
 
 // Final Fable review R2, R5, R6 - server rules that live in XanoScript. These read the source files,
 // so a later edit that quietly drops a rule fails here. Live behaviour is proven separately (tracker).

@@ -649,6 +649,8 @@ export default function PlannerApp() {
           reportActionError(new Error(`No one in this plan is named "${nextAssignee}" — pick an existing agent's name, or leave it blank to inherit the day's assignee.`));
           return false;
         }
+        // Final review R12: handing a task to a switched-off copilot was not guarded here.
+        if (refuseCopilotOff(match.id)) return false;
         assigneeAgentId = Number(match.id);
       }
     }
@@ -720,6 +722,8 @@ export default function PlannerApp() {
     const tlTasks = tasks.filter(t => t.timelineId === tl.id);
     const readiness = getTimelineReadiness(tl, tlTasks, activeWorkspace);
     if (!readiness.ready) return;
+    // Final review R12: publishing a day gives its work to that column's identity.
+    if (refuseCopilotOff(tl.agentId)) return;
     publishTimelineApi(Number(timelineId))
       .then(() => refreshBoard())
       .catch(reportActionError);
@@ -736,6 +740,7 @@ export default function PlannerApp() {
   const handleRepublishTimeline = (timelineId: string) => {
     const tl = timelines.find(t => t.id === timelineId);
     if (!tl) return;
+    if (refuseCopilotOff(tl.agentId)) return;
     const agent = agents.find(a => a.id === tl.agentId);
     const ok = confirm(
       `Republish this day for ${agent?.name || tl.assignee || 'the assigned agent'}? ` +
@@ -1045,6 +1050,8 @@ export default function PlannerApp() {
   const handleCreateBacklogTask = (title: string, duration: number, assignee?: string) => {
     if (!activeWorkspaceId) return;
     const agentOverride = assignee ? agentsInActiveWs.find(a => a.name === assignee) : undefined;
+    // Final review R12: a backlog task for a switched-off copilot was not guarded.
+    if (agentOverride && refuseCopilotOff(agentOverride.id)) return;
     createTask(Number(activeWorkspaceId), {
       title,
       duration_minutes: duration,
@@ -1084,7 +1091,10 @@ export default function PlannerApp() {
   // already has a timeline on that date — ONE AGENT, ONE TIMELINE, PER
   // DAY (§4) — so no client-side pre-check is needed to stay honest.
   const handleMoveTimelineCell = (timelineId: string, targetAgentId: string, targetDate: string) => {
-    if (refuseCopilotOff(targetAgentId)) return;
+    // Final review R12: moving a switched-off copilot's OWN day to another date gives it no new
+    // work, so only a move ONTO its column (from someone else's) is refused.
+    const fromAgentId = timelines.find(t => t.id === timelineId)?.agentId;
+    if (fromAgentId !== targetAgentId && refuseCopilotOff(targetAgentId)) return;
     updateTimeline(Number(timelineId), { agent_id: Number(targetAgentId), planned_date: targetDate })
       .then(() => refreshBoard())
       .catch(reportActionError);
@@ -1167,7 +1177,19 @@ export default function PlannerApp() {
   // into one message rather than stopping the whole batch at the first
   // one (a day half-published is still useful; a silent full failure
   // over one bad timeline would not be).
-  const handleConfirmBulkPublish = (timelineIdsToPublish: string[]) => {
+  const handleConfirmBulkPublish = (timelineIdsToPublishAll: string[]) => {
+    // Final review R12: a switched-off copilot's day is left out of "publish day", and the
+    // planner is told why (the rest still publish).
+    const offDay = (id: string) => {
+      const agentId = timelines.find(t => t.id === id)?.agentId;
+      const agent = agentId ? agents.find(a => a.id === agentId) : undefined;
+      return !!agent && isSwitchedOffCopilot(agent, accountCopilot);
+    };
+    const timelineIdsToPublish = timelineIdsToPublishAll.filter(id => !offDay(id));
+    if (timelineIdsToPublish.length < timelineIdsToPublishAll.length) {
+      setActionError(COPILOT_OFF_MESSAGE);
+      setTimeout(() => setActionError(null), 6000);
+    }
     Promise.allSettled(timelineIdsToPublish.map(id => publishTimelineApi(Number(id))))
       .then((results) => {
         const failures = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');

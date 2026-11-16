@@ -18,6 +18,7 @@ import {
   isNewlyTold,
   levelChangeNeedsConfirm,
   limitProblem,
+  scheduledWorkTurnsOn,
   parseEditedPayload,
   prettyPayload,
   statusLabel,
@@ -375,6 +376,7 @@ function LevelRow({row, archId, onSaved}: {row: XanoCopilotLevelRow; archId: num
 
   const dirty = level !== row.level || (row.has_limit && limit.trim() !== String(row.limit_amount ?? 0));
   const needsConfirm = levelChangeNeedsConfirm({reversible: row.reversible, touches: row.touches, level});
+  const turnsOnSchedule = scheduledWorkTurnsOn(row.key, row.level, level);
   const [confirming, setConfirming] = useState(false);
 
   const save = async (confirmed: boolean) => {
@@ -385,7 +387,7 @@ function LevelRow({row, archId, onSaved}: {row: XanoCopilotLevelRow; archId: num
       setMessage(problem);
       return;
     }
-    if (needsConfirm && !confirmed) {
+    if ((needsConfirm || turnsOnSchedule) && !confirmed) {
       setConfirming(true);
       return;
     }
@@ -472,13 +474,17 @@ function LevelRow({row, archId, onSaved}: {row: XanoCopilotLevelRow; archId: num
       </div>
       {confirming && (
         <div role="alertdialog" className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          <p>This can&apos;t be undone once the copilot does it. Let it do this without asking you first?</p>
+          <p>
+            {turnsOnSchedule && !needsConfirm
+              ? 'The copilot will work on its own tasks every hour, with nobody at the screen. You read what it did afterwards. Turn this on?'
+              : "This can't be undone once the copilot does it. Let it do this without asking you first?"}
+          </p>
           <div className="flex gap-2 mt-2">
             <button onClick={() => save(true)} className="px-3 py-1.5 rounded-md bg-zinc-900 text-white text-sm">
-              Yes, allow it
+              {turnsOnSchedule && !needsConfirm ? 'Yes, turn it on' : 'Yes, allow it'}
             </button>
             <button onClick={() => setConfirming(false)} className="px-3 py-1.5 rounded-md border border-zinc-300 text-sm">
-              Keep asking me
+              {turnsOnSchedule && !needsConfirm ? 'Keep it off' : 'Keep asking me'}
             </button>
           </div>
         </div>

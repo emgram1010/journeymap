@@ -17,6 +17,7 @@ import {
   XanoHttpError,
 } from '../xano';
 import {getCatalogEntry} from '../ops/errorCatalog';
+import {announceCopilotChanged} from '../planner/useAccountCopilot';
 import {
   canCreateCopilot,
   canManageTeam,
@@ -172,7 +173,11 @@ export default function TeamPage() {
 
   const changeActive = (member: TeamMember, nextActive: boolean) =>
     apply(member.id, statusChangeBlockedBy(user, member.id, nextActive, team), () =>
-      setUserActive(member.id, nextActive),
+      // Final review R12: the planner asks again who the copilot is and whether it is on.
+      setUserActive(member.id, nextActive).then((r) => {
+        announceCopilotChanged();
+        return r;
+      }),
     );
 
   /**

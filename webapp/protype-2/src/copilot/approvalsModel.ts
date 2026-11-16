@@ -32,6 +32,14 @@ export function levelChangeNeedsConfirm(x: {reversible: boolean; touches: string
   return x.reversible === false && x.touches !== 'internal' && x.level !== 'wait';
 }
 
+/**
+ * Final review R12: switching scheduled work ON lets the copilot act every hour with nobody at the
+ * screen, so the screen asks once. Screen-only: the server needs no extra flag for it.
+ */
+export function scheduledWorkTurnsOn(key: string, from: string, to: string): boolean {
+  return key === 'scheduled_work' && from === 'wait' && to !== 'wait';
+}
+
 export function limitProblem(text: string, hasLimit: boolean): string | null {
   if (!hasLimit) return null;
   if (!/^\d+$/.test(text.trim())) return 'Enter a whole number, 0 or more.';
