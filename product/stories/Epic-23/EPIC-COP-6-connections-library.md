@@ -69,7 +69,7 @@ Scenario: One business's connection never serves another
 ```
 
 ### US-COP-6-02 — Logins are stored safely
-**Status:** 🟡 Built and tested; waits for the server key (`COPILOT_SECRET_KEY`) before a login can be saved. **Opus.**
+**Status:** ✅ Built and tested live (2026-11-16). Encrypted in Xano; key in `COPILOT_SECRET_KEY`. **Opus.**
 
 **As an** owner, **I want** an outside system's login kept where nothing can read it back,
 **so that** connecting a system does not create a leak.
@@ -227,5 +227,7 @@ Founder decision: **encrypted in Xano**.
 - **Request history:** Xano shows the login as `*** HIDDEN ***` (checked live). **Event log:** failure rows 9323/9325/9329 carry no value.
 - **Screen:** each connection has a password field, Save / Replace / Remove login, "can never be shown again" note. Browser check: the refusal shows the plain sentence and keeps the typing. Errors now use `friendlyError` (story 01's messages were showing raw technical text - fixed too).
 - Unit: `connectionLogin.test.ts` (6). npm test 885/885, tsc clean.
-- **Not proven yet (needs the key):** the keyed cycle - set, switch on, replace, remove (`cop6_login_probe.py - --keyed`), and `login_open` reading back the right value after a replace.
-- Test data: library entries 2 and 3 "Login probe" in account 13 (retire later).
+- **Keyed run (founder added `COPILOT_SECRET_KEY`, same day):** `cop6_login_probe.py - --keyed` **12 of 12** - set 200 (answers only has_login), listed with a login, switch ON now allowed, replace 200, remove 200 -> no login and switched OFF, fake secret in no response.
+- **Read-back (scratch function, yes/no only, deleted):** after set A then replace B, `login_open` opens **B, not A**; another business gets E-COP-062 (never served); the stored value is 230 characters of ciphertext with **no plain text in the database**.
+- **Event log 9338-9345:** set / replaced / removed / switched_on, metadata `had_login` + business only - no value.
+- Test data: library entries 2 to 5 "Login probe" in account 13 (retire later); no login left stored.
