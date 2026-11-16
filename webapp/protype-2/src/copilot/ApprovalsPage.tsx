@@ -6,6 +6,7 @@ import {
   listCopilotLevels,
   listJourneyArchitectures,
   markCopilotActionSeen,
+  undoCopilotAction,
   setCopilotLevel,
   XanoHttpError,
   type XanoCopilotAction,
@@ -241,6 +242,21 @@ function DoneTab({items, onChanged}: {items: XanoCopilotAction[]; onChanged: () 
     }
   };
 
+  // COP-2 story 04 - a real Undo (server: copilot/action_undo). Asks first; the server checks again.
+  const undoIt = async (id: number) => {
+    if (!window.confirm('Undo this? The note the copilot saved is removed, and it stops following it.')) return;
+    setBusyId(id);
+    setMessage(null);
+    try {
+      await undoCopilotAction(id);
+      await onChanged();
+    } catch (e) {
+      setMessage(serverText(e, 'Could not undo that. Nothing was changed.'));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   if (items.length === 0) return <p className="text-sm text-zinc-500">The copilot has not done anything yet.</p>;
   return (
     <div>
@@ -252,7 +268,9 @@ function DoneTab({items, onChanged}: {items: XanoCopilotAction[]; onChanged: () 
       <ul className="flex flex-col gap-3">
         {items.map((a) => {
           const known = a.action_type != null && a.action_type in reversible;
-          const undo = known ? undoState({reversible: reversible[a.action_type as string]}) : null;
+          const undo = known
+            ? undoState({reversible: reversible[a.action_type as string], action_type: a.action_type, status: a.status, reason: a.reason})
+            : null;
           return (
             <li key={a.id} className="rounded-lg border border-zinc-200 bg-white p-4" id={`done-${a.id}`}>
               <div className="flex items-start justify-between gap-3">
@@ -279,12 +297,16 @@ function DoneTab({items, onChanged}: {items: XanoCopilotAction[]; onChanged: () 
                 )}
               </div>
               {undo && undo.kind === 'cannot' && <p className="text-xs text-zinc-500 mt-2">{undo.label}</p>}
+              {undo && undo.kind === 'undone' && <p className="text-xs text-zinc-500 mt-2">{undo.label}</p>}
               {undo && undo.kind === 'undo' && (
-                <div className="mt-2 flex items-center gap-2">
-                  <button disabled title={undo.note} className="px-2 py-1 rounded-md border border-zinc-200 text-xs text-zinc-400">
+                <div className="mt-2">
+                  <button
+                    disabled={busyId === a.id}
+                    onClick={() => undoIt(a.id)}
+                    className="px-2 py-1 rounded-md border border-zinc-300 text-xs disabled:opacity-50"
+                  >
                     {undo.label}
                   </button>
-                  <span className="text-xs text-zinc-500">{undo.note}</span>
                 </div>
               )}
             </li>

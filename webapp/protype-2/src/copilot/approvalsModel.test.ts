@@ -4,7 +4,7 @@ import {
   LEVEL_LABELS,
   TOUCHES_LABELS,
   undoState,
-  UNDO_PENDING_NOTE,
+  CHANGE_WHERE_IT_LIVES,
   levelChangeNeedsConfirm,
   limitProblem,
   prettyPayload,
@@ -22,12 +22,13 @@ test('COP-2 labels: levels and touches in plain words', () => {
   assert.equal(TOUCHES_LABELS.money, 'Moves money');
 });
 
-test('COP-2 undo: irreversible says cannot be undone, reversible shows a disabled Undo', () => {
+test('COP-2 undo: only a real undo gets a button; no false Undo', () => {
   assert.deepEqual(undoState({reversible: false}), {kind: 'cannot', label: "Can't be undone"});
-  const u = undoState({reversible: true});
-  assert.equal(u.kind, 'undo');
-  assert.equal(u.kind === 'undo' && u.disabled, true);
-  assert.equal(u.kind === 'undo' && u.note, UNDO_PENDING_NOTE);
+  assert.deepEqual(undoState({reversible: true, action_type: 'note_internal', status: 'told'}), {kind: 'undo', label: 'Undo'});
+  assert.deepEqual(undoState({reversible: true, action_type: 'note_internal', status: 'executed'}), {kind: 'undo', label: 'Undo'});
+  assert.deepEqual(undoState({reversible: true, action_type: 'work_update', status: 'told'}), {kind: 'cannot', label: CHANGE_WHERE_IT_LIVES});
+  assert.deepEqual(undoState({reversible: true, action_type: 'note_internal', status: 'seen', reason: 'Undone by the owner.'}), {kind: 'undone', label: 'Undone'});
+  assert.equal(undoState({reversible: true, action_type: 'note_internal', status: 'failed'}).kind, 'cannot');
 });
 
 test('COP-2 confirm: mirrors the server rule (irreversible, leaves the business, not lowered to wait)', () => {

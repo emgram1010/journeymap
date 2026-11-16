@@ -16,15 +16,25 @@ export const TOUCHES_LABELS: Record<string, string> = {
   money: 'Moves money',
 };
 
-export const UNDO_PENDING_NOTE = 'Undo arrives with the first copilot tool of this type';
+/**
+ * COP-2 story 04 - which done items can really be undone from the Approvals screen. Mirrors
+ * POST copilot/action_undo (661): today only a note the copilot saved; a work update lives in the
+ * append-only activity log and is changed on the task instead. No false Undo.
+ */
+export const UNDOABLE_TYPES = new Set(['note_internal']);
+export const CHANGE_WHERE_IT_LIVES = "Can't be undone here - change it on the task itself";
 
 export type UndoState =
   | {kind: 'cannot'; label: string}
-  | {kind: 'undo'; label: string; disabled: true; note: string};
+  | {kind: 'undone'; label: string}
+  | {kind: 'undo'; label: string};
 
-export function undoState(t: {reversible: boolean}): UndoState {
+export function undoState(t: {reversible: boolean; action_type?: string | null; status?: string | null; reason?: string | null}): UndoState {
   if (!t.reversible) return {kind: 'cannot', label: "Can't be undone"};
-  return {kind: 'undo', label: 'Undo', disabled: true, note: UNDO_PENDING_NOTE};
+  if ((t.reason ?? '').startsWith('Undone')) return {kind: 'undone', label: 'Undone'};
+  const done = t.status === 'told' || t.status === 'seen' || t.status === 'executed';
+  if (done && UNDOABLE_TYPES.has(t.action_type ?? '')) return {kind: 'undo', label: 'Undo'};
+  return {kind: 'cannot', label: CHANGE_WHERE_IT_LIVES};
 }
 
 /** Mirror of the server rule in copilot/level_set (E-COP-026). */

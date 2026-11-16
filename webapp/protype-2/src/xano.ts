@@ -2214,6 +2214,10 @@ export const decideCopilotAction = (
     baseUrl: getXanoMembersBaseUrl(),
   });
 
+/** COP-2 story 04 - undo a done copilot action (today: a saved note). */
+export const undoCopilotAction = (actionId: number): Promise<{action_id: number; undone: boolean}> =>
+  xanoRequest('/copilot/action_undo', {method: 'POST', body: {action_id: actionId}, baseUrl: getXanoMembersBaseUrl()});
+
 export const markCopilotActionSeen = (actionId: number): Promise<{action_id: number; status: string}> =>
   xanoRequest('/copilot/action_seen', {
     method: 'POST',

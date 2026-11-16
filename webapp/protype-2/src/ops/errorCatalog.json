@@ -2297,6 +2297,26 @@
     "severity": "error",
     "fix_hint": "Nothing to do if the next hourly run starts. If it keeps happening, look at the run_failed events with stage 'lock' on Health."
   },
+  "E-COP-071": {
+    "code": "E-COP-071",
+    "feature": "COP-2",
+    "user_message": "This can't be undone here. Change it where it lives (for work, on the task itself).",
+    "what_happened": "The owner pressed Undo on a copilot action whose kind cannot be reversed from the Approvals screen.",
+    "likely_cause": "Work updates are kept in the activity log for good; they are changed on the task, not removed.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Open the task and record the change there (for example unblock or reopen it)."
+  },
+  "E-COP-072": {
+    "code": "E-COP-072",
+    "feature": "COP-2",
+    "user_message": "That was already undone, or the note was already removed.",
+    "what_happened": "Undo was pressed twice, or the copilot's note had already been removed by hand.",
+    "likely_cause": "A second click, or the note was removed under What the copilot knows.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Nothing to do - the note is no longer there."
+  },
   "E-COP-060": {
     "code": "E-COP-060",
     "feature": "COP-6",

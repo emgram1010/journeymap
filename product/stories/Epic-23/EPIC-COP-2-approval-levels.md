@@ -151,7 +151,7 @@ Scenario: Nothing waiting
 Approval levels. Pure logic in a model file with tests; components thin.
 
 ### US-COP-2-04 — "Runs, then tells you", honestly
-**Status:** 🟡 Built except Undo: reversible items show a disabled Undo ("arrives with the first copilot tool of this type"); irreversible show "Can't be undone". No tool of a reversible "tell" type exists yet (COP-5). **Model: Sonnet 5.5.**
+**Status:** ✅ Built (Undo added 2026-11-16, Opus 5.5). Undo is real for a note the copilot saved (`POST copilot/action_undo` 661 removes exactly that note, marks the item "Undone", logs `action_undone`). A work update says "Can't be undone here - change it on the task itself" (the activity log is append-only); irreversible types say "Can't be undone". No false Undo. Live: `tests/cop2_undo_probe.py` 4/4 (undo 200, again E-COP-072, work update E-COP-071, unknown E-COP-029), the note row really gone; in the browser the three states render and Undo on item 19 worked from the screen. **Model: Sonnet 5.5.**
 
 ```gherkin
 Scenario: I can see what it did without being asked
