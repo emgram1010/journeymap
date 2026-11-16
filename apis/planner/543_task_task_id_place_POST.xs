@@ -55,6 +55,12 @@ query "task/{task_id}/place" verb=POST {
         function.run "planner/assert_same_workspace" {
           input = {workspace_id_a: $workspace_id, workspace_id_b: $tl_guard.timeline.workspace_id}
         }
+
+        // Handoff 4-A rule 2 (COP-5 story 06): no task lands on a day owned by a switched-off
+        // copilot's column (E-COP-059). The backlog (timeline 0) is never refused.
+        function.run "planner_ops/assert_agent_assignable" {
+          input = {agent_id: $tl_guard.timeline.agent_id, actor_user_id: $actor.user_id, account_id: $actor.account_id, step: "place_task"}
+        } as $_assignable
       }
     }
 

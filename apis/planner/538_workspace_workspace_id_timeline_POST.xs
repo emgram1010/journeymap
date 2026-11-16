@@ -71,6 +71,11 @@ query "workspace/{workspace_id}/timeline" verb=POST {
       input = {workspace_id_a: $input.workspace_id, workspace_id_b: $agent_guard.agent.workspace_id}
     }
 
+    // Handoff 4-A rule 2 (COP-5 story 06): no new day for a switched-off copilot's column (E-COP-059).
+    function.run "planner_ops/assert_agent_assignable" {
+      input = {agent_id: $input.agent_id, actor_user_id: $actor.user_id, account_id: $actor.account_id, step: "start_day"}
+    } as $_assignable
+
     util.get_raw_input {
       encoding = "json"
       exclude_middleware = true

@@ -23,6 +23,21 @@
         "dev"
       ],
       "port": 3000
+    },
+    {
+      "name": "protype-2-alt",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "webapp/protype-2",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "3011",
+        "--strictPort"
+      ],
+      "port": 3011
     }
   ]
 }

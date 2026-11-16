@@ -85,6 +85,11 @@ query "workspace/{workspace_id}/task" verb=POST {
         function.run "planner/assert_same_workspace" {
           input = {workspace_id_a: $input.workspace_id, workspace_id_b: $ag_guard.agent.workspace_id}
         }
+
+        // Handoff 4-A rule 2 (COP-5 story 06): an override may not name a switched-off copilot's column (E-COP-059).
+        function.run "planner_ops/assert_agent_assignable" {
+          input = {agent_id: $input.assignee_agent_id, actor_user_id: $actor.user_id, account_id: $actor.account_id, step: "create_task"}
+        } as $_assignable
       }
     }
 

@@ -113,6 +113,20 @@ query "timeline/{timeline_id}" verb=PATCH {
       input = {workspace_id_a: $existing.workspace_id, workspace_id_b: $agent_guard.agent.workspace_id}
     }
 
+    // Handoff 4-A rule 2 (COP-5 story 06): moving the day to a DIFFERENT column is refused when
+    // that column is a switched-off copilot's (E-COP-059). A day already on it may still be edited.
+    var $moves_agent {
+      value = ($next_agent != $existing.agent_id)
+    }
+
+    conditional {
+      if ($moves_agent == true) {
+        function.run "planner_ops/assert_agent_assignable" {
+          input = {agent_id: $next_agent, actor_user_id: $actor.user_id, account_id: $actor.account_id, step: "move_day"}
+        } as $_assignable
+      }
+    }
+
     // Is the target cell taken by a DIFFERENT timeline? Moving onto its
     // own cell finds only itself, which is not a clash.
     db.query planner_timeline {

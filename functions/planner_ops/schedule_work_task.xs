@@ -98,6 +98,16 @@ function "planner_ops/schedule_work_task" {
       }
     }
 
+    // Handoff 4-A rule 2 (COP-5 story 06): the slot lands on the assignee override when one is
+    // given, else on the day's own person - refused for a switched-off copilot's column (E-COP-059).
+    var $target_agent_id {
+      value = (($input.assignee_agent_id != 0) ? $input.assignee_agent_id : $tl_guard.timeline.agent_id)
+    }
+
+    function.run "planner_ops/assert_agent_assignable" {
+      input = {agent_id: $target_agent_id, actor_user_id: $actor.user_id, account_id: $actor.account_id, step: "schedule_step"}
+    } as $_assignable
+
     db.query planner_task_work_task {
       where = $db.planner_task_work_task.work_task_id == $input.work_task_id
       return = {type: "count"}

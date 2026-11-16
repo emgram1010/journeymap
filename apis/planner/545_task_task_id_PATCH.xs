@@ -166,6 +166,16 @@ query "task/{task_id}" verb=PATCH {
       }
     }
 
+    // Handoff 4-A rule 2 (COP-5 story 06): a newly sent override may not name a switched-off
+    // copilot's column (E-COP-059). Clearing it (0) or leaving it out is never refused.
+    conditional {
+      if (($raw_input|has:"assignee_agent_id") && $input.assignee_agent_id != 0) {
+        function.run "planner_ops/assert_agent_assignable" {
+          input = {agent_id: $input.assignee_agent_id, actor_user_id: $actor.user_id, account_id: $actor.account_id, step: "update_task"}
+        } as $_assignable
+      }
+    }
+
     var $reject_code {
       value = ""
     }

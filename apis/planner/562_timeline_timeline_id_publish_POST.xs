@@ -62,6 +62,12 @@ query "timeline/{timeline_id}/publish" verb=POST {
       input = {user_id: $auth.id}
     } as $actor
 
+    // Handoff 4-A rule 1 (COP-5 story 02): Publish to live stays with a person. Refused for an AI
+    // identity here, in the endpoint itself - not only because no copilot tool can call it.
+    function.run "copilot/assert_person_only" {
+      input = {user_id: $actor.user_id, account_id: $actor.account_id, step: "publish_timeline", entity_type: "planner_timeline", entity_id: $input.timeline_id}
+    } as $_person_only
+
     function.run "planner/assert_timeline" {
       input = {account_id: $actor.account_id, timeline_id: $input.timeline_id}
     } as $guard
