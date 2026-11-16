@@ -103,6 +103,18 @@ test('R16 probe: clearing a stage goal or owner writes an empty value, never nul
   assert.ok(src.includes('(($clearing_lens == true) ? "" : $input.primary_actor_lens)'));
 });
 
+test('R13: the research search check catches separated numbers and (at) addresses, and lets a year range through', () => {
+  const src = read('functions/copilot/search_query_check.xs');
+  assert.ok(src.includes('|replace:"(at)":"@"|replace:"[at]":"@"'));
+  assert.ok(src.includes('"/(?<=[0-9])[,._\'](?=[0-9])/"|regex_replace:"":$q'));
+  assert.ok(src.includes('"/(?:[0-9][ .()-]*){9,}/"|regex_matches:$q'));
+  // The same patterns in JavaScript, on the review's examples.
+  const joined = (q: string) => q.replace(/(?<=[0-9])[,._'](?=[0-9])/g, '');
+  assert.equal(/[0-9]{7,}/.test(joined('revenue of 1,250,000 a year')), true);
+  assert.equal(/(?:[0-9][ .()-]*){9,}/.test('trends 2020 - 2025'), false);
+  assert.equal(/(?:[0-9][ .()-]*){9,}/.test('call 555 123 4567'), true);
+});
+
 test('R7: a tick is logged when it starts, before any account is run', () => {
   const src = read('functions/copilot/scheduled_run.xs');
   const startAt = src.indexOf('step: "run_tick_started"');

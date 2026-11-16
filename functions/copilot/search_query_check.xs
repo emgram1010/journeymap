@@ -43,20 +43,33 @@ function "copilot/search_query_check" {
       value = "/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}/"|regex_matches:$q
     }
 
+    // Final review R13: an address written "name (at) domain" or "name [at] domain" is an address.
+    var $q_at {
+      value = $q|replace:"(at)":"@"|replace:"[at]":"@"
+    }
+
     var $q_no_at {
-      value = $q|replace:"@":""
+      value = $q_at|replace:"@":""
     }
 
     var $has_email {
-      value = ($q_no_at != $q)
+      value = ($q_no_at != $q_at)
+    }
+
+    // R13: "1,250,000" or "1.250.000" is a long number too - separators between digits are dropped
+    // before counting.
+    var $q_joined {
+      value = "/(?<=[0-9])[,._'](?=[0-9])/"|regex_replace:"":$q
     }
 
     var $has_digits {
-      value = "/[0-9]{7,}/"|regex_matches:$q
+      value = "/[0-9]{7,}/"|regex_matches:$q_joined
     }
 
+    // R13: a phone-like run is 9 or more DIGITS with spaces, dots, dashes or brackets between them.
+    // The old shape counted characters, so a year range like "2020 - 2025" (8 digits) was refused.
     var $has_phone {
-      value = "/[0-9][0-9 .()-]{8,}[0-9]/"|regex_matches:$q
+      value = "/(?:[0-9][ .()-]*){9,}/"|regex_matches:$q
     }
 
     // The pinned business's own name.
