@@ -69,7 +69,7 @@ test('E2E-BOARD-1-01/02: drag a card onto a day; a published day refuses with a 
   await modal.locator('#new-job-title-input').fill(title);
   await modal.locator('#create-job-btn').click();
   await expect(modal.getByText(title, {exact: false}).first()).toBeVisible();
-  await modal.getByRole('button', {name: 'Done'}).click();
+  await modal.getByRole('button', {name: 'Done', exact: true}).click();
   await expect(modal).toHaveCount(0);
 
   // QUE-1 — found in Unscheduled, not the Jobs column (that list is now

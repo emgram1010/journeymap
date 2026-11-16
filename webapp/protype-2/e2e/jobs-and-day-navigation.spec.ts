@@ -88,7 +88,7 @@ test('E2E-W1-01 / E2E-O4-01: create a job from a map, schedule a step, and take 
   // Unscheduled (Q-1) — the Jobs column is now a view-only registry of
   // every job (US-QUE-1-03/04), so this job is found in Unscheduled, not
   // the column.
-  await modal.getByRole('button', {name: 'Done'}).click();
+  await modal.getByRole('button', {name: 'Done', exact: true}).click();
   await expect(modal).toHaveCount(0);
 
   const unscheduled = page.locator('#backlog-drawer-container');
