@@ -1,4 +1,4 @@
-// COP-1/COP-2 — the first line of every AI tool: who is calling (usr/tool_caller: ticket or request token, switched on, Intelligent Layer) and is this map in their account (journey/assert_map_owner). No rule is written here; it makes the calls in order and returns one verdict. In "report" mode (usr/tool_gate_mode, set separately for outside assistants and in-app agents) it logs what it would refuse (at most 60 rows an hour) and lets the tool carry on. A map in another account answers exactly like one that does not exist. Returns the caller's user_id and account_id so a tool that creates something can stamp it.
+// COP-1/COP-2 — the first line of every AI tool: who is calling (usr/tool_caller: ticket or request token, switched on, Intelligent Layer) and is this map in their account (journey/assert_map_owner). No rule is written here; it makes the calls in order and returns one verdict. In "report" mode (usr/tool_gate_mode, set separately for outside assistants and in-app agents) it logs what it would refuse (at most 60 rows an hour) and lets the tool carry on. A map in another account answers exactly like one that does not exist. Returns the caller's user_id and account_id so a tool that creates something can stamp it. COP-8 story 03: a call made with a scheduled run's ticket is also tied to that run (tool_call_run); that write never blocks or changes the call (a failure is logged, E-COP-076).
 function "journey/tool_gate" {
   input {
     int journey_map_id?
@@ -509,6 +509,10 @@ function "journey/tool_gate" {
       }
     }
 
+    var $audit_id {
+      value = 0
+    }
+
     try_catch {
       try {
         db.add tool_call_log {
@@ -525,10 +529,87 @@ function "journey/tool_gate" {
             code                   : $code
           }
         } as $_audit
+
+        var.update $audit_id {
+          value = $_audit.id
+        }
       }
 
       catch {
         // Never let the audit write break the tool.
+      }
+    }
+
+    // COP-8 story 03 (R15): a call made with a SCHEDULED RUN's ticket is tied to that run
+    // (tool_call_run), so the run's refused count is exact and support can trace any refusal.
+    // Only tickets listed in copilot_run_ticket are linked; a chat ticket finds no row and writes
+    // nothing. Ids only - never the ticket text. This must NEVER block or change the call: any
+    // failure is caught and logged as E-COP-076, and the verdict above is already decided.
+    var $link_wanted {
+      value = ($audit_id != 0) && ($caller.via == "ticket") && ($caller.user_id != 0) && ($input.ticket != "")
+    }
+
+    conditional {
+      if ($link_wanted == true) {
+        try_catch {
+          try {
+            db.query tool_run_ticket {
+              where = $db.tool_run_ticket.ticket == $input.ticket
+              return = {type: "single"}
+              output = ["id"]
+            } as $link_ticket
+
+            var $link_ticket_id {
+              value = $link_ticket|get:"id":0
+            }
+
+            db.query copilot_run_ticket {
+              where = $db.copilot_run_ticket.tool_run_ticket_id == $link_ticket_id && $link_ticket_id != 0
+              return = {type: "single"}
+              output = ["id", "copilot_run_id"]
+            } as $link_run
+
+            var $link_run_id {
+              value = $link_run|get:"copilot_run_id":0
+            }
+
+            conditional {
+              if ($link_run_id != 0) {
+                db.add tool_call_run {
+                  data = {tool_call_log_id: $audit_id, copilot_run_id: $link_run_id, pin_architecture_id: $pin}
+                } as $_link_row
+              }
+            }
+          }
+
+          catch {
+            var $link_caught {
+              value = $error
+            }
+
+            var $link_detail {
+              value = ($link_caught|get:"message":"The link could not be written.")
+            }
+
+            function.run "ops/log_event" {
+              input = {
+                feature       : "COP-8"
+                step          : "tool_call_run"
+                outcome       : "failure"
+                severity      : "warn"
+                user_id       : $caller.user_id
+                account_id    : $caller.account_id
+                entity_type   : "tool_call_log"
+                entity_id     : $audit_id
+                correlation_id: ""
+                error_code    : "E-COP-076"
+                message       : "A copilot tool call could not be linked to its scheduled run. The call itself was not affected."
+                duration_ms   : 0
+                metadata      : {tool: $input.tool, verdict: $verdict, detail: $link_detail}
+              }
+            } as $_link_fail_logged
+          }
+        }
       }
     }
 

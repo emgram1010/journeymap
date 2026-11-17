@@ -2337,6 +2337,26 @@
     "severity": "info",
     "fix_hint": "Nothing to do - the note is no longer there."
   },
+  "E-COP-075": {
+    "code": "E-COP-075",
+    "feature": "COP-8",
+    "user_message": "The copilot can't mark this task done yet: it hasn't done any work on it. It needs to use at least one tool for the task first, or a person can mark it done.",
+    "what_happened": "The copilot tried to record 'completed' on its own task without any other allowed tool call since the task started.",
+    "likely_cause": "The copilot claimed the work was done without doing it (the COP-5 weak spot), or the work happened outside Emgram.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Ask the copilot what it did. If the work really happened elsewhere, mark the task done yourself."
+  },
+  "E-COP-076": {
+    "code": "E-COP-076",
+    "feature": "COP-8",
+    "user_message": "A copilot tool call could not be linked to its scheduled run. The call itself was not affected.",
+    "what_happened": "The gate could not write the tool_call_run row tying an audit row to its run.",
+    "likely_cause": "A short database problem, or the run ticket had no run link.",
+    "owner": "engineer",
+    "severity": "warn",
+    "fix_hint": "Check the tool_call_run and copilot_run_ticket tables; the run's refused count may be one short."
+  },
   "E-PLN-019": {
     "code": "E-PLN-019",
     "feature": "PLN-6",

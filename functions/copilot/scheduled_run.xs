@@ -1,4 +1,4 @@
-// COP-5 story 05 - one tick of scheduled copilot runs: the hourly task calls this with account_id 0 (every account that has a copilot); a test or a manual run passes one account. First it closes any run that has been "running" for over 30 minutes (marks it failed, E-COP-057, and releases its lock, so one dead run never blocks a business for good). Then it runs copilot/run_for_account for each copilot. It ALWAYS writes one event (COP-5 run_tick) with the counts, even when nothing ran - a task that writes nothing looks healthy.
+// COP-5 story 05 - one tick of scheduled copilot runs: the hourly task calls this with account_id 0 (every account that has a copilot); a test or a manual run passes one account. First it closes any run that has been "running" for over 30 minutes (marks it failed, E-COP-057, and releases its lock, so one dead run never blocks a business for good). Then it runs copilot/run_for_account for each copilot (which leaves out deleted businesses - COP-8 story 02 - counted here as skipped_deleted). It ALWAYS writes one event (COP-5 run_tick) with the counts, even when nothing ran - a task that writes nothing looks healthy.
 function "copilot/scheduled_run" {
   input {
     int account_id?
@@ -108,6 +108,11 @@ function "copilot/scheduled_run" {
       value = 0
     }
 
+    // COP-8 story 02: switched-on businesses left out because they are deleted or gone.
+    var $skipped_deleted {
+      value = 0
+    }
+
     foreach ($identities) {
       each as $ident {
         function.run "copilot/run_for_account" {
@@ -124,6 +129,10 @@ function "copilot/scheduled_run" {
 
         var.update $runs {
           value = $runs + $ra.runs
+        }
+
+        var.update $skipped_deleted {
+          value = $skipped_deleted + $ra.skipped_deleted
         }
       }
     }
@@ -150,10 +159,10 @@ function "copilot/scheduled_run" {
         error_code    : ""
         message       : "Scheduled copilot runs ticked."
         duration_ms   : $took_ms
-        metadata      : {copilots: $identity_count, accounts_on: $accounts_on, rows_written: $rows_written, runs: $runs, stale_closed: $stale_count}
+        metadata      : {copilots: $identity_count, accounts_on: $accounts_on, rows_written: $rows_written, runs: $runs, stale_closed: $stale_count, skipped_deleted: $skipped_deleted}
       }
     } as $_tick_logged
   }
 
-  response = {copilots: $identity_count, accounts_on: $accounts_on, rows_written: $rows_written, runs: $runs, stale_closed: $stale_count}
+  response = {copilots: $identity_count, accounts_on: $accounts_on, rows_written: $rows_written, runs: $runs, stale_closed: $stale_count, skipped_deleted: $skipped_deleted}
 }

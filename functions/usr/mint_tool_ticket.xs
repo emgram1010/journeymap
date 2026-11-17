@@ -1,4 +1,4 @@
-// COP-1 — make a run ticket for an agent about to work for a signed-in person. Called by an endpoint (which knows $auth.id) just before ai.agent.run; the endpoint puts the returned ticket in the agent's context, next to turn_id, to be passed to every tool. The account is read here from the user row, never taken from input. Default life 30 minutes.
+// COP-1 — make a run ticket for an agent about to work for a signed-in person. Called by an endpoint (which knows $auth.id) just before ai.agent.run; the endpoint puts the returned ticket in the agent's context, next to turn_id, to be passed to every tool. The account is read here from the user row, never taken from input. Default life 30 minutes. COP-8 story 03: also returns ticket_id (the row id, not a secret) so a scheduled run can link its ticket to its run.
 function "usr/mint_tool_ticket" {
   input {
     int user_id filters=min:1
@@ -63,5 +63,5 @@ function "usr/mint_tool_ticket" {
     } as $row
   }
 
-  response = {ticket: $ticket, expires_at: $expires}
+  response = {ticket: $ticket, expires_at: $expires, ticket_id: $row.id}
 }

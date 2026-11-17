@@ -112,6 +112,10 @@ export const TABLE_MANIFEST: Record<string, TableExpectation> = {
   // it ends (`finished_at` is that moment), never edited after - so no `updated_at`, like a ticket.
   // The unique `lock_key` is the 'two runs never overlap' guard.
   copilot_run: {naturalKeys: [['lock_key']], enumFields: ['trigger', 'status'], appendOnly: true},
+  // COP-8 story 03 (R15): which run minted a ticket, and which run a tool call was made in.
+  // Written once by run_for_business / the gate, never edited - so no `updated_at`.
+  copilot_run_ticket: {naturalKeys: [['tool_run_ticket_id']], appendOnly: true},
+  tool_call_run: {naturalKeys: [['tool_call_log_id']], appendOnly: true},
   // COP-3: written once; the business of a conversation never changes.
   copilot_home: {naturalKeys: [['account_id'], ['journey_architecture_id']], appendOnly: true},
   copilot_conversation: {naturalKeys: [['agent_conversation_id']], appendOnly: true},

@@ -10,7 +10,7 @@
 //   - the caller needs the Execution grant, like any performer (usr/assert_module_access).
 // Every miss answers "Task not found"; not-yours answers E-COP-054.
 tool record_my_task_event {
-  instructions = "Record an event on one of YOUR tasks (work_task_id from list_my_tasks): event_type is started, completed, blocked, unblocked, skipped, reopened or note. blocked needs reason_code (waiting_on_someone, missing_information, something_went_wrong or other) and a short note. If you cannot complete a task, block it with a reason and tell the owner - never guess. You cannot record anything on a task assigned to someone else."
+  instructions = "Record an event on one of YOUR tasks (work_task_id from list_my_tasks): event_type is started, completed, blocked, unblocked, skipped, reopened or note. blocked needs reason_code (waiting_on_someone, missing_information, something_went_wrong or other) and a short note. If you cannot complete a task, block it with a reason and tell the owner - never guess. You can only record completed after doing real work on the task with your other tools; otherwise it is refused (E-COP-075) - then explain to the owner, do not retry. You cannot record anything on a task assigned to someone else."
 
   input {
     int work_task_id filters=min:1
@@ -47,6 +47,36 @@ tool record_my_task_event {
           value = "work_complete"
         }
       }
+    }
+
+    // COP-8 story 01: "done" from the copilot means it did some work. The rule lives in
+    // copilot/work_done_check (an AI identity needs at least one other allowed tool call since the
+    // task started). It runs BEFORE the gate, so a completion that will be refused never reaches
+    // the owner's Approvals list as a "waiting" item, and before any write. People pass; "skipped"
+    // is not checked. The check never throws; anything it cannot judge comes back not ok (fails closed).
+    var $work_done_ok {
+      value = true
+    }
+
+    conditional {
+      if ($input.event_type == "completed") {
+        var.update $work_done_ok {
+          value = false
+        }
+
+        function.run "copilot/work_done_check" {
+          input = {ticket: $input.ticket, work_task_id: $input.work_task_id}
+        } as $work_done
+
+        var.update $work_done_ok {
+          value = ($work_done.ok == true)
+        }
+      }
+    }
+
+    precondition ($work_done_ok == true) {
+      error_type = "inputerror"
+      error = "The copilot can't mark this task done yet: it hasn't done any work on it. It needs to use at least one tool for the task first, or a person can mark it done. (E-COP-075)"
     }
 
     function.run "journey/tool_gate" {

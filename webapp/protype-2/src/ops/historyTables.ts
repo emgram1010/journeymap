@@ -69,6 +69,14 @@ export const HISTORY_TABLES: HistoryTable[] = [
     why: "What the copilot did on its own, on a schedule, with nobody at the screen: each run's report, what it held for the owner and what failed. Delete it and nobody can say what the copilot did overnight.",
   },
   {
+    table: 'copilot_run_ticket',
+    why: "Which scheduled run each copilot ticket belonged to. Delete a row and the calls made with that ticket can no longer be tied to their run.",
+  },
+  {
+    table: 'tool_call_run',
+    why: "Which scheduled run (and business) each copilot tool call was made in. A run's refused count is read from here; delete a row and support can't say which run made a refusal.",
+  },
+  {
     table: 'event_log',
     why: 'The ops record behind the Health page. Support uses it to explain failures after the fact.',
   },

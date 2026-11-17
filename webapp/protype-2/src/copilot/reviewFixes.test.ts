@@ -172,3 +172,34 @@ test('COP-4-05: "my edits teach it" reads drafted vs approved, needs 3 edits, an
   assert.ok(agent.includes('{name: "get_my_edit_patterns"}'), 'the copilot has the tool');
   assert.ok(agent.includes('Save it with save_note only after'), 'it asks before it saves');
 });
+
+// COP-8 story 01 - "done" from the copilot means it did some work. The rule lives in ONE function
+// (copilot/work_done_check); record_my_task_event calls it for "completed" only, BEFORE the gate (so
+// no "waiting" approval is stored for a completion that will be refused) and before any write.
+test('COP-8-01: the copilot cannot complete its own task without another allowed tool call', () => {
+  const tool = read('ai/tool/record_my_task_event.xs');
+  const gateAt = tool.indexOf('function.run "journey/tool_gate"');
+  const checkAt = tool.indexOf('function.run "copilot/work_done_check"');
+  const refuseAt = tool.indexOf('(E-COP-075)"');
+  const writeAt = tool.indexOf('function.run "log/record_task_event"');
+  assert.ok(checkAt > 0 && checkAt < gateAt, 'the check runs before the gate');
+  assert.ok(refuseAt > checkAt && refuseAt < gateAt, 'the refusal is raised before the gate');
+  assert.ok(gateAt < writeAt, 'and so before the write');
+  const before = tool.slice(0, checkAt);
+  assert.match(before, /if \(\$input\.event_type == "completed"\) \{\s*var\.update \$work_done_ok \{\s*value = false/, 'only "completed", fail closed by default');
+  assert.ok(tool.includes('input = {ticket: $input.ticket, work_task_id: $input.work_task_id}'), 'every input passed explicitly');
+  const catalog = JSON.parse(read('webapp/protype-2/src/ops/errorCatalog.json'));
+  assert.ok(tool.includes(`error = "${catalog['E-COP-075'].user_message} (E-COP-075)"`), 'message equals the catalog');
+
+  const fn = read('functions/copilot/work_done_check.xs');
+  assert.ok(fn.includes('function.run "copilot/identity_for_user"'), 'only AI identities are checked');
+  assert.ok(fn.includes('value = ["record_my_task_event", "list_my_tasks"]'), 'bookkeeping tools do not count');
+  assert.match(fn, /db\.query tool_call_log \{\s*where = \$db\.tool_call_log\.user_id == \$user_id && \$db\.tool_call_log\.verdict == "allowed" && \(\$db\.tool_call_log\.tool not in \$skip_tools\) && \$db\.tool_call_log\.created_at >= \$win/, 'allowed calls by the AI since the window, `not in`, hoisted vars');
+  assert.ok(!/!\(\$db\./.test(fn), 'never !(x in y)');
+  assert.ok(fn.includes('output = ["id", "work_item_id", "started_at"]') && fn.includes('output = ["id", "created_at"]'), 'window: started_at, else the ticket');
+  assert.match(fn, /catch \{\s*var\.update \$failed \{\s*value = true\s*\}\s*var\.update \$ok \{\s*value = false/, 'a failed check refuses');
+  assert.equal(fn.split('error_code : "E-COP-075"').length - 1, 2, 'rejected and failure events are logged');
+
+  const agent = read('ai/agent/emgram_copilot.xs');
+  assert.ok(agent.includes('(E-COP-075). If that happens, do not retry'), 'the copilot is told to explain, not retry');
+});
