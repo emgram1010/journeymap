@@ -1,0 +1,340 @@
+{
+ "tag": "191406",
+ "label": "before",
+ "results": {
+  "ok_full": {
+   "http": 200,
+   "body": {
+    "counts": {
+     "agent_count": 0,
+     "backlog_count": 0,
+     "task_count": 0,
+     "timeline_count": 0
+    },
+    "workspace": {
+     "account_id": 13,
+     "created_at": "<created_at>",
+     "created_by": 22,
+     "id": "<id>",
+     "input_tokens_per_minute": 1500,
+     "is_archived": false,
+     "name": "C4 <TAG> full",
+     "output_tokens_per_minute": 300,
+     "plan_template_id": 0,
+     "planning_window_end": "2026-12-14",
+     "planning_window_start": "2026-12-01"
+    }
+   },
+   "workspace_id": 58
+  },
+  "ok_min_no_cid": {
+   "http": 200,
+   "body": {
+    "counts": {
+     "agent_count": 0,
+     "backlog_count": 0,
+     "task_count": 0,
+     "timeline_count": 0
+    },
+    "workspace": {
+     "account_id": 13,
+     "created_at": "<created_at>",
+     "created_by": 22,
+     "id": "<id>",
+     "input_tokens_per_minute": 2000,
+     "is_archived": false,
+     "name": "C4 <TAG> min",
+     "output_tokens_per_minute": 500,
+     "plan_template_id": 0,
+     "planning_window_end": "2026-11-30",
+     "planning_window_start": "2026-11-17"
+    }
+   },
+   "workspace_id": 59
+  },
+  "ok_zero_rates": {
+   "http": 200,
+   "body": {
+    "counts": {
+     "agent_count": 0,
+     "backlog_count": 0,
+     "task_count": 0,
+     "timeline_count": 0
+    },
+    "workspace": {
+     "account_id": 13,
+     "created_at": "<created_at>",
+     "created_by": 22,
+     "id": "<id>",
+     "input_tokens_per_minute": 0,
+     "is_archived": false,
+     "name": "C4 <TAG> zero",
+     "output_tokens_per_minute": 0,
+     "plan_template_id": 0,
+     "planning_window_end": "2026-11-30",
+     "planning_window_start": "2026-11-17"
+    }
+   },
+   "workspace_id": 60
+  },
+  "ok_80_chars": {
+   "http": 200,
+   "body": {
+    "counts": {
+     "agent_count": 0,
+     "backlog_count": 0,
+     "task_count": 0,
+     "timeline_count": 0
+    },
+    "workspace": {
+     "account_id": 13,
+     "created_at": "<created_at>",
+     "created_by": 22,
+     "id": "<id>",
+     "input_tokens_per_minute": 2000,
+     "is_archived": false,
+     "name": "C4 <TAG> eighty xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "output_tokens_per_minute": 500,
+     "plan_template_id": 0,
+     "planning_window_end": "2026-11-30",
+     "planning_window_start": "2026-11-17"
+    }
+   },
+   "workspace_id": 61
+  },
+  "ok_html_name": {
+   "http": 200,
+   "body": {
+    "counts": {
+     "agent_count": 0,
+     "backlog_count": 0,
+     "task_count": 0,
+     "timeline_count": 0
+    },
+    "workspace": {
+     "account_id": 13,
+     "created_at": "<created_at>",
+     "created_by": 22,
+     "id": "<id>",
+     "input_tokens_per_minute": 2000,
+     "is_archived": false,
+     "name": "<b>C4 <TAG></b>",
+     "output_tokens_per_minute": 500,
+     "plan_template_id": 0,
+     "planning_window_end": "2026-11-30",
+     "planning_window_start": "2026-11-17"
+    }
+   },
+   "workspace_id": 62
+  },
+  "ok_account_ignored": {
+   "http": 200,
+   "body": {
+    "counts": {
+     "agent_count": 0,
+     "backlog_count": 0,
+     "task_count": 0,
+     "timeline_count": 0
+    },
+    "workspace": {
+     "account_id": 13,
+     "created_at": "<created_at>",
+     "created_by": 22,
+     "id": "<id>",
+     "input_tokens_per_minute": 2000,
+     "is_archived": false,
+     "name": "C4 <TAG> acct",
+     "output_tokens_per_minute": 500,
+     "plan_template_id": 0,
+     "planning_window_end": "2026-11-30",
+     "planning_window_start": "2026-11-17"
+    }
+   },
+   "workspace_id": 63
+  },
+  "ok_same_day": {
+   "http": 200,
+   "body": {
+    "counts": {
+     "agent_count": 0,
+     "backlog_count": 0,
+     "task_count": 0,
+     "timeline_count": 0
+    },
+    "workspace": {
+     "account_id": 13,
+     "created_at": "<created_at>",
+     "created_by": 22,
+     "id": "<id>",
+     "input_tokens_per_minute": 2000,
+     "is_archived": false,
+     "name": "C4 <TAG> sameday",
+     "output_tokens_per_minute": 500,
+     "plan_template_id": 0,
+     "planning_window_end": "2026-12-05",
+     "planning_window_start": "2026-12-05"
+    }
+   },
+   "workspace_id": 64
+  },
+  "ok_only_start": {
+   "http": 200,
+   "body": {
+    "counts": {
+     "agent_count": 0,
+     "backlog_count": 0,
+     "task_count": 0,
+     "timeline_count": 0
+    },
+    "workspace": {
+     "account_id": 13,
+     "created_at": "<created_at>",
+     "created_by": 22,
+     "id": "<id>",
+     "input_tokens_per_minute": 2000,
+     "is_archived": false,
+     "name": "C4 <TAG> onlystart",
+     "output_tokens_per_minute": 500,
+     "plan_template_id": 0,
+     "planning_window_end": "2026-11-30",
+     "planning_window_start": "2026-11-20"
+    }
+   },
+   "workspace_id": 65
+  },
+  "rej_blank": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: name",
+    "payload": {
+     "param": "name"
+    }
+   },
+   "workspace_id": null
+  },
+  "rej_spaces": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Give the plan a name. (E-VAL-001)",
+    "payload": ""
+   },
+   "workspace_id": null
+  },
+  "rej_missing_name": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: name",
+    "payload": {
+     "param": "name"
+    }
+   },
+   "workspace_id": null
+  },
+  "rej_81_chars": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "That name is too long \u2014 80 characters at most. (E-VAL-002)",
+    "payload": ""
+   },
+   "workspace_id": null
+  },
+  "rej_end_before": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "The end date can't be before the start date. (E-PLN-002)",
+    "payload": ""
+   },
+   "workspace_id": null
+  },
+  "rej_neg_input": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This has to be zero or more. (E-PLN-003)",
+    "payload": ""
+   },
+   "workspace_id": null
+  },
+  "rej_neg_output": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This has to be zero or more. (E-PLN-003)",
+    "payload": ""
+   },
+   "workspace_id": null
+  },
+  "rej_duplicate": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "You already have a plan with this name. (E-PLN-001)",
+    "payload": ""
+   },
+   "workspace_id": null
+  },
+  "rej_dup_padded": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "You already have a plan with this name. (E-PLN-001)",
+    "payload": ""
+   },
+   "workspace_id": null
+  },
+  "rej_order": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: name",
+    "payload": {
+     "param": "name"
+    }
+   },
+   "workspace_id": null
+  },
+  "rej_order_spaces": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Give the plan a name. (E-VAL-001)",
+    "payload": ""
+   },
+   "workspace_id": null
+  },
+  "rej_order_long_dup": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "That name is too long \u2014 80 characters at most. (E-VAL-002)",
+    "payload": ""
+   },
+   "workspace_id": null
+  },
+  "rej_bad_date": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Invalid timestamp format.",
+    "payload": {
+     "param": "planning_window_start"
+    }
+   },
+   "workspace_id": null
+  },
+  "rej_only_end_past": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "The end date can't be before the start date. (E-PLN-002)",
+    "payload": ""
+   },
+   "workspace_id": null
+  }
+ }
+}

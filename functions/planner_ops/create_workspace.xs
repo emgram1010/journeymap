@@ -1,8 +1,8 @@
-// COP-5 story 01 - "create a plan": the rule of endpoint 523 (POST /workspace, PLN-3), moved here unchanged so the endpoint and the copilot tool plan_create share one copy. The caller resolves the actor (planner/resolve_actor) and passes it in; a function has no $auth. A function cannot see what the caller sent, so each optional field comes with a has_x flag (true = the caller really sent it; false = use the default: a two-week window from today, 2000 / 500 tokens per minute). Dates are text "YYYY-MM-DD" because an omitted optional date input does not exist at all. Every check sets one reject code and message; there is one place that logs the refusal and one precondition that raises it; the first failing check wins. The unique index on (account_id, name) is still what guarantees the name.
+// COP-5 story 01 - "create a plan": the rule of endpoint 523 (POST /workspace, PLN-3), moved here unchanged so the endpoint and the copilot tool plan_create share one copy. The caller resolves the actor (planner/resolve_actor) and passes it in; a function has no $auth. A function cannot see what the caller sent, so each optional field comes with a has_x flag (true = the caller really sent it; false = use the default: a two-week window from today, 2000 / 500 tokens per minute). Dates are text "YYYY-MM-DD" because an omitted optional date input does not exist at all. Every check sets one reject code and message; there is one place that logs the refusal and one precondition that raises it; the first failing check wins. The unique index on (account_id, name) is still what guarantees the name. name is optional HERE on purpose (4-C): a name of only spaces reaches the endpoint, is trimmed to "" and must get E-VAL-001 with a logged refusal, as it always did; a required input would refuse it with a bare "Missing param: name" and log nothing.
 function "planner_ops/create_workspace" {
   input {
     json actor
-    text name filters=trim
+    text name? filters=trim
     text planning_window_start? filters=trim
     bool has_planning_window_start?
     text planning_window_end? filters=trim
@@ -26,7 +26,7 @@ function "planner_ops/create_workspace" {
     }
 
     conditional {
-      if ($input.has_planning_window_start == true) {
+      if ($input.has_planning_window_start) {
         var.update $window_start {
           value = $input.planning_window_start
         }
@@ -38,7 +38,7 @@ function "planner_ops/create_workspace" {
     }
 
     conditional {
-      if ($input.has_planning_window_end == true) {
+      if ($input.has_planning_window_end) {
         var.update $window_end {
           value = $input.planning_window_end
         }
@@ -52,7 +52,7 @@ function "planner_ops/create_workspace" {
     }
 
     conditional {
-      if ($input.has_input_tokens_per_minute == true) {
+      if ($input.has_input_tokens_per_minute) {
         var.update $input_rate {
           value = $input.input_tokens_per_minute
         }
@@ -64,7 +64,7 @@ function "planner_ops/create_workspace" {
     }
 
     conditional {
-      if ($input.has_output_tokens_per_minute == true) {
+      if ($input.has_output_tokens_per_minute) {
         var.update $output_rate {
           value = $input.output_tokens_per_minute
         }

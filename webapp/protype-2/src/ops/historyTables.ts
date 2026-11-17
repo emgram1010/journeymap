@@ -101,6 +101,11 @@ export const ALLOWED_DELETES: AllowedDelete[] = [
     table: 'event_log',
     why: 'RES-3-03 retention prune: window and per-run cap come from the retention_policy table, and disabling that row stops it without a redeploy.',
   },
+  {
+    file: 'functions/copilot/prune_runs.xs',
+    table: 'copilot_run',
+    why: 'R17 retention prune (founder OK 2026-11-16): only "nothing to do"/"skipped" rows older than 14 days and finished/failed runs older than 90 days; never a running row. Each run is also in event_log.',
+  },
 ];
 
 function isAllowed(file: string, table: string): boolean {
