@@ -1,0 +1,1433 @@
+{
+ "tag": "202123",
+ "label": "after_fix",
+ "since_ms": 1794882078626,
+ "plans": {
+  "main": 135,
+  "other": 136,
+  "arch": 137,
+  "mv": 138
+ },
+ "agents": {
+  "pa": 141,
+  "pb": 142,
+  "po": 143,
+  "parch": 144,
+  "pmv": 145
+ },
+ "days": {
+  "D": 141,
+  "D2": 142,
+  "DO": 143,
+  "DA": 144,
+  "DMV": 145
+ },
+ "jobs": {
+  "J1": {
+   "id": 216,
+   "s1": 1011,
+   "s2": 1012
+  },
+  "J2": {
+   "id": 217,
+   "s1": 1013,
+   "s2": 1014
+  },
+  "J3": {
+   "id": 218,
+   "s1": 1015,
+   "s2": 1016
+  },
+  "J4": {
+   "id": 219,
+   "s1": 1017,
+   "s2": 1018
+  },
+  "J5": {
+   "id": 220,
+   "s1": 1019,
+   "s2": 1020
+  },
+  "J6": {
+   "id": 221,
+   "s1": 1021,
+   "s2": 1022
+  },
+  "J7": {
+   "id": 222,
+   "s1": 1023,
+   "s2": 1024
+  },
+  "JC": {
+   "id": 223,
+   "s1": 1025,
+   "s2": 1026
+  },
+  "JO": {
+   "id": 224,
+   "s1": 1027,
+   "s2": 1028
+  },
+  "JA": {
+   "id": 225,
+   "s1": 1029,
+   "s2": 1030
+  },
+  "JMV": {
+   "id": 226,
+   "s1": 1031,
+   "s2": 1032
+  },
+  "J44": {
+   "id": 227,
+   "s1": 1033,
+   "s2": 1034
+  }
+ },
+ "results": {
+  "ok_default": {
+   "http": 200,
+   "body": {
+    "planner_task": {
+     "workspace_id": "<main>",
+     "timeline_id": "<D>",
+     "assignee_agent_id": 0,
+     "title": "",
+     "seq": 1,
+     "duration_minutes": 30,
+     "notes": "",
+     "status": "planned",
+     "needs_info_reason": "",
+     "tweak_reason": ""
+    },
+    "work_task_id": "<J1.s1>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 30,
+    "is_tweaked": false
+   }
+  },
+  "ok_duration_45": {
+   "http": 200,
+   "body": {
+    "planner_task": {
+     "workspace_id": "<main>",
+     "timeline_id": "<D>",
+     "assignee_agent_id": 0,
+     "title": "",
+     "seq": 2,
+     "duration_minutes": 45,
+     "notes": "",
+     "status": "planned",
+     "needs_info_reason": "",
+     "tweak_reason": ""
+    },
+    "work_task_id": "<J1.s2>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 45,
+    "is_tweaked": true
+   }
+  },
+  "ok_duration_1": {
+   "http": 200,
+   "body": {
+    "planner_task": {
+     "workspace_id": "<main>",
+     "timeline_id": "<D>",
+     "assignee_agent_id": 0,
+     "title": "",
+     "seq": 3,
+     "duration_minutes": 1,
+     "notes": "",
+     "status": "planned",
+     "needs_info_reason": "",
+     "tweak_reason": ""
+    },
+    "work_task_id": "<J2.s1>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 1,
+    "is_tweaked": true
+   }
+  },
+  "ok_duration_1440": {
+   "http": 200,
+   "body": {
+    "planner_task": {
+     "workspace_id": "<main>",
+     "timeline_id": "<D>",
+     "assignee_agent_id": 0,
+     "title": "",
+     "seq": 4,
+     "duration_minutes": 1440,
+     "notes": "",
+     "status": "planned",
+     "needs_info_reason": "",
+     "tweak_reason": ""
+    },
+    "work_task_id": "<J2.s2>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 1440,
+    "is_tweaked": true
+   }
+  },
+  "ok_duration_30_same": {
+   "http": 200,
+   "body": {
+    "planner_task": {
+     "workspace_id": "<main>",
+     "timeline_id": "<D>",
+     "assignee_agent_id": 0,
+     "title": "",
+     "seq": 5,
+     "duration_minutes": 30,
+     "notes": "",
+     "status": "planned",
+     "needs_info_reason": "",
+     "tweak_reason": ""
+    },
+    "work_task_id": "<J5.s1>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 30,
+    "is_tweaked": false
+   }
+  },
+  "rej_duration_0": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Enter a duration between 1 and 1,440 minutes. (E-SCHED-002)",
+    "payload": ""
+   }
+  },
+  "rej_duration_1441": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Enter a duration between 1 and 1,440 minutes. (E-SCHED-002)",
+    "payload": ""
+   }
+  },
+  "rej_duration_neg": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Enter a duration between 1 and 1,440 minutes. (E-SCHED-002)",
+    "payload": ""
+   }
+  },
+  "case_duration_null": {
+   "http": 200,
+   "body": {
+    "planner_task": {
+     "workspace_id": "<main>",
+     "timeline_id": "<D>",
+     "assignee_agent_id": 0,
+     "title": "",
+     "seq": 6,
+     "duration_minutes": 30,
+     "notes": "",
+     "status": "planned",
+     "needs_info_reason": "",
+     "tweak_reason": ""
+    },
+    "work_task_id": "<J3.s1>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 30,
+    "is_tweaked": false
+   }
+  },
+  "case_duration_text": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Value is not a valid integer.",
+    "payload": {
+     "param": "duration_minutes"
+    }
+   }
+  },
+  "case_duration_decimal": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This step is already on the schedule. (E-SCHED-001)",
+    "payload": ""
+   }
+  },
+  "case_duration_numstr": {
+   "http": 200,
+   "body": {
+    "planner_task": {
+     "workspace_id": "<main>",
+     "timeline_id": "<D>",
+     "assignee_agent_id": 0,
+     "title": "",
+     "seq": 7,
+     "duration_minutes": 60,
+     "notes": "",
+     "status": "planned",
+     "needs_info_reason": "",
+     "tweak_reason": ""
+    },
+    "work_task_id": "<J3.s2>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 60,
+    "is_tweaked": true
+   }
+  },
+  "rej_already": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This step is already on the schedule. (E-SCHED-001)",
+    "payload": ""
+   }
+  },
+  "rej_already_bad_dur": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This step is already on the schedule. (E-SCHED-001)",
+    "payload": ""
+   }
+  },
+  "rej_already_other_day": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This step is already on the schedule. (E-SCHED-001)",
+    "payload": ""
+   }
+  },
+  "ok_assignee": {
+   "http": 200,
+   "body": {
+    "planner_task": {
+     "workspace_id": "<main>",
+     "timeline_id": "<D>",
+     "assignee_agent_id": "<pb>",
+     "title": "",
+     "seq": 8,
+     "duration_minutes": 30,
+     "notes": "",
+     "status": "planned",
+     "needs_info_reason": "",
+     "tweak_reason": ""
+    },
+    "work_task_id": "<J4.s1>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 30,
+    "is_tweaked": false
+   }
+  },
+  "rej_assignee_other_plan": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Entities must belong to the same workspace",
+    "payload": ""
+   }
+  },
+  "rej_assignee_other_acct": {
+   "http": 404,
+   "body": {
+    "code": "ERROR_CODE_NOT_FOUND",
+    "message": "Agent not found",
+    "payload": ""
+   }
+  },
+  "rej_assignee_unknown": {
+   "http": 404,
+   "body": {
+    "code": "ERROR_CODE_NOT_FOUND",
+    "message": "Agent not found",
+    "payload": ""
+   }
+  },
+  "rej_day_unknown": {
+   "http": 404,
+   "body": {
+    "code": "ERROR_CODE_NOT_FOUND",
+    "message": "Timeline not found",
+    "payload": ""
+   }
+  },
+  "rej_day_zero": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Value is less than the minimum value of 1",
+    "payload": {
+     "param": "timeline_id"
+    }
+   }
+  },
+  "rej_day_missing": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: timeline_id",
+    "payload": {
+     "param": "timeline_id"
+    }
+   }
+  },
+  "rej_day_other_acct": {
+   "http": 404,
+   "body": {
+    "code": "ERROR_CODE_NOT_FOUND",
+    "message": "Timeline not found",
+    "payload": ""
+   }
+  },
+  "rej_step_other_acct": {
+   "http": 404,
+   "body": {
+    "code": "ERROR_CODE_NOT_FOUND",
+    "message": "Step not found",
+    "payload": ""
+   }
+  },
+  "rej_step_unknown": {
+   "http": 404,
+   "body": {
+    "code": "ERROR_CODE_NOT_FOUND",
+    "message": "Step not found",
+    "payload": ""
+   }
+  },
+  "rej_step_zero": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Value is less than the minimum value of 1",
+    "payload": {
+     "param": "work_task_id"
+    }
+   }
+  },
+  "rej_cross_plan": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Entities must belong to the same workspace",
+    "payload": ""
+   }
+  },
+  "rej_cross_plan_rev": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Entities must belong to the same workspace",
+    "payload": ""
+   }
+  },
+  "rej_archived": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This has been archived, so it can't be changed. (E-GOV-004)",
+    "payload": ""
+   }
+  },
+  "rej_archived_main_day": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This has been archived, so it can't be changed. (E-GOV-004)",
+    "payload": ""
+   }
+  },
+  "rej_cancelled": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "That job is cancelled, so its steps can't be scheduled. (E-SCHED-008)",
+    "payload": ""
+   }
+  },
+  "rej_cancelled_bad_dur": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Enter a duration between 1 and 1,440 minutes. (E-SCHED-002)",
+    "payload": ""
+   }
+  },
+  "case_missing_version": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This job's map version can't be found, so its steps can't be scheduled. Nothing was changed. (E-SCHED-012)",
+    "payload": ""
+   }
+  },
+  "ok_live_day": {
+   "http": 200,
+   "body": {
+    "planner_task": {
+     "workspace_id": "<live_plan>",
+     "timeline_id": "<live_day>",
+     "assignee_agent_id": 0,
+     "title": "",
+     "seq": 4,
+     "duration_minutes": 30,
+     "notes": "",
+     "status": "planned",
+     "needs_info_reason": "",
+     "tweak_reason": ""
+    },
+    "work_task_id": "<J44.s1>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 30,
+    "is_tweaked": false
+   }
+  },
+  "ok_second_day": {
+   "http": 200,
+   "body": {
+    "planner_task": {
+     "workspace_id": "<main>",
+     "timeline_id": "<D2>",
+     "assignee_agent_id": 0,
+     "title": "",
+     "seq": 1,
+     "duration_minutes": 30,
+     "notes": "",
+     "status": "planned",
+     "needs_info_reason": "",
+     "tweak_reason": ""
+    },
+    "work_task_id": "<J5.s2>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 30,
+    "is_tweaked": false
+   }
+  },
+  "ok_no_cid": {
+   "http": 200,
+   "body": {
+    "planner_task": {
+     "workspace_id": "<main>",
+     "timeline_id": "<D2>",
+     "assignee_agent_id": 0,
+     "title": "",
+     "seq": 2,
+     "duration_minutes": 30,
+     "notes": "",
+     "status": "planned",
+     "needs_info_reason": "",
+     "tweak_reason": ""
+    },
+    "work_task_id": "<J6.s1>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 30,
+    "is_tweaked": false
+   }
+  },
+  "ok_cid_padded": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This step is already on the schedule. (E-SCHED-001)",
+    "payload": ""
+   }
+  },
+  "rej_no_auth": {
+   "http": 401,
+   "body": {
+    "code": "ERROR_CODE_UNAUTHORIZED",
+    "message": "Unauthorized - Authentication Required",
+    "payload": null
+   }
+  },
+  "ok_extra_ignored": {
+   "http": 200,
+   "body": {
+    "planner_task": {
+     "workspace_id": "<main>",
+     "timeline_id": "<D2>",
+     "assignee_agent_id": 0,
+     "title": "",
+     "seq": 3,
+     "duration_minutes": 30,
+     "notes": "",
+     "status": "planned",
+     "needs_info_reason": "",
+     "tweak_reason": ""
+    },
+    "work_task_id": "<J6.s2>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 30,
+    "is_tweaked": false
+   }
+  },
+  "race_1": {
+   "answers": [
+    {
+     "http": 400,
+     "body": {
+      "code": "ERROR_CODE_INPUT_ERROR",
+      "message": "This step is already on the schedule. (E-SCHED-001)",
+      "payload": ""
+     }
+    },
+    {
+     "http": 200,
+     "body": {
+      "planner_task": {
+       "workspace_id": "<main>",
+       "timeline_id": "<D>",
+       "assignee_agent_id": 0,
+       "title": "",
+       "seq": 9,
+       "duration_minutes": 30,
+       "notes": "",
+       "status": "planned",
+       "needs_info_reason": "",
+       "tweak_reason": ""
+      },
+      "work_task_id": "<J7.s1>",
+      "expected_minutes": 30,
+      "scheduled_minutes": 30,
+      "is_tweaked": false
+     }
+    }
+   ]
+  },
+  "race_2": {
+   "answers": [
+    {
+     "http": 400,
+     "body": {
+      "code": "ERROR_CODE_INPUT_ERROR",
+      "message": "This step is already on the schedule. (E-SCHED-001)",
+      "payload": ""
+     }
+    },
+    {
+     "http": 200,
+     "body": {
+      "planner_task": {
+       "workspace_id": "<main>",
+       "timeline_id": "<D>",
+       "assignee_agent_id": 0,
+       "title": "",
+       "seq": 10,
+       "duration_minutes": 20,
+       "notes": "",
+       "status": "planned",
+       "needs_info_reason": "",
+       "tweak_reason": ""
+      },
+      "work_task_id": "<J7.s2>",
+      "expected_minutes": 30,
+      "scheduled_minutes": 20,
+      "is_tweaked": true
+     }
+    }
+   ]
+  }
+ },
+ "slots": {
+  "173": "slot:ok_default",
+  "174": "slot:ok_duration_45",
+  "175": "slot:ok_duration_1",
+  "176": "slot:ok_duration_1440",
+  "177": "slot:ok_duration_30_same",
+  "178": "slot:case_duration_null",
+  "179": "slot:case_duration_numstr",
+  "180": "slot:ok_assignee",
+  "181": "slot:ok_live_day",
+  "182": "slot:ok_second_day",
+  "183": "slot:ok_no_cid",
+  "184": "slot:ok_extra_ignored",
+  "185": "slot:race_1",
+  "187": "slot:race_2"
+ },
+ "rows": {
+  "slots": [
+   {
+    "workspace_id": "<main>",
+    "timeline_id": "<D>",
+    "assignee_agent_id": "<pb>",
+    "seq": 8,
+    "duration_minutes": 30,
+    "status": "planned",
+    "title": "",
+    "notes": "",
+    "needs_info_reason": "",
+    "tweak_reason": "",
+    "slot": "slot:ok_assignee"
+   },
+   {
+    "workspace_id": "<main>",
+    "timeline_id": "<D>",
+    "assignee_agent_id": 0,
+    "seq": 3,
+    "duration_minutes": 1,
+    "status": "planned",
+    "title": "",
+    "notes": "",
+    "needs_info_reason": "",
+    "tweak_reason": "",
+    "slot": "slot:ok_duration_1"
+   },
+   {
+    "workspace_id": "<main>",
+    "timeline_id": "<D>",
+    "assignee_agent_id": 0,
+    "seq": 4,
+    "duration_minutes": 1440,
+    "status": "planned",
+    "title": "",
+    "notes": "",
+    "needs_info_reason": "",
+    "tweak_reason": "",
+    "slot": "slot:ok_duration_1440"
+   },
+   {
+    "workspace_id": "<main>",
+    "timeline_id": "<D>",
+    "assignee_agent_id": 0,
+    "seq": 10,
+    "duration_minutes": 20,
+    "status": "planned",
+    "title": "",
+    "notes": "",
+    "needs_info_reason": "",
+    "tweak_reason": "",
+    "slot": "slot:race_2"
+   },
+   {
+    "workspace_id": "<main>",
+    "timeline_id": "<D>",
+    "assignee_agent_id": 0,
+    "seq": 1,
+    "duration_minutes": 30,
+    "status": "planned",
+    "title": "",
+    "notes": "",
+    "needs_info_reason": "",
+    "tweak_reason": "",
+    "slot": "slot:ok_default"
+   },
+   {
+    "workspace_id": "<main>",
+    "timeline_id": "<D2>",
+    "assignee_agent_id": 0,
+    "seq": 1,
+    "duration_minutes": 30,
+    "status": "planned",
+    "title": "",
+    "notes": "",
+    "needs_info_reason": "",
+    "tweak_reason": "",
+    "slot": "slot:ok_second_day"
+   },
+   {
+    "workspace_id": "<main>",
+    "timeline_id": "<D2>",
+    "assignee_agent_id": 0,
+    "seq": 2,
+    "duration_minutes": 30,
+    "status": "planned",
+    "title": "",
+    "notes": "",
+    "needs_info_reason": "",
+    "tweak_reason": "",
+    "slot": "slot:ok_no_cid"
+   },
+   {
+    "workspace_id": "<main>",
+    "timeline_id": "<D2>",
+    "assignee_agent_id": 0,
+    "seq": 3,
+    "duration_minutes": 30,
+    "status": "planned",
+    "title": "",
+    "notes": "",
+    "needs_info_reason": "",
+    "tweak_reason": "",
+    "slot": "slot:ok_extra_ignored"
+   },
+   {
+    "workspace_id": "<live_plan>",
+    "timeline_id": "<live_day>",
+    "assignee_agent_id": 0,
+    "seq": 4,
+    "duration_minutes": 30,
+    "status": "planned",
+    "title": "",
+    "notes": "",
+    "needs_info_reason": "",
+    "tweak_reason": "",
+    "slot": "slot:ok_live_day"
+   },
+   {
+    "workspace_id": "<main>",
+    "timeline_id": "<D>",
+    "assignee_agent_id": 0,
+    "seq": 5,
+    "duration_minutes": 30,
+    "status": "planned",
+    "title": "",
+    "notes": "",
+    "needs_info_reason": "",
+    "tweak_reason": "",
+    "slot": "slot:ok_duration_30_same"
+   },
+   {
+    "workspace_id": "<main>",
+    "timeline_id": "<D>",
+    "assignee_agent_id": 0,
+    "seq": 6,
+    "duration_minutes": 30,
+    "status": "planned",
+    "title": "",
+    "notes": "",
+    "needs_info_reason": "",
+    "tweak_reason": "",
+    "slot": "slot:case_duration_null"
+   },
+   {
+    "workspace_id": "<main>",
+    "timeline_id": "<D>",
+    "assignee_agent_id": 0,
+    "seq": 9,
+    "duration_minutes": 30,
+    "status": "planned",
+    "title": "",
+    "notes": "",
+    "needs_info_reason": "",
+    "tweak_reason": "",
+    "slot": "slot:race_1"
+   },
+   {
+    "workspace_id": "<main>",
+    "timeline_id": "<D>",
+    "assignee_agent_id": 0,
+    "seq": 2,
+    "duration_minutes": 45,
+    "status": "planned",
+    "title": "",
+    "notes": "",
+    "needs_info_reason": "",
+    "tweak_reason": "",
+    "slot": "slot:ok_duration_45"
+   },
+   {
+    "workspace_id": "<main>",
+    "timeline_id": "<D>",
+    "assignee_agent_id": 0,
+    "seq": 7,
+    "duration_minutes": 60,
+    "status": "planned",
+    "title": "",
+    "notes": "",
+    "needs_info_reason": "",
+    "tweak_reason": "",
+    "slot": "slot:case_duration_numstr"
+   }
+  ],
+  "links": [
+   {
+    "planner_task_id": "<slot:case_duration_null>",
+    "work_task_id": "<J3.s1>",
+    "position": 1
+   },
+   {
+    "planner_task_id": "<slot:case_duration_numstr>",
+    "work_task_id": "<J3.s2>",
+    "position": 1
+   },
+   {
+    "planner_task_id": "<slot:ok_assignee>",
+    "work_task_id": "<J4.s1>",
+    "position": 1
+   },
+   {
+    "planner_task_id": "<slot:ok_default>",
+    "work_task_id": "<J1.s1>",
+    "position": 1
+   },
+   {
+    "planner_task_id": "<slot:ok_duration_1440>",
+    "work_task_id": "<J2.s2>",
+    "position": 1
+   },
+   {
+    "planner_task_id": "<slot:ok_duration_1>",
+    "work_task_id": "<J2.s1>",
+    "position": 1
+   },
+   {
+    "planner_task_id": "<slot:ok_duration_30_same>",
+    "work_task_id": "<J5.s1>",
+    "position": 1
+   },
+   {
+    "planner_task_id": "<slot:ok_duration_45>",
+    "work_task_id": "<J1.s2>",
+    "position": 1
+   },
+   {
+    "planner_task_id": "<slot:ok_extra_ignored>",
+    "work_task_id": "<J6.s2>",
+    "position": 1
+   },
+   {
+    "planner_task_id": "<slot:ok_live_day>",
+    "work_task_id": "<J44.s1>",
+    "position": 1
+   },
+   {
+    "planner_task_id": "<slot:ok_no_cid>",
+    "work_task_id": "<J6.s1>",
+    "position": 1
+   },
+   {
+    "planner_task_id": "<slot:ok_second_day>",
+    "work_task_id": "<J5.s2>",
+    "position": 1
+   },
+   {
+    "planner_task_id": "<slot:race_1>",
+    "work_task_id": "<J7.s1>",
+    "position": 1
+   },
+   {
+    "planner_task_id": "<slot:race_2>",
+    "work_task_id": "<J7.s2>",
+    "position": 1
+   }
+  ]
+ },
+ "events": [
+  {
+   "case": "",
+   "cid_padded": false,
+   "entity": "slot:ok_no_cid",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Job step scheduled.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_task",
+   "metadata": {
+    "timeline_id": "<D2>",
+    "work_item_id": "<J6>",
+    "work_task_id": "<J6.s1>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 30
+   }
+  },
+  {
+   "case": "case_duration_decimal",
+   "cid_padded": false,
+   "entity": "J3.s1",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-SCHED-001",
+   "message": "Schedule refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "work_task",
+   "metadata": {}
+  },
+  {
+   "case": "case_duration_null",
+   "cid_padded": false,
+   "entity": "slot:case_duration_null",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Job step scheduled.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_task",
+   "metadata": {
+    "timeline_id": "<D>",
+    "work_item_id": "<J3>",
+    "work_task_id": "<J3.s1>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 30
+   }
+  },
+  {
+   "case": "case_duration_numstr",
+   "cid_padded": false,
+   "entity": "slot:case_duration_numstr",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Job step scheduled.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_task",
+   "metadata": {
+    "timeline_id": "<D>",
+    "work_item_id": "<J3>",
+    "work_task_id": "<J3.s2>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 60
+   }
+  },
+  {
+   "case": "case_missing_version",
+   "cid_padded": false,
+   "entity": "JMV.s1",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "failure",
+   "severity": "error",
+   "error_code": "E-SCHED-012",
+   "message": "Schedule refused: the job's pinned map version was not found.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "work_task",
+   "metadata": {
+    "work_item_id": "<JMV>",
+    "journey_map_version_id": 999999
+   }
+  },
+  {
+   "case": "ok_assignee",
+   "cid_padded": false,
+   "entity": "slot:ok_assignee",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Job step scheduled.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_task",
+   "metadata": {
+    "timeline_id": "<D>",
+    "work_item_id": "<J4>",
+    "work_task_id": "<J4.s1>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 30
+   }
+  },
+  {
+   "case": "ok_cid_padded",
+   "cid_padded": false,
+   "entity": "J3.s1",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-SCHED-001",
+   "message": "Schedule refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "work_task",
+   "metadata": {}
+  },
+  {
+   "case": "ok_default",
+   "cid_padded": false,
+   "entity": "slot:ok_default",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Job step scheduled.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_task",
+   "metadata": {
+    "timeline_id": "<D>",
+    "work_item_id": "<J1>",
+    "work_task_id": "<J1.s1>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 30
+   }
+  },
+  {
+   "case": "ok_duration_1",
+   "cid_padded": false,
+   "entity": "slot:ok_duration_1",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Job step scheduled.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_task",
+   "metadata": {
+    "timeline_id": "<D>",
+    "work_item_id": "<J2>",
+    "work_task_id": "<J2.s1>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 1
+   }
+  },
+  {
+   "case": "ok_duration_1440",
+   "cid_padded": false,
+   "entity": "slot:ok_duration_1440",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Job step scheduled.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_task",
+   "metadata": {
+    "timeline_id": "<D>",
+    "work_item_id": "<J2>",
+    "work_task_id": "<J2.s2>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 1440
+   }
+  },
+  {
+   "case": "ok_duration_30_same",
+   "cid_padded": false,
+   "entity": "slot:ok_duration_30_same",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Job step scheduled.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_task",
+   "metadata": {
+    "timeline_id": "<D>",
+    "work_item_id": "<J5>",
+    "work_task_id": "<J5.s1>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 30
+   }
+  },
+  {
+   "case": "ok_duration_45",
+   "cid_padded": false,
+   "entity": "slot:ok_duration_45",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Job step scheduled.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_task",
+   "metadata": {
+    "timeline_id": "<D>",
+    "work_item_id": "<J1>",
+    "work_task_id": "<J1.s2>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 45
+   }
+  },
+  {
+   "case": "ok_extra_ignored",
+   "cid_padded": false,
+   "entity": "slot:ok_extra_ignored",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Job step scheduled.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_task",
+   "metadata": {
+    "timeline_id": "<D2>",
+    "work_item_id": "<J6>",
+    "work_task_id": "<J6.s2>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 30
+   }
+  },
+  {
+   "case": "ok_live_day",
+   "cid_padded": false,
+   "entity": "slot:ok_live_day",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Job step scheduled.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_task",
+   "metadata": {
+    "timeline_id": "<live_day>",
+    "work_item_id": "<J44>",
+    "work_task_id": "<J44.s1>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 30
+   }
+  },
+  {
+   "case": "ok_second_day",
+   "cid_padded": false,
+   "entity": "slot:ok_second_day",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Job step scheduled.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_task",
+   "metadata": {
+    "timeline_id": "<D2>",
+    "work_item_id": "<J5>",
+    "work_task_id": "<J5.s2>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 30
+   }
+  },
+  {
+   "case": "race_1",
+   "cid_padded": false,
+   "entity": "J7.s1",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-SCHED-001",
+   "message": "Schedule refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "work_task",
+   "metadata": {
+    "lost_race": true
+   }
+  },
+  {
+   "case": "race_1",
+   "cid_padded": false,
+   "entity": "slot:race_1",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Job step scheduled.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_task",
+   "metadata": {
+    "timeline_id": "<D>",
+    "work_item_id": "<J7>",
+    "work_task_id": "<J7.s1>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 30
+   }
+  },
+  {
+   "case": "race_2",
+   "cid_padded": false,
+   "entity": "J7.s2",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-SCHED-001",
+   "message": "Schedule refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "work_task",
+   "metadata": {
+    "lost_race": true
+   }
+  },
+  {
+   "case": "race_2",
+   "cid_padded": false,
+   "entity": "slot:race_2",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Job step scheduled.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_task",
+   "metadata": {
+    "timeline_id": "<D>",
+    "work_item_id": "<J7>",
+    "work_task_id": "<J7.s2>",
+    "expected_minutes": 30,
+    "scheduled_minutes": 20
+   }
+  },
+  {
+   "case": "rej_already",
+   "cid_padded": false,
+   "entity": "J1.s1",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-SCHED-001",
+   "message": "Schedule refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "work_task",
+   "metadata": {}
+  },
+  {
+   "case": "rej_already_bad_dur",
+   "cid_padded": false,
+   "entity": "J1.s1",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-SCHED-001",
+   "message": "Schedule refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "work_task",
+   "metadata": {}
+  },
+  {
+   "case": "rej_already_other_day",
+   "cid_padded": false,
+   "entity": "J1.s1",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-SCHED-001",
+   "message": "Schedule refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "work_task",
+   "metadata": {}
+  },
+  {
+   "case": "rej_archived",
+   "cid_padded": false,
+   "entity": "JA.s1",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-GOV-004",
+   "message": "Write refused: this record is archived.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "work_task",
+   "metadata": {}
+  },
+  {
+   "case": "rej_archived_main_day",
+   "cid_padded": false,
+   "entity": "JA.s1",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-GOV-004",
+   "message": "Write refused: this record is archived.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "work_task",
+   "metadata": {}
+  },
+  {
+   "case": "rej_cancelled",
+   "cid_padded": false,
+   "entity": "JC.s1",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-SCHED-008",
+   "message": "Schedule refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "work_task",
+   "metadata": {}
+  },
+  {
+   "case": "rej_cancelled_bad_dur",
+   "cid_padded": false,
+   "entity": "JC.s1",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-SCHED-002",
+   "message": "Schedule refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "work_task",
+   "metadata": {}
+  },
+  {
+   "case": "rej_duration_0",
+   "cid_padded": false,
+   "entity": "J3.s1",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-SCHED-002",
+   "message": "Schedule refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "work_task",
+   "metadata": {}
+  },
+  {
+   "case": "rej_duration_1441",
+   "cid_padded": false,
+   "entity": "J3.s1",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-SCHED-002",
+   "message": "Schedule refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "work_task",
+   "metadata": {}
+  },
+  {
+   "case": "rej_duration_neg",
+   "cid_padded": false,
+   "entity": "J3.s1",
+   "feature": "SCHED-1",
+   "step": "schedule_block",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-SCHED-002",
+   "message": "Schedule refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "work_task",
+   "metadata": {}
+  }
+ ]
+}

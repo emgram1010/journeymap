@@ -886,6 +886,26 @@
     "severity": "info",
     "fix_hint": "Shorten the reason. Longer context belongs in the step's notes."
   },
+  "E-SCHED-012": {
+    "code": "E-SCHED-012",
+    "feature": "SCHED-1",
+    "user_message": "This job's map version can't be found, so its steps can't be scheduled. Nothing was changed.",
+    "what_happened": "A job step was scheduled, but the map version the job is pinned to no longer exists, so its expected time could not be read. Nothing was written.",
+    "likely_cause": "A data fault: the job's journey_map_version_id points at a version row that is missing (deleted by hand, or a broken import).",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "Find the job from the event's metadata (work_item_id, journey_map_version_id). Restore the version, or recreate the job on a published version. Before 4-C this crashed with a raw error."
+  },
+  "E-SCHED-013": {
+    "code": "E-SCHED-013",
+    "feature": "SCHED-1",
+    "user_message": "The step couldn't be scheduled, and nothing was saved. Try again.",
+    "what_happened": "Writing the slot or its link to the step failed, and the step is still not on the schedule. The write was rolled back, so nothing half-written is left.",
+    "likely_cause": "A database error during the save. (Losing a race to someone scheduling the same step is NOT this: that answers E-SCHED-001.)",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "Try again. If it keeps happening, look up the failure event for that step on the Health page."
+  },
   "E-STAGE-001": {
     "code": "E-STAGE-001",
     "feature": "STAGE-1",

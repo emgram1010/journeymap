@@ -20,6 +20,16 @@
 // is the explicit flag `has_duration_minutes` (false = use the fallback;
 // true = take `duration_minutes` as given and validate it, so an explicit
 // 0 is still refused). `assignee_agent_id` 0 = the day's own person, as in 560.
+//
+// 4-C (2026-11-17): endpoint 560 now calls this function (replay
+// c4_560_replay.py, identical before vs after), and two of its bugs are
+// fixed here, once for both callers: a missing pinned version is a logged
+// failure and a coded refusal (E-SCHED-012), not a raw 500; and the loser
+// of two identical requests at the same moment gets E-SCHED-001, logged,
+// not a raw "Duplicate record" 500 (any other failed insert: E-SCHED-013).
+// NOT changed: with no duration sent, an expected time over 1,440 minutes
+// is still refused as E-SCHED-002 - no map anywhere has such a step to
+// prove a fix on.
 function "planner_ops/schedule_work_task" {
   input {
     json actor
@@ -118,6 +128,37 @@ function "planner_ops/schedule_work_task" {
       field_name = "id"
       field_value = $job.journey_map_version_id
     } as $version
+
+    // 4-C (endpoint 560 moved onto this function): a job whose pinned
+    // version row is missing used to crash here with a raw 500 ("Unable to
+    // locate var: version.snapshot.cells") and no event. It is a data
+    // fault, not the planner's mistake: logged as a failure for support
+    // and refused with its own code. Nothing is written.
+    conditional {
+      if ($version == null) {
+        function.run "ops/log_event" {
+          input = {
+            feature       : "SCHED-1"
+            step          : "schedule_block"
+            outcome       : "failure"
+            severity      : "error"
+            user_id       : $actor.user_id
+            account_id    : $actor.account_id
+            entity_type   : "work_task"
+            entity_id     : $input.work_task_id
+            correlation_id: $input.correlation_id
+            error_code    : "E-SCHED-012"
+            message       : "Schedule refused: the job's pinned map version was not found."
+            metadata      : {work_item_id: $job.id, journey_map_version_id: $job.journey_map_version_id}
+          }
+        }
+      }
+    }
+
+    precondition ($version != null) {
+      error_type = "inputerror"
+      error = "This job's map version can't be found, so its steps can't be scheduled. Nothing was changed. (E-SCHED-012)"
+    }
 
     var $expected {
       value = 0
@@ -297,27 +338,131 @@ function "planner_ops/schedule_work_task" {
       value = $existing_count + 1
     }
 
-    db.transaction {
-      stack {
-        db.add planner_task {
-          data = {
-            workspace_id     : $job.workspace_id
-            timeline_id      : $input.timeline_id
-            assignee_agent_id: $input.assignee_agent_id
-            title            : ""
-            seq              : $append_seq
-            duration_minutes : $duration
-            notes            : ""
-            status           : "planned"
-            needs_info_reason: ""
-            tweak_reason     : ""
-          }
-        } as $slot
+    // 4-C (endpoint 560 moved onto this function): two identical requests
+    // at the same moment both pass the E-SCHED-001 count above; the unique
+    // index on planner_task_work_task.work_task_id then stops the second
+    // link, the transaction rolls its slot back, and the caller used to get
+    // a raw 500 ("Duplicate record detected") with no event. Now the failed
+    // insert is caught and the links are re-counted: if the step IS on the
+    // schedule (someone else won), the answer is the same E-SCHED-001
+    // refusal, logged; if it is not, the failure is logged and refused
+    // (E-SCHED-013). Either way nothing half-written survives.
+    var $slot {
+      value = null
+    }
 
-        db.add planner_task_work_task {
-          data = {planner_task_id: $slot.id, work_task_id: $input.work_task_id, position: 1}
-        } as $link
+    var $tx_failed {
+      value = false
+    }
+
+    try_catch {
+      try {
+        group {
+          stack {
+            db.transaction {
+              stack {
+                db.add planner_task {
+                  data = {
+                    workspace_id     : $job.workspace_id
+                    timeline_id      : $input.timeline_id
+                    assignee_agent_id: $input.assignee_agent_id
+                    title            : ""
+                    seq              : $append_seq
+                    duration_minutes : $duration
+                    notes            : ""
+                    status           : "planned"
+                    needs_info_reason: ""
+                    tweak_reason     : ""
+                  }
+                } as $new_slot
+
+                db.add planner_task_work_task {
+                  data = {planner_task_id: $new_slot.id, work_task_id: $input.work_task_id, position: 1}
+                } as $link
+              }
+            }
+
+            var.update $slot {
+              value = $new_slot
+            }
+          }
+        }
       }
+
+      catch {
+        var.update $tx_failed {
+          value = true
+        }
+      }
+    }
+
+    var $lost_race {
+      value = false
+    }
+
+    conditional {
+      if ($tx_failed == true) {
+        db.query planner_task_work_task {
+          where = $db.planner_task_work_task.work_task_id == $input.work_task_id
+          return = {type: "count"}
+        } as $already_after
+
+        var.update $lost_race {
+          value = ($already_after > 0)
+        }
+      }
+    }
+
+    conditional {
+      if ($tx_failed == true && $lost_race == true) {
+        function.run "ops/log_event" {
+          input = {
+            feature       : "SCHED-1"
+            step          : "schedule_block"
+            outcome       : "rejected"
+            severity      : "info"
+            user_id       : $actor.user_id
+            account_id    : $actor.account_id
+            entity_type   : "work_task"
+            entity_id     : $input.work_task_id
+            correlation_id: $input.correlation_id
+            error_code    : "E-SCHED-001"
+            message       : "Schedule refused."
+            metadata      : {lost_race: true}
+          }
+        }
+      }
+    }
+
+    conditional {
+      if ($tx_failed == true && $lost_race == false) {
+        function.run "ops/log_event" {
+          input = {
+            feature       : "SCHED-1"
+            step          : "schedule_block"
+            outcome       : "failure"
+            severity      : "error"
+            user_id       : $actor.user_id
+            account_id    : $actor.account_id
+            entity_type   : "work_task"
+            entity_id     : $input.work_task_id
+            correlation_id: $input.correlation_id
+            error_code    : "E-SCHED-013"
+            message       : "Schedule failed while writing; nothing was saved."
+            metadata      : {timeline_id: $input.timeline_id}
+          }
+        }
+      }
+    }
+
+    precondition ($lost_race == false) {
+      error_type = "inputerror"
+      error = "This step is already on the schedule. (E-SCHED-001)"
+    }
+
+    precondition ($tx_failed == false) {
+      error_type = "inputerror"
+      error = "The step couldn't be scheduled, and nothing was saved. Try again. (E-SCHED-013)"
     }
 
     function.run "planner/resequence" {
