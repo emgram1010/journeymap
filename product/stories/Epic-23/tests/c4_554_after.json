@@ -1,0 +1,2910 @@
+{
+ "tag": "200157",
+ "label": "after",
+ "since_ms": 1794880912852,
+ "plans": {
+  "main": 119,
+  "other": 120,
+  "arch": 121,
+  "nopub": 122
+ },
+ "fixtures": {
+  "accept_unpublished_235": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Publish 'COP-1 fixture (safe to delete)' first. Only published maps can be used in a plan. (E-PLAN-004)"
+   }
+  }
+ },
+ "results": {
+  "ok_basic": {
+   "http": 200,
+   "body": {
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1
+    },
+    "skipped_stages": [],
+    "task_count": 2,
+    "tasks": [
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s1"
+     },
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s2"
+     }
+    ],
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job basic",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_attrs": {
+   "http": 200,
+   "body": {
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1
+    },
+    "skipped_stages": [],
+    "task_count": 2,
+    "tasks": [
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s1"
+     },
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s2"
+     }
+    ],
+    "work_item": {
+     "account_id": 13,
+     "attributes": {
+      "colour": "red",
+      "n": 2
+     },
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job attrs",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_attrs_null": {
+   "http": 200,
+   "body": {
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1
+    },
+    "skipped_stages": [],
+    "task_count": 2,
+    "tasks": [
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s1"
+     },
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s2"
+     }
+    ],
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job attrs null",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_attrs_empty": {
+   "http": 200,
+   "body": {
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1
+    },
+    "skipped_stages": [],
+    "task_count": 2,
+    "tasks": [
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s1"
+     },
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s2"
+     }
+    ],
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job attrs empty",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_attrs_list": {
+   "http": 200,
+   "body": {
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1
+    },
+    "skipped_stages": [],
+    "task_count": 2,
+    "tasks": [
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s1"
+     },
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s2"
+     }
+    ],
+    "work_item": {
+     "account_id": 13,
+     "attributes": [
+      1,
+      2
+     ],
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job attrs list",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_title_padded": {
+   "http": 200,
+   "body": {
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1
+    },
+    "skipped_stages": [],
+    "task_count": 2,
+    "tasks": [
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s1"
+     },
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s2"
+     }
+    ],
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Padded job",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_title_120": {
+   "http": 200,
+   "body": {
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1
+    },
+    "skipped_stages": [],
+    "task_count": 2,
+    "tasks": [
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s1"
+     },
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s2"
+     }
+    ],
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_title_lt": {
+   "http": 200,
+   "body": {
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1
+    },
+    "skipped_stages": [],
+    "task_count": 2,
+    "tasks": [
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s1"
+     },
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s2"
+     }
+    ],
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "a < b and 3>2",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_title_unicode": {
+   "http": 200,
+   "body": {
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1
+    },
+    "skipped_stages": [],
+    "task_count": 2,
+    "tasks": [
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s1"
+     },
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s2"
+     }
+    ],
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Order \u00b7 Repair \u2014 x",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_extra_ignored": {
+   "http": 200,
+   "body": {
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1
+    },
+    "skipped_stages": [],
+    "task_count": 2,
+    "tasks": [
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s1"
+     },
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s2"
+     }
+    ],
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job extra",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_parent_zero": {
+   "http": 200,
+   "body": {
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1
+    },
+    "skipped_stages": [],
+    "task_count": 2,
+    "tasks": [
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s1"
+     },
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s2"
+     }
+    ],
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job parent 0",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_other_plan_job": {
+   "http": 200,
+   "body": {
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1
+    },
+    "skipped_stages": [],
+    "task_count": 2,
+    "tasks": [
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s1"
+     },
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s2"
+     }
+    ],
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job in other plan",
+     "workspace_id": "<other>"
+    }
+   }
+  },
+  "ok_to_cancel": {
+   "http": 200,
+   "body": {
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1
+    },
+    "skipped_stages": [],
+    "task_count": 2,
+    "tasks": [
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s1"
+     },
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s2"
+     }
+    ],
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job to cancel",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_child": {
+   "http": 200,
+   "body": {
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1
+    },
+    "skipped_stages": [],
+    "task_count": 2,
+    "tasks": [
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s1"
+     },
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s2"
+     }
+    ],
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": "<job:ok_basic>",
+     "started_at": 0,
+     "status": "open",
+     "title": "Job child",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_child_attrs": {
+   "http": 200,
+   "body": {
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1
+    },
+    "skipped_stages": [],
+    "task_count": 2,
+    "tasks": [
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s1"
+     },
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s2"
+     }
+    ],
+    "work_item": {
+     "account_id": 13,
+     "attributes": {
+      "k": "v"
+     },
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": "<job:ok_basic>",
+     "started_at": 0,
+     "status": "open",
+     "title": "Job child attrs",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "rej_parent_unknown": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "That parent job is in a different plan. (E-EXC-009)",
+    "payload": ""
+   }
+  },
+  "rej_parent_other_plan": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "That parent job is in a different plan. (E-EXC-009)",
+    "payload": ""
+   }
+  },
+  "rej_parent_other_acct": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "That parent job is in a different plan. (E-EXC-009)",
+    "payload": ""
+   }
+  },
+  "rej_parent_cancelled": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "That job is finished or cancelled, so nothing can be sent from it or added under it. (E-EXC-001)",
+    "payload": ""
+   }
+  },
+  "rej_parent_negative": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "That parent job is in a different plan. (E-EXC-009)",
+    "payload": ""
+   }
+  },
+  "rej_title_and_parent": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: title",
+    "payload": {
+     "param": "title"
+    }
+   }
+  },
+  "rej_map_and_parent": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This plan doesn't use 'COP-1 fixture (safe to delete)'. Add it to the plan's maps first. (E-JOB-002)",
+    "payload": ""
+   }
+  },
+  "rej_title_blank": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: title",
+    "payload": {
+     "param": "title"
+    }
+   }
+  },
+  "rej_title_spaces": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Give the job a short title (up to 120 characters). (E-JOB-001)",
+    "payload": ""
+   }
+  },
+  "rej_title_missing": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: title",
+    "payload": {
+     "param": "title"
+    }
+   }
+  },
+  "rej_title_null": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: title",
+    "payload": {
+     "param": "title"
+    }
+   }
+  },
+  "rej_title_121": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Give the job a short title (up to 120 characters). (E-JOB-001)",
+    "payload": ""
+   }
+  },
+  "rej_title_html": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Give the job a short title (up to 120 characters). (E-JOB-001)",
+    "payload": ""
+   }
+  },
+  "rej_title_script": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Give the job a short title (up to 120 characters). (E-JOB-001)",
+    "payload": ""
+   }
+  },
+  "rej_title_number": {
+   "http": 200,
+   "body": {
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1
+    },
+    "skipped_stages": [],
+    "task_count": 2,
+    "tasks": [
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s1"
+     },
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s2"
+     }
+    ],
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "12345",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "rej_map_unpublished": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This plan doesn't use 'COP-1 fixture (safe to delete)'. Add it to the plan's maps first. (E-JOB-002)",
+    "payload": ""
+   }
+  },
+  "rej_map_nopub_plan": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This plan doesn't use 'COP-1 fixture (safe to delete)'. Add it to the plan's maps first. (E-JOB-002)",
+    "payload": ""
+   }
+  },
+  "rej_map_not_accepted_ok_map": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This plan doesn't use 'COP-5 chain fixture (safe to delete)'. Add it to the plan's maps first. (E-JOB-002)",
+    "payload": ""
+   }
+  },
+  "rej_map_unknown": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This plan doesn't use 'that map'. Add it to the plan's maps first. (E-JOB-002)",
+    "payload": ""
+   }
+  },
+  "rej_map_other_acct": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This plan doesn't use 'item-turnaround'. Add it to the plan's maps first. (E-JOB-002)",
+    "payload": ""
+   }
+  },
+  "rej_map_zero": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Value is less than the minimum value of 1",
+    "payload": {
+     "param": "journey_map_id"
+    }
+   }
+  },
+  "rej_map_missing": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: journey_map_id",
+    "payload": {
+     "param": "journey_map_id"
+    }
+   }
+  },
+  "rej_title_and_map": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Give the job a short title (up to 120 characters). (E-JOB-001)",
+    "payload": ""
+   }
+  },
+  "rej_plan_unknown": {
+   "http": 404,
+   "body": {
+    "code": "ERROR_CODE_NOT_FOUND",
+    "message": "Plan not found",
+    "payload": ""
+   }
+  },
+  "rej_plan_other_acct": {
+   "http": 404,
+   "body": {
+    "code": "ERROR_CODE_NOT_FOUND",
+    "message": "Plan not found",
+    "payload": ""
+   }
+  },
+  "rej_plan_zero": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Value is less than the minimum value of 1",
+    "payload": {
+     "param": "workspace_id"
+    }
+   }
+  },
+  "rej_plan_missing": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: workspace_id",
+    "payload": {
+     "param": "workspace_id"
+    }
+   }
+  },
+  "rej_plan_text": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Value is not a valid integer.",
+    "payload": {
+     "param": "workspace_id"
+    }
+   }
+  },
+  "rej_archived": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This has been archived, so it can't be changed. (E-GOV-004)",
+    "payload": ""
+   }
+  },
+  "rej_archived_badtitle": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: title",
+    "payload": {
+     "param": "title"
+    }
+   }
+  },
+  "ok_no_cid": {
+   "http": 200,
+   "body": {
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1
+    },
+    "skipped_stages": [],
+    "task_count": 2,
+    "tasks": [
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s1"
+     },
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s2"
+     }
+    ],
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job no cid",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_cid_padded": {
+   "http": 200,
+   "body": {
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1
+    },
+    "skipped_stages": [],
+    "task_count": 2,
+    "tasks": [
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s1"
+     },
+     {
+      "is_owner": true,
+      "lens_key": "lens-2",
+      "stage_key": "s2"
+     }
+    ],
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job cid padded",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "rej_no_auth": {
+   "http": 401,
+   "body": {
+    "code": "ERROR_CODE_UNAUTHORIZED",
+    "message": "Unauthorized - Authentication Required",
+    "payload": null
+   }
+  }
+ },
+ "rows_http": {
+  "plans": {
+   "main": {
+    "http": 200,
+    "jobs": [
+     [
+      "12345",
+      "open",
+      2,
+      0
+     ],
+     [
+      "JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ",
+      "open",
+      2,
+      0
+     ],
+     [
+      "Job attrs empty",
+      "open",
+      2,
+      0
+     ],
+     [
+      "Job attrs list",
+      "open",
+      2,
+      0
+     ],
+     [
+      "Job attrs null",
+      "open",
+      2,
+      0
+     ],
+     [
+      "Job attrs",
+      "open",
+      2,
+      0
+     ],
+     [
+      "Job basic",
+      "open",
+      2,
+      2
+     ],
+     [
+      "Job child attrs",
+      "open",
+      2,
+      0
+     ],
+     [
+      "Job child",
+      "open",
+      2,
+      0
+     ],
+     [
+      "Job cid padded",
+      "open",
+      2,
+      0
+     ],
+     [
+      "Job extra",
+      "open",
+      2,
+      0
+     ],
+     [
+      "Job no cid",
+      "open",
+      2,
+      0
+     ],
+     [
+      "Job parent 0",
+      "open",
+      2,
+      0
+     ],
+     [
+      "Job to cancel",
+      "cancelled",
+      2,
+      0
+     ],
+     [
+      "Order \u00b7 Repair \u2014 x",
+      "open",
+      2,
+      0
+     ],
+     [
+      "Padded job",
+      "open",
+      2,
+      0
+     ],
+     [
+      "a < b and 3>2",
+      "open",
+      2,
+      0
+     ]
+    ]
+   },
+   "other": {
+    "http": 200,
+    "jobs": [
+     [
+      "Job in other plan",
+      "open",
+      2,
+      0
+     ]
+    ]
+   },
+   "arch": {
+    "http": 200,
+    "jobs": []
+   },
+   "nopub": {
+    "http": 200,
+    "jobs": []
+   }
+  },
+  "jobs": {
+   "ok_basic": {
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job basic",
+     "workspace_id": "<main>"
+    },
+    "tasks": [
+     {
+      "completed_at": 0,
+      "done_when": "Prepare is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s1",
+      "stage_label": "Prepare",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Prepare the order"
+     },
+     {
+      "completed_at": 0,
+      "done_when": "Deliver is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s2",
+      "stage_label": "Deliver",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Deliver the order"
+     }
+    ],
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1,
+     "title": "COP-5 chain fixture (safe to delete)"
+    },
+    "parent": null,
+    "children": [
+     "Job child",
+     "Job child attrs"
+    ]
+   },
+   "ok_attrs": {
+    "work_item": {
+     "account_id": 13,
+     "attributes": {
+      "colour": "red",
+      "n": 2
+     },
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job attrs",
+     "workspace_id": "<main>"
+    },
+    "tasks": [
+     {
+      "completed_at": 0,
+      "done_when": "Prepare is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s1",
+      "stage_label": "Prepare",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Prepare the order"
+     },
+     {
+      "completed_at": 0,
+      "done_when": "Deliver is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s2",
+      "stage_label": "Deliver",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Deliver the order"
+     }
+    ],
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1,
+     "title": "COP-5 chain fixture (safe to delete)"
+    },
+    "parent": null,
+    "children": []
+   },
+   "ok_attrs_null": {
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job attrs null",
+     "workspace_id": "<main>"
+    },
+    "tasks": [
+     {
+      "completed_at": 0,
+      "done_when": "Prepare is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s1",
+      "stage_label": "Prepare",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Prepare the order"
+     },
+     {
+      "completed_at": 0,
+      "done_when": "Deliver is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s2",
+      "stage_label": "Deliver",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Deliver the order"
+     }
+    ],
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1,
+     "title": "COP-5 chain fixture (safe to delete)"
+    },
+    "parent": null,
+    "children": []
+   },
+   "ok_attrs_empty": {
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job attrs empty",
+     "workspace_id": "<main>"
+    },
+    "tasks": [
+     {
+      "completed_at": 0,
+      "done_when": "Prepare is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s1",
+      "stage_label": "Prepare",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Prepare the order"
+     },
+     {
+      "completed_at": 0,
+      "done_when": "Deliver is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s2",
+      "stage_label": "Deliver",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Deliver the order"
+     }
+    ],
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1,
+     "title": "COP-5 chain fixture (safe to delete)"
+    },
+    "parent": null,
+    "children": []
+   },
+   "ok_attrs_list": {
+    "work_item": {
+     "account_id": 13,
+     "attributes": [
+      1,
+      2
+     ],
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job attrs list",
+     "workspace_id": "<main>"
+    },
+    "tasks": [
+     {
+      "completed_at": 0,
+      "done_when": "Prepare is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s1",
+      "stage_label": "Prepare",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Prepare the order"
+     },
+     {
+      "completed_at": 0,
+      "done_when": "Deliver is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s2",
+      "stage_label": "Deliver",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Deliver the order"
+     }
+    ],
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1,
+     "title": "COP-5 chain fixture (safe to delete)"
+    },
+    "parent": null,
+    "children": []
+   },
+   "ok_title_padded": {
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Padded job",
+     "workspace_id": "<main>"
+    },
+    "tasks": [
+     {
+      "completed_at": 0,
+      "done_when": "Prepare is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s1",
+      "stage_label": "Prepare",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Prepare the order"
+     },
+     {
+      "completed_at": 0,
+      "done_when": "Deliver is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s2",
+      "stage_label": "Deliver",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Deliver the order"
+     }
+    ],
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1,
+     "title": "COP-5 chain fixture (safe to delete)"
+    },
+    "parent": null,
+    "children": []
+   },
+   "ok_title_120": {
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ",
+     "workspace_id": "<main>"
+    },
+    "tasks": [
+     {
+      "completed_at": 0,
+      "done_when": "Prepare is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s1",
+      "stage_label": "Prepare",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Prepare the order"
+     },
+     {
+      "completed_at": 0,
+      "done_when": "Deliver is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s2",
+      "stage_label": "Deliver",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Deliver the order"
+     }
+    ],
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1,
+     "title": "COP-5 chain fixture (safe to delete)"
+    },
+    "parent": null,
+    "children": []
+   },
+   "ok_title_lt": {
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "a < b and 3>2",
+     "workspace_id": "<main>"
+    },
+    "tasks": [
+     {
+      "completed_at": 0,
+      "done_when": "Prepare is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s1",
+      "stage_label": "Prepare",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Prepare the order"
+     },
+     {
+      "completed_at": 0,
+      "done_when": "Deliver is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s2",
+      "stage_label": "Deliver",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Deliver the order"
+     }
+    ],
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1,
+     "title": "COP-5 chain fixture (safe to delete)"
+    },
+    "parent": null,
+    "children": []
+   },
+   "ok_title_unicode": {
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Order \u00b7 Repair \u2014 x",
+     "workspace_id": "<main>"
+    },
+    "tasks": [
+     {
+      "completed_at": 0,
+      "done_when": "Prepare is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s1",
+      "stage_label": "Prepare",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Prepare the order"
+     },
+     {
+      "completed_at": 0,
+      "done_when": "Deliver is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s2",
+      "stage_label": "Deliver",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Deliver the order"
+     }
+    ],
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1,
+     "title": "COP-5 chain fixture (safe to delete)"
+    },
+    "parent": null,
+    "children": []
+   },
+   "ok_extra_ignored": {
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job extra",
+     "workspace_id": "<main>"
+    },
+    "tasks": [
+     {
+      "completed_at": 0,
+      "done_when": "Prepare is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s1",
+      "stage_label": "Prepare",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Prepare the order"
+     },
+     {
+      "completed_at": 0,
+      "done_when": "Deliver is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s2",
+      "stage_label": "Deliver",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Deliver the order"
+     }
+    ],
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1,
+     "title": "COP-5 chain fixture (safe to delete)"
+    },
+    "parent": null,
+    "children": []
+   },
+   "ok_parent_zero": {
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job parent 0",
+     "workspace_id": "<main>"
+    },
+    "tasks": [
+     {
+      "completed_at": 0,
+      "done_when": "Prepare is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s1",
+      "stage_label": "Prepare",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Prepare the order"
+     },
+     {
+      "completed_at": 0,
+      "done_when": "Deliver is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s2",
+      "stage_label": "Deliver",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Deliver the order"
+     }
+    ],
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1,
+     "title": "COP-5 chain fixture (safe to delete)"
+    },
+    "parent": null,
+    "children": []
+   },
+   "ok_other_plan_job": {
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job in other plan",
+     "workspace_id": "<other>"
+    },
+    "tasks": [
+     {
+      "completed_at": 0,
+      "done_when": "Prepare is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s1",
+      "stage_label": "Prepare",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Prepare the order"
+     },
+     {
+      "completed_at": 0,
+      "done_when": "Deliver is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s2",
+      "stage_label": "Deliver",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Deliver the order"
+     }
+    ],
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1,
+     "title": "COP-5 chain fixture (safe to delete)"
+    },
+    "parent": null,
+    "children": []
+   },
+   "ok_to_cancel": {
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": "<set>",
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "cancelled",
+     "title": "Job to cancel",
+     "workspace_id": "<main>"
+    },
+    "tasks": [
+     {
+      "completed_at": 0,
+      "done_when": "Prepare is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s1",
+      "stage_label": "Prepare",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Prepare the order"
+     },
+     {
+      "completed_at": 0,
+      "done_when": "Deliver is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s2",
+      "stage_label": "Deliver",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Deliver the order"
+     }
+    ],
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1,
+     "title": "COP-5 chain fixture (safe to delete)"
+    },
+    "parent": null,
+    "children": []
+   },
+   "ok_child": {
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": "<job:ok_basic>",
+     "started_at": 0,
+     "status": "open",
+     "title": "Job child",
+     "workspace_id": "<main>"
+    },
+    "tasks": [
+     {
+      "completed_at": 0,
+      "done_when": "Prepare is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s1",
+      "stage_label": "Prepare",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Prepare the order"
+     },
+     {
+      "completed_at": 0,
+      "done_when": "Deliver is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s2",
+      "stage_label": "Deliver",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Deliver the order"
+     }
+    ],
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1,
+     "title": "COP-5 chain fixture (safe to delete)"
+    },
+    "parent": {
+     "moved_lines": [],
+     "note": "",
+     "progress": {
+      "current_stage_key": "s1",
+      "current_stage_label": "Prepare",
+      "finished_count": 0,
+      "has_blocked": false,
+      "task_count": 2
+     },
+     "reason_code": "",
+     "stage_key": "",
+     "stage_label": "",
+     "status": "open",
+     "title": "Job basic",
+     "via": "manual",
+     "work_item_id": "<job:ok_basic>"
+    },
+    "children": []
+   },
+   "ok_child_attrs": {
+    "work_item": {
+     "account_id": 13,
+     "attributes": {
+      "k": "v"
+     },
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": "<job:ok_basic>",
+     "started_at": 0,
+     "status": "open",
+     "title": "Job child attrs",
+     "workspace_id": "<main>"
+    },
+    "tasks": [
+     {
+      "completed_at": 0,
+      "done_when": "Prepare is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s1",
+      "stage_label": "Prepare",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Prepare the order"
+     },
+     {
+      "completed_at": 0,
+      "done_when": "Deliver is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s2",
+      "stage_label": "Deliver",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Deliver the order"
+     }
+    ],
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1,
+     "title": "COP-5 chain fixture (safe to delete)"
+    },
+    "parent": {
+     "moved_lines": [],
+     "note": "",
+     "progress": {
+      "current_stage_key": "s1",
+      "current_stage_label": "Prepare",
+      "finished_count": 0,
+      "has_blocked": false,
+      "task_count": 2
+     },
+     "reason_code": "",
+     "stage_key": "",
+     "stage_label": "",
+     "status": "open",
+     "title": "Job basic",
+     "via": "manual",
+     "work_item_id": "<job:ok_basic>"
+    },
+    "children": []
+   },
+   "rej_title_number": {
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "12345",
+     "workspace_id": "<main>"
+    },
+    "tasks": [
+     {
+      "completed_at": 0,
+      "done_when": "Prepare is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s1",
+      "stage_label": "Prepare",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Prepare the order"
+     },
+     {
+      "completed_at": 0,
+      "done_when": "Deliver is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s2",
+      "stage_label": "Deliver",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Deliver the order"
+     }
+    ],
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1,
+     "title": "COP-5 chain fixture (safe to delete)"
+    },
+    "parent": null,
+    "children": []
+   },
+   "ok_no_cid": {
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job no cid",
+     "workspace_id": "<main>"
+    },
+    "tasks": [
+     {
+      "completed_at": 0,
+      "done_when": "Prepare is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s1",
+      "stage_label": "Prepare",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Prepare the order"
+     },
+     {
+      "completed_at": 0,
+      "done_when": "Deliver is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s2",
+      "stage_label": "Deliver",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Deliver the order"
+     }
+    ],
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1,
+     "title": "COP-5 chain fixture (safe to delete)"
+    },
+    "parent": null,
+    "children": []
+   },
+   "ok_cid_padded": {
+    "work_item": {
+     "account_id": 13,
+     "attributes": {},
+     "created_by": 22,
+     "finished_at": 0,
+     "journey_map_version_id": 28,
+     "parent_work_item_id": 0,
+     "started_at": 0,
+     "status": "open",
+     "title": "Job cid padded",
+     "workspace_id": "<main>"
+    },
+    "tasks": [
+     {
+      "completed_at": 0,
+      "done_when": "Prepare is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s1",
+      "stage_label": "Prepare",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Prepare the order"
+     },
+     {
+      "completed_at": 0,
+      "done_when": "Deliver is checked off",
+      "estimate_source": "n/a",
+      "estimate_status": "n/a",
+      "expected_minutes": 30,
+      "lens_key": "lens-2",
+      "owner_lens_label": "Crew",
+      "stage_key": "s2",
+      "stage_label": "Deliver",
+      "started_at": 0,
+      "status": "not_started",
+      "task": "Deliver the order"
+     }
+    ],
+    "pinned_version": {
+     "id": 28,
+     "version_no": 1,
+     "title": "COP-5 chain fixture (safe to delete)"
+    },
+    "parent": null,
+    "children": []
+   }
+  }
+ },
+ "job_ids": {
+  "ok_basic": 172,
+  "ok_attrs": 173,
+  "ok_attrs_null": 174,
+  "ok_attrs_empty": 175,
+  "ok_attrs_list": 176,
+  "ok_title_padded": 177,
+  "ok_title_120": 178,
+  "ok_title_lt": 179,
+  "ok_title_unicode": 180,
+  "ok_extra_ignored": 181,
+  "ok_parent_zero": 182,
+  "ok_other_plan_job": 183,
+  "ok_to_cancel": 184,
+  "ok_child": 185,
+  "ok_child_attrs": 186,
+  "rej_title_number": 187,
+  "ok_no_cid": 188,
+  "ok_cid_padded": 189
+ },
+ "rows_db": {
+  "work_item": 18,
+  "work_task": 36
+ },
+ "events": [
+  {
+   "case": "",
+   "cid_raw_padded": false,
+   "entity": "main",
+   "feature": "PLN-3",
+   "step": "create_workspace",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Plan created.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "planner_workspace",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "",
+   "cid_raw_padded": false,
+   "entity": "other",
+   "feature": "PLN-3",
+   "step": "create_workspace",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Plan created.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "planner_workspace",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "",
+   "cid_raw_padded": false,
+   "entity": "arch",
+   "feature": "PLN-3",
+   "step": "create_workspace",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Plan created.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "planner_workspace",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "",
+   "cid_raw_padded": false,
+   "entity": "nopub",
+   "feature": "PLN-3",
+   "step": "create_workspace",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Plan created.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "planner_workspace",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "",
+   "cid_raw_padded": false,
+   "entity": "main",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Map(s) added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "planner_workspace",
+   "action": null,
+   "metadata": {
+    "added_count": 1,
+    "map_ids": [
+     261
+    ]
+   }
+  },
+  {
+   "case": "",
+   "cid_raw_padded": false,
+   "entity": "other",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Map(s) added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "planner_workspace",
+   "action": null,
+   "metadata": {
+    "added_count": 1,
+    "map_ids": [
+     261
+    ]
+   }
+  },
+  {
+   "case": "",
+   "cid_raw_padded": false,
+   "entity": "arch",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Map(s) added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "planner_workspace",
+   "action": null,
+   "metadata": {
+    "added_count": 1,
+    "map_ids": [
+     261
+    ]
+   }
+  },
+  {
+   "case": "",
+   "cid_raw_padded": false,
+   "entity": "nopub",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "rejected",
+   "severity": null,
+   "error_code": "E-PLAN-004",
+   "message": "Add map to plan refused.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "planner_workspace",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "",
+   "cid_raw_padded": false,
+   "entity": "arch",
+   "feature": "P3A-1",
+   "step": "archive_workspace",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Plan archive flag changed.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "planner_workspace",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "ok_basic",
+   "cid_raw_padded": false,
+   "entity": "ok_basic",
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "skipped_count": 0,
+    "task_count": 2,
+    "version_id": 28,
+    "version_no": 1
+   }
+  },
+  {
+   "case": "ok_attrs",
+   "cid_raw_padded": false,
+   "entity": "ok_attrs",
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "skipped_count": 0,
+    "task_count": 2,
+    "version_id": 28,
+    "version_no": 1
+   }
+  },
+  {
+   "case": "ok_attrs_null",
+   "cid_raw_padded": false,
+   "entity": "ok_attrs_null",
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "skipped_count": 0,
+    "task_count": 2,
+    "version_id": 28,
+    "version_no": 1
+   }
+  },
+  {
+   "case": "ok_attrs_empty",
+   "cid_raw_padded": false,
+   "entity": "ok_attrs_empty",
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "skipped_count": 0,
+    "task_count": 2,
+    "version_id": 28,
+    "version_no": 1
+   }
+  },
+  {
+   "case": "ok_attrs_list",
+   "cid_raw_padded": false,
+   "entity": "ok_attrs_list",
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "skipped_count": 0,
+    "task_count": 2,
+    "version_id": 28,
+    "version_no": 1
+   }
+  },
+  {
+   "case": "ok_title_padded",
+   "cid_raw_padded": false,
+   "entity": "ok_title_padded",
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "skipped_count": 0,
+    "task_count": 2,
+    "version_id": 28,
+    "version_no": 1
+   }
+  },
+  {
+   "case": "ok_title_120",
+   "cid_raw_padded": false,
+   "entity": "ok_title_120",
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "skipped_count": 0,
+    "task_count": 2,
+    "version_id": 28,
+    "version_no": 1
+   }
+  },
+  {
+   "case": "ok_title_lt",
+   "cid_raw_padded": false,
+   "entity": "ok_title_lt",
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "skipped_count": 0,
+    "task_count": 2,
+    "version_id": 28,
+    "version_no": 1
+   }
+  },
+  {
+   "case": "ok_title_unicode",
+   "cid_raw_padded": false,
+   "entity": "ok_title_unicode",
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "skipped_count": 0,
+    "task_count": 2,
+    "version_id": 28,
+    "version_no": 1
+   }
+  },
+  {
+   "case": "ok_extra_ignored",
+   "cid_raw_padded": false,
+   "entity": "ok_extra_ignored",
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "skipped_count": 0,
+    "task_count": 2,
+    "version_id": 28,
+    "version_no": 1
+   }
+  },
+  {
+   "case": "ok_parent_zero",
+   "cid_raw_padded": false,
+   "entity": "ok_parent_zero",
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "skipped_count": 0,
+    "task_count": 2,
+    "version_id": 28,
+    "version_no": 1
+   }
+  },
+  {
+   "case": "ok_other_plan_job",
+   "cid_raw_padded": false,
+   "entity": "ok_other_plan_job",
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "skipped_count": 0,
+    "task_count": 2,
+    "version_id": 28,
+    "version_no": 1
+   }
+  },
+  {
+   "case": "ok_to_cancel",
+   "cid_raw_padded": false,
+   "entity": "ok_to_cancel",
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "skipped_count": 0,
+    "task_count": 2,
+    "version_id": 28,
+    "version_no": 1
+   }
+  },
+  {
+   "case": "cancel",
+   "cid_raw_padded": false,
+   "entity": "ok_to_cancel",
+   "feature": "JOB-1",
+   "step": "cancel_job",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job cancelled.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "ok_child",
+   "cid_raw_padded": false,
+   "entity": "ok_child",
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "skipped_count": 0,
+    "task_count": 2,
+    "version_id": 28,
+    "version_no": 1
+   }
+  },
+  {
+   "case": "ok_child",
+   "cid_raw_padded": false,
+   "entity": "ok_child",
+   "feature": "EXC-1",
+   "step": "child_job_created",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added under a parent job.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "journey_map_version_id": 28,
+    "parent_work_item_id": "<job:ok_basic>",
+    "task_count": 2
+   }
+  },
+  {
+   "case": "ok_child_attrs",
+   "cid_raw_padded": false,
+   "entity": "ok_child_attrs",
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "skipped_count": 0,
+    "task_count": 2,
+    "version_id": 28,
+    "version_no": 1
+   }
+  },
+  {
+   "case": "ok_child_attrs",
+   "cid_raw_padded": false,
+   "entity": "ok_child_attrs",
+   "feature": "EXC-1",
+   "step": "child_job_created",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added under a parent job.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "journey_map_version_id": 28,
+    "parent_work_item_id": "<job:ok_basic>",
+    "task_count": 2
+   }
+  },
+  {
+   "case": "rej_parent_unknown",
+   "cid_raw_padded": false,
+   "entity": 999999,
+   "feature": "EXC-1",
+   "step": "child_job_created",
+   "outcome": "rejected",
+   "severity": null,
+   "error_code": "E-EXC-009",
+   "message": "Add job under a parent refused.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "rej_parent_other_plan",
+   "cid_raw_padded": false,
+   "entity": "ok_other_plan_job",
+   "feature": "EXC-1",
+   "step": "child_job_created",
+   "outcome": "rejected",
+   "severity": null,
+   "error_code": "E-EXC-009",
+   "message": "Add job under a parent refused.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "rej_parent_other_acct",
+   "cid_raw_padded": false,
+   "entity": 1,
+   "feature": "EXC-1",
+   "step": "child_job_created",
+   "outcome": "rejected",
+   "severity": null,
+   "error_code": "E-EXC-009",
+   "message": "Add job under a parent refused.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "rej_parent_cancelled",
+   "cid_raw_padded": false,
+   "entity": "ok_to_cancel",
+   "feature": "EXC-1",
+   "step": "child_job_created",
+   "outcome": "rejected",
+   "severity": null,
+   "error_code": "E-EXC-001",
+   "message": "Add job under a parent refused.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "rej_parent_negative",
+   "cid_raw_padded": false,
+   "entity": -5,
+   "feature": "EXC-1",
+   "step": "child_job_created",
+   "outcome": "rejected",
+   "severity": null,
+   "error_code": "E-EXC-009",
+   "message": "Add job under a parent refused.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "rej_map_and_parent",
+   "cid_raw_padded": false,
+   "entity": 0,
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "rejected",
+   "severity": null,
+   "error_code": "E-JOB-002",
+   "message": "Add job refused.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "rej_title_spaces",
+   "cid_raw_padded": false,
+   "entity": 0,
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "rejected",
+   "severity": null,
+   "error_code": "E-JOB-001",
+   "message": "Add job refused.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "rej_title_121",
+   "cid_raw_padded": false,
+   "entity": 0,
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "rejected",
+   "severity": null,
+   "error_code": "E-JOB-001",
+   "message": "Add job refused.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "rej_title_html",
+   "cid_raw_padded": false,
+   "entity": 0,
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "rejected",
+   "severity": null,
+   "error_code": "E-JOB-001",
+   "message": "Add job refused.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "rej_title_script",
+   "cid_raw_padded": false,
+   "entity": 0,
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "rejected",
+   "severity": null,
+   "error_code": "E-JOB-001",
+   "message": "Add job refused.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "rej_title_number",
+   "cid_raw_padded": false,
+   "entity": "rej_title_number",
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "skipped_count": 0,
+    "task_count": 2,
+    "version_id": 28,
+    "version_no": 1
+   }
+  },
+  {
+   "case": "rej_map_unpublished",
+   "cid_raw_padded": false,
+   "entity": 0,
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "rejected",
+   "severity": null,
+   "error_code": "E-JOB-002",
+   "message": "Add job refused.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "rej_map_nopub_plan",
+   "cid_raw_padded": false,
+   "entity": 0,
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "rejected",
+   "severity": null,
+   "error_code": "E-JOB-002",
+   "message": "Add job refused.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "rej_map_not_accepted_ok_map",
+   "cid_raw_padded": false,
+   "entity": 0,
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "rejected",
+   "severity": null,
+   "error_code": "E-JOB-002",
+   "message": "Add job refused.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "rej_map_unknown",
+   "cid_raw_padded": false,
+   "entity": 0,
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "rejected",
+   "severity": null,
+   "error_code": "E-JOB-002",
+   "message": "Add job refused.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "rej_map_other_acct",
+   "cid_raw_padded": false,
+   "entity": 0,
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "rejected",
+   "severity": null,
+   "error_code": "E-JOB-002",
+   "message": "Add job refused.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "rej_title_and_map",
+   "cid_raw_padded": false,
+   "entity": 0,
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "rejected",
+   "severity": null,
+   "error_code": "E-JOB-001",
+   "message": "Add job refused.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "rej_archived",
+   "cid_raw_padded": false,
+   "entity": "arch",
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "rejected",
+   "severity": null,
+   "error_code": "E-GOV-004",
+   "message": "Write refused: this record is archived.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "planner_workspace",
+   "action": null,
+   "metadata": {}
+  },
+  {
+   "case": "",
+   "cid_raw_padded": false,
+   "entity": "ok_no_cid",
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "skipped_count": 0,
+    "task_count": 2,
+    "version_id": 28,
+    "version_no": 1
+   }
+  },
+  {
+   "case": "ok_cid_padded",
+   "cid_raw_padded": false,
+   "entity": "ok_cid_padded",
+   "feature": "JOB-1",
+   "step": "add_job",
+   "outcome": "success",
+   "severity": null,
+   "error_code": "",
+   "message": "Job added to plan.",
+   "user_id": null,
+   "account_id": null,
+   "entity_type": "work_item",
+   "action": null,
+   "metadata": {
+    "skipped_count": 0,
+    "task_count": 2,
+    "version_id": 28,
+    "version_no": 1
+   }
+  }
+ ],
+ "versions": {
+  "unpublished": 0,
+  "all": 26
+ }
+}

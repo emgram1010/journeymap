@@ -1,11 +1,15 @@
-// COP-5 story 01 (rule moved from endpoint 554, JOB-1 US-JOB-1-02) - add a job to a plan; its tasks come from the map's latest published version, and the job stays pinned to that version for good. This is endpoint 554's rule moved, not rewritten: same checks in the same order, same error codes and messages, same events, same writes, same response keys - so the endpoint and the copilot tool (plan_add_job) create jobs through one piece of code. Takes `actor` (what planner/resolve_actor returns: user_id, account_id, role) because a function has no $auth. Two checks before anything is written: the plan must accept the map (E-JOB-002) and the map must have a published version (E-JOB-003). The job row and all its tasks are one db.transaction. parent_work_item_id 0 = an ordinary job; a real id puts the job under that parent (EXC-1 US-EXC-1-04: must be in this account and this plan, E-EXC-009, and not cancelled, E-EXC-001). Every function.run passes every input this function shares a name with, because an omitted one would inherit this function's own input.
+// COP-5 story 01 (rule moved from endpoint 554, JOB-1 US-JOB-1-02) - add a job to a plan; its tasks come from the map's latest published version, and the job stays pinned to that version for good. This is endpoint 554's rule moved, not rewritten: same checks in the same order, same error codes and messages, same events, same writes, same response keys - so the endpoint and the copilot tool (plan_add_job) create jobs through one piece of code. Takes `actor` (what planner/resolve_actor returns: user_id, account_id, role) because a function has no $auth. Two checks before anything is written: the plan must accept the map (E-JOB-002) and the map must have a published version (E-JOB-003). The job row and all its tasks are one db.transaction. parent_work_item_id 0 = an ordinary job; a real id puts the job under that parent (EXC-1 US-EXC-1-04: must be in this account and this plan, E-EXC-009, and not cancelled, E-EXC-001). Every function.run passes every input this function shares a name with, because an omitted one would inherit this function's own input. Since 4-C (2026-11-17) endpoint 554 itself calls this function, so this is the only copy of the rule. "Latest published version" = the highest version_no: every journey_map_version row is written only by Publish version (endpoint 201, which always stamps published_at), so there is no unpublished version to skip (checked live: 0 of 26 rows without published_at).
 function "planner_ops/create_work_item" {
   input {
     // What planner/resolve_actor returns: {user_id, account_id, role}.
     json actor
     int workspace_id filters=min:1
     int journey_map_id filters=min:1
-    text title filters=trim
+
+    // Optional on purpose (4-C, 2026-11-17): a title of only spaces trims to "", and a REQUIRED
+    // input would refuse that with a bare "Missing param" and no event. Optional lets it reach the
+    // E-JOB-001 check below, which is what endpoint 554 always answered.
+    text title? filters=trim
     json attributes?
 
     // EXC-1 - 0 (omitted) = no parent. An optional int arrives as 0, never null.
