@@ -1,4 +1,4 @@
-// COP-5 story 01 - "the plan accepts these maps": the rule of endpoint 570 (POST /workspace/{workspace_id}/map, PLN-9), moved here unchanged so the endpoint and the copilot tool plan_accept_map share one copy. The caller resolves the actor (planner/resolve_actor) and passes it in; a function has no $auth. Append-only and idempotent: a map the plan already accepts is skipped, never rejected, so calling twice with the same list is safe. A map must belong to this account AND have a published version (planner/assert_maps_publishable, unchanged): not published is E-PLAN-004, not this account's is E-PLAN-015. An archived plan is refused (E-GOV-004). One verdict, one log, one raise.
+// COP-5 story 01 - "the plan accepts these maps": the rule of endpoint 570 (POST /workspace/{workspace_id}/map, PLN-9), moved here unchanged so the endpoint and the copilot tool plan_accept_map share one copy. The caller resolves the actor (planner/resolve_actor) and passes it in; a function has no $auth. Append-only and idempotent: a map the plan already accepts is skipped, never rejected, so calling twice with the same list is safe. A map must belong to this account AND have a published version (planner/assert_maps_publishable, unchanged): not published is E-PLAN-004, not this account's is E-PLAN-015. An archived plan is refused (E-GOV-004). One verdict, one log, one raise. 4-C (2026-11-16): endpoint 570 now calls this function too, so the rule exists once. One fix on the move: a map id repeated in one call is added once (it used to insert twice and fail with a raw duplicate-record error and no event).
 function "planner_ops/accept_maps" {
   input {
     json actor
@@ -139,6 +139,12 @@ function "planner_ops/accept_maps" {
 
         array.push $to_add {
           value = {map_id: $mid, already: ($have|get:$key:null)}
+        }
+
+        // 4-C fix: mark it seen, so the same map id twice in one call is
+        // added once (it used to insert twice and fail on the unique index).
+        var.update $have {
+          value = $have|set:$key:1
         }
       }
     }

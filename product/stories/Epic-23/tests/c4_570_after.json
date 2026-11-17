@@ -1,0 +1,601 @@
+{
+ "tag": "192602",
+ "label": "after",
+ "plans": {
+  "main": 94,
+  "dup": 95,
+  "empty": 96,
+  "arch": 97
+ },
+ "results": {
+  "ok_single": {
+   "http": 200,
+   "body": {
+    "added_count": 1,
+    "map_ids": [
+     261
+    ]
+   }
+  },
+  "ok_again_idem": {
+   "http": 200,
+   "body": {
+    "added_count": 0,
+    "map_ids": [
+     261
+    ]
+   }
+  },
+  "ok_no_cid": {
+   "http": 200,
+   "body": {
+    "added_count": 0,
+    "map_ids": [
+     261
+    ]
+   }
+  },
+  "ok_string_id_idem": {
+   "http": 200,
+   "body": {
+    "added_count": 0,
+    "map_ids": [
+     261
+    ]
+   }
+  },
+  "ok_cid_padded": {
+   "http": 200,
+   "body": {
+    "added_count": 0,
+    "map_ids": [
+     261
+    ]
+   }
+  },
+  "dup_in_one_call": {
+   "http": 200,
+   "body": {
+    "added_count": 1,
+    "map_ids": [
+     261
+    ]
+   }
+  },
+  "rej_unpublished": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Publish 'COP-1 fixture (safe to delete)' first. Only published maps can be used in a plan. (E-PLAN-004)",
+    "payload": ""
+   }
+  },
+  "rej_mixed": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Publish 'COP-1 fixture (safe to delete)' first. Only published maps can be used in a plan. (E-PLAN-004)",
+    "payload": ""
+   }
+  },
+  "rej_other_acct_map": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "One of those maps isn't available to this account. (E-PLAN-015)",
+    "payload": ""
+   }
+  },
+  "rej_unknown_map": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "One of those maps isn't available to this account. (E-PLAN-015)",
+    "payload": ""
+   }
+  },
+  "rej_zero_map": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "One of those maps isn't available to this account. (E-PLAN-015)",
+    "payload": ""
+   }
+  },
+  "rej_empty_list": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Choose at least one map to add. (E-VAL-001)",
+    "payload": ""
+   }
+  },
+  "rej_missing_list": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: map_ids",
+    "payload": {
+     "param": "map_ids"
+    }
+   }
+  },
+  "rej_null_list": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Choose at least one map to add. (E-VAL-001)",
+    "payload": ""
+   }
+  },
+  "rej_number_not_list": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Choose at least one map to add. (E-VAL-001)",
+    "payload": ""
+   }
+  },
+  "rej_string_not_list": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Choose at least one map to add. (E-VAL-001)",
+    "payload": ""
+   }
+  },
+  "rej_unknown_plan": {
+   "http": 404,
+   "body": {
+    "code": "ERROR_CODE_NOT_FOUND",
+    "message": "Plan not found",
+    "payload": ""
+   }
+  },
+  "rej_unknown_plan_empty": {
+   "http": 404,
+   "body": {
+    "code": "ERROR_CODE_NOT_FOUND",
+    "message": "Plan not found",
+    "payload": ""
+   }
+  },
+  "rej_other_acct_plan": {
+   "http": 404,
+   "body": {
+    "code": "ERROR_CODE_NOT_FOUND",
+    "message": "Plan not found",
+    "payload": ""
+   }
+  },
+  "rej_archived": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This has been archived, so it can't be changed. (E-GOV-004)",
+    "payload": ""
+   }
+  },
+  "rej_archived_empty": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This has been archived, so it can't be changed. (E-GOV-004)",
+    "payload": ""
+   }
+  },
+  "rej_archived_unpub": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This has been archived, so it can't be changed. (E-GOV-004)",
+    "payload": ""
+   }
+  },
+  "rej_no_auth": {
+   "http": 401,
+   "body": {
+    "code": "ERROR_CODE_UNAUTHORIZED",
+    "message": "Unauthorized - Authentication Required",
+    "payload": null
+   }
+  },
+  "rej_plan_zero": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Value is less than the minimum value of 1",
+    "payload": {
+     "param": "workspace_id"
+    }
+   }
+  }
+ },
+ "rows": {
+  "main": [
+   261
+  ],
+  "dup": [
+   261
+  ],
+  "empty": [],
+  "arch": []
+ },
+ "events": [
+  {
+   "case": "",
+   "plan": "main",
+   "feature": "PLN-3",
+   "step": "create_workspace",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Plan created.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {}
+  },
+  {
+   "case": "",
+   "plan": "dup",
+   "feature": "PLN-3",
+   "step": "create_workspace",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Plan created.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {}
+  },
+  {
+   "case": "",
+   "plan": "empty",
+   "feature": "PLN-3",
+   "step": "create_workspace",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Plan created.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {}
+  },
+  {
+   "case": "",
+   "plan": "arch",
+   "feature": "PLN-3",
+   "step": "create_workspace",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Plan created.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {}
+  },
+  {
+   "case": "",
+   "plan": "arch",
+   "feature": "P3A-1",
+   "step": "archive_workspace",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Plan archive flag changed.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {}
+  },
+  {
+   "case": "ok_single",
+   "plan": "main",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Map(s) added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {
+    "map_ids": [
+     261
+    ],
+    "added_count": 1
+   }
+  },
+  {
+   "case": "ok_again_idem",
+   "plan": "main",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Map(s) added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {
+    "map_ids": [
+     261
+    ],
+    "added_count": 0
+   }
+  },
+  {
+   "case": "",
+   "plan": "main",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Map(s) added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {
+    "map_ids": [
+     261
+    ],
+    "added_count": 0
+   }
+  },
+  {
+   "case": "ok_string_id_idem",
+   "plan": "main",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Map(s) added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {
+    "map_ids": [
+     261
+    ],
+    "added_count": 0
+   }
+  },
+  {
+   "case": "ok_cid_padded",
+   "plan": "main",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Map(s) added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {
+    "map_ids": [
+     261
+    ],
+    "added_count": 0
+   }
+  },
+  {
+   "case": "dup_in_one_call",
+   "plan": "dup",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Map(s) added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {
+    "map_ids": [
+     261
+    ],
+    "added_count": 1
+   }
+  },
+  {
+   "case": "rej_unpublished",
+   "plan": "empty",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-PLAN-004",
+   "message": "Add map to plan refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {}
+  },
+  {
+   "case": "rej_mixed",
+   "plan": "empty",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-PLAN-004",
+   "message": "Add map to plan refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {}
+  },
+  {
+   "case": "rej_other_acct_map",
+   "plan": "empty",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-PLAN-015",
+   "message": "Add map to plan refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {}
+  },
+  {
+   "case": "rej_unknown_map",
+   "plan": "empty",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-PLAN-015",
+   "message": "Add map to plan refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {}
+  },
+  {
+   "case": "rej_zero_map",
+   "plan": "empty",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-PLAN-015",
+   "message": "Add map to plan refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {}
+  },
+  {
+   "case": "rej_empty_list",
+   "plan": "empty",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-VAL-001",
+   "message": "Add map to plan refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {}
+  },
+  {
+   "case": "rej_null_list",
+   "plan": "empty",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-VAL-001",
+   "message": "Add map to plan refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {}
+  },
+  {
+   "case": "rej_number_not_list",
+   "plan": "empty",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-VAL-001",
+   "message": "Add map to plan refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {}
+  },
+  {
+   "case": "rej_string_not_list",
+   "plan": "empty",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-VAL-001",
+   "message": "Add map to plan refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {}
+  },
+  {
+   "case": "rej_archived",
+   "plan": "arch",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-GOV-004",
+   "message": "Write refused: this record is archived.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {}
+  },
+  {
+   "case": "rej_archived_empty",
+   "plan": "arch",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-GOV-004",
+   "message": "Write refused: this record is archived.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {}
+  },
+  {
+   "case": "rej_archived_unpub",
+   "plan": "arch",
+   "feature": "PLN-9",
+   "step": "add_workspace_map",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-GOV-004",
+   "message": "Write refused: this record is archived.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "duration_ms": 0,
+   "metadata": {}
+  }
+ ]
+}
