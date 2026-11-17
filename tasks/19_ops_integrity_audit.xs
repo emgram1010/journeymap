@@ -81,6 +81,22 @@ task ops_integrity_audit {
         } as $_door_failed
       }
     }
+
+    // R17 (2026-11-16) - prune old copilot run history (copilot/prune_runs logs its own success).
+    // Same reason for living here: no free task slot. A prune that cannot run logs E-COP-074.
+    try_catch {
+      try {
+        function.run "copilot/prune_runs" {
+          input = {}
+        } as $pruned
+      }
+
+      catch {
+        function.run "ops/log_event" {
+          input = {feature: "COP-5", step: "prune_runs", outcome: "failure", severity: "warn", user_id: 0, account_id: 0, entity_type: "copilot_run", entity_id: 0, correlation_id: "", error_code: "E-COP-074", message: "Nightly cleanup of old copilot run history could not run.", metadata: {}}
+        } as $_prune_failed
+      }
+    }
   }
 
   schedule = [{starts_on: 2026-10-14 04:00:00+0000, freq: 86400}]

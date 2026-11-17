@@ -137,6 +137,28 @@ test('the run reads a caught error whole - $error.message ?? x always gives the 
   assert.ok(!src.includes('$error.message ??'), 'no $error.message ?? left');
 });
 
+test('COP-3: the copilot\'s own business cannot be deleted, soft or hard, and the refusal is logged', () => {
+  const src = read('apis/journey_map/69_journey_architecture_journey_architecture_id_DELETE.xs');
+  const guardAt = src.indexOf('db.query copilot_home {');
+  assert.ok(guardAt > 0, 'it looks the business up in copilot_home');
+  assert.ok(guardAt < src.indexOf('db.query journey_map {'), 'checked before any map is touched');
+  assert.ok(guardAt < src.indexOf('$was_hard'), 'checked for soft and hard alike');
+  assert.ok(src.includes('error_code    : "E-COP-073"'), 'a rejected event is logged');
+  assert.ok(src.includes("It can't be deleted. (E-COP-073)"));
+});
+
+test('R17: old copilot run history is pruned nightly, never a running row', () => {
+  const src = read('functions/copilot/prune_runs.xs');
+  assert.ok(src.includes('"14 days ago"') && src.includes('"90 days ago"'));
+  const wheres = src.split('\n').filter((l) => l.trim().startsWith('where ='));
+  assert.equal(wheres.length, 2);
+  assert.ok(wheres.every((w) => !w.includes('"running"')), 'the live lock row is never selected');
+  assert.ok(!src.includes('paging'), 'no paged list (foreach on it fails)');
+  const task = read('tasks/19_ops_integrity_audit.xs');
+  assert.ok(task.includes('function.run "copilot/prune_runs"'), 'the nightly task runs it');
+  assert.ok(task.includes('"E-COP-074"'), 'a prune that cannot run is logged');
+});
+
 test('COP-4-05: "my edits teach it" reads drafted vs approved, needs 3 edits, and never writes', () => {
   const src = read('ai/tool/get_my_edit_patterns.xs');
   assert.ok(src.includes('kind: "read"'), 'a read tool');

@@ -254,9 +254,14 @@ create_workspace (50), list_maps (54), search_maps (57), invoke_map (53); `journ
 | `npm test` / `tsc` | ✅ 808/808 / clean |
 
 **Not done / gaps:**
-- "The copilot's own business can't be deleted" (governance) — not added. Live endpoint 69 (delete
-  business) has a newer soft-delete version than the repo file, and the live source export drops
-  brackets, so neither could be pushed safely tonight. **The repo copy of 69 is stale** — flagged.
+- ~~"The copilot's own business can't be deleted"~~ ✅ done 2026-11-16 (founder's OK). Endpoint 69
+  was rebuilt from the LIVE source (the repo copy was stale; it is now refreshed) with one added
+  check right after the owner check: a business listed in `copilot_home` is refused, soft or hard,
+  with **E-COP-073**, and a `rejected` event is logged. Rollback = the live source saved before the
+  push. Proven over HTTP (`tests/cop3_delete_guard_probe.py`, 9/9): soft and hard delete of the
+  copilot's business refused, it and its maps still there, events 9587/9588 logged; a normal
+  business still soft- then hard-deletes; an unknown id is still "not found". **Test data:** account
+  13 now has a copilot business (architecture 54, `copilot_home` row).
 - Story 06: plan and work-record reading needs planner read tools (COP-5).
 - Long conversations send the whole history (no trimming yet).
 - The four starter maps are created empty, by design (content written with the founder).

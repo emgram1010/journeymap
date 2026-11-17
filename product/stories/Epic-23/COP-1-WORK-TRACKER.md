@@ -387,6 +387,13 @@ keeps running after it is deleted. The table is marked append-only though a row 
 ends, and can be patched twice (stale sweep, then a late finish). 39 `scratch/*` functions and two
 scratch API groups (29, 30) are still live, including ones that mint a token, create users and corrupt
 rows on purpose - reachable only with workspace access, and all older than this work.
+**R17 fixed 2026-11-16 (founder's OK):** `copilot/prune_runs` (382), run nightly from task 19 (no free
+task slot; a failure logs E-COP-074): removes "nothing to do"/"skipped" rows older than 14 days and
+"finished"/"failed" older than 90; never a running row. Proven with three planted old rows (the two
+expired went, the 20-day finished row stayed, then cleaned). All remaining scratch functions deleted
+(36 - three were already gone), after checking nothing calls them. **Still open:** scratch API groups
+29 and 30 (not in the OK - ask), a deleted business with a stored level still runs, and the
+append-only note on the table vs the patch at run end.
 
 ### 3. Things that are fine (checked hard)
 

@@ -2317,6 +2317,26 @@
     "severity": "info",
     "fix_hint": "Nothing to do - the note is no longer there."
   },
+  "E-COP-073": {
+    "code": "E-COP-073",
+    "feature": "COP-3",
+    "user_message": "This is the copilot's own business, where it keeps how it works. It can't be deleted.",
+    "what_happened": "Someone tried to delete (or hard delete) the business marked as the copilot's home in copilot_home.",
+    "likely_cause": "The copilot's business looks like any other business in the list.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Nothing to do. Edit or remove the maps inside it instead; the business itself stays."
+  },
+  "E-COP-074": {
+    "code": "E-COP-074",
+    "feature": "COP-5",
+    "user_message": "Old copilot run history could not be cleaned up tonight. Nothing is lost; it tries again tomorrow.",
+    "what_happened": "The nightly task (ops_integrity_audit) could not run copilot/prune_runs.",
+    "likely_cause": "A short database problem, or the function was changed or removed.",
+    "owner": "engineer",
+    "severity": "warn",
+    "fix_hint": "Run copilot/prune_runs by hand and read its error. If it keeps failing, copilot_run keeps growing until it is fixed."
+  },
   "E-COP-060": {
     "code": "E-COP-060",
     "feature": "COP-6",
