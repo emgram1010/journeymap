@@ -1,0 +1,1445 @@
+{
+ "tag": "193102",
+ "label": "before",
+ "plans": {
+  "main": 98,
+  "edge": 99,
+  "arch": 100,
+  "pal": 101
+ },
+ "results": {
+  "ok_all_fields": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#123456",
+     "daily_capacity_hours": 6.5,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "ai",
+     "model_id": 14,
+     "name": "C4 <TAG> all",
+     "user_id": 0,
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_name_only": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#475569",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> only",
+     "user_id": 0,
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_no_cid": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#0d9488",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> nocid",
+     "user_id": 0,
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_color_blank": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#c2410c",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> cblank",
+     "user_id": 0,
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_color_spaces": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#b45309",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> cspace",
+     "user_id": 0,
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_cap_24": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#7c3aed",
+     "daily_capacity_hours": 24,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> cap24",
+     "user_id": 0,
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_cap_small": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#059669",
+     "daily_capacity_hours": 0.25,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> capsmall",
+     "user_id": 0,
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_model_zero": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#0284c7",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> mzero",
+     "user_id": 0,
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_ai_no_model": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#9f1239",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "ai",
+     "model_id": 0,
+     "name": "C4 <TAG> ainomodel",
+     "user_id": 0,
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_60_chars": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#475569",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> sixty xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "user_id": 0,
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_html_name": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#475569",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "<b>C4 <TAG> html</b>",
+     "user_id": 0,
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_extra_ignored": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#475569",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> extra",
+     "user_id": 0,
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_cid_padded": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#475569",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> cidpad",
+     "user_id": 0,
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "rej_cap_0": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Daily capacity has to be more than 0 and no more than 24 hours. (E-PLN-009)",
+    "payload": ""
+   }
+  },
+  "rej_cap_neg": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Daily capacity has to be more than 0 and no more than 24 hours. (E-PLN-009)",
+    "payload": ""
+   }
+  },
+  "rej_cap_over": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Daily capacity has to be more than 0 and no more than 24 hours. (E-PLN-009)",
+    "payload": ""
+   }
+  },
+  "rej_cap_null": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#475569",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> capnull",
+     "user_id": 0,
+     "workspace_id": "<edge>"
+    }
+   }
+  },
+  "rej_cap_string": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Input is not a valid decimal number.",
+    "payload": {
+     "param": "daily_capacity_hours"
+    }
+   }
+  },
+  "rej_dup_name": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This plan already has someone with that name. (E-PLN-007)",
+    "payload": ""
+   }
+  },
+  "rej_dup_padded": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This plan already has someone with that name. (E-PLN-007)",
+    "payload": ""
+   }
+  },
+  "case_dup_lower": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#475569",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "c4 <TAG> only",
+     "user_id": 0,
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "rej_name_blank": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: name",
+    "payload": {
+     "param": "name"
+    }
+   }
+  },
+  "rej_name_spaces": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Give this person or agent a name. (E-VAL-001)",
+    "payload": ""
+   }
+  },
+  "rej_name_missing": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: name",
+    "payload": {
+     "param": "name"
+    }
+   }
+  },
+  "rej_name_null": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: name",
+    "payload": {
+     "param": "name"
+    }
+   }
+  },
+  "rej_61_chars": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "That name is too long \u2014 60 characters at most. (E-VAL-002)",
+    "payload": ""
+   }
+  },
+  "rej_kind_missing": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: kind",
+    "payload": {
+     "param": "kind"
+    }
+   }
+  },
+  "rej_kind_bad": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Input \"robot\" is not one of the allowable values.",
+    "payload": {
+     "param": "kind"
+    }
+   }
+  },
+  "rej_kind_blank": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: kind",
+    "payload": {
+     "param": "kind"
+    }
+   }
+  },
+  "rej_person_model": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Only AI agents can have a model. (E-PLN-008)",
+    "payload": ""
+   }
+  },
+  "rej_other_model": {
+   "http": 404,
+   "body": {
+    "code": "ERROR_CODE_NOT_FOUND",
+    "message": "Model not found",
+    "payload": ""
+   }
+  },
+  "rej_unknown_model": {
+   "http": 404,
+   "body": {
+    "code": "ERROR_CODE_NOT_FOUND",
+    "message": "Model not found",
+    "payload": ""
+   }
+  },
+  "rej_model_null": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#0d9488",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "ai",
+     "model_id": 0,
+     "name": "C4 <TAG> mnull",
+     "user_id": 0,
+     "workspace_id": "<edge>"
+    }
+   }
+  },
+  "rej_order_model_vs_name": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: name",
+    "payload": {
+     "param": "name"
+    }
+   }
+  },
+  "rej_order_name_vs_cap": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Give this person or agent a name. (E-VAL-001)",
+    "payload": ""
+   }
+  },
+  "rej_order_cap_vs_model": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Daily capacity has to be more than 0 and no more than 24 hours. (E-PLN-009)",
+    "payload": ""
+   }
+  },
+  "rej_order_model_vs_dup": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Only AI agents can have a model. (E-PLN-008)",
+    "payload": ""
+   }
+  },
+  "rej_unknown_plan": {
+   "http": 404,
+   "body": {
+    "code": "ERROR_CODE_NOT_FOUND",
+    "message": "Plan not found",
+    "payload": ""
+   }
+  },
+  "rej_other_acct_plan": {
+   "http": 404,
+   "body": {
+    "code": "ERROR_CODE_NOT_FOUND",
+    "message": "Plan not found",
+    "payload": ""
+   }
+  },
+  "rej_plan_zero": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Value is less than the minimum value of 1",
+    "payload": {
+     "param": "workspace_id"
+    }
+   }
+  },
+  "rej_archived": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This has been archived, so it can't be changed. (E-GOV-004)",
+    "payload": ""
+   }
+  },
+  "rej_archived_blank": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: name",
+    "payload": {
+     "param": "name"
+    }
+   }
+  },
+  "rej_no_auth": {
+   "http": 401,
+   "body": {
+    "code": "ERROR_CODE_UNAUTHORIZED",
+    "message": "Unauthorized - Authentication Required",
+    "payload": null
+   }
+  },
+  "pal_1": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#475569",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> pal 1",
+     "user_id": 0,
+     "workspace_id": "<pal>"
+    }
+   }
+  },
+  "pal_2": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#0d9488",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> pal 2",
+     "user_id": 0,
+     "workspace_id": "<pal>"
+    }
+   }
+  },
+  "pal_3": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#c2410c",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> pal 3",
+     "user_id": 0,
+     "workspace_id": "<pal>"
+    }
+   }
+  },
+  "pal_4": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#b45309",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> pal 4",
+     "user_id": 0,
+     "workspace_id": "<pal>"
+    }
+   }
+  },
+  "pal_5": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#7c3aed",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> pal 5",
+     "user_id": 0,
+     "workspace_id": "<pal>"
+    }
+   }
+  },
+  "pal_6": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#059669",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> pal 6",
+     "user_id": 0,
+     "workspace_id": "<pal>"
+    }
+   }
+  },
+  "pal_7": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#0284c7",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> pal 7",
+     "user_id": 0,
+     "workspace_id": "<pal>"
+    }
+   }
+  },
+  "pal_8": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#9f1239",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> pal 8",
+     "user_id": 0,
+     "workspace_id": "<pal>"
+    }
+   }
+  },
+  "pal_9": {
+   "http": 200,
+   "body": {
+    "agent": {
+     "color": "#475569",
+     "daily_capacity_hours": 8,
+     "is_active": true,
+     "is_visible": true,
+     "kind": "person",
+     "model_id": 0,
+     "name": "C4 <TAG> pal 9",
+     "user_id": 0,
+     "workspace_id": "<pal>"
+    }
+   }
+  }
+ },
+ "rows": [
+  {
+   "plan": "main",
+   "name": "C4 <TAG> all",
+   "kind": "ai",
+   "color": "#123456",
+   "daily_capacity_hours": 6.5,
+   "is_visible": true,
+   "model_id": 14,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "main",
+   "name": "C4 <TAG> only",
+   "kind": "person",
+   "color": "#475569",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "main",
+   "name": "C4 <TAG> nocid",
+   "kind": "person",
+   "color": "#0d9488",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "main",
+   "name": "C4 <TAG> cblank",
+   "kind": "person",
+   "color": "#c2410c",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "main",
+   "name": "C4 <TAG> cspace",
+   "kind": "person",
+   "color": "#b45309",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "main",
+   "name": "C4 <TAG> cap24",
+   "kind": "person",
+   "color": "#7c3aed",
+   "daily_capacity_hours": 24,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "main",
+   "name": "C4 <TAG> capsmall",
+   "kind": "person",
+   "color": "#059669",
+   "daily_capacity_hours": 0.25,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "main",
+   "name": "C4 <TAG> mzero",
+   "kind": "person",
+   "color": "#0284c7",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "main",
+   "name": "C4 <TAG> ainomodel",
+   "kind": "ai",
+   "color": "#9f1239",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "main",
+   "name": "C4 <TAG> sixty xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "kind": "person",
+   "color": "#475569",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "main",
+   "name": "<b>C4 <TAG> html</b>",
+   "kind": "person",
+   "color": "#475569",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "main",
+   "name": "C4 <TAG> extra",
+   "kind": "person",
+   "color": "#475569",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "main",
+   "name": "C4 <TAG> cidpad",
+   "kind": "person",
+   "color": "#475569",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "edge",
+   "name": "C4 <TAG> capnull",
+   "kind": "person",
+   "color": "#475569",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "main",
+   "name": "c4 <TAG> only",
+   "kind": "person",
+   "color": "#475569",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "edge",
+   "name": "C4 <TAG> mnull",
+   "kind": "ai",
+   "color": "#0d9488",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "pal",
+   "name": "C4 <TAG> pal 1",
+   "kind": "person",
+   "color": "#475569",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "pal",
+   "name": "C4 <TAG> pal 2",
+   "kind": "person",
+   "color": "#0d9488",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "pal",
+   "name": "C4 <TAG> pal 3",
+   "kind": "person",
+   "color": "#c2410c",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "pal",
+   "name": "C4 <TAG> pal 4",
+   "kind": "person",
+   "color": "#b45309",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "pal",
+   "name": "C4 <TAG> pal 5",
+   "kind": "person",
+   "color": "#7c3aed",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "pal",
+   "name": "C4 <TAG> pal 6",
+   "kind": "person",
+   "color": "#059669",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "pal",
+   "name": "C4 <TAG> pal 7",
+   "kind": "person",
+   "color": "#0284c7",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "pal",
+   "name": "C4 <TAG> pal 8",
+   "kind": "person",
+   "color": "#9f1239",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  },
+  {
+   "plan": "pal",
+   "name": "C4 <TAG> pal 9",
+   "kind": "person",
+   "color": "#475569",
+   "daily_capacity_hours": 8,
+   "is_visible": true,
+   "model_id": 0,
+   "user_id": 0,
+   "is_active": true
+  }
+ ],
+ "events": [
+  {
+   "case": "ok_all_fields",
+   "entity": "C4 <TAG> all",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "ok_name_only",
+   "entity": "C4 <TAG> only",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "",
+   "entity": "C4 <TAG> nocid",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "ok_color_blank",
+   "entity": "C4 <TAG> cblank",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "ok_color_spaces",
+   "entity": "C4 <TAG> cspace",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "ok_cap_24",
+   "entity": "C4 <TAG> cap24",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "ok_cap_small",
+   "entity": "C4 <TAG> capsmall",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "ok_model_zero",
+   "entity": "C4 <TAG> mzero",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "ok_ai_no_model",
+   "entity": "C4 <TAG> ainomodel",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "ok_60_chars",
+   "entity": "C4 <TAG> sixty xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "ok_html_name",
+   "entity": "<b>C4 <TAG> html</b>",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "ok_extra_ignored",
+   "entity": "C4 <TAG> extra",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "ok_cid_padded",
+   "entity": "C4 <TAG> cidpad",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "rej_cap_0",
+   "entity": 0,
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-PLN-009",
+   "message": "Agent create refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "rej_cap_neg",
+   "entity": 0,
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-PLN-009",
+   "message": "Agent create refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "rej_cap_over",
+   "entity": 0,
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-PLN-009",
+   "message": "Agent create refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "rej_cap_null",
+   "entity": "C4 <TAG> capnull",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "rej_dup_name",
+   "entity": 0,
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-PLN-007",
+   "message": "Agent create refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "rej_dup_padded",
+   "entity": 0,
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-PLN-007",
+   "message": "Agent create refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "case_dup_lower",
+   "entity": "c4 <TAG> only",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "rej_name_spaces",
+   "entity": 0,
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-VAL-001",
+   "message": "Agent create refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "rej_61_chars",
+   "entity": 0,
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-VAL-002",
+   "message": "Agent create refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "rej_person_model",
+   "entity": 0,
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-PLN-008",
+   "message": "Agent create refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "rej_model_null",
+   "entity": "C4 <TAG> mnull",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "rej_order_name_vs_cap",
+   "entity": 0,
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-VAL-001",
+   "message": "Agent create refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "rej_order_cap_vs_model",
+   "entity": 0,
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-PLN-009",
+   "message": "Agent create refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "rej_order_model_vs_dup",
+   "entity": 0,
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-PLN-008",
+   "message": "Agent create refused.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "rej_archived",
+   "entity": "arch",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "rejected",
+   "severity": "info",
+   "error_code": "E-GOV-004",
+   "message": "Write refused: this record is archived.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_workspace",
+   "metadata": {}
+  },
+  {
+   "case": "pal_1",
+   "entity": "C4 <TAG> pal 1",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "pal_2",
+   "entity": "C4 <TAG> pal 2",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "pal_3",
+   "entity": "C4 <TAG> pal 3",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "pal_4",
+   "entity": "C4 <TAG> pal 4",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "pal_5",
+   "entity": "C4 <TAG> pal 5",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "pal_6",
+   "entity": "C4 <TAG> pal 6",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "pal_7",
+   "entity": "C4 <TAG> pal 7",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "pal_8",
+   "entity": "C4 <TAG> pal 8",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  },
+  {
+   "case": "pal_9",
+   "entity": "C4 <TAG> pal 9",
+   "feature": "PLN-5",
+   "step": "create_agent",
+   "outcome": "success",
+   "severity": "info",
+   "error_code": "",
+   "message": "Agent added to plan.",
+   "user_id": 22,
+   "account_id": 13,
+   "entity_type": "planner_agent",
+   "metadata": {}
+  }
+ ]
+}

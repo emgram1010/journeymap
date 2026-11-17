@@ -1,10 +1,14 @@
-// COP-5 story 01 (rule moved from endpoint 535, PLN-5 US-PLN-5-01) - add someone (or something) to a plan. This is endpoint 535's rule moved, not rewritten: same checks in the same order, same error codes and messages, same events, same write, same response key - so the endpoint and the copilot tool (plan_add_person) add people through one piece of code. Takes `actor` (what planner/resolve_actor returns: user_id, account_id, role) because a function has no $auth, and three has_ flags because a function cannot see what the caller sent: has_daily_capacity_hours, has_color and has_model_id say "this field was sent" (the endpoint asked the raw request body). Colour: when none is given the first palette colour this plan is not using is picked (AGENT_PALETTE order from the planner frontend), wrapping to the first once all eight are used; the "is it taken" test is a nested loop because the contains filter is always false on an array. Model: only an ai agent may carry one (E-PLN-008) and it must be in the caller's account (planner/assert_model, "Model not found"). Capacity: 8 when not sent; when sent it must be more than 0 and at most 24 (E-PLN-009) - so a capacity sent as 0 is refused, not defaulted, exactly as the endpoint does. The new row never has a login (user_id 0).
+// COP-5 story 01 (rule moved from endpoint 535, PLN-5 US-PLN-5-01) - add someone (or something) to a plan. This is endpoint 535's rule moved, not rewritten: same checks in the same order, same error codes and messages, same events, same write, same response key - so the endpoint and the copilot tool (plan_add_person) add people through one piece of code. Takes `actor` (what planner/resolve_actor returns: user_id, account_id, role) because a function has no $auth, and three has_ flags because a function cannot see what the caller sent: has_daily_capacity_hours, has_color and has_model_id say "this field was sent" (the endpoint asked the raw request body). Colour: when none is given the first palette colour this plan is not using is picked (AGENT_PALETTE order from the planner frontend), wrapping to the first once all eight are used; the "is it taken" test is a nested loop because the contains filter is always false on an array. Model: only an ai agent may carry one (E-PLN-008) and it must be in the caller's account (planner/assert_model, "Model not found"). Capacity: 8 when not sent; when sent it must be more than 0 and at most 24 (E-PLN-009) - so a capacity sent as 0 is refused, not defaulted, exactly as the endpoint does. The new row never has a login (user_id 0). Since 4-C (2026-11-16) endpoint 535 itself calls this function, so this is the only copy of the rule.
 function "planner_ops/create_agent" {
   input {
     // What planner/resolve_actor returns: {user_id, account_id, role}.
     json actor
     int workspace_id filters=min:1
-    text name filters=trim
+
+    // Optional on purpose (4-C, 2026-11-16): a name of only spaces trims to "", and a REQUIRED
+    // input would refuse that with a bare "Missing param" and no event. Optional lets it reach the
+    // E-VAL-001 check below, which is what endpoint 535 always answered.
+    text name? filters=trim
     enum kind {
       values = ["person", "ai"]
     }
