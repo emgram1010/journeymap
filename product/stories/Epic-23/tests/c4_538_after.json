@@ -1,0 +1,539 @@
+{
+ "tag": "195034",
+ "label": "after",
+ "plans": {
+  "main": 112,
+  "other": 113,
+  "arch": 114
+ },
+ "agents": {
+  "pa": 120,
+  "ai": 121,
+  "pr1": 122,
+  "pr2": 123,
+  "po": 124,
+  "parch": 125
+ },
+ "results": {
+  "ok_new_day": {
+   "http": 200,
+   "body": {
+    "created": true,
+    "out_of_window": false,
+    "timeline": {
+     "agent_id": "<pa>",
+     "planned_date": "2026-12-02",
+     "start_time": "08:00",
+     "status": "draft",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_same_again": {
+   "http": 200,
+   "body": {
+    "created": false,
+    "out_of_window": false,
+    "timeline": {
+     "agent_id": "<pa>",
+     "planned_date": "2026-12-02",
+     "start_time": "08:00",
+     "status": "draft",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_same_other_start": {
+   "http": 200,
+   "body": {
+    "created": false,
+    "out_of_window": false,
+    "timeline": {
+     "agent_id": "<pa>",
+     "planned_date": "2026-12-02",
+     "start_time": "08:00",
+     "status": "draft",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_start_valid": {
+   "http": 200,
+   "body": {
+    "created": true,
+    "out_of_window": false,
+    "timeline": {
+     "agent_id": "<pa>",
+     "planned_date": "2026-12-03",
+     "start_time": "09:30",
+     "status": "draft",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_start_2359": {
+   "http": 200,
+   "body": {
+    "created": true,
+    "out_of_window": false,
+    "timeline": {
+     "agent_id": "<pa>",
+     "planned_date": "2026-12-04",
+     "start_time": "23:59",
+     "status": "draft",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_start_0000": {
+   "http": 200,
+   "body": {
+    "created": true,
+    "out_of_window": false,
+    "timeline": {
+     "agent_id": "<pa>",
+     "planned_date": "2026-12-05",
+     "start_time": "00:00",
+     "status": "draft",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_start_padded": {
+   "http": 200,
+   "body": {
+    "created": true,
+    "out_of_window": false,
+    "timeline": {
+     "agent_id": "<pa>",
+     "planned_date": "2026-12-06",
+     "start_time": "07:15",
+     "status": "draft",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "rej_start_2599": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Enter a start time as HH:MM, between 00:00 and 23:59. (E-PLN-010)",
+    "payload": ""
+   }
+  },
+  "rej_start_blank": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Enter a start time as HH:MM, between 00:00 and 23:59. (E-PLN-010)",
+    "payload": ""
+   }
+  },
+  "rej_start_spaces": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Enter a start time as HH:MM, between 00:00 and 23:59. (E-PLN-010)",
+    "payload": ""
+   }
+  },
+  "rej_start_8_5": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Enter a start time as HH:MM, between 00:00 and 23:59. (E-PLN-010)",
+    "payload": ""
+   }
+  },
+  "case_start_null": {
+   "http": 200,
+   "body": {
+    "created": true,
+    "out_of_window": false,
+    "timeline": {
+     "agent_id": "<pa>",
+     "planned_date": "2026-12-08",
+     "start_time": "08:00",
+     "status": "draft",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_window_first": {
+   "http": 200,
+   "body": {
+    "created": true,
+    "out_of_window": false,
+    "timeline": {
+     "agent_id": "<pa>",
+     "planned_date": "2026-12-01",
+     "start_time": "08:00",
+     "status": "draft",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_window_last": {
+   "http": 200,
+   "body": {
+    "created": true,
+    "out_of_window": false,
+    "timeline": {
+     "agent_id": "<pa>",
+     "planned_date": "2026-12-14",
+     "start_time": "08:00",
+     "status": "draft",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_out_before": {
+   "http": 200,
+   "body": {
+    "created": true,
+    "out_of_window": true,
+    "timeline": {
+     "agent_id": "<pa>",
+     "planned_date": "2026-11-20",
+     "start_time": "08:00",
+     "status": "draft",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_out_after": {
+   "http": 200,
+   "body": {
+    "created": true,
+    "out_of_window": true,
+    "timeline": {
+     "agent_id": "<pa>",
+     "planned_date": "2027-01-10",
+     "start_time": "08:00",
+     "status": "draft",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "rej_bad_date": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Invalid timestamp format.",
+    "payload": {
+     "param": "planned_date"
+    }
+   }
+  },
+  "case_feb31": {
+   "http": 200,
+   "body": {
+    "created": true,
+    "out_of_window": true,
+    "timeline": {
+     "agent_id": "<pa>",
+     "planned_date": "2026-03-03",
+     "start_time": "08:00",
+     "status": "draft",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "case_date_with_time": {
+   "http": 200,
+   "body": {
+    "created": true,
+    "out_of_window": false,
+    "timeline": {
+     "agent_id": "<pa>",
+     "planned_date": "2026-12-09",
+     "start_time": "08:00",
+     "status": "draft",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "rej_date_missing": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: planned_date",
+    "payload": {
+     "param": "planned_date"
+    }
+   }
+  },
+  "rej_date_blank": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: planned_date",
+    "payload": {
+     "param": "planned_date"
+    }
+   }
+  },
+  "rej_status_draft": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "A timeline's status is set by publishing, not here. (E-PLN-011)",
+    "payload": ""
+   }
+  },
+  "rej_status_blank": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "A timeline's status is set by publishing, not here. (E-PLN-011)",
+    "payload": ""
+   }
+  },
+  "rej_status_null": {
+   "http": 200,
+   "body": {
+    "created": true,
+    "out_of_window": false,
+    "timeline": {
+     "agent_id": "<pa>",
+     "planned_date": "2026-12-10",
+     "start_time": "08:00",
+     "status": "draft",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "rej_status_and_time": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "A timeline's status is set by publishing, not here. (E-PLN-011)",
+    "payload": ""
+   }
+  },
+  "ok_ai_unlinked": {
+   "http": 200,
+   "body": {
+    "created": true,
+    "out_of_window": false,
+    "timeline": {
+     "agent_id": "<ai>",
+     "planned_date": "2026-12-02",
+     "start_time": "08:00",
+     "status": "draft",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_extra_ignored": {
+   "http": 200,
+   "body": {
+    "created": true,
+    "out_of_window": false,
+    "timeline": {
+     "agent_id": "<ai>",
+     "planned_date": "2026-12-03",
+     "start_time": "08:00",
+     "status": "draft",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "rej_agent_unknown": {
+   "http": 404,
+   "body": {
+    "code": "ERROR_CODE_NOT_FOUND",
+    "message": "Agent not found",
+    "payload": ""
+   }
+  },
+  "rej_agent_other_acct": {
+   "http": 404,
+   "body": {
+    "code": "ERROR_CODE_NOT_FOUND",
+    "message": "Agent not found",
+    "payload": ""
+   }
+  },
+  "rej_agent_other_plan": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Entities must belong to the same workspace",
+    "payload": ""
+   }
+  },
+  "rej_agent_zero": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Value is less than the minimum value of 1",
+    "payload": {
+     "param": "agent_id"
+    }
+   }
+  },
+  "rej_agent_missing": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Missing param: agent_id",
+    "payload": {
+     "param": "agent_id"
+    }
+   }
+  },
+  "rej_plan_unknown": {
+   "http": 404,
+   "body": {
+    "code": "ERROR_CODE_NOT_FOUND",
+    "message": "Plan not found",
+    "payload": ""
+   }
+  },
+  "rej_plan_other_acct": {
+   "http": 404,
+   "body": {
+    "code": "ERROR_CODE_NOT_FOUND",
+    "message": "Plan not found",
+    "payload": ""
+   }
+  },
+  "rej_plan_zero": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Value is less than the minimum value of 1",
+    "payload": {
+     "param": "workspace_id"
+    }
+   }
+  },
+  "rej_archived": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This has been archived, so it can't be changed. (E-GOV-004)",
+    "payload": ""
+   }
+  },
+  "rej_archived_badtime": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "This has been archived, so it can't be changed. (E-GOV-004)",
+    "payload": ""
+   }
+  },
+  "rej_order_agent_vs_time": {
+   "http": 400,
+   "body": {
+    "code": "ERROR_CODE_INPUT_ERROR",
+    "message": "Entities must belong to the same workspace",
+    "payload": ""
+   }
+  },
+  "ok_no_cid": {
+   "http": 200,
+   "body": {
+    "created": true,
+    "out_of_window": false,
+    "timeline": {
+     "agent_id": "<pa>",
+     "planned_date": "2026-12-12",
+     "start_time": "08:00",
+     "status": "draft",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "ok_cid_padded": {
+   "http": 200,
+   "body": {
+    "created": true,
+    "out_of_window": false,
+    "timeline": {
+     "agent_id": "<pa>",
+     "planned_date": "2026-12-13",
+     "start_time": "08:00",
+     "status": "draft",
+     "workspace_id": "<main>"
+    }
+   }
+  },
+  "rej_no_auth": {
+   "http": 401,
+   "body": {
+    "code": "ERROR_CODE_UNAUTHORIZED",
+    "message": "Unauthorized - Authentication Required",
+    "payload": null
+   }
+  },
+  "race_1": {
+   "answers": [
+    {
+     "http": 200,
+     "body": {
+      "created": false,
+      "out_of_window": false,
+      "timeline": {
+       "agent_id": "<pr1>",
+       "planned_date": "2026-12-05",
+       "start_time": "08:00",
+       "status": "draft",
+       "workspace_id": "<main>"
+      }
+     }
+    },
+    {
+     "http": 200,
+     "body": {
+      "created": true,
+      "out_of_window": false,
+      "timeline": {
+       "agent_id": "<pr1>",
+       "planned_date": "2026-12-05",
+       "start_time": "08:00",
+       "status": "draft",
+       "workspace_id": "<main>"
+      }
+     }
+    }
+   ],
+   "same_timeline_id": true
+  },
+  "race_2": {
+   "answers": [
+    {
+     "http": 200,
+     "body": {
+      "created": false,
+      "out_of_window": false,
+      "timeline": {
+       "agent_id": "<pr2>",
+       "planned_date": "2026-12-06",
+       "start_time": "08:00",
+       "status": "draft",
+       "workspace_id": "<main>"
+      }
+     }
+    },
+    {
+     "http": 200,
+     "body": {
+      "created": true,
+      "out_of_window": false,
+      "timeline": {
+       "agent_id": "<pr2>",
+       "planned_date": "2026-12-06",
+       "start_time": "08:00",
+       "status": "draft",
+       "workspace_id": "<main>"
+      }
+     }
+    }
+   ],
+   "same_timeline_id": true
+  }
+ }
+}

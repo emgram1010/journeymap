@@ -203,6 +203,40 @@ function "planner_ops/create_timeline" {
       }
     }
 
+    // 4-C (endpoint 538 moved onto this function): never answer "done" with
+    // no day. The catch above is there for the race - a lost insert whose
+    // winner's row the re-read finds. If the insert failed for any OTHER
+    // reason there is no row to find, and before this check the caller got
+    // a success with `timeline: null`. That is now a logged failure and a
+    // refusal. A duplicate (including two saves at the same moment) still
+    // finds the existing day and answers exactly as before.
+    conditional {
+      if ($timeline == null) {
+        function.run "ops/log_event" {
+          input = {
+            feature       : "PLN-6"
+            step          : "create_timeline"
+            outcome       : "failure"
+            severity      : "error"
+            user_id       : $actor.user_id
+            account_id    : $actor.account_id
+            entity_type   : "planner_timeline"
+            entity_id     : 0
+            correlation_id: $input.correlation_id
+            error_code    : "E-PLN-019"
+            message       : "Timeline create failed: the insert did not happen and no existing day was found."
+            duration_ms   : 0
+            metadata      : null
+          }
+        }
+      }
+    }
+
+    precondition ($timeline != null) {
+      error_type = "inputerror"
+      error = "The day could not be started. Reload and try again. (E-PLN-019)"
+    }
+
     conditional {
       if ($created == true) {
         function.run "ops/log_event" {

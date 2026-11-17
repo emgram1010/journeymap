@@ -1,33 +1,25 @@
 // PLN-6 (US-PLN-6-01) — Start a day's plan for one agent.
 //
-// CREATING A TIMELINE THAT ALREADY EXISTS IS NOT AN ERROR. The UI's
-// "start a timeline here" is a click on an empty cell, and two clicks
-// should not produce two timelines or a scary message — the second one
-// just opens the existing day. So this returns the existing row with
-// `created: false`. The unique index on (agent_id, planned_date) is
-// still what makes a duplicate impossible.
+// 4-C: the rule now lives in ONE place, `planner_ops/create_timeline`,
+// which the copilot's `plan_start_day` tool also calls. This endpoint only
+// signs the caller in, works out who they are, reads which optional fields
+// were actually sent, and hands everything to that function. Every input
+// is passed explicitly (an input left out silently inherits this
+// endpoint's value of the same name).
 //
-// ⚠️ AND IT HOLDS UNDER A RACE. The "does one already exist?" query
-// followed by an insert is check-then-act: two simultaneous clicks
-// both see nothing and both insert, and the unique index rejects the
-// loser. Confirmed live — two parallel creates returned one `200` and
-// one **`500 "Duplicate record detected"`**, a raw database string in
-// front of a user who did nothing wrong.
-// So the insert is wrapped: on a conflict the row is re-read and
-// returned as `created: false`, which is the same answer the slower
-// click would have got a moment later. Re-tested after the fix: both
-// callers got `200` with the same timeline id, one `created: true`
-// and one `created: false`, and exactly one row existed.
-//
-// OUT-OF-WINDOW DATES ARE ALLOWED. A date outside the plan's window is
-// created and flagged `out_of_window: true` for the UI to mark. People
-// plan outside their own window all the time, and refusing it would be
-// the tool arguing with the user about their own dates.
-//
-// `status` IS READ-ONLY. Publishing is on hold (PLN-6 Non-Goals) and
-// only LIVE-1 may ever move it. Sending one is rejected rather than
-// ignored, so a client that thinks it published something finds out it
-// did not.
+// What the function keeps exactly as this endpoint always did:
+// - CREATING A TIMELINE THAT ALREADY EXISTS IS NOT AN ERROR: the existing
+//   row comes back with `created: false`. The unique index on
+//   (agent_id, planned_date) is what makes a duplicate impossible.
+// - IT HOLDS UNDER A RACE: two simultaneous clicks both get `200` with the
+//   same day, one `created: true` and one `created: false`, and exactly
+//   one row exists (the losing insert is caught and the row re-read).
+// - OUT-OF-WINDOW DATES ARE ALLOWED, flagged `out_of_window: true`.
+// - `status` IS READ-ONLY: sending one (any value except null) is refused
+//   with E-PLN-011.
+// One change (4-C): an insert that failed for a reason OTHER than a
+// duplicate used to answer success with `timeline: null`. It is now a
+// logged failure and a refusal.
 query "workspace/{workspace_id}/timeline" verb=POST {
   api_group = "planner"
   auth = "user"
@@ -46,205 +38,38 @@ query "workspace/{workspace_id}/timeline" verb=POST {
       input = {user_id: $auth.id}
     } as $actor
 
-    function.run "planner/assert_workspace" {
-      input = {account_id: $actor.account_id, workspace_id: $input.workspace_id}
-    } as $guard
-
-    function.run "guards/assert_not_archived" {
-      input = {
-        is_archived: $guard.workspace.is_archived
-        feature    : "PLN-6"
-        step       : "create_timeline"
-        entity_type: "planner_workspace"
-        entity_id  : $input.workspace_id
-        user_id    : $actor.user_id
-        account_id : $actor.account_id
-      }
-    }
-
-    function.run "planner/assert_agent" {
-      input = {account_id: $actor.account_id, agent_id: $input.agent_id}
-    } as $agent_guard
-
-    // The agent must be in THIS plan, not merely in this account.
-    function.run "planner/assert_same_workspace" {
-      input = {workspace_id_a: $input.workspace_id, workspace_id_b: $agent_guard.agent.workspace_id}
-    }
-
-    // Handoff 4-A rule 2 (COP-5 story 06): no new day for a switched-off copilot's column (E-COP-059).
-    function.run "planner_ops/assert_agent_assignable" {
-      input = {agent_id: $input.agent_id, actor_user_id: $actor.user_id, account_id: $actor.account_id, step: "start_day"}
-    } as $_assignable
-
+    // "Was this field sent?" — only the raw body can tell. A field sent
+    // as null counts as not sent (unchanged from before).
     util.get_raw_input {
       encoding = "json"
       exclude_middleware = true
     } as $raw_input
 
-    var $start_time {
-      value = "08:00"
+    var $has_start_time {
+      value = ($raw_input|has:"start_time")
     }
 
-    conditional {
-      if ($raw_input|has:"start_time") {
-        var.update $start_time {
-          value = $input.start_time
-        }
+    var $has_status {
+      value = ($raw_input|has:"status")
+    }
+
+    function.run "planner_ops/create_timeline" {
+      input = {
+        actor         : $actor
+        workspace_id  : $input.workspace_id
+        agent_id      : $input.agent_id
+        planned_date  : $input.planned_date
+        start_time    : $input.start_time
+        has_start_time: $has_start_time
+        has_status    : $has_status
+        correlation_id: $input.correlation_id
       }
-    }
-
-    var $reject_code {
-      value = ""
-    }
-
-    var $reject_msg {
-      value = ""
-    }
-
-    conditional {
-      if ($raw_input|has:"status") {
-        var.update $reject_code {
-          value = "E-PLN-011"
-        }
-
-        var.update $reject_msg {
-          value = "A timeline's status is set by publishing, not here. (E-PLN-011)"
-        }
-      }
-    }
-
-    conditional {
-      if ($reject_code == "" && ("/^([01][0-9]|2[0-3]):[0-5][0-9]$/"|regex_matches:$start_time) == false) {
-        var.update $reject_code {
-          value = "E-PLN-010"
-        }
-
-        var.update $reject_msg {
-          value = "Enter a start time as HH:MM, between 00:00 and 23:59. (E-PLN-010)"
-        }
-      }
-    }
-
-    conditional {
-      if ($reject_code != "") {
-        function.run "ops/log_event" {
-          input = {
-            feature       : "PLN-6"
-            step          : "create_timeline"
-            outcome       : "rejected"
-            severity      : "info"
-            user_id       : $actor.user_id
-            account_id    : $actor.account_id
-            entity_type   : "planner_timeline"
-            correlation_id: $input.correlation_id
-            error_code    : $reject_code
-            message       : "Timeline create refused."
-          }
-        }
-      }
-    }
-
-    precondition ($reject_code == "") {
-      error_type = "inputerror"
-      error = $reject_msg
-    }
-
-    db.query planner_timeline {
-      where = $db.planner_timeline.agent_id == $input.agent_id && $db.planner_timeline.planned_date == $input.planned_date
-      return = {type: "list"}
-    } as $already
-
-    var $created {
-      value = false
-    }
-
-    var $timeline {
-      value = null
-    }
-
-    conditional {
-      if (($already|count) > 0) {
-        var.update $timeline {
-          value = $already|first
-        }
-      }
-
-      else {
-        try_catch {
-          try {
-            db.add planner_timeline {
-              data = {
-                workspace_id: $input.workspace_id
-                agent_id    : $input.agent_id
-                planned_date: $input.planned_date
-                start_time  : $start_time
-                status      : "draft"
-              }
-            } as $added
-
-            var.update $timeline {
-              value = $added
-            }
-
-            var.update $created {
-              value = true
-            }
-          }
-
-          catch {
-            // Lost the race. Whoever won created the identical day, so
-            // return theirs — the same answer this call would have got
-            // a moment later.
-            debug.log {
-              value = "timeline for this agent and date was created concurrently; returning the existing one"
-            }
-          }
-        }
-      }
-    }
-
-    // Re-read when the insert did not happen, which covers both the
-    // race above and any other reason the row already existed.
-    conditional {
-      if ($created == false && $timeline == null) {
-        db.query planner_timeline {
-          where = $db.planner_timeline.agent_id == $input.agent_id && $db.planner_timeline.planned_date == $input.planned_date
-          return = {type: "list"}
-        } as $after_race
-
-        var.update $timeline {
-          value = $after_race|first
-        }
-      }
-    }
-
-    conditional {
-      if ($created == true) {
-        function.run "ops/log_event" {
-          input = {
-            feature       : "PLN-6"
-            step          : "create_timeline"
-            outcome       : "success"
-            severity      : "info"
-            user_id       : $actor.user_id
-            account_id    : $actor.account_id
-            entity_type   : "planner_timeline"
-            entity_id     : $timeline.id
-            correlation_id: $input.correlation_id
-            message       : "Timeline created."
-          }
-        }
-      }
-    }
-
-    var $out_of_window {
-      value = ($input.planned_date < $guard.workspace.planning_window_start || $input.planned_date > $guard.workspace.planning_window_end)
-    }
+    } as $made
   }
 
   response = {
-    timeline     : $timeline
-    created      : $created
-    out_of_window: $out_of_window
+    timeline     : $made.timeline
+    created      : $made.created
+    out_of_window: $made.out_of_window
   }
 }

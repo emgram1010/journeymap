@@ -2317,6 +2317,16 @@
     "severity": "info",
     "fix_hint": "Nothing to do - the note is no longer there."
   },
+  "E-PLN-019": {
+    "code": "E-PLN-019",
+    "feature": "PLN-6",
+    "user_message": "The day could not be started. Reload and try again.",
+    "what_happened": "Starting a day for a plan person failed to save, and no existing day for that person and date was found.",
+    "likely_cause": "A database problem during the save (a duplicate day is not this - that returns the existing day).",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "Look at the create_timeline failure event on Health. If it repeats for one person or date, check that plan person and the planner_timeline table."
+  },
   "E-COP-073": {
     "code": "E-COP-073",
     "feature": "COP-3",
