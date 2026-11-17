@@ -169,7 +169,7 @@ name, kind, capacity and colour (536); schedule (560) and the whole chain pass (
 | COP-6 | Not started (deferred on purpose; storing logins needs the founder) |
 
 **Decisions waiting for the founder**
-1. Switch the six live planner endpoints (523, 535, 538, 554, 560, 570) to the shared `planner_ops/*` functions? Until then each rule exists twice.
+1. ~~Switch the six live planner endpoints (523, 535, 538, 554, 560, 570) to the shared `planner_ops/*` functions?~~ ✅ Done 2026-11-16 (founder's OK), one at a time with a before/after replay each - see EPIC-COP-5 "4-C".
 2. Check real maps and plans for fields blanked while the "was this field sent" bug was live (about a day).
 3. Add the `exclude_middleware = true` rule and the `slice` fact to CLAUDE.md; correct the "pipe in a string literal" note (a pipe inside a regex pattern works).
 4. Write decision D-6 (how an AI may do work) into USR-3.

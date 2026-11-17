@@ -1,6 +1,6 @@
 # EPIC-COP-5 — Plan and act: from an approved map to a plan, and from a plan to done
 
-**Status:** 🟡 Nearly done (updated 2026-11-16). Stories 02-06 ✅; story 01 has ten planner tools + the capacity warning. Open in 01: only that the live endpoints still hold their own copy of each rule (4-C, founder's OK needed). See Test results.
+**Status:** ✅ Done (updated 2026-11-16). Stories 01-06 ✅. 4-C done (founder's OK): the six live planner endpoints now call the same `planner_ops/*` rule as the copilot's tools, so each rule exists once. See "4-C - one copy of each rule" under Test results.
 **Model:** **Sonnet 5.5.** Opus 5.5 (or Fable 5.2) review of story 02 and anything near
 **Publish to live**.
 **Depends on:** COP-2 (levels), COP-3 (chat, read tools). Closes map 226 gaps 5 and 6.
@@ -327,6 +327,39 @@ so CLAUDE.md's "pipe in a string literal breaks the parser" is narrower than wri
 
 **Test data added:** plan 45, job 144 (tasks 867, 868), plan person 53, days 55 and 56, one
 scheduled slot (129); the test copilot (26) now also holds the Planner grant.
+
+### 4-C - one copy of each rule (2026-11-16, founder's OK)
+
+One endpoint at a time: live source saved first (rollback), a replay set of real HTTP calls run
+before and after, comparing answers, exact error texts, rows written and events logged.
+
+| Endpoint → shared function | Replay before vs after | Behaviour changes (all intended) |
+|---|---|---|
+| 523 create a plan → `create_workspace` | 22/22 | none (name made optional in the function so a spaces-only name keeps E-VAL-001) |
+| 570 accept maps → `accept_maps` | matches, apart from the fix | a map id repeated in one call is added once (was a raw 500, no event) |
+| 535 add a person → `create_agent` | 54/54 | none (same optional-name lesson) |
+| 538 start a day → `create_timeline` | 45/45 incl. two simultaneous saves (1 day, both answered) | a failed insert with no existing day is refused and logged, **E-PLN-019** (was success with no day; path not reachable by any input found) |
+| 554 add a job → `create_work_item` | 54/54 | none (title optional in the function) |
+| 560 schedule a step → `schedule_work_task` | 44/44 for the move | lost double-schedule race → E-SCHED-001 + logged (was raw 500); missing pinned version → **E-SCHED-012** (was a crash); any other failed write → **E-SCHED-013** (not triggerable) |
+
+Replay scripts and results: `tests/c4_<endpoint>_replay.py` + `c4_<endpoint>_*.json`.
+`tests/cop5_tool_vs_endpoint.py` re-run after 560: 9/9. `npm test` 894/894, tsc clean.
+
+**Left as it was, on purpose:** 560 can still refuse a duration nobody typed when a step's expected
+time is over a day (E-SCHED-002) - no step anywhere is over 1,440 minutes, so a fix could not be
+proven. 554's "newest version may be unpublished" cannot happen (every version row is written by
+Publish version; 0 of 26 lack a publish time). 523's duplicate-name race is still guarded only by
+the unique index. Noticed, unchanged: duplicate person names are case-sensitive; HTML is accepted
+in plan/person names; `status: null` / `duration_minutes: null` count as "not sent".
+
+**Not proven:** the copilot tools themselves were not run end to end after the switch (their calls
+to the functions are unchanged; direct calls shaped like theirs were tested). The switched-off
+copilot refusal was not re-run (copilot user 26 must stay active). Events for 554 were copied by
+hand from a dump; the 538 code-only follow-up re-ran answers (43/43 same), not rows and events.
+
+**Test data (account 13):** plans 50-138 named "C4 ..." / "C4-<endpoint> ...", with their people,
+days, jobs (154-227 and others) and slots; jobs 202, 214, 226 point at version 999999 on purpose;
+slots 149, 165, 181 on live day 53.
 
 ### The real copilot in chat (2026-11-15, real AI, `tests/cop5_chat_probe.py`, 5/5)
 

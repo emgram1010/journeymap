@@ -115,7 +115,7 @@ the copilot once it exists — not platform features.
 | COP-2 | ✅ All eight stories (real Undo for a saved note added 2026-11-16). Per-business reminder times not built (fixed times kept) |
 | COP-3 | ✅ Built. The copilot's own business can't be deleted (endpoint 69, E-COP-073, 2026-11-16) |
 | COP-4 | ✅ All six stories ("my edits teach it" added 2026-11-16) |
-| COP-5 | ✅ All six stories (live-day changes now wait for approval, 2026-11-16). Open: 4-C, switching the live planner endpoints to the shared rules (founder's OK) |
+| COP-5 | ✅ All six stories (live-day changes now wait for approval, 2026-11-16). 4-C done 2026-11-16: the six live planner endpoints call the shared rules, replayed before and after |
 | COP-6 | 🟡 Stories 01 and 02 done (logins encrypted in Xano). 03-05 wait for a real outside system (on hold by the founder) |
 | COP-7 | ✅ All six stories |
 
