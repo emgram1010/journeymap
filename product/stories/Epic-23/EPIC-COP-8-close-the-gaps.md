@@ -1,6 +1,6 @@
 # EPIC-COP-8 — Close the copilot's last gaps
 
-**Status:** 🟡 In progress (written 2026-11-16, Opus 5.5). Founder approved every story in chat on 2026-11-16, including the new tables for story 03 and the deletes in story 05.
+**Status:** ✅ All six stories done 2026-11-16 (written and built the same day, Opus 5.5). Founder approved every story in chat on 2026-11-16, including the new tables for story 03 and the deletes in story 05.
 **Model:** **Opus 5.5** for stories 01–03, which guard what an AI may claim and what the record shows. Sonnet 5.5 is enough for story 06, the browser tests. Story 04 is a review by a fresh session that did none of the work being reviewed.
 **Depends on:** COP-1 (the gate and audit trail), COP-5 (scheduled runs, `record_my_task_event`), 4-C (six planner endpoints moved onto shared rules). All of these are live.
 **Risk:** medium. If left as is, an AI can mark work "done" that it never did, and a deleted business keeps waking the copilot every hour. If fixed wrongly, the copilot can't finish real work, or a business that is still live stops getting runs.
