@@ -6,6 +6,7 @@
  * inspect word count, cell_updates, and banned patterns.
  */
 import {test, expect, type Page} from '@playwright/test';
+import {gotoMap, setChatMode, skipIfAiUnavailable} from './helpers';
 
 const AI_MESSAGE_URL = '**/journey_map/*/ai_message';
 
@@ -13,17 +14,14 @@ const AI_MESSAGE_URL = '**/journey_map/*/ai_message';
 
 /** Open the chat sidebar and wait for the map to finish loading. */
 async function openChat(page: Page) {
-  await page.goto('/');
-  // Wait for the matrix to render (a sign the map bundle is loaded)
-  await page.waitForSelector('[class*="tabulator"]', {timeout: 30_000}).catch(() => {
-    // fallback: wait for any journey-map content to appear
-  });
+  await gotoMap(page);
   // Click the floating AI toggle button to open chat
   const toggle = page.locator('button:has(svg.lucide-message-square)').first();
   await toggle.waitFor({timeout: 15_000});
   await toggle.click();
   // Ensure chat panel is visible
-  await expect(page.locator('text=AI Interviewer')).toBeVisible({timeout: 5_000});
+  // new-ui: the header now shows the session title, not a fixed "AI Interviewer" label — wait for the composer instead.
+  await expect(page.locator('textarea[placeholder="Type your message..."]')).toBeVisible({timeout: 5_000});
 }
 
 /** Type a message and send it, returning the intercepted API response body. */
@@ -40,6 +38,7 @@ async function sendAndCapture(page: Page, message: string) {
   await textarea.press('Enter');
   const response = await responsePromise;
   const body = await response.json();
+  skipIfAiUnavailable((body as {reply?: string}).reply);
   return body as {
     reply: string;
     cell_updates: unknown[];
@@ -127,8 +126,7 @@ test.describe('Phase 1 — Prompt quality (2.01 + 2.07)', () => {
     await openChat(page);
 
     // Switch to Chat mode
-    const chatBtn = page.locator('button', {hasText: 'Chat'});
-    await chatBtn.click();
+    await setChatMode(page, 'Chat');
 
     const body = await sendAndCapture(
       page,

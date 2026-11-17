@@ -290,11 +290,14 @@ test('E2E-BLK-1-07-01: place a whole card on a day from the Jobs screen, then re
   // once per step would offer two buttons for one slot, and pressing
   // either would release both.
   const slotId = newLinks[0].planner_task_id;
-  const provenance = page
-    .getByTestId('dayboard-job-provenance')
+  // new-ui (PUX-3-04): the separate provenance line is hidden when it would only
+  // repeat the card title, and a multi-step card's TITLE is now exactly
+  // "<job> · N steps" — so the one-card check is made on the slot itself.
+  const slotCards = page
+    .locator('[id^="dayboard-task-"]')
     .filter({hasText: `${jobTitle} · ${stepCount} ${stepWord}`});
-  await expect(provenance).toHaveCount(1);
-  const slotCard = page.locator('[id^="dayboard-task-"]').filter({has: provenance}).first();
+  await expect(slotCards).toHaveCount(1);
+  const slotCard = slotCards.first();
 
   // ── Release it: every step comes back, no orphan link ────────────────
   // QUE-1 (US-QUE-1-06) — a confirmation now sits between the menu click

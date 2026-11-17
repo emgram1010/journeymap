@@ -6,10 +6,10 @@
  * and writes to cells automatically.
  */
 import { test, expect } from '@playwright/test';
+import {gotoMap, setChatMode, skipIfAiUnavailable} from './helpers';
 
 async function openInterviewChat(page: import('@playwright/test').Page) {
-  await page.goto('/');
-  await page.waitForSelector('[class*="tabulator"]', { timeout: 30_000 });
+  await gotoMap(page);
 
   // Open chat sidebar
   const textarea = page.locator('textarea[placeholder="Type your message..."]');
@@ -20,10 +20,7 @@ async function openInterviewChat(page: import('@playwright/test').Page) {
   await expect(textarea).toBeVisible({ timeout: 10_000 });
 
   // Switch to interview mode
-  const interviewBtn = page.locator('button', { hasText: 'Interview' });
-  await interviewBtn.waitFor({ timeout: 10_000 });
-  await interviewBtn.click();
-  await page.waitForTimeout(500);
+  await setChatMode(page, 'Interview');
 
   return textarea;
 }
@@ -46,6 +43,7 @@ async function sendTurn(
 
   const resp = await responsePromise;
   const body = await resp.json().catch(() => ({})) as Record<string, unknown>;
+  skipIfAiUnavailable(body.reply);
 
   await expect(textarea).not.toBeDisabled({ timeout: 90_000 });
   await page.waitForTimeout(1_500);

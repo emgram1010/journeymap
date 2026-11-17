@@ -216,7 +216,24 @@ read correct. Four low notes, recorded and left as they are:
 ---
 
 ### US-COP-8-06 — Browser tests match the new screens
-**Status:** ⏳ Not started.
+**Status:** ✅ Done 2026-11-16 (Sonnet 5.5). **Before 5 passed / 37 failed / 5 skipped → after 30
+passed / 0 failed / 17 skipped.** Tests only - no `src/` or backend change.
+- Main cause: `/` now opens the Architectures list, not the map editor. New `e2e/helpers.ts`
+  (`gotoMap`, `setChatMode`, `skipIfAiUnavailable`, `skipIfMapMissing`); the rest are locator updates
+  for the redesign (mode badge, Create dialog, "1 hr" durations, hidden repeated provenance line).
+- Run: from `webapp/protype-2`, `E2E_AUTH_TOKEN=<fresh token> npx playwright test --reporter=list`
+  (~10 min). Without a fresh token every spec lands on the login page.
+- **Skipped (17):** 13 AI specs skip while the live AI answers "credit balance too low" (see below);
+  3 need the EXC-1 fixture maps (219, 223, Repair), which don't exist in the test account; 1 fixme.
+- **Real bugs found (not fixed):**
+  1. **The live Anthropic account is out of credit** - the journey-map AI replies "Your credit
+     balance is too low to access the Anthropic API" (and still returns `cell_updates` in chat mode).
+  2. **Plan from template: person columns get a blank name** - `apis/planner/551_*` stores roster
+     names under the user id but reads them by the profile id (`E2E-PLAN-3-01`, `test.fixme`).
+  3. Minor: the Journey Health panel (`fixed right-0 w-64 z-40`) covers the AI chat's New Session and
+     Send at 1280px wide, and the Cell Detail panel.
+  4. Minor: `showBoardNotice` never cancels the previous toast's timer, so the next toast is cut short.
+- Test data (test account): maps 266, 267, 269; catalog items 21-22, method 15; "E2E ..." plans/jobs.
 
 **Description.** The last full Playwright run: 5 passed, 37 failed, 5 skipped. The failures are specs written for screens that the new-ui redesign changed. They are not copilot regressions.
 

@@ -96,7 +96,8 @@ test('E2E-W1-01 / E2E-O4-01: create a job from a map, schedule a step, and take 
   await expect(jobGroup).toBeVisible();
   const card = jobGroup.getByTestId('unscheduled-card').first();
   // The minutes come from the pinned version, not from anything typed here.
-  await expect(card.getByText(/\d+ min/)).toBeVisible();
+  // new-ui: the Unscheduled table writes lengths as durations ("1 hr", "45 min"), not always "N min".
+  await expect(card.getByText(/\d+(\.\d+)?\s*(min|hr)\b/).first()).toBeVisible();
 
   // The click path (US-BOARD-1-02's "Place…", relocated to Unscheduled
   // by US-QUE-1-02): who defaults to the first agent; the day is set to
@@ -117,10 +118,16 @@ test('E2E-W1-01 / E2E-O4-01: create a job from a map, schedule a step, and take 
   await expect(jobGroup.getByTestId('unscheduled-card')).toHaveCount(0, {timeout: 20_000});
   const slot = page
     .locator('[id^="dayboard-task-"]')
-    .filter({has: page.getByTestId('dayboard-job-provenance')})
+    // new-ui (PUX-3-04): no separate provenance line when it would repeat the title;
+    // the slot is found by the job's title text.
     .filter({hasText: title})
     .first();
   await expect(slot).toBeVisible();
+  // APP BUG (minor, noted in EPIC-COP-8 US-COP-8-06): showBoardNotice never cancels the
+  // previous notice's 6 s timer, so the "Publish the day…" toast's timer clears the NEXT toast
+  // early. Let the first toast finish so the "N steps back in Unscheduled" toast below is not
+  // cut short by it.
+  await expect(page.locator('#board-notice-toast')).toHaveCount(0, {timeout: 10_000});
 
   // O4 — and back off again. Scheduling used to be a one-way door; the
   // round trip is the test, not the placement. BLK-1: releasing the slot

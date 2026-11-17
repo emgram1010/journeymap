@@ -27,28 +27,31 @@
  * E2E_AUTH_TOKEN) — no per-spec login needed.
  */
 import {test, expect, type Page} from '@playwright/test';
+import {E2E_ITEMS_MAP_ID, gotoMap} from './helpers';
 
-const MAP_ID = 215;
+// new-ui / test-account move: the old fixture (map 215, account 2) is not in the
+// shared test account (13), so these specs use the dedicated editor fixture
+// map (see helpers.ts) and create the two catalog items they pick if they
+// are missing. Same flow, same assertions.
+const MAP_ID = E2E_ITEMS_MAP_ID;
+const CATALOG_API = 'https://xdjc-i7zz-jhm2.n7e.xano.io/api:FB308vAe';
+const FT_ITEMS = [
+  {key: 'ft-active-item', label: 'FT Active Item'},
+  {key: 'ft-active-item-2', label: 'FT Active Item 2'},
+];
 
 async function openMap(page: Page) {
-  await page.goto(`/maps/${MAP_ID}`);
-  await page.waitForSelector('[class*="tabulator"]', {timeout: 30_000}).catch(() => {});
+  // gotoMap opens the map and closes Journey Health. That close is needed for
+  // the reason below (found live building this spec): JourneyHealthWidget and
+  // the Cell Detail panel are both `fixed right-0 top-12 bottom-0 w-64 z-40`,
+  // so whichever mounts later intercepts every click on the other, including
+  // Save, for ANY cell editor. A real user would close Journey Health too.
+  // The old inline close used a header selector the redesign no longer matches.
+  await gotoMap(page, String(MAP_ID));
+  // The chosen items load a moment after the matrix; switching a cell to per unit
+  // before they arrive shows no lines. Let the page settle like a person would.
+  await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1_000);
-
-  // PRE-EXISTING BUG (found live building this spec, not an ITEM-1
-  // regression): JourneyHealthWidget and the Cell Detail panel are both
-  // `fixed right-0 top-12 bottom-0 w-64 z-40` — identical stacking — so
-  // whichever mounts later in the DOM intercepts every click on the
-  // other, including Save, for ANY cell editor in the app. Closing
-  // Journey Health here is the same workaround a real user would need.
-  // Flagged separately; out of ITEM-1's scope to fix.
-  const healthPanelCloseBtn = page
-    .locator('div.flex.items-center.justify-between', {hasText: 'Journey Health'})
-    .locator('button')
-    .last();
-  if (await healthPanelCloseBtn.isVisible().catch(() => false)) {
-    await healthPanelCloseBtn.click();
-  }
 }
 
 async function ensureItemsRow(page: Page) {
@@ -64,6 +67,31 @@ async function ensureItemsRow(page: Page) {
 
 test.describe('ITEM-1 — Items row', () => {
   test.setTimeout(120_000);
+
+  test.beforeAll(async ({request}) => {
+    const token = process.env.E2E_AUTH_TOKEN ?? process.env.PERFORM_TEST_AUTH_TOKEN;
+    test.skip(!token, 'No auth token — see file header.');
+    const headers = {Authorization: `Bearer ${token}`};
+    // Item lines need a catalog method (E-ITM-005), so the fixture items
+    // get a default method too. All three are created only if missing.
+    const methods = (await (await request.get(`${CATALOG_API}/method`, {headers})).json()).methods ?? [];
+    let method = methods.find((m: {key: string}) => m.key === 'ft-method');
+    if (!method) {
+      method = (await (await request.post(`${CATALOG_API}/method`, {
+        headers,
+        data: {key: 'ft-method', label: 'FT Method', correlation_id: 'e2e-ft-method'},
+      })).json()).method;
+    }
+    const listed = await request.get(`${CATALOG_API}/item-type`, {headers});
+    const have = new Set(((await listed.json()).items ?? []).map((i: {key: string}) => i.key));
+    for (const item of FT_ITEMS) {
+      if (have.has(item.key)) continue;
+      await request.post(`${CATALOG_API}/item-type`, {
+        headers,
+        data: {...item, unit: 'each', default_method_id: method.id, correlation_id: `e2e-${item.key}`},
+      });
+    }
+  });
 
   test('E2E-ITEM-1-01: choose items, set per unit, type rates, summary updates and survives reload', async ({page}) => {
     await openMap(page);

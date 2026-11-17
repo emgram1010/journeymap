@@ -95,7 +95,8 @@ test('E2E-BOARD-1-01/02: drag a card onto a day; a published day refuses with a 
   await page.waitForLoadState('networkidle');
   await expect(jobGroup.getByTestId('unscheduled-card')).toHaveCount(cardsBefore - 1, {timeout: 20_000});
   await expect(
-    page.getByTestId('dayboard-job-provenance').filter({hasText: title}).first(),
+    // new-ui (PUX-3-04): the provenance line is hidden when it would repeat the card title.
+    page.locator('[id^="dayboard-task-"]').filter({hasText: title}).first(),
   ).toBeVisible();
 
   // ── 02: a published day refuses and the card stays ───────────────────

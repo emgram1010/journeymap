@@ -28,6 +28,7 @@
  * footer Close is reachable and returns cleanly.
  */
 import {test, expect, type Locator, type Page} from '@playwright/test';
+import {skipIfMapMissing} from './helpers';
 
 const AUTH_TOKEN = process.env.E2E_AUTH_TOKEN ?? process.env.PERFORM_TEST_AUTH_TOKEN;
 const PLANNER_API = process.env.VITE_XANO_PLANNER_BASE_URL ?? 'https://xdjc-i7zz-jhm2.n7e.xano.io/api:PE5iDldw';
@@ -73,6 +74,7 @@ test.describe('EXC-2 — sent chip opens the read-only view (US-EXC-2-03/04)', (
   test('E2E-EXC-2-03/04 (desktop, planner path): the exception chip is a reachable button with a progress label, and opens the sent job in the job panel', async ({page}) => {
     test.setTimeout(180_000);
     test.skip(!(await signIn(page)), 'No auth token — see file header.');
+    await skipIfMapMissing(page.request, PARENT_MAP, AUTH_TOKEN);
     const auth = {Authorization: `Bearer ${AUTH_TOKEN}`};
 
     const stamp = Date.now();

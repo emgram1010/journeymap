@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import {gotoMap, skipIfAiUnavailable} from './helpers';
 
 test('chat sends message and gets real AI response without errors', async ({ page }) => {
   // ── Capture all console errors ──
@@ -27,8 +28,7 @@ test('chat sends message and gets real AI response without errors', async ({ pag
   });
 
   // ── Navigate ──
-  await page.goto('/');
-  await page.waitForSelector('[class*="tabulator"]', { timeout: 30_000 });
+  await gotoMap(page);
 
   // ── Open chat sidebar if not already open ──
   const textarea = page.locator('textarea[placeholder="Type your message..."]');
@@ -59,6 +59,7 @@ test('chat sends message and gets real AI response without errors', async ({ pag
   await page.screenshot({ path: 'e2e/screenshots/chat-3-response.png' });
 
   // ── Assertions ──
+  skipIfAiUnavailable((aiResponseBody as {reply?: string} | null)?.reply);
 
   // 1. A request was made to the AI endpoint
   expect(aiRequestMade, 'No request was sent to /ai_message').toBe(true);

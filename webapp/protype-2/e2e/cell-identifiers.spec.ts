@@ -9,13 +9,13 @@
  * These tests intercept the outgoing request body to prove the gap.
  */
 import {test, expect, type Page} from '@playwright/test';
+import {gotoMap} from './helpers';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 /** Wait for the map workspace to be ready. */
 async function waitForWorkspace(page: Page) {
-  await page.goto('/');
-  await page.waitForSelector('[class*="tabulator"]', {timeout: 30_000}).catch(() => {});
+  await gotoMap(page);
   await page.waitForTimeout(1_000);
 }
 
@@ -24,7 +24,8 @@ async function openChat(page: Page) {
   const toggle = page.locator('button:has(svg.lucide-message-square)').first();
   await toggle.waitFor({timeout: 15_000});
   await toggle.click();
-  await expect(page.locator('text=AI Interviewer')).toBeVisible({timeout: 5_000});
+  // new-ui: the header now shows the session title, not a fixed "AI Interviewer" label — wait for the composer instead.
+  await expect(page.locator('textarea[placeholder="Type your message..."]')).toBeVisible({timeout: 5_000});
 }
 
 /** Click the first matrix cell and return its data-cell-id. */

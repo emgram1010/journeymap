@@ -9,6 +9,7 @@
  * prompts and diagnoses exactly what is missing.
  */
 import { test, expect, type Page } from '@playwright/test';
+import {skipIfAiUnavailable} from './helpers';
 
 // ── Config ──────────────────────────────────────────────────────────────────
 const TEST_EMAIL    = process.env.TEST_EMAIL    ?? 'aipming51@gmail.com';
@@ -80,6 +81,8 @@ async function createNewMap(page: Page): Promise<string> {
   );
 
   await page.click('button:has-text("New Journey Map")');
+  // new-ui: the button now opens a Create dialog (title + map level) instead of creating at once.
+  await page.getByRole('button', {name: 'Create', exact: true}).click();
   const createResp = await createResponsePromise;
   const createBody = await createResp.json().catch(() => ({})) as Record<string, unknown>;
   const jm = (createBody.journey_map ?? createBody) as Record<string, unknown>;
@@ -125,6 +128,7 @@ async function sendAndWait(
 
   const resp = await responsePromise;
   const body = await resp.json().catch(() => ({})) as Record<string, unknown>;
+  skipIfAiUnavailable(body.reply);
 
   // Wait for textarea to be re-enabled (send complete)
   await expect(textarea).not.toBeDisabled({ timeout: 120_000 });

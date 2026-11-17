@@ -29,6 +29,7 @@
  * clip it.
  */
 import {test, expect, type Locator, type Page, type Route} from '@playwright/test';
+import {skipIfMapMissing} from './helpers';
 
 const AUTH_TOKEN = process.env.E2E_AUTH_TOKEN ?? process.env.PERFORM_TEST_AUTH_TOKEN;
 const PLANNER_API = process.env.VITE_XANO_PLANNER_BASE_URL ?? 'https://xdjc-i7zz-jhm2.n7e.xano.io/api:PE5iDldw';
@@ -93,6 +94,7 @@ async function expectHittable(button: Locator) {
 test.describe('EXC-1 — readiness (US-EXC-1-01)', () => {
   test('E2E-EXC-1-01: the parent map warns about the unpublished and item-less targets; a clean map does not', async ({page}) => {
     test.skip(!(await signIn(page)), 'No auth token — see file header.');
+    await skipIfMapMissing(page.request, PARENT_MAP, AUTH_TOKEN);
 
     await page.goto(`/maps/${PARENT_MAP}?arch=31`);
     await page.waitForLoadState('networkidle');
@@ -116,6 +118,7 @@ test.describe('EXC-1 — send part of a job to a linked map (US-EXC-1-03/05/06)'
   test('E2E-EXC-1-02/03/04/06: refuse with typing kept, send, see the link both ways', async ({page}) => {
     test.setTimeout(180_000);
     test.skip(!(await signIn(page)), 'No auth token — see file header.');
+    await skipIfMapMissing(page.request, PARENT_MAP, AUTH_TOKEN);
     const auth = {Authorization: `Bearer ${AUTH_TOKEN}`};
 
     // A fresh plan that accepts the parent map, and a fresh parent with 3

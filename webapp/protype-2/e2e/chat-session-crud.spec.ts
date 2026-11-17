@@ -3,12 +3,11 @@
  * Covers: list, create, switch, rename, and delete conversation sessions.
  */
 import {test, expect, type Page} from '@playwright/test';
+import {gotoMap} from './helpers';
 
 /** Wait for the map workspace to be ready. */
 async function waitForWorkspace(page: Page) {
-  await page.goto('/');
-  // Wait for matrix or workspace content to load
-  await page.waitForSelector('[class*="tabulator"]', {timeout: 30_000}).catch(() => {});
+  await gotoMap(page);
   // Small settle
   await page.waitForTimeout(1_000);
 }
@@ -24,7 +23,8 @@ async function openChat(page: Page) {
 
 /** Open the session picker dropdown. */
 async function openSessionPicker(page: Page) {
-  const headerButton = page.locator('button:has(svg.lucide-chevron-down)').first();
+  // new-ui: other chevron-down buttons exist outside the chat panel (sidebar, Journey Health), so scope to the panel.
+  const headerButton = page.locator('div.w-96').locator('button:has(svg.lucide-chevron-down)').first();
   await headerButton.waitFor({timeout: 5_000});
   await headerButton.click();
   // Wait for the "New Session" button to appear inside the dropdown
@@ -92,10 +92,9 @@ test.describe('Chat Session CRUD', () => {
     // Open picker and click the first listed session (if available)
     await openSessionPicker(page);
 
-    // Wait for session list to populate
-    await page.waitForTimeout(2_000);
-
+    // new-ui: the list loads after the picker opens; wait for it to settle (sessions or the empty note), not a fixed 2s.
     const sessionButtons = page.locator('[class*="group"] button.text-left, [class*="group"] button:has-text("Untitled"), [class*="group"] button:has-text("Conversation"), [class*="group"] button:has-text("New Conversation")');
+    await expect(sessionButtons.first().or(page.locator('text=No sessions yet'))).toBeVisible({timeout: 15_000});
     const count = await sessionButtons.count();
 
     if (count > 0) {

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import {gotoMap, setChatMode, skipIfAiUnavailable} from './helpers';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -13,8 +14,7 @@ type TurnResult = {
 };
 
 async function openFreshChat(page: import('@playwright/test').Page, mode: 'chat' | 'interview' = 'chat') {
-  await page.goto('/');
-  await page.waitForSelector('[class*="tabulator"]', { timeout: 30_000 });
+  await gotoMap(page);
 
   // Open sidebar
   const textarea = page.locator('textarea[placeholder="Type your message..."]');
@@ -32,17 +32,7 @@ async function openFreshChat(page: import('@playwright/test').Page, mode: 'chat'
   }
 
   // Set mode
-  if (mode === 'interview') {
-    const interviewBtn = page.locator('button', { hasText: 'Interview' });
-    await interviewBtn.waitFor({ timeout: 10_000 });
-    await interviewBtn.click();
-    await page.waitForTimeout(500);
-  } else {
-    const chatBtn = page.locator('button', { hasText: 'Chat' });
-    await chatBtn.waitFor({ timeout: 10_000 });
-    await chatBtn.click();
-    await page.waitForTimeout(500);
-  }
+  await setChatMode(page, mode === 'interview' ? 'Interview' : 'Chat');
 
   await expect(textarea).toBeVisible({ timeout: 5_000 });
   return textarea;
@@ -68,6 +58,7 @@ async function sendAndWait(
   const resp = await responsePromise;
   status = resp.status();
   try { body = await resp.json(); } catch { /* ignore */ }
+  skipIfAiUnavailable(body.reply);
 
   // Wait for textarea to re-enable (agent finished)
   await expect(textarea).not.toBeDisabled({ timeout: 90_000 });
@@ -131,10 +122,7 @@ test.describe('AI Chat — tool & context validation', () => {
     const textarea = await openFreshChat(page);
 
     // Switch to interview mode first
-    const interviewBtn = page.locator('button', { hasText: 'Interview' });
-    await interviewBtn.waitFor({ timeout: 10_000 });
-    await interviewBtn.click();
-    await page.waitForTimeout(500);
+    await setChatMode(page, 'Interview');
 
     const result = await sendAndWait(page, textarea,
       "Let's start a PM interview. I'm building a journey map for an AI agent onboarding flow.");

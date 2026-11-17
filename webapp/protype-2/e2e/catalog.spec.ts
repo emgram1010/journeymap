@@ -19,7 +19,7 @@
  */
 import {test, expect, type Page} from '@playwright/test';
 
-const AUTH_TOKEN = process.env.CATALOG_TEST_AUTH_TOKEN;
+const AUTH_TOKEN = process.env.E2E_AUTH_TOKEN ?? process.env.CATALOG_TEST_AUTH_TOKEN;
 
 async function ensureLoggedIn(page: Page): Promise<boolean> {
   if (!AUTH_TOKEN) return false;

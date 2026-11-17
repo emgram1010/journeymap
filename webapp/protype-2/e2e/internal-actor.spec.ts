@@ -3,10 +3,10 @@
  * Covers: wizard card active, row creation with 12-field scaffold, cell panel renders internal fields.
  */
 import {test, expect, type Page} from '@playwright/test';
+import {gotoMap} from './helpers';
 
 async function waitForWorkspace(page: Page) {
-  await page.goto('/');
-  await page.waitForSelector('[class*="tabulator"]', {timeout: 30_000}).catch(() => {});
+  await gotoMap(page);
   await page.waitForTimeout(1_500);
 }
 
@@ -15,7 +15,7 @@ async function openActorWizard(page: Page) {
   await addRowBtn.waitFor({timeout: 15_000});
   await addRowBtn.click();
   // Wizard modal should appear
-  await expect(page.locator('text=Actor Type')).toBeVisible({timeout: 8_000});
+  await expect(page.getByText('Actor Type', {exact: true})).toBeVisible({timeout: 8_000});
 }
 
 test.describe('Internal Actor Template', () => {

@@ -48,6 +48,8 @@ async function createFreshMap(page: Page): Promise<string> {
     { timeout: 30_000 },
   );
   await page.click('button:has-text("New Journey Map")');
+  // new-ui: the button now opens a Create dialog (title + map level) instead of creating at once.
+  await page.getByRole('button', {name: 'Create', exact: true}).click();
   const resp = await createResp;
   const body = await resp.json().catch(() => ({})) as Record<string, unknown>;
   const jm = (body.journey_map ?? body) as Record<string, unknown>;
