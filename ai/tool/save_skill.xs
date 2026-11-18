@@ -5,7 +5,7 @@
 // copilot/skill_write, where the hard limits sit (E-COP-081..084); this tool adds no rule of its own.
 // New items start on trial. Every change is a version the owner can undo.
 tool save_skill {
-  instructions = "Save something you learned about HOW to work, in your own business 'how I work'. kind: skill (a repeatable way to do a task: steps, inputs, what done looks like), exception (WHEN something happens, do this instead - needs condition_text and parent_skill_id), lesson (something a real result taught you), or link (skill parent_skill_id feeds or triggers skill link_to_skill_id). To change an existing item, pass its skill_id with the full new text; leave a field empty to keep it. Never put logins, customer details, permissions or approval rules in a skill - the server refuses them. Facts about one business go in save_note instead."
+  instructions = "Save something you learned about HOW to work, in your own business 'how I work'. kind: skill (a repeatable way to do a task: steps, inputs, what done looks like), exception (WHEN something happens, do this instead - needs condition_text and parent_skill_id), lesson (something a real result taught you), or link (skill parent_skill_id feeds or triggers skill link_to_skill_id). To change an existing item, pass its skill_id with the full new text; leave a field empty to keep it. Never put logins, customer details, permissions or approval rules in a skill - the server refuses them. Tag it with work_kind (map_building, planning, doing_work, research or general). If an item is locked by the owner you cannot change it: suggest the change to the owner instead. Facts about one business go in save_note instead."
 
   input {
     int skill_id? {
@@ -48,6 +48,10 @@ tool save_skill {
       description = "work_kind only: the kind of work, in plain words."
     }
 
+    text work_kind? filters=trim {
+      description = "The job it is for: map_building, planning, doing_work, research or general (default)."
+    }
+
     text reason? filters=trim {
       description = "Why, in one line: what happened that taught you this."
     }
@@ -75,7 +79,7 @@ tool save_skill {
     }
 
     function.run "journey/tool_gate" {
-      input = {journey_map_id: 0, ticket: $input.ticket, tool: "save_skill", kind: "write", act_type: "skill_write", act_payload: {skill_id: $input.skill_id, kind: $input.kind, title: $input.title, body: $input.body, condition_text: $input.condition_text, parent_skill_id: $input.parent_skill_id, link_to_skill_id: $input.link_to_skill_id, scope_type: $input.scope_type, scope_ref_id: $input.scope_ref_id, scope_text: $input.scope_text, reason: $input.reason}, act_summary: $act_summary, act_approval_id: $input.approval_id}
+      input = {journey_map_id: 0, ticket: $input.ticket, tool: "save_skill", kind: "write", act_type: "skill_write", act_payload: {skill_id: $input.skill_id, kind: $input.kind, title: $input.title, body: $input.body, condition_text: $input.condition_text, parent_skill_id: $input.parent_skill_id, link_to_skill_id: $input.link_to_skill_id, scope_type: $input.scope_type, scope_ref_id: $input.scope_ref_id, scope_text: $input.scope_text, work_kind: $input.work_kind, reason: $input.reason}, act_summary: $act_summary, act_approval_id: $input.approval_id}
     } as $cop1_gate
 
     var $act_action_id {
@@ -118,6 +122,8 @@ tool save_skill {
                 scope_type      : $input.scope_type
                 scope_ref_id    : $input.scope_ref_id
                 scope_text      : $input.scope_text
+                work_kind       : $input.work_kind
+                let_ai_change   : false
                 reason          : $input.reason
                 copilot_run_id  : $trace.copilot_run_id
                 conversation_id : $trace.conversation_id

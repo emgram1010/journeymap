@@ -15,6 +15,13 @@
 //   E-COP-082 / E-COP-083 - the hard limits (copilot/skill_limits), checked HERE on the server,
 //               before the first write, at every approval level.
 //
+// COP-11 (locks, kinds of work, size limit) adds, all checked here on the server before the first write:
+//   E-COP-089 - the copilot tries to edit or retire a LOCKED item (copilot_skill_meta). The owner's own
+//               text is locked by default (D-24-1) unless let_ai_change is ticked. No AI tool sets a lock.
+//   E-COP-090 - a kind of work not on the fixed list (map_building, planning, doing_work, research, general).
+//   E-COP-091 - a new item when the account already holds max_active_items active ones (settings row, default 50).
+//   E-COP-096 - a new item identical (title and body, case and spaces ignored) to an active one of the same kind and parent.
+//
 // Every change writes a FULL copy of the item to copilot_skill_version in the same transaction as
 // the change. Unique (skill_id, version_no) is the race guard: two edits claiming the same number
 // cannot both commit (a transaction alone does not serialize overlapping requests - CLAUDE.md).
@@ -38,6 +45,8 @@ function "copilot/skill_write" {
     text reason? filters=trim
     int copilot_run_id?
     int conversation_id?
+    text work_kind? filters=trim
+    bool let_ai_change?
   }
 
   stack {
@@ -314,6 +323,179 @@ function "copilot/skill_write" {
       }
     }
 
+    // ── COP-11: lock, kind of work, size limit, duplicates ──
+    db.query copilot_skill_meta {
+      where = $db.copilot_skill_meta.skill_id == $cur_id && $cur_id != 0
+      return = {type: "single"}
+    } as $meta
+
+    var $meta_id {
+      value = $meta|get:"id":0
+    }
+
+    var $is_locked {
+      value = (($meta|get:"is_locked":false) == true)
+    }
+
+    var $cur_work_kind {
+      value = (($meta|get:"work_kind":"") ?? "")
+    }
+
+    var $work_kind {
+      value = (($input.work_kind != "") ? $input.work_kind : (($cur_work_kind != "") ? $cur_work_kind : "general"))
+    }
+
+    db.query copilot_library_setting {
+      where = $db.copilot_library_setting.account_id == $input.account_id && $input.account_id != 0
+      return = {type: "single"}
+    } as $lib_setting
+
+    var $max_items_raw {
+      value = ($lib_setting|get:"max_active_items":0) ?? 0
+    }
+
+    var $max_items {
+      value = (($max_items_raw != 0) ? $max_items_raw : 50)
+    }
+
+    db.query copilot_skill {
+      where = $db.copilot_skill.account_id == $input.account_id && $input.account_id != 0 && $db.copilot_skill.status != "retired"
+      return = {type: "count"}
+    } as $active_count
+
+    db.query copilot_skill {
+      where = $db.copilot_skill.account_id == $input.account_id && $input.account_id != 0 && $db.copilot_skill.status != "retired"
+      sort = {copilot_skill.updated_at: "asc"}
+      return = {type: "list"}
+      output = ["id", "title"]
+    } as $active_list
+
+    var $oldest {
+      value = $active_list|first
+    }
+
+    var $oldest_id_text {
+      value = (($oldest|get:"id":0)|to_text)
+    }
+
+    var $oldest_title {
+      value = (($oldest|get:"title":"")|substr:0:60)
+    }
+
+    conditional {
+      if ($reject_code == "" && $input.op != "create" && $input.changed_by == "copilot" && $is_locked) {
+        var.update $reject_code {
+          value = "E-COP-089"
+        }
+
+        var.update $reject_msg {
+          value = "That item is locked by the owner. You can follow it but not change it: tell the owner what you would change and why, and let them edit it. (E-COP-089)"
+        }
+      }
+    }
+
+    conditional {
+      if ($reject_code == "" && $input.op != "retire" && $input.work_kind != "" && $input.work_kind != "map_building" && $input.work_kind != "planning" && $input.work_kind != "doing_work" && $input.work_kind != "research" && $input.work_kind != "general") {
+        var.update $reject_code {
+          value = "E-COP-090"
+        }
+
+        var.update $reject_msg {
+          value = "Pick one of: map building, planning, doing work, research, general. (E-COP-090)"
+        }
+      }
+    }
+
+    var $active_text {
+      value = $active_count|to_text
+    }
+
+    var $max_text {
+      value = $max_items|to_text
+    }
+
+    conditional {
+      if ($reject_code == "" && $input.op == "create" && $active_count >= $max_items) {
+        var.update $reject_code {
+          value = "E-COP-091"
+        }
+
+        var.update $reject_msg {
+          value = "How I work is full (" ~ $active_text ~ " of " ~ $max_text ~ " items). Merge or retire an item first. Oldest: #" ~ $oldest_id_text ~ " " ~ $oldest_title ~ ". (E-COP-091)"
+        }
+      }
+    }
+
+    var $parent_cmp {
+      value = ((($kind == "exception") || ($kind == "link")) ? $parent_id : 0)
+    }
+
+    db.query copilot_skill {
+      where = $db.copilot_skill.account_id == $input.account_id && $input.account_id != 0 && $db.copilot_skill.status != "retired" && $db.copilot_skill.kind == $kind && $db.copilot_skill.parent_skill_id == $parent_cmp && $input.op == "create"
+      return = {type: "list"}
+      output = ["id", "title", "body"]
+    } as $same_kind
+
+    var $norm_title {
+      value = $title|lower|replace:" ":""
+    }
+
+    var $norm_body {
+      value = $body|lower|replace:" ":""
+    }
+
+    var $dup_id {
+      value = 0
+    }
+
+    var $ct {
+      value = ""
+    }
+
+    var $cb {
+      value = ""
+    }
+
+    var $is_dup {
+      value = false
+    }
+
+    foreach ($same_kind) {
+      each as $c {
+        var.update $ct {
+          value = $c.title|lower|replace:" ":""
+        }
+
+        var.update $cb {
+          value = $c.body|lower|replace:" ":""
+        }
+
+        var.update $is_dup {
+          value = ($ct == $norm_title && $cb == $norm_body)
+        }
+
+        var.update $dup_id {
+          value = ($is_dup ? $c.id : $dup_id)
+        }
+      }
+    }
+
+    var $dup_text {
+      value = $dup_id|to_text
+    }
+
+    conditional {
+      if ($reject_code == "" && $input.op == "create" && $dup_id != 0) {
+        var.update $reject_code {
+          value = "E-COP-096"
+        }
+
+        var.update $reject_msg {
+          value = "That already exists in How I work as #" ~ $dup_text ~ ", so I didn't save it twice. Change that one instead if it needs different wording. (E-COP-096)"
+        }
+      }
+    }
+
     // ── Story 03: the hard limits, on the server, before anything is stored ──
     function.run "copilot/skill_limits" {
       input = {
@@ -391,6 +573,14 @@ function "copilot/skill_write" {
 
     var $content {
       value = {}|set:"kind":$kind|set:"status":$status|set:"title":$title|set:"body":$body|set:"condition_text":$condition_final|set:"parent_skill_id":$parent_final|set:"link_to_skill_id":$link_final|set:"scope_type":$scope_type|set:"scope_ref_id":$scope_ref_final|set:"scope_text":$scope_text
+    }
+
+    var $owner_lock {
+      value = ($input.changed_by == "owner" && $input.let_ai_change != true)
+    }
+
+    var $keep_lock {
+      value = (($input.changed_by == "owner") ? false : $is_locked)
     }
 
     var $map_title {
@@ -492,6 +682,50 @@ function "copilot/skill_write" {
                       field_value = $map_id
                       data = {updated_at: "now", title: $map_title, journey_scope: $body}
                     } as $_map_patched
+                  }
+                }
+              }
+            }
+
+            // COP-11: the lock and the kind of work (1:1 side table). The owner's own text is locked
+            // unless let_ai_change is ticked (D-24-1); the copilot never sets or clears a lock.
+            conditional {
+              if ($input.op != "retire") {
+                conditional {
+                  if ($owner_lock) {
+                    conditional {
+                      if ($meta_id == 0) {
+                        db.add copilot_skill_meta {
+                          data = {updated_at: "now", skill_id: $skill_id, account_id: $input.account_id, is_locked: true, locked_by_user_id: $input.actor_user_id, locked_at: "now", work_kind: $work_kind}
+                        } as $_meta_added
+                      }
+
+                      else {
+                        db.patch copilot_skill_meta {
+                          field_name = "id"
+                          field_value = $meta_id
+                          data = {updated_at: "now", is_locked: true, locked_by_user_id: $input.actor_user_id, locked_at: "now", work_kind: $work_kind}
+                        } as $_meta_patched
+                      }
+                    }
+                  }
+
+                  else {
+                    conditional {
+                      if ($meta_id == 0) {
+                        db.add copilot_skill_meta {
+                          data = {updated_at: "now", skill_id: $skill_id, account_id: $input.account_id, is_locked: false, work_kind: $work_kind}
+                        } as $_meta_added2
+                      }
+
+                      else {
+                        db.patch copilot_skill_meta {
+                          field_name = "id"
+                          field_value = $meta_id
+                          data = {updated_at: "now", is_locked: $keep_lock, work_kind: $work_kind}
+                        } as $_meta_patched2
+                      }
+                    }
                   }
                 }
               }

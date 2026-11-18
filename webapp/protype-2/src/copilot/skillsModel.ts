@@ -105,3 +105,32 @@ export function changedFields(before: Partial<XanoCopilotSkill> | null | undefin
 export function visibleLevelRows(rows: XanoCopilotLevelRow[], archId: number, homeArchId: number): XanoCopilotLevelRow[] {
   return rows.filter((r) => r.key !== 'skill_write' || (homeArchId !== 0 && archId === homeArchId));
 }
+
+// ── COP-11: lock, kind of work, last used, and the size limit, in plain words ──
+
+/** The fixed list of kinds of work (the server refuses anything else, E-COP-090). */
+export const WORK_KINDS = ['map_building', 'planning', 'doing_work', 'research', 'general'] as const;
+
+const WORK_KIND_LABELS: Record<string, string> = {
+  map_building: 'Map building',
+  planning: 'Planning',
+  doing_work: 'Doing work',
+  research: 'Research',
+  general: 'General',
+};
+
+/** An unknown or missing kind reads as General (no tag = general). */
+export const workKindLabel = (k: string | null | undefined): string => WORK_KIND_LABELS[k ?? ''] ?? 'General';
+
+export const lockLabel = (locked: boolean): string => (locked ? 'Locked' : 'AI may change');
+
+/** "23 of 50 items". */
+export const itemCounter = (active: number, max: number): string => `${active} of ${max} items`;
+
+/** "Never used", "Used today", "Used 3 days ago". lastUsedMs 0 = never. */
+export function lastUsedLabel(lastUsedMs: number, nowMs: number): string {
+  if (!lastUsedMs) return 'Never used';
+  const days = Math.floor((nowMs - lastUsedMs) / 86_400_000);
+  if (days <= 0) return 'Used today';
+  return days === 1 ? 'Used 1 day ago' : `Used ${days} days ago`;
+}

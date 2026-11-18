@@ -1,6 +1,6 @@
 # EPIC-COP-11 — Locks, and a library that stays tidy
 
-**Status:** 📋 Not started
+**Status:** 🟡 Server side live (2026-11-18, Sonnet 5.5). Screen (story 05), auto-lock on Undo, and the old-item backfill not built. **Opus review pass still to do.**
 **Model:** **Opus 5.5** for story 01 (the lock is a guard). **Sonnet 5.5** for 02–05. Opus review pass at the end.
 **Depends on:** COP-9 stories 01–04 (live). **Build together with COP-9 story 05** (trial before trust): both change how items are promoted, flagged and loaded.
 **Risk:** medium. Story 01 decides what the AI may never change.
@@ -193,4 +193,27 @@ Scenario: filter
 
 ## 6. Test results
 
-Not run.
+**Tables added (founder approved 2026-11-18):** `copilot_skill_meta` (id 165), `copilot_library_setting` (id 166). Additive only; nothing existing changed.
+
+**Live items:** `copilot/skill_write` (398, now checks lock, kind, cap, duplicate), `copilot/skill_library` (399, kinds filter, word limit, "locked" marker, `left_out`), `save_skill` tool (183, passes `work_kind`), endpoints 666 `copilot/skill_lock`, 667 `copilot/skill_meta`, 668 `copilot/library_settings`.
+
+| Check | Result |
+|---|---|
+| Locked item, copilot edits it (live function) | refused **E-COP-089**, nothing changed |
+| Kind "bogus" (live function) | refused **E-COP-090** |
+| Same title and text again, different case (live function) | refused **E-COP-096**, points to #10 |
+| Library loader, no kinds | all items, #10 marked `locked`; `left_out` 0 |
+| Library loader, kinds ["research"] | #10 (planning) left out; untagged items still load |
+| HTTP as test admin (`tests/cop11_probe.py`) | **14/14**: read endpoint, lock/unlock each make a version, foreign item refused, 3 out-of-bounds settings refused, in-bounds saved and read back, no sign-in refused |
+| Real copilot asked to rewrite locked #10 (`tests/cop11_ai_probe.py`) | **2/2**: item unchanged; it said it is locked and suggested the change |
+| Unit (`cop11Library.test.ts`) | 11/11; full `npm test` 954/954; tsc clean |
+
+**Not done / not proven:**
+- **Screen (story 05):** lock button, kind filter, "23 of 50", stale filter. API wrappers and display helpers exist; no screen yet.
+- **Owner edits and Undo lock automatically (D-24-1):** `skill_write` does it when called as owner, but no owner endpoint calls it yet, and `skill_undo` does not lock.
+- **Suggest as an approval item:** the copilot proposes in chat; no approval request is created.
+- **Full library (E-COP-091) and word limit:** coded, not hit live (bounds stop a tiny limit; account has about 6 items).
+- **Backfill of old free-text kinds:** not run; old items have no meta row so they read as "general".
+- **"Least used" hint on a full library:** shows the oldest-updated item, not the least used.
+- **Stale flag:** computed on read, no `flagged_stale` event.
+- Test item #10 (locked, planning) left in account 13.

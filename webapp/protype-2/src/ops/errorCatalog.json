@@ -2556,5 +2556,55 @@
     "owner": "engineer",
     "severity": "warn",
     "fix_hint": "Open the map's readiness in the app (endpoint 520) and compare; check event_log for the reason."
+  },
+  "E-COP-089": {
+    "code": "E-COP-089",
+    "feature": "COP-11",
+    "user_message": "That item is locked by the owner. You can follow it but not change it: tell the owner what you would change and why, and let them edit it.",
+    "what_happened": "The copilot tried to edit or retire a locked item in How I work; nothing changed.",
+    "likely_cause": "The owner locked it (or wrote it, which locks it by default).",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Unlock the item in How I work if you want the copilot to change it, or tell it what to change and edit it yourself."
+  },
+  "E-COP-090": {
+    "code": "E-COP-090",
+    "feature": "COP-11",
+    "user_message": "Pick one of: map building, planning, doing work, research, general.",
+    "what_happened": "A skill was saved with a kind of work that is not on the fixed list; nothing was saved.",
+    "likely_cause": "The copilot invented a kind of work, or a typo.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Re-send with one of the five kinds."
+  },
+  "E-COP-091": {
+    "code": "E-COP-091",
+    "feature": "COP-11",
+    "user_message": "How I work is full. Merge or retire an item first.",
+    "what_happened": "The library is at its active-item limit; nothing was saved.",
+    "likely_cause": "Too many active items for this account's limit.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Retire or merge the least-used items in How I work, or raise the limit in the library settings."
+  },
+  "E-COP-092": {
+    "code": "E-COP-092",
+    "feature": "COP-11",
+    "user_message": "Only a person who is an admin can lock or unlock an item.",
+    "what_happened": "A lock change was refused because it came from an AI identity or a non-admin.",
+    "likely_cause": "The copilot (or a team member without admin) tried to change a lock.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Ask an account admin to lock or unlock it."
+  },
+  "E-COP-096": {
+    "code": "E-COP-096",
+    "feature": "COP-11",
+    "user_message": "That already exists in How I work, so I didn't save it twice.",
+    "what_happened": "A new item matches an active item of the same kind and parent (same title and text); nothing was saved.",
+    "likely_cause": "The copilot tried to save a duplicate.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Use the existing item; change it instead if it needs different wording."
   }
 }

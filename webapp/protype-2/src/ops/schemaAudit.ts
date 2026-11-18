@@ -129,6 +129,9 @@ export const TABLE_MANIFEST: Record<string, TableExpectation> = {
   copilot_skill_version: {naturalKeys: [['skill_id', 'version_no']], enumFields: ['change', 'changed_by'], appendOnly: true},
   copilot_skill_off: {naturalKeys: [['skill_id', 'journey_architecture_id']]},
   copilot_skill_use: {appendOnly: true},
+  // COP-11: the lock + kind of work (1:1 side table, edited in place) and the per-account limits.
+  copilot_skill_meta: {naturalKeys: [['skill_id']], enumFields: ['work_kind']},
+  copilot_library_setting: {naturalKeys: [['account_id']]},
   plan_publication: {naturalKeys: [['timeline_id', 'version']], appendOnly: true},
   plan_change_log: {enumFields: ['change_type'], appendOnly: true},
   activity_log: {naturalKeys: [['client_event_id']], enumFields: ['event_type', 'source'], appendOnly: true},
