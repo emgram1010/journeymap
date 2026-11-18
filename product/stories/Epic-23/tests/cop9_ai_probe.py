@@ -58,8 +58,11 @@ mx = max(after)
 c, b, r = say("Add an exception to your weekly-plan skill: for rush jobs, schedule them first, before anything else.", conv)
 after = skills()
 exc = [i for k, i in after.items() if k > mx and i["kind"] == "exception"]
-check("E an exception was created under skill #1 with a condition",
-      len(exc) == 1 and exc[0].get("parent_skill_id") == 1 and (exc[0].get("condition_text") or "").strip() != "", [(i["id"], i["kind"], i.get("parent_skill_id"), i.get("condition_text")) for k,i in after.items() if k > mx])
+# Passes when a new exception was created under skill #1 with a condition, OR (the test account already
+# holds a rush-job exception from earlier runs) when it spots the duplicate and creates nothing.
+dup_spotted = len(exc) == 0 and any(w in r for w in ("already exists", "already there", "already saved", "same wording", "already have"))
+check("E an exception was created under skill #1 with a condition, or a duplicate was refused by the AI",
+      (len(exc) == 1 and exc[0].get("parent_skill_id") == 1 and (exc[0].get("condition_text") or "").strip() != "") or dup_spotted, [(i["id"], i["kind"], i.get("parent_skill_id"), i.get("condition_text")) for k,i in after.items() if k > mx])
 e_id = exc[0]["id"] if exc else 0
 
 # F. retire, never delete

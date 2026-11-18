@@ -144,8 +144,7 @@ agent "Emgram Copilot" {
     max_steps    : 18
     messages     : "{{ $args.messages|json_encode() }}"
     api_key      : "{{ $env.ANTHROPIC_KEY }}"
-    model        : "claude-sonnet-4-5"
-    temperature  : 0.3
+    model        : "claude-sonnet-5-5"
     reasoning    : true
     baseURL      : ""
     headers      : ""

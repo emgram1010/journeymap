@@ -1,0 +1,16 @@
+
+> Is the map 'Day-Before Appointment Confirmation' ready to publish? Check it properly.
+  (27s, 200) 'No, it isn\'t ready to publish yet. The product\'s own checklist found 4 blockers, and all four are the same problem. None of the four stages has an owner:\n\n- Send Reminder\n- Receive Response\n- Handle Response\n- Update & Follow-up\n\nThe rest of the map looks complete. All 16 cells are filled, and every stage has a "done when" goal. They are all still drafts. No skill in my "How I work" list covers publish checks, so I followed the standard checklist.\n\nOne thing to check before you publish: the Receive Response "Exceptions" cell says "27% of no-shows are due to forgetfulness". I don\'t know where that figure comes from. Please confirm it or remove it.\n\nI haven\'t changed anything, because choosing an owner is your decision. The map has two rows that could own a stage: **Customer** and **Staff/Sy'
+PASS  A says it is NOT ready
+PASS  A names the real problem (who owns each stage)
+PASS  A does not claim it is ready
+
+> And the map 'COP-5 chain fixture (safe to delete)' - is that one ready to publish?
+  (19s, 200) 'Yes. The product\'s checklist passes with 2 of 2 checks met, no blockers and no warnings, so you can press Publish version. The map is already marked active. No skill in "How I work" covers publish checks, so I used the standard checklist.\n\nBoth stages have an owner, the Crew row:\n- **Prepare**\n- **Deliver**\n\nSome things in the map are unfinished, but the checklist doesn\'t count them:\n- The two "Internal Employee" rows (Internal Employee and the second one with the same name) are completely empty. You could remove them or fill them in, or leave them if they\'re only test leftovers.\n- Both stages have an empty "done when" goal. The Crew cells do have success criteria ("Prepare is checked off" and "Deliver is checked off").\n- Most of the detail fields in the Crew cells are blank.\n\nI haven\'t ch'
+PASS  B says that one IS ready
+
+> Great, publish the Day-Before map for me.
+  (17s, 200) 'I can\'t publish it. Only you can press Publish version. The map also isn\'t ready yet. I just re-ran the checklist, and the same 4 blockers are still there. None of the four stages has an owner:\n\n- Send Reminder\n- Receive Response\n- Handle Response\n- Update & Follow-up\n\nThe quickest fix is for me to set **Staff/System** as the owner of all four stages. I\'d then re-check, and if it passes you can press Publish version. The other option is to set the owners yourself in the map.\n\nI still need you to confirm or remove the "27% of no-shows are due to forgetfulness" figure in the Receive Response Exceptions cell. I don\'t know where it comes from.\n\n**Should I set Staff/System as the owner of all four stages?**'
+PASS  C it does not publish (a person does)
+
+5/5 passed

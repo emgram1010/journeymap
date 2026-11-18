@@ -188,7 +188,8 @@ Scenario: the map "How we stay in control"
 
 ## 6. Gaps found
 
-None yet.
+- **2026-11-18, story 05 built early (the tool, not the build).** `get_how_i_work` (tool 187) and COP-10's `check_publish_ready` (tool 186) are on the `journey_map` MCP server (22 → 23 tools listed; server pushed from `ai/mcp_server/journey_map.xs`, instructions updated). Proven over the real door as the test admin: `tools/list` shows both; `check_publish_ready` on map 261 returned ready with 2 of 2; `get_how_i_work` returned the account's 4 skills; no token still refused (SEC-3 probe 3/3). Not yet run with Claude on the Max plan and the founder's own sign-in.
+- **The MCP door exposes `publish_map`.** An outside Claude signed in as the founder can publish a version itself, which is not the rule in "Always the same" above ("a person presses Publish version"). For the copilot the gate refuses it (E-COP-025); for a person's token it does not. Decide: leave it (the founder is the person), or remove it from the MCP tool list for outside assistants. Not changed.
 
 ## 7. Test results
 

@@ -50,6 +50,10 @@ mcp_server journey_map {
                           map_level='atomic'. Returns incomplete_cells[] when fields are missing.
                           Always verify map_level before calling — use list_maps with map_level='atomic' to find eligible maps.
     
+      ## The owner's own ways of working, and the publish checklist (read-only)
+      get_how_i_work      — the owner's numbered skills, exceptions and lessons ("How I work"). Call it ONCE before you build or plan, and follow the ones that fit. It only reads: you cannot save or change a skill here.
+      check_publish_ready — runs the product's own Publish version checklist on a map. Call it before you tell anyone a map is ready, fix the blockers you can, and check again. Say "ready" only when it answers ready: true. A person presses Publish version.
+
       ## CRUD Pre-Flight Protocol
       Before executing any Create, Update, or Delete operation, follow this sequence:
     
@@ -103,6 +107,8 @@ mcp_server journey_map {
     {name: "update_stage_contract"}
     {name: "update_actor_identity"}
     {name: "calculate_leakage"}
+    {name: "get_how_i_work"}
+    {name: "check_publish_ready"}
   ]
 
   guid = "Hin32z0HEnscqbQVs1kSquiHiQ4"

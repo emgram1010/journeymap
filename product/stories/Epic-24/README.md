@@ -104,5 +104,5 @@ Each has a default so the build is never blocked.
 | COP-10 | 🟡 Built and live; Assistant agent needs the tool added in Xano (see its Results) |
 | COP-11 | 📋 Not started |
 | COP-12 | 🟡 Built as a read-only tool (not an endpoint change); kind filter waits on COP-11 |
-| COP-13 | 📋 Not started |
+| COP-13 | 🟡 Part A: copilot and map chat on Sonnet 5.5 and proven; four agents and the Assistant still on 4.5; part B not started |
 | COP-14 | 📋 Not started |

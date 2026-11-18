@@ -1,0 +1,6 @@
+(31s, 200) {"reply": "Your weekly planning approach (Skill #1) has two lines:\n\n1. Read last week's jobs, check who is free, then draft the days.\n2. Ask the owner to check the plan before publishing.\n\nThere are two exceptions. Schedule rush or urgent jobs first (Exception #6, which is also saved as #8). If a step has been blocked for more than 2 days, ask the owner before rescheduling it (Exception #2).\n\nI got one thing wrong earlier. I said the owner check is skipped for rush jobs or blocked steps, but the exceptions don't say that. Rush jobs only change the scheduling order. Blocked steps need an extra owner check. The owner still reviews every plan before it's published.", "cell_updates": [{"cell_id": 10928, "stage_id": 1999, "lens_id": 1366, "content": "", "actor_fields": {"emotions": "Anxious, frustrated, impatient \u2014 every minute waiting cuts into earnings and delays next stops", "a
+PASS  chat answered 200
+PASS  it named skill #1 and its steps (last week's jobs, who is free)
+PASS  it did NOT say it lacks access
+
+3/3 passed

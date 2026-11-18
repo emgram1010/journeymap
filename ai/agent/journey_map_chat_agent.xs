@@ -80,8 +80,7 @@ agent "Journey Map Chat Agent" {
     max_steps    : 5
     messages     : "{{ $args.messages|json_encode() }}"
     api_key      : "{{ $env.ANTHROPIC_KEY }}"
-    model        : "claude-sonnet-4-5"
-    temperature  : 0.4
+    model        : "claude-sonnet-5-5"
     reasoning    : false
     baseURL      : ""
     headers      : ""

@@ -1,6 +1,6 @@
 # EPIC-COP-13 — The right model for each job, and permission before a dearer one
 
-**Status:** 📋 Not started
+**Status:** 🟡 Part A partly done (2026-11-18, Sonnet 5.5): the copilot and the map chat agent run on Sonnet 5.5. Part B (step-up) not started.
 **Model:** **Sonnet 5.5** for part A (stories 01–02). **Opus 5.5** for part B (stories 03–05): a new approval type and a spend cap. Opus review pass after part B.
 **Depends on:** part A none; part B on COP-2 (approval levels) and COP-1 story 05 (daily cap).
 **Risk:** part A low (a setting per agent, easy to roll back). Part B medium: it decides when the AI may spend more.
@@ -168,4 +168,24 @@ Scenario: Health
 
 ## 7. Test results
 
-Not run.
+### Part A: moved so far
+
+| Agent | Before | Now | Proof |
+|---|---|---|---|
+| Emgram Copilot (40) | Sonnet 4.5, temperature 0.3, thinking on | **Sonnet 5.5**, no temperature, thinking on | Xano accepted `claude-sonnet-5-5` (no 400). Real AI, same scenarios as on 4.5: COP-10 **5/5** (was 5/5); COP-9 **7/8** (was 8/8): the one miss is the old probe expecting a new rush-job exception, while the 5.5 copilot noticed #6 and #8 already exist and refused to add a third. Behaviour better than before; probe widened to accept it. Results in `tests/cop13_s55_cop10_result.txt` and `cop13_s55_cop9_result.txt` |
+| Journey Map Chat Agent (10) | Sonnet 4.5, temperature 0.4, thinking off | **Sonnet 5.5**, no temperature, thinking off | Real map chat (`tests/cop12_ai_probe.py`) **3/3**: names Skill #1 and its steps (`tests/cop13_s55_chat_result.txt`) |
+
+UT-COP-13-01..03 (`cop13AgentModels.test.ts`) 3/3: each agent file's model matches the expected list, no agent is missing from it, and an agent on a newer model sets no temperature.
+
+**Not measured:** tokens per scenario (Xano does not return usage to us). The case for the switch rests on price per token ($2 / $10 against $3 / $15) and on the scenarios not getting worse. Check the Anthropic console usage page after a few days.
+
+### Part A: left on Sonnet 4.5, and why
+
+| Agent | Why not yet |
+|---|---|
+| Journey Map Assistant (18, interview mode) | Its repo file had drifted (a `"temp"` prompt; live holds ~70,000 characters). Pushing means re-sending all of it. Safer: **in Xano, AI → Agents → Journey Map Assistant → change the model to Sonnet 5.5, delete the temperature line** (and add `check_publish_ready` and `get_how_i_work`, see COP-10). Then run a short interview in the app |
+| Journey Map Builder (9) | Needs a phased-build run on a spare map to prove fast cell fills still use the right write tool; no spare fixture map was safe to change. Chat (same thinking-off setting) works on 5.5, so the setting shape is fine |
+| Orchestrator (15), Compare Analyst (3), Copilot Researcher (41) | Need one real run each (a workflow, a scenario comparison, a research topic). Not run |
+
+### Part B and story 02: not started
+Story 02 (Health lists each agent's model) and the whole of part B (cheap and strong copy, "use a stronger model" approval, daily cap) are untouched. Part B adds an approval type and spends money, so it waits for the founder's go (README D-24-6).
