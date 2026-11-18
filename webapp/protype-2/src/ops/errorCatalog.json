@@ -2466,5 +2466,85 @@
     "owner": "engineer",
     "severity": "error",
     "fix_hint": "Save the login again under Connections. If many fail at once, check whether the key was changed."
+  },
+  "E-COP-080": {
+    "code": "E-COP-080",
+    "feature": "COP-9",
+    "user_message": "The copilot couldn't read its skills this time, so it used its built-in instructions.",
+    "what_happened": "copilot/skill_library failed while loading 'how I work' for a chat or scheduled run.",
+    "likely_cause": "A short database problem, or an item with broken scope data.",
+    "owner": "engineer",
+    "severity": "warn",
+    "fix_hint": "Check copilot_skill rows for this account; the chat or run itself carried on."
+  },
+  "E-COP-081": {
+    "code": "E-COP-081",
+    "feature": "COP-9",
+    "user_message": "The copilot can only write skills in its own business, 'how I work'.",
+    "what_happened": "A skill write named an item, scope or link outside the account's copilot home.",
+    "likely_cause": "The copilot passed a skill, map or business id from somewhere else, or the account has no copilot home yet.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Set up the copilot's own business on Manage users if it is missing; otherwise nothing is needed - the write was refused."
+  },
+  "E-COP-082": {
+    "code": "E-COP-082",
+    "feature": "COP-9",
+    "user_message": "A skill can't give the copilot permissions, change an approval level, or approve or skip approvals. Nothing was saved.",
+    "what_happened": "A skill, exception or lesson the copilot wrote tried to grant itself a permission, change an approval level, or approve or skip approvals.",
+    "likely_cause": "A lesson drawn from a run where the owner approved something was worded as a standing rule.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Nothing to do - it was refused and nothing was stored. Change the approval level yourself if you want to."
+  },
+  "E-COP-083": {
+    "code": "E-COP-083",
+    "feature": "COP-9",
+    "user_message": "A skill can't contain logins, passwords, keys or customer personal details. Nothing was saved.",
+    "what_happened": "A skill-library save contained something that looks like a secret (password, key, token) or customer personal data (email, phone or card number).",
+    "likely_cause": "Text copied from a conversation or a page into a skill.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Nothing to do - it was refused and nothing was stored. Keep logins in Connections, never in a skill."
+  },
+  "E-COP-084": {
+    "code": "E-COP-084",
+    "feature": "COP-9",
+    "user_message": "An exception needs a 'when'. Without one, this is a change to the skill. It also needs the skill it changes.",
+    "what_happened": "An exception was saved with no condition, or without the skill it branches.",
+    "likely_cause": "The copilot described a general change as an exception.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Edit the skill itself instead, or give the exception a condition and a parent skill."
+  },
+  "E-COP-085": {
+    "code": "E-COP-085",
+    "feature": "COP-9",
+    "user_message": "That change couldn't be undone. Nothing was changed; try again.",
+    "what_happened": "copilot/skill_undo could not put an earlier version back.",
+    "likely_cause": "The version does not belong to this item, or a short database problem.",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "Check copilot_skill_version for the item; the item still holds its latest version."
+  },
+  "E-COP-086": {
+    "code": "E-COP-086",
+    "feature": "COP-9",
+    "user_message": "The copilot has no business of its own yet, so it can't keep skills. An admin can set it up on Manage users.",
+    "what_happened": "A skill write found no copilot_home row for the account.",
+    "likely_cause": "The copilot's own business ('how I work') was never set up for this account.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "An admin opens the copilot panel and presses 'Set up the copilot's own business'."
+  },
+  "E-COP-087": {
+    "code": "E-COP-087",
+    "feature": "COP-9",
+    "user_message": "That version can't be put back: it doesn't exist or is already the current one. Nothing was changed.",
+    "what_happened": "An undo named a version that is not in the item's history, or is its current version.",
+    "likely_cause": "The screen was out of date (someone else already changed or undid the item), or a wrong number was sent.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload 'How I work' and press Undo on the change you mean."
   }
 }

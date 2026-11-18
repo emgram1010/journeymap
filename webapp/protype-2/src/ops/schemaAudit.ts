@@ -123,6 +123,12 @@ export const TABLE_MANIFEST: Record<string, TableExpectation> = {
   copilot_goal: {enumFields: ['status']},
   copilot_map_profile: {naturalKeys: [['journey_map_id']], enumFields: ['kind', 'made_by']},
   copilot_note: {},
+  // COP-9: the skill library. Items are edited in place (their history is the version table);
+  // versions and "skill used" rows are written once; the per-business switch is edited in place.
+  copilot_skill: {naturalKeys: [['journey_map_id']], enumFields: ['kind', 'status', 'scope_type']},
+  copilot_skill_version: {naturalKeys: [['skill_id', 'version_no']], enumFields: ['change', 'changed_by'], appendOnly: true},
+  copilot_skill_off: {naturalKeys: [['skill_id', 'journey_architecture_id']]},
+  copilot_skill_use: {appendOnly: true},
   plan_publication: {naturalKeys: [['timeline_id', 'version']], appendOnly: true},
   plan_change_log: {enumFields: ['change_type'], appendOnly: true},
   activity_log: {naturalKeys: [['client_event_id']], enumFields: ['event_type', 'source'], appendOnly: true},

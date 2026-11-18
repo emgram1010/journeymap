@@ -58,6 +58,22 @@ function "copilot/action_gate" {
       }
     }
 
+    // COP-9 story 06: "write its own skills" is set ONCE, on the copilot's own business (its
+    // copilot home), whichever business the chat or run is about. A waiting skill change is filed
+    // under that business's Approvals. No home = 0 = the type's default (the writer refuses anyway).
+    conditional {
+      if ($input.act_type == "skill_write") {
+        db.query copilot_home {
+          where = $db.copilot_home.account_id == $input.account_id && $input.account_id != 0
+          return = {type: "single"}
+        } as $skill_home
+
+        var.update $arch_id {
+          value = $skill_home|get:"journey_architecture_id":0
+        }
+      }
+    }
+
     var $payload_obj {
       value = $input.act_payload ?? {}
     }

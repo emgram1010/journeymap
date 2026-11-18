@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useState} from 'react';
 import {AlertCircle, Check, Loader2} from 'lucide-react';
 import {
   decideCopilotAction,
+  getCopilotHome,
   listCopilotActions,
   listCopilotLevels,
   listJourneyArchitectures,
@@ -28,6 +29,7 @@ import {
   actionTypeLabel,
 } from './approvalsModel';
 import ConnectionsSection from './ConnectionsSection';
+import {visibleLevelRows} from './skillsModel';
 
 /**
  * COP-2 — Approvals. Three tabs: Waiting for you, What the copilot did, Approval levels.
@@ -323,11 +325,16 @@ function LevelsTab() {
   const [rows, setRows] = useState<XanoCopilotLevelRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // COP-9 story 06: "write its own skills" lives on the copilot's own business only.
+  const [homeArchId, setHomeArchId] = useState(0);
 
   useEffect(() => {
     listJourneyArchitectures()
       .then(setArchs)
       .catch(() => setArchs([]));
+    getCopilotHome()
+      .then((h) => setHomeArchId(h.has_home ? h.journey_architecture_id : 0))
+      .catch(() => setHomeArchId(0));
   }, []);
 
   const load = useCallback(async (id: number) => {
@@ -380,10 +387,15 @@ function LevelsTab() {
         <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
       ) : (
         <ul className="flex flex-col gap-3">
-          {rows.map((r) => (
+          {visibleLevelRows(rows, archId, homeArchId).map((r) => (
             <LevelRow key={`${archId}-${r.key}`} row={r} archId={archId} onSaved={() => load(archId)} />
           ))}
         </ul>
+      )}
+      {homeArchId !== 0 && archId !== homeArchId && archId !== 0 && (
+        <p className="text-xs text-zinc-500 mt-3">
+          How much the copilot may change its own skills is set once, on &ldquo;Copilot&rsquo;s own: how I work&rdquo;.
+        </p>
       )}
       {archId !== 0 && <ConnectionsSection archId={archId} />}
     </div>

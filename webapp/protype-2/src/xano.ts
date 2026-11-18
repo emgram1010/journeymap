@@ -2329,6 +2329,63 @@ export interface XanoCopilotMemory {
   }[];
 }
 
+/** COP-9 — one item in the copilot's skill library ("how I work"). */
+export interface XanoCopilotSkill {
+  id: number;
+  updated_at: number;
+  journey_map_id: number;
+  kind: 'skill' | 'exception' | 'lesson' | 'link';
+  status: 'trial' | 'trusted' | 'retired';
+  title: string;
+  body: string;
+  condition_text: string;
+  parent_skill_id: number;
+  link_to_skill_id: number;
+  scope_type: 'all' | 'business' | 'map' | 'work_kind' | '';
+  scope_ref_id: number;
+  scope_text: string;
+  version_no: number;
+}
+
+export interface XanoCopilotSkills {
+  home_architecture_id: number;
+  items: XanoCopilotSkill[];
+  off: {skill_id: number; journey_architecture_id: number}[];
+}
+
+export interface XanoCopilotSkillVersion {
+  id: number;
+  created_at: number;
+  version_no: number;
+  change: 'create' | 'edit' | 'retire' | 'undo';
+  changed_by: 'copilot' | 'owner';
+  changed_by_user_id: number;
+  reason: string;
+  content: Partial<XanoCopilotSkill> | null;
+  copilot_run_id: number;
+  conversation_id: number;
+  undo_of_version_no: number;
+}
+
+export const getCopilotSkills = (): Promise<XanoCopilotSkills> => xanoRequest('/copilot/skills');
+
+export const getCopilotSkillVersions = (
+  skillId: number,
+): Promise<{skill_id: number; current_version_no: number; versions: XanoCopilotSkillVersion[]}> =>
+  xanoRequest(`/copilot/skill_versions?skill_id=${skillId}`);
+
+export const undoCopilotSkill = (body: {skill_id: number; restore_version_no: number; reason?: string}) =>
+  xanoRequest<{skill_id: number; version_no: number; restored_version_no: number; status: string}>('/copilot/skill_undo', {
+    method: 'POST',
+    body,
+  });
+
+export const switchCopilotSkill = (body: {skill_id: number; journey_architecture_id: number; is_off: boolean}) =>
+  xanoRequest<{skill_id: number; journey_architecture_id: number; is_off: boolean}>('/copilot/skill_switch', {
+    method: 'POST',
+    body,
+  });
+
 export const getCopilotMemory = (journeyArchitectureId: number): Promise<XanoCopilotMemory> =>
   xanoRequest(`/copilot/business_memory?journey_architecture_id=${journeyArchitectureId}`);
 

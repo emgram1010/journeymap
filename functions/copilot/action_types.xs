@@ -19,11 +19,12 @@ function "copilot/action_types" {
         booking_change     : {key: "booking_change", name: "Create or change a booking", touches: "booking", reversible: true, default_level: "wait", locked: false, person_only: false, has_limit: false, wired: false}
         money_payment      : {key: "money_payment", name: "Charge, pay or refund money", touches: "money", reversible: false, default_level: "wait", locked: false, person_only: false, has_limit: true, wired: false}
         scheduled_work     : {key: "scheduled_work", name: "Work on its tasks on a schedule, with nobody at the screen", touches: "internal", reversible: true, default_level: "wait", locked: false, person_only: false, has_limit: false, wired: true}
+        skill_write        : {key: "skill_write", name: "Write its own skills in 'how I work'", touches: "internal", reversible: true, default_level: "tell", locked: false, person_only: false, has_limit: false, wired: true}
       }
     }
 
     var $order {
-      value = ["map_read", "map_draft", "map_publish_version", "plan_draft", "plan_live_change", "plan_publish_live", "note_internal", "work_update", "work_complete", "customer_message", "booking_change", "money_payment", "scheduled_work"]
+      value = ["map_read", "map_draft", "map_publish_version", "plan_draft", "plan_live_change", "plan_publish_live", "note_internal", "work_update", "work_complete", "customer_message", "booking_change", "money_payment", "scheduled_work", "skill_write"]
     }
   }
 

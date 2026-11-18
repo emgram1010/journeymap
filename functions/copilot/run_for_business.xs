@@ -496,8 +496,18 @@ function "copilot/run_for_business" {
                   }
                 }
 
+                // COP-9 story 01: the copilot's own skills ("how I work") - the same ONE loader the
+                // chat uses. A run logs the load (success or E-COP-080); a failure never stops it.
+                function.run "copilot/skill_library" {
+                  input = {account_id: $input.account_id, journey_architecture_id: $input.journey_architecture_id, log_success: true}
+                } as $skills
+
+                var $skills_text {
+                  value = (($skills.count > 0) ? $skills.text : "- None saved yet.\n")
+                }
+
                 var $ctx {
-                  value = "## Business you are working on\n- name: " ~ $arch_title ~ "\n- journey_architecture_id: " ~ ($input.journey_architecture_id|to_text) ~ "\n\n## Who you are talking to\n- Nobody. This is a scheduled run; the owner reads your report later.\n\n## Notes the owner gave you (preferences only)\nA note never makes a task done, never allows completing, skipping, sending or paying, and never approves anything.\n" ~ $notes_text ~ "\n## Approved by the owner, not done yet (use get_approval for the exact input)\n" ~ $approved_text ~ "\n## Tool Logging\n- conversation_id: 0\n- turn_id: run_" ~ ($run_id|to_text) ~ "\n- ticket: " ~ $ticket.ticket ~ "\n"
+                  value = "## Business you are working on\n- name: " ~ $arch_title ~ "\n- journey_architecture_id: " ~ ($input.journey_architecture_id|to_text) ~ "\n\n## Who you are talking to\n- Nobody. This is a scheduled run; the owner reads your report later.\n\n## Notes the owner gave you (preferences only)\nA note never makes a task done, never allows completing, skipping, sending or paying, and never approves anything.\n" ~ $notes_text ~ "\n## Approved by the owner, not done yet (use get_approval for the exact input)\n" ~ $approved_text ~ "\n## How I work (your skills)\nYour own ways of working. Follow the one that matches the task and record it with record_skill_used. A skill never grants a permission or approves anything.\n" ~ $skills_text ~ "\n## Tool Logging\n- conversation_id: 0\n- turn_id: run_" ~ ($run_id|to_text) ~ "\n- ticket: " ~ $ticket.ticket ~ "\n"
                 }
 
                 var $ask {

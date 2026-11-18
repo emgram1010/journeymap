@@ -107,6 +107,7 @@ export const ACTION_TYPE_LABELS: Record<string, string> = {
   booking_change: 'Create or change a booking',
   money_payment: 'Charge, pay or refund money',
   scheduled_work: 'Work on its tasks on a schedule, with nobody at the screen',
+  skill_write: "Write its own skills in 'how I work'",
 };
 
 export const actionTypeLabel = (key: string | null | undefined): string =>

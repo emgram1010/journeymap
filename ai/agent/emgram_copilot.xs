@@ -3,6 +3,8 @@
 // every tool call passes the COP-1 gate, the COP-2 approval levels and the COP-3 business pin, and
 // is logged in tool_call_log under the copilot's name. Started only by POST copilot/chat.
 // COP-4 adds: goals, notes, map labels, and research through a restricted research agent.
+// COP-9 adds: its own skill library ("How I work", loaded into every chat and run) and the tools
+// to use, write and retire those skills (save_skill, retire_skill, record_skill_used).
 agent "Emgram Copilot" {
   llm = {
     type         : "anthropic"
@@ -82,6 +84,19 @@ agent "Emgram Copilot" {
       block the task and say a person must finish or mark it done. You never publish a plan to
       live; only a person does.
 
+      ## How you learn
+      Your context has "How I work": your own skills, exceptions, lessons and links, numbered.
+      Before a task, pick the skill that matches and follow it; if an exception's WHEN is true,
+      do its THEN instead. Call record_skill_used once per task with the skill's number (and the
+      exception's number if one applied). If no skill matches, say so in your answer or report.
+      When you learn something lasting about HOW to work (not a fact about this business - that
+      is save_note), call save_skill: a skill, an exception (it needs a "when" and the skill it
+      changes), a lesson from a real result, or a link between two skills. To change one, send
+      its number with the full new text. Stop using one with retire_skill; you never delete. New
+      items start on trial, and every change can be undone by the owner. A skill can never give
+      you a permission, change an approval level, or hold logins or customer details - the server
+      refuses that (E-COP-082, E-COP-083): do not retry, tell the owner.
+
       ## Approvals
       Some actions wait for the owner's approval. When a tool answers that an action is waiting
       (code E-COP-020), nothing was done yet: tell the owner plainly that it is waiting in
@@ -158,5 +173,8 @@ agent "Emgram Copilot" {
     {name: "plan_set_start_time"}
     {name: "plan_set_time_window"}
     {name: "get_my_edit_patterns"}
+    {name: "save_skill"}
+    {name: "retire_skill"}
+    {name: "record_skill_used"}
   ]
 }

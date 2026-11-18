@@ -8,7 +8,14 @@ import {
   getCopilotHome,
   getCopilotMemory,
   getCopilotRuns,
+  getCopilotSkills,
+  getCopilotSkillVersions,
+  switchCopilotSkill,
+  undoCopilotSkill,
   type XanoCopilotRuns,
+  type XanoCopilotSkill,
+  type XanoCopilotSkills,
+  type XanoCopilotSkillVersion,
   removeCopilotNote,
   saveCopilotNote,
   setCopilotGoalStatus,
@@ -29,6 +36,7 @@ import {
 } from './copilotChatModel';
 import {NOTE_MAX, goalStatusLabel, noteProblem} from './copilotMemoryModel';
 import {runCountsLine, runStatusLabel, runTone, runWhen, runsHeadline} from './copilotRunModel';
+import {changedFields, isOffFor, kindLabel, scopeLabel, splitByStatus, statusLabel, undoTarget, versionLine} from './skillsModel';
 
 /**
  * COP-3 — the copilot's chat panel. Opens beside the current page; one business at a time.
@@ -211,6 +219,156 @@ function MemorySection({businessId, isAdmin}: {businessId: number; isAdmin: bool
   );
 }
 
+/**
+ * COP-9 stories 01/04 — "How I work": the copilot's own skills, exceptions, lessons and links.
+ * Each item shows its history (newest first) with Undo on every change; an admin can switch an
+ * item off for the business being looked at. The server decides and refuses again; its own
+ * sentence is shown.
+ */
+function SkillsSection({businessId, businessName, isAdmin}: {businessId: number; businessName: (id: number) => string | undefined; isAdmin: boolean}) {
+  const [data, setData] = useState<XanoCopilotSkills | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [openId, setOpenId] = useState(0);
+  const [history, setHistory] = useState<XanoCopilotSkillVersion[]>([]);
+  const [showRetired, setShowRetired] = useState(false);
+  const seq = useRef(0);
+
+  const load = useCallback(async () => {
+    const my = ++seq.current;
+    try {
+      const d = await getCopilotSkills();
+      if (my === seq.current) {
+        setData(d);
+        setErr(null);
+      }
+    } catch (e) {
+      if (my === seq.current) setErr(serverText(e, 'Unable to load how the copilot works.'));
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const openHistory = async (id: number) => {
+    if (openId === id) return setOpenId(0);
+    setOpenId(id);
+    setHistory([]);
+    try {
+      const h = await getCopilotSkillVersions(id);
+      setHistory(h.versions ?? []);
+    } catch (e) {
+      setErr(serverText(e, 'Unable to load the history.'));
+    }
+  };
+
+  const act = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await fn();
+      await load();
+      if (openId) {
+        const h = await getCopilotSkillVersions(openId);
+        setHistory(h.versions ?? []);
+      }
+    } catch (e) {
+      setErr(serverText(e, 'That did not save. Nothing was changed.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const btn = 'rounded border border-zinc-300 px-1.5 py-0.5 text-xs hover:bg-zinc-50 disabled:opacity-50';
+  const {live, retired} = splitByStatus(data?.items ?? []);
+
+  const row = (s: XanoCopilotSkill) => {
+    const off = isOffFor(data?.off ?? [], s.id, businessId);
+    return (
+      <li key={s.id} className="rounded border border-zinc-200 px-2 py-1 space-y-1" data-testid={`skill-${s.id}`}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-zinc-100 text-zinc-700 text-xs px-2 py-0.5">{kindLabel(s.kind)} #{s.id}</span>
+          <span className={`rounded-full text-xs px-2 py-0.5 ${s.status === 'trial' ? 'bg-amber-100 text-amber-800' : s.status === 'retired' ? 'bg-zinc-100 text-zinc-500' : 'bg-emerald-100 text-emerald-800'}`}>
+            {statusLabel(s.status)}
+          </span>
+          {off && <span className="rounded-full bg-red-100 text-red-800 text-xs px-2 py-0.5">Off for this business</span>}
+        </div>
+        <p className="font-medium text-zinc-900 break-words">{s.title}</p>
+        {s.kind === 'exception' && <p className="text-zinc-700 break-words">When: {s.condition_text}</p>}
+        <p className="text-zinc-700 whitespace-pre-wrap break-words">{s.body}</p>
+        <p className="text-xs text-zinc-500">{scopeLabel(s, businessName)} · v{s.version_no}</p>
+        <div className="flex flex-wrap gap-1">
+          <button type="button" className={btn} aria-expanded={openId === s.id} onClick={() => void openHistory(s.id)}>
+            {openId === s.id ? 'Hide history' : 'History'}
+          </button>
+          {isAdmin && s.status !== 'retired' && (
+            <button
+              type="button"
+              className={btn}
+              disabled={busy}
+              onClick={() => void act(() => switchCopilotSkill({skill_id: s.id, journey_architecture_id: businessId, is_off: !off}))}
+            >
+              {off ? 'Switch on for this business' : 'Switch off for this business'}
+            </button>
+          )}
+        </div>
+        {openId === s.id && (
+          <ul className="space-y-1 border-t border-zinc-100 pt-1" aria-label="History">
+            {history.length === 0 && <li className="text-xs text-zinc-500">Loading…</li>}
+            {history.map((v, i) => {
+              const before = history[i + 1]?.content;
+              const changed = changedFields(before, v.content);
+              const target = undoTarget(v);
+              return (
+                <li key={v.id} className="text-xs text-zinc-700">
+                  <span>{versionLine(v)}</span>
+                  {changed.length > 0 && <span className="text-zinc-500"> ({changed.join(', ')})</span>}
+                  {isAdmin && target > 0 && (
+                    <button
+                      type="button"
+                      className={`${btn} ml-2`}
+                      disabled={busy}
+                      onClick={() => void act(() => undoCopilotSkill({skill_id: s.id, restore_version_no: target}))}
+                    >
+                      Undo
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </li>
+    );
+  };
+
+  return (
+    <div className="px-4 py-2 border-b border-zinc-100 text-sm space-y-2 max-h-80 overflow-y-auto" data-testid="copilot-skills">
+      {err && <p role="alert" className="text-red-700">{err}</p>}
+      {!data && !err && <p className="text-zinc-500">Loading…</p>}
+      {data && (
+        <>
+          <p className="text-zinc-600">
+            {live.length === 0
+              ? 'The copilot hasn’t saved any skills yet. It writes them as it learns; you can undo any change.'
+              : 'The copilot follows these in every chat and scheduled run. New ones start on trial; you can undo any change.'}
+          </p>
+          <ul className="space-y-1">{live.map(row)}</ul>
+          {retired.length > 0 && (
+            <>
+              <button type="button" className="text-xs text-indigo-700 hover:underline" aria-expanded={showRetired} onClick={() => setShowRetired((v) => !v)}>
+                {showRetired ? 'Hide retired' : `Retired (${retired.length})`}
+              </button>
+              {showRetired && <ul className="space-y-1">{retired.map(row)}</ul>}
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 /** COP-5 story 05 — what the copilot did on its own, on a schedule: one line per run, report on demand. */
 function RunsSection({businessId}: {businessId: number}) {
   const [data, setData] = useState<XanoCopilotRuns | null>(null);
@@ -293,6 +451,7 @@ export default function CopilotPanel({open, onClose, userId, isAdmin}: Props) {
   const [loaded, setLoaded] = useState(false);
   const [showKnows, setShowKnows] = useState(false);
   const [showRuns, setShowRuns] = useState(false);
+  const [showSkills, setShowSkills] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const switchSeq = useRef(0);
 
@@ -519,10 +678,28 @@ export default function CopilotPanel({open, onClose, userId, isAdmin}: Props) {
               >
                 {showRuns ? 'Hide scheduled runs' : 'Scheduled runs'}
               </button>
+              {home?.has_home && (
+                <button
+                  type="button"
+                  onClick={() => setShowSkills((v) => !v)}
+                  aria-expanded={showSkills}
+                  className="text-indigo-700 hover:underline ml-4"
+                >
+                  {showSkills ? 'Hide how I work' : 'How I work'}
+                </button>
+              )}
             </div>
           )}
           {showKnows && businessId != null && <MemorySection key={businessId} businessId={businessId} isAdmin={isAdmin} />}
           {showRuns && businessId != null && <RunsSection key={`runs-${businessId}`} businessId={businessId} />}
+          {showSkills && businessId != null && (
+            <SkillsSection
+              key={`skills-${businessId}`}
+              businessId={businessId}
+              businessName={(id) => options.find((o) => o.id === id)?.label}
+              isAdmin={isAdmin}
+            />
+          )}
 
           {home && home.has_copilot && !home.has_home && isAdmin && (
             <div className="px-4 py-2 border-b border-zinc-100 text-sm">

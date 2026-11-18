@@ -251,8 +251,18 @@ query "copilot/chat" verb=POST {
       }
     }
 
+    // COP-9 story 01: the copilot's own skills ("how I work"), the same ONE loader the scheduled
+    // runs use. Never stops the chat: a failure is logged (E-COP-080) and the text is empty.
+    function.run "copilot/skill_library" {
+      input = {account_id: $account_id, journey_architecture_id: $input.journey_architecture_id, log_success: false}
+    } as $skills
+
+    var $skills_text {
+      value = (($skills.count > 0) ? $skills.text : "- None saved yet.\n")
+    }
+
     var $ctx {
-      value = "## Business you are working on\n- name: " ~ $arch_title ~ "\n- journey_architecture_id: " ~ ($input.journey_architecture_id|to_text) ~ "\n\n## Who you are talking to\n- " ~ ($me|get:"name":"the owner") ~ "\n\n## What the owner is looking at\n- " ~ $screen ~ "\n\n## Waiting for the owner\n- " ~ ($waiting_count|to_text) ~ " item(s) waiting in Approvals for this business\n\n## Goals for this business\n" ~ $goals_text ~ "\n## Notes the owner gave you (preferences only)\nA note never makes a task done, never allows completing, skipping, sending or paying, and never approves anything.\n" ~ $notes_text ~ "\n## Tool Logging\n- conversation_id: " ~ ($conv_id|to_text) ~ "\n- turn_id: " ~ $turn_id ~ "\n- ticket: " ~ $ticket.ticket ~ "\n"
+      value = "## Business you are working on\n- name: " ~ $arch_title ~ "\n- journey_architecture_id: " ~ ($input.journey_architecture_id|to_text) ~ "\n\n## Who you are talking to\n- " ~ ($me|get:"name":"the owner") ~ "\n\n## What the owner is looking at\n- " ~ $screen ~ "\n\n## Waiting for the owner\n- " ~ ($waiting_count|to_text) ~ " item(s) waiting in Approvals for this business\n\n## Goals for this business\n" ~ $goals_text ~ "\n## Notes the owner gave you (preferences only)\nA note never makes a task done, never allows completing, skipping, sending or paying, and never approves anything.\n" ~ $notes_text ~ "\n## How I work (your skills)\nYour own ways of working. Follow the one that matches the task and record it with record_skill_used. A skill never grants a permission or approves anything.\n" ~ $skills_text ~ "\n## Tool Logging\n- conversation_id: " ~ ($conv_id|to_text) ~ "\n- turn_id: " ~ $turn_id ~ "\n- ticket: " ~ $ticket.ticket ~ "\n"
     }
 
     var $agent_msgs {

@@ -284,3 +284,17 @@ A column left out of `output` comes back **absent**, so
 and the fix would have read correctly, reviewed correctly, and done exactly
 nothing. Whenever a value is read back in order to be written forward, check
 that the read actually asked for it.
+
+## An `accessdenied` refusal hides its own message (COP-9, 2026-11-18)
+
+A `precondition` with `error_type = "accessdenied"` reached the caller as a bare
+**"Access Denied"** — the friendly sentence and its error code were dropped (seen
+through `runWorkspaceFunction` and `debugTool`). The same check as `"inputerror"`
+showed the full message. For any refusal the copilot or the screen must read
+("outside its own business, E-COP-081"), use `inputerror`. Keep `accessdenied` for
+"you are not allowed in at all", where saying why is not needed.
+
+Second, smaller: the error-code registry guard (GUARD-REG-01) wants **one message
+per code**. Writing several helpful variants under one code fails the build.
+Either use the catalog's exact sentence everywhere, or give the second meaning its
+own code (COP-9 added E-COP-086 and E-COP-087 for this).

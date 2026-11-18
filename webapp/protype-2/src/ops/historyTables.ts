@@ -77,6 +77,14 @@ export const HISTORY_TABLES: HistoryTable[] = [
     why: "Which scheduled run (and business) each copilot tool call was made in. A run's refused count is read from here; delete a row and support can't say which run made a refusal.",
   },
   {
+    table: 'copilot_skill_version',
+    why: "Every change the copilot or the owner made to a skill in 'how I work', as a full copy. Undo reads from here; delete a row and that change can no longer be put back or explained.",
+  },
+  {
+    table: 'copilot_skill_use',
+    why: 'Which skill the copilot used in each chat and scheduled run. Trial results and "no skill used" on Health are counted here; delete a row and a skill\'s record is wrong.',
+  },
+  {
     table: 'event_log',
     why: 'The ops record behind the Health page. Support uses it to explain failures after the fact.',
   },

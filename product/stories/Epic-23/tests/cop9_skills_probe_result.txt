@@ -1,0 +1,25 @@
+PASS  FT-COP-9-04a GET copilot/skills answers
+PASS  FT-COP-9-04a  ...with the copilot's own business
+PASS  FT-COP-9-04a  ...and the test items 1, 2, 3
+PASS  FT-COP-9-04b history answers, newest first
+PASS  FT-COP-9-04b  ...newest version is the current one
+PASS  FT-COP-9-04b  ...each version holds the full content
+PASS  FT-COP-9-02 history of an item outside the account = not found
+PASS  FT-COP-9-04c undo to version 1 -> a new version
+PASS  FT-COP-9-04c  ...the new version is an 'undo' by the owner of version 1
+PASS  FT-COP-9-04c  ...and holds version 1's text exactly (replace, not merge)
+PASS  FT-COP-9-04c  ...and the item itself now reads version 1's text
+PASS  FT-COP-9-04d undo to the current version is refused (E-COP-087)
+PASS  FT-COP-9-04d undo to a version that does not exist is refused (E-COP-087)
+PASS  FT-COP-9-04d undo on an item outside the account is refused (E-COP-087)
+PASS  FT-COP-9-01c switch item 3 off for business 49
+PASS  FT-COP-9-01c  ...the list shows it off for 49
+PASS  FT-COP-9-01c  ...switching off twice edits the same row (no duplicate)
+PASS  FT-COP-9-01c a business outside the account is refused (E-COP-081)
+PASS  FT-COP-9-01c switch it back on
+PASS  FT-COP-9-06a the levels list has 'write its own skills'
+PASS  FT-COP-9-06a  ...defaulting to tell
+PASS  FT-COP-9-06b the owner can set it to wait
+PASS  FT-COP-9-06b  ...and back (left at tell)
+
+23/23 passed
