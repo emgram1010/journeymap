@@ -94,6 +94,9 @@ function "copilot/skill_library" {
       value = 24000
     }
 
+    // The word limit above is the real cap. This is only a last backstop at the largest limit the
+    // settings allow (20,000 words), so raising the limit takes effect (review 2026-11-18).
+
     var $err_msg {
       value = ""
     }
@@ -283,7 +286,7 @@ function "copilot/skill_library" {
             }
 
             var.update $text {
-              value = $text|substr:0:24000
+              value = $text|substr:0:120000
             }
           }
         }

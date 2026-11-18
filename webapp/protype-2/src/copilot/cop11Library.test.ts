@@ -61,6 +61,15 @@ test('UT-COP-11-04: skill_write checks the kind of work, the item cap and duplic
   assert.match(fn, /copilot_library_setting/, 'the cap is a settings row, not a number in code');
 });
 
+test('UT-COP-11-12: review fixes - a locked parent refuses exceptions and links, duplicates compare the when, the word limit is the real cap', () => {
+  const fn = read(WRITE);
+  assert.match(fn, /\$parent_locked/, 'the lock of the parent skill is read');
+  assert.match(fn, /\$input\.op != "retire" && \$parent_locked/, 'create and edit under a locked parent are refused');
+  assert.match(fn, /\$cc == \$norm_cond/, 'an exception with a different when is not a duplicate');
+  const lib = read(LIBRARY);
+  assert.ok(!/substr:0:24000/.test(lib), 'the old 24,000-character cut no longer overrides the word limit');
+});
+
 test('UT-COP-11-05: what the owner writes is locked by default (D-24-1)', () => {
   const fn = read(WRITE);
   assert.match(fn, /let_ai_change/, 'the owner can untick it');

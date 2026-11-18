@@ -16,11 +16,12 @@
 //               before the first write, at every approval level.
 //
 // COP-11 (locks, kinds of work, size limit) adds, all checked here on the server before the first write:
-//   E-COP-089 - the copilot tries to edit or retire a LOCKED item (copilot_skill_meta). The owner's own
+//   E-COP-089 - the copilot tries to edit or retire a LOCKED item (copilot_skill_meta), or to add or
+//               change an exception or link under a locked skill. The owner's own
 //               text is locked by default (D-24-1) unless let_ai_change is ticked. No AI tool sets a lock.
 //   E-COP-090 - a kind of work not on the fixed list (map_building, planning, doing_work, research, general).
 //   E-COP-091 - a new item when the account already holds max_active_items active ones (settings row, default 50).
-//   E-COP-096 - a new item identical (title and body, case and spaces ignored) to an active one of the same kind and parent.
+//   E-COP-096 - a new item identical (title, body and an exception's "when"; case and spaces ignored) to an active one of the same kind and parent.
 //
 // Every change writes a FULL copy of the item to copilot_skill_version in the same transaction as
 // the change. Unique (skill_id, version_no) is the race guard: two edits claiming the same number
@@ -382,8 +383,23 @@ function "copilot/skill_write" {
       value = (($oldest|get:"title":"")|substr:0:60)
     }
 
+    // An exception or link changes what its parent skill does, so a locked parent refuses them too
+    // (review 2026-11-18: the copilot could add "WHEN always, do the opposite" under a locked skill).
+    var $parent_cmp {
+      value = ((($kind == "exception") || ($kind == "link")) ? $parent_id : 0)
+    }
+
+    db.query copilot_skill_meta {
+      where = $db.copilot_skill_meta.skill_id == $parent_cmp && $parent_cmp != 0
+      return = {type: "single"}
+    } as $parent_meta
+
+    var $parent_locked {
+      value = (($parent_meta|get:"is_locked":false) == true)
+    }
+
     conditional {
-      if ($reject_code == "" && $input.op != "create" && $input.changed_by == "copilot" && $is_locked) {
+      if ($reject_code == "" && $input.changed_by == "copilot" && (($input.op != "create" && $is_locked) || ($input.op != "retire" && $parent_locked))) {
         var.update $reject_code {
           value = "E-COP-089"
         }
@@ -426,14 +442,10 @@ function "copilot/skill_write" {
       }
     }
 
-    var $parent_cmp {
-      value = ((($kind == "exception") || ($kind == "link")) ? $parent_id : 0)
-    }
-
     db.query copilot_skill {
       where = $db.copilot_skill.account_id == $input.account_id && $input.account_id != 0 && $db.copilot_skill.status != "retired" && $db.copilot_skill.kind == $kind && $db.copilot_skill.parent_skill_id == $parent_cmp && $input.op == "create"
       return = {type: "list"}
-      output = ["id", "title", "body"]
+      output = ["id", "title", "body", "condition_text"]
     } as $same_kind
 
     var $norm_title {
@@ -442,6 +454,18 @@ function "copilot/skill_write" {
 
     var $norm_body {
       value = $body|lower|replace:" ":""
+    }
+
+    var $cond_cmp {
+      value = (($kind == "exception") ? $condition : "")
+    }
+
+    var $norm_cond {
+      value = $cond_cmp|lower|replace:" ":""
+    }
+
+    var $cc {
+      value = ""
     }
 
     var $dup_id {
@@ -470,8 +494,12 @@ function "copilot/skill_write" {
           value = $c.body|lower|replace:" ":""
         }
 
+        var.update $cc {
+          value = ($c.condition_text ?? "")|lower|replace:" ":""
+        }
+
         var.update $is_dup {
-          value = ($ct == $norm_title && $cb == $norm_body)
+          value = ($ct == $norm_title && $cb == $norm_body && $cc == $norm_cond)
         }
 
         var.update $dup_id {

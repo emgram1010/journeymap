@@ -1,6 +1,6 @@
 # EPIC-COP-11 — Locks, and a library that stays tidy
 
-**Status:** 🟡 Server side live (2026-11-18, Sonnet 5.5). Screen (story 05), auto-lock on Undo, and the old-item backfill not built. **Opus review pass still to do.**
+**Status:** 🟡 Server side live (2026-11-18, Sonnet 5.5). Screen (story 05), auto-lock on Undo, and the old-item backfill not built. Review pass done 2026-11-18 (Fable 5.2), 3 findings fixed.
 **Model:** **Opus 5.5** for story 01 (the lock is a guard). **Sonnet 5.5** for 02–05. Opus review pass at the end.
 **Depends on:** COP-9 stories 01–04 (live). **Build together with COP-9 story 05** (trial before trust): both change how items are promoted, flagged and loaded.
 **Risk:** medium. Story 01 decides what the AI may never change.
@@ -208,7 +208,19 @@ Scenario: filter
 | Real copilot asked to rewrite locked #10 (`tests/cop11_ai_probe.py`) | **2/2**: item unchanged; it said it is locked and suggested the change |
 | Unit (`cop11Library.test.ts`) | 11/11; full `npm test` 954/954; tsc clean |
 
+### Review pass (2026-11-18, Fable 5.2)
+
+| Finding | Fix | Proof (live) |
+|---|---|---|
+| The copilot could add an exception under a locked skill ("WHEN always, do the opposite"); proven, it saved #11 | `skill_write` reads the parent's lock; copilot create or edit of an exception or link under a locked skill is refused (E-COP-089) | Same call now refused; #11 retired |
+| A word limit above 4,000 did nothing: an old 24,000-character cut still applied, silently | The cut is now a backstop at the largest allowed limit | Loader runs, same output; not exercised with a large library |
+| Duplicate check ignored an exception's "when" | The "when" is compared too | Same title/text + same when refused (points to #8); different when saved (#12, then retired) |
+
+Checked and found sound: retire of a locked item refused; a lock and a copilot edit racing each other cannot both commit (both claim the same version number); only `skill_write`, `skill_undo` and endpoint 666 write these tables; `save_skill` and `retire_skill` are not on the outside Claude door.
+
 **Not done / not proven:**
+- **AI identity at the lock endpoint:** it reuses `copilot/assert_person_only` (refuses with E-COP-025, not E-COP-092); not run live as the copilot user. E-COP-092 is catalogued but nothing emits it.
+- **No caller passes kinds yet:** chat, runs and `get_how_i_work` all load every kind.
 - **Screen (story 05):** lock button, kind filter, "23 of 50", stale filter. API wrappers and display helpers exist; no screen yet.
 - **Owner edits and Undo lock automatically (D-24-1):** `skill_write` does it when called as owner, but no owner endpoint calls it yet, and `skill_undo` does not lock.
 - **Suggest as an approval item:** the copilot proposes in chat; no approval request is created.
