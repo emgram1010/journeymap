@@ -8,12 +8,16 @@ import {
   getCopilotHome,
   getCopilotMemory,
   getCopilotRuns,
+  getCopilotSkillMeta,
   getCopilotSkills,
+  saveCopilotLibrarySettings,
+  setCopilotSkillLock,
   getCopilotSkillVersions,
   switchCopilotSkill,
   undoCopilotSkill,
   type XanoCopilotRuns,
   type XanoCopilotSkill,
+  type XanoCopilotSkillMeta,
   type XanoCopilotSkills,
   type XanoCopilotSkillVersion,
   removeCopilotNote,
@@ -36,7 +40,24 @@ import {
 } from './copilotChatModel';
 import {NOTE_MAX, goalStatusLabel, noteProblem} from './copilotMemoryModel';
 import {runCountsLine, runStatusLabel, runTone, runWhen, runsHeadline} from './copilotRunModel';
-import {changedFields, isOffFor, kindLabel, scopeLabel, splitByStatus, statusLabel, undoTarget, versionLine} from './skillsModel';
+import {
+  WORK_KINDS,
+  changedFields,
+  filterSkills,
+  isOffFor,
+  itemCounter,
+  kindLabel,
+  lastUsedLabel,
+  limitsProblem,
+  lockLabel,
+  scopeLabel,
+  skillInfo,
+  splitByStatus,
+  statusLabel,
+  undoTarget,
+  versionLine,
+  workKindLabel,
+} from './skillsModel';
 
 /**
  * COP-3 — the copilot's chat panel. Opens beside the current page; one business at a time.
@@ -224,6 +245,10 @@ function MemorySection({businessId, isAdmin}: {businessId: number; isAdmin: bool
  * Each item shows its history (newest first) with Undo on every change; an admin can switch an
  * item off for the business being looked at. The server decides and refuses again; its own
  * sentence is shown.
+ * COP-11 story 05 — each item also shows its lock (an admin can lock or unlock), its kind of work
+ * and when it was last used; the header counts "23 of 50 items"; the list filters by kind of work
+ * and by "not used"; an admin can change the three limits. The side table has its own read
+ * (getCopilotSkillMeta); if that read fails the list still shows, just without these extras.
  */
 function SkillsSection({businessId, businessName, isAdmin}: {businessId: number; businessName: (id: number) => string | undefined; isAdmin: boolean}) {
   const [data, setData] = useState<XanoCopilotSkills | null>(null);
@@ -232,6 +257,11 @@ function SkillsSection({businessId, businessName, isAdmin}: {businessId: number;
   const [openId, setOpenId] = useState(0);
   const [history, setHistory] = useState<XanoCopilotSkillVersion[]>([]);
   const [showRetired, setShowRetired] = useState(false);
+  const [meta, setMeta] = useState<XanoCopilotSkillMeta | null>(null);
+  const [kindFilter, setKindFilter] = useState('all');
+  const [staleOnly, setStaleOnly] = useState(false);
+  const [showLimits, setShowLimits] = useState(false);
+  const [limits, setLimits] = useState({items: '', words: '', days: ''});
   const seq = useRef(0);
 
   const load = useCallback(async () => {
@@ -244,6 +274,13 @@ function SkillsSection({businessId, businessName, isAdmin}: {businessId: number;
       }
     } catch (e) {
       if (my === seq.current) setErr(serverText(e, 'Unable to load how the copilot works.'));
+      return;
+    }
+    try {
+      const m = await getCopilotSkillMeta();
+      if (my === seq.current) setMeta(m);
+    } catch (e) {
+      if (my === seq.current) setErr(serverText(e, 'Unable to load locks and limits. The list below is still right.'));
     }
   }, []);
 
@@ -280,11 +317,28 @@ function SkillsSection({businessId, businessName, isAdmin}: {businessId: number;
     }
   };
 
+  const openLimits = () => {
+    if (!showLimits && meta) setLimits({items: String(meta.max_active_items), words: String(meta.max_load_words), days: String(meta.stale_after_days)});
+    setShowLimits((v) => !v);
+  };
+
+  const saveLimits = async () => {
+    const next = {max_active_items: Number(limits.items), max_load_words: Number(limits.words), stale_after_days: Number(limits.days)};
+    const problem = limitsProblem(next);
+    // Refused on the screen first; the typing stays. The server checks again.
+    if (problem) return setErr(problem);
+    await act(() => saveCopilotLibrarySettings(next));
+  };
+
   const btn = 'rounded border border-zinc-300 px-1.5 py-0.5 text-xs hover:bg-zinc-50 disabled:opacity-50';
-  const {live, retired} = splitByStatus(data?.items ?? []);
+  const split = splitByStatus(data?.items ?? []);
+  const live = filterSkills(split.live, meta, {kind: kindFilter, staleOnly});
+  const retired = split.retired;
+  const now = Date.now();
 
   const row = (s: XanoCopilotSkill) => {
     const off = isOffFor(data?.off ?? [], s.id, businessId);
+    const info = skillInfo(meta, s.id);
     return (
       <li key={s.id} className="rounded border border-zinc-200 px-2 py-1 space-y-1" data-testid={`skill-${s.id}`}>
         <div className="flex flex-wrap items-center gap-2">
@@ -293,11 +347,23 @@ function SkillsSection({businessId, businessName, isAdmin}: {businessId: number;
             {statusLabel(s.status)}
           </span>
           {off && <span className="rounded-full bg-red-100 text-red-800 text-xs px-2 py-0.5">Off for this business</span>}
+          {meta && (
+            <>
+              <span className={`rounded-full text-xs px-2 py-0.5 ${info.locked ? 'bg-indigo-100 text-indigo-800' : 'bg-zinc-100 text-zinc-600'}`}>{lockLabel(info.locked)}</span>
+              <span className="rounded-full bg-zinc-100 text-zinc-700 text-xs px-2 py-0.5">{workKindLabel(info.workKind)}</span>
+              {info.stale && s.status !== 'retired' && (
+                <span className="rounded-full bg-amber-100 text-amber-800 text-xs px-2 py-0.5">Not used in {meta.stale_after_days} days</span>
+              )}
+            </>
+          )}
         </div>
         <p className="font-medium text-zinc-900 break-words">{s.title}</p>
         {s.kind === 'exception' && <p className="text-zinc-700 break-words">When: {s.condition_text}</p>}
         <p className="text-zinc-700 whitespace-pre-wrap break-words">{s.body}</p>
-        <p className="text-xs text-zinc-500">{scopeLabel(s, businessName)} · v{s.version_no}</p>
+        <p className="text-xs text-zinc-500">
+          {scopeLabel(s, businessName)} · v{s.version_no}
+          {meta ? ` · ${lastUsedLabel(info.lastUsedAt, now)}` : ''}
+        </p>
         <div className="flex flex-wrap gap-1">
           <button type="button" className={btn} aria-expanded={openId === s.id} onClick={() => void openHistory(s.id)}>
             {openId === s.id ? 'Hide history' : 'History'}
@@ -310,6 +376,17 @@ function SkillsSection({businessId, businessName, isAdmin}: {businessId: number;
               onClick={() => void act(() => switchCopilotSkill({skill_id: s.id, journey_architecture_id: businessId, is_off: !off}))}
             >
               {off ? 'Switch on for this business' : 'Switch off for this business'}
+            </button>
+          )}
+          {isAdmin && meta && s.status !== 'retired' && (
+            <button
+              type="button"
+              className={btn}
+              disabled={busy}
+              title={info.locked ? 'Let the copilot change this item again' : 'The copilot will follow this item but can only suggest changes'}
+              onClick={() => void act(() => setCopilotSkillLock(s.id, !info.locked))}
+            >
+              {info.locked ? 'Unlock' : 'Lock'}
             </button>
           )}
         </div>
@@ -350,10 +427,57 @@ function SkillsSection({businessId, businessName, isAdmin}: {businessId: number;
       {data && (
         <>
           <p className="text-zinc-600">
-            {live.length === 0
+            {split.live.length === 0
               ? 'The copilot hasn’t saved any skills yet. It writes them as it learns; you can undo any change.'
               : 'The copilot follows these in every chat and scheduled run. New ones start on trial; you can undo any change.'}
           </p>
+          {meta && (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-700">
+              <span className="font-medium" data-testid="skills-counter">
+                {itemCounter(meta.active_count, meta.max_active_items)}
+              </span>
+              <label className="flex items-center gap-1">
+                Kind of work
+                <select className="rounded border border-zinc-300 px-1 py-0.5" value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
+                  <option value="all">All</option>
+                  {WORK_KINDS.map((k) => (
+                    <option key={k} value={k}>
+                      {workKindLabel(k)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-1">
+                <input type="checkbox" checked={staleOnly} onChange={(e) => setStaleOnly(e.target.checked)} />
+                Not used in {meta.stale_after_days} days
+              </label>
+              {isAdmin && (
+                <button type="button" className={btn} aria-expanded={showLimits} onClick={openLimits}>
+                  {showLimits ? 'Hide limits' : 'Limits'}
+                </button>
+              )}
+            </div>
+          )}
+          {meta && showLimits && isAdmin && (
+            <div className="flex flex-wrap items-end gap-2 rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-700">
+              <label className="flex flex-col">
+                Most items
+                <input className="w-20 rounded border border-zinc-300 px-1 py-0.5" inputMode="numeric" value={limits.items} onChange={(e) => setLimits((l) => ({...l, items: e.target.value}))} />
+              </label>
+              <label className="flex flex-col">
+                Most words per run
+                <input className="w-24 rounded border border-zinc-300 px-1 py-0.5" inputMode="numeric" value={limits.words} onChange={(e) => setLimits((l) => ({...l, words: e.target.value}))} />
+              </label>
+              <label className="flex flex-col">
+                Flag unused after (days)
+                <input className="w-20 rounded border border-zinc-300 px-1 py-0.5" inputMode="numeric" value={limits.days} onChange={(e) => setLimits((l) => ({...l, days: e.target.value}))} />
+              </label>
+              <button type="button" className={btn} disabled={busy} onClick={() => void saveLimits()}>
+                Save limits
+              </button>
+            </div>
+          )}
+          {meta && live.length === 0 && split.live.length > 0 && <p className="text-zinc-500">Nothing matches these filters.</p>}
           <ul className="space-y-1">{live.map(row)}</ul>
           {retired.length > 0 && (
             <>

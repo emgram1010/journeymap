@@ -73,3 +73,48 @@ test('UT-COP-9-17: "write its own skills" shows only on the copilot\'s own busin
   assert.deepEqual(visibleLevelRows(rows, 49, 54).map((r) => r.key), ['map_read'], 'hidden in an ordinary business, where it would do nothing');
   assert.deepEqual(visibleLevelRows(rows, 0, 0).map((r) => r.key), ['map_read'], 'hidden when there is no copilot home');
 });
+
+// ── COP-11 story 05: the lock, kind of work, last used and filters on the "How I work" screen ──
+test('UT-COP-11-20: skillInfo joins the side table to an item, and a missing row reads as unlocked + general', async () => {
+  const {skillInfo} = await import('./skillsModel');
+  const meta = {
+    items: [{skill_id: 1, last_used_at: 1_800_000_000_000, not_used_in_days: false}, {skill_id: 2, last_used_at: 0, not_used_in_days: true}],
+    metas: [{skill_id: 1, is_locked: true, locked_by_user_id: 22, locked_at: 1, work_kind: 'planning'}],
+    active_count: 2,
+    max_active_items: 50,
+    max_load_words: 4000,
+    stale_after_days: 30,
+  };
+  assert.deepEqual(skillInfo(meta, 1), {locked: true, workKind: 'planning', lastUsedAt: 1_800_000_000_000, stale: false});
+  assert.deepEqual(skillInfo(meta, 2), {locked: false, workKind: 'general', lastUsedAt: 0, stale: true});
+  assert.deepEqual(skillInfo(null, 9), {locked: false, workKind: 'general', lastUsedAt: 0, stale: false});
+  // an untouched enum comes back as "" (CLAUDE.md), which must still read as general
+  assert.equal(skillInfo({...meta, metas: [{skill_id: 2, is_locked: false, locked_by_user_id: 0, locked_at: 0, work_kind: ''}]}, 2).workKind, 'general');
+});
+
+test('UT-COP-11-21: filterSkills keeps by kind of work and by "not used", and "all" keeps everything', async () => {
+  const {filterSkills} = await import('./skillsModel');
+  const meta = {
+    items: [{skill_id: 1, last_used_at: 5, not_used_in_days: false}, {skill_id: 2, last_used_at: 0, not_used_in_days: true}, {skill_id: 3, last_used_at: 0, not_used_in_days: true}],
+    metas: [{skill_id: 1, is_locked: true, locked_by_user_id: 22, locked_at: 1, work_kind: 'planning'}, {skill_id: 3, is_locked: false, locked_by_user_id: 0, locked_at: 0, work_kind: 'research'}],
+    active_count: 3,
+    max_active_items: 50,
+    max_load_words: 4000,
+    stale_after_days: 30,
+  };
+  const items = [{id: 1}, {id: 2}, {id: 3}];
+  assert.deepEqual(filterSkills(items, meta, {kind: 'all', staleOnly: false}).map((i) => i.id), [1, 2, 3]);
+  assert.deepEqual(filterSkills(items, meta, {kind: 'planning', staleOnly: false}).map((i) => i.id), [1]);
+  assert.deepEqual(filterSkills(items, meta, {kind: 'general', staleOnly: false}).map((i) => i.id), [2]);
+  assert.deepEqual(filterSkills(items, meta, {kind: 'all', staleOnly: true}).map((i) => i.id), [2, 3]);
+  assert.deepEqual(filterSkills(items, meta, {kind: 'research', staleOnly: true}).map((i) => i.id), [3]);
+});
+
+test('UT-COP-11-22: limitsProblem gives a plain sentence for a number outside the server bounds, and null when fine', async () => {
+  const {limitsProblem} = await import('./skillsModel');
+  assert.equal(limitsProblem({max_active_items: 50, max_load_words: 4000, stale_after_days: 30}), null);
+  assert.match(limitsProblem({max_active_items: 5, max_load_words: 4000, stale_after_days: 30}) ?? '', /10 and 200/);
+  assert.match(limitsProblem({max_active_items: 50, max_load_words: 500, stale_after_days: 30}) ?? '', /1,000 and 20,000/);
+  assert.match(limitsProblem({max_active_items: 50, max_load_words: 4000, stale_after_days: 400}) ?? '', /7 and 365/);
+  assert.match(limitsProblem({max_active_items: Number.NaN, max_load_words: 4000, stale_after_days: 30}) ?? '', /10 and 200/);
+});

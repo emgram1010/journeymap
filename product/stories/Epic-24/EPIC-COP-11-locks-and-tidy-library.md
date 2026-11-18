@@ -1,6 +1,6 @@
 # EPIC-COP-11 — Locks, and a library that stays tidy
 
-**Status:** 🟡 Server side live (2026-11-18, Sonnet 5.5). Screen (story 05), auto-lock on Undo, and the old-item backfill not built. Review pass done 2026-11-18 (Fable 5.2), 3 findings fixed.
+**Status:** 🟡 Server side live (2026-11-18, Sonnet 5.5). Screen (story 05) built 2026-11-18. Auto-lock on Undo and the old-item backfill not built. Review pass done 2026-11-18 (Fable 5.2), 3 findings fixed.
 **Model:** **Opus 5.5** for story 01 (the lock is a guard). **Sonnet 5.5** for 02–05. Opus review pass at the end.
 **Depends on:** COP-9 stories 01–04 (live). **Build together with COP-9 story 05** (trial before trust): both change how items are promoted, flagged and loaded.
 **Risk:** medium. Story 01 decides what the AI may never change.
@@ -218,10 +218,21 @@ Scenario: filter
 
 Checked and found sound: retire of a locked item refused; a lock and a copilot edit racing each other cannot both commit (both claim the same version number); only `skill_write`, `skill_undo` and endpoint 666 write these tables; `save_skill` and `retire_skill` are not on the outside Claude door.
 
+### Story 05: the screen (2026-11-18, Fable 5.2)
+
+In the copilot panel's "How I work" list (`CopilotPanel.tsx`, `SkillsSection`): each item shows Locked / AI may change, its kind of work and "Used today" / "Never used"; an admin gets Lock / Unlock; the header shows "6 of 50 items", a kind-of-work filter, a "Not used in 30 days" filter, and a Limits form (admin). A limit outside the bounds is refused on the screen with the typing kept; the server checks again. If the side-table read fails, the list still shows without the extras.
+
+| Check | Result |
+|---|---|
+| Unit: `skillsModel.test.ts` UT-COP-11-20..22 (join, filters, limit bounds) | 3/3 |
+| Playwright, live test account, signed in (`e2e/copilot-skills.spec.ts`) | **5/5**: UI-COP-11-01 lock, kind, last used, counter; UI-COP-11-02 unlock then lock, kind filter; UI-COP-11-03 bad limit refused, typing kept; plus the two COP-9 specs still pass |
+| Full `npm test` / tsc | 958/958; clean |
+
+Not covered by a browser test: the stale filter with a truly stale item (none exists in the test account), and saving in-bounds limits from the screen (the HTTP probe covers the endpoint).
+
 **Not done / not proven:**
 - **AI identity at the lock endpoint:** it reuses `copilot/assert_person_only` (refuses with E-COP-025, not E-COP-092); not run live as the copilot user. E-COP-092 is catalogued but nothing emits it.
 - **No caller passes kinds yet:** chat, runs and `get_how_i_work` all load every kind.
-- **Screen (story 05):** lock button, kind filter, "23 of 50", stale filter. API wrappers and display helpers exist; no screen yet.
 - **Owner edits and Undo lock automatically (D-24-1):** `skill_write` does it when called as owner, but no owner endpoint calls it yet, and `skill_undo` does not lock.
 - **Suggest as an approval item:** the copilot proposes in chat; no approval request is created.
 - **Full library (E-COP-091) and word limit:** coded, not hit live (bounds stop a tiny limit; account has about 6 items).

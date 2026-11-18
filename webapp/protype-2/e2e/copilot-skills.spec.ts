@@ -44,3 +44,56 @@ test.describe('UI-COP-9 skill library', () => {
     await expect(page.locator('#level-skill_write')).toHaveCount(0);
   });
 });
+
+/**
+ * UI-COP-11 — lock, kind of work, last used, the item counter, filters and the limits.
+ * Live test account 13: item #10 is the locked COP-11 test item (kind: planning). The test unlocks
+ * and re-locks it, so it ends as it started.
+ */
+test.describe('UI-COP-11 locks and a tidy library', () => {
+  test('UI-COP-11-01 each item shows its lock, kind and last used; the header counts items', async ({page}) => {
+    await page.goto('/');
+    await page.locator('#copilot-open-btn').click();
+    const panel = page.locator('#copilot-panel');
+    await panel.getByRole('button', {name: 'How I work'}).click();
+    const section = panel.getByTestId('copilot-skills');
+    await expect(section.getByTestId('skills-counter')).toContainText(/\d+ of \d+ items/);
+    const item = section.getByTestId('skill-10');
+    await expect(item).toContainText('Locked');
+    await expect(item).toContainText('Planning');
+    await expect(item).toContainText(/Never used|Used /);
+    await page.screenshot({path: 'e2e/screenshots/cop11-skills-lock.png'});
+  });
+
+  test('UI-COP-11-02 the owner unlocks and locks an item, and the kind filter narrows the list', async ({page}) => {
+    await page.goto('/');
+    await page.locator('#copilot-open-btn').click();
+    const panel = page.locator('#copilot-panel');
+    await panel.getByRole('button', {name: 'How I work'}).click();
+    const section = panel.getByTestId('copilot-skills');
+    const item = section.getByTestId('skill-10');
+    await item.getByRole('button', {name: 'Unlock'}).click();
+    await expect(item).toContainText('AI may change');
+    await item.getByRole('button', {name: 'Lock', exact: true}).click();
+    await expect(item).toContainText('Locked');
+    await section.getByLabel('Kind of work').selectOption('planning');
+    await expect(section.getByTestId('skill-10')).toBeVisible();
+    await expect(section.getByTestId('skill-1')).toHaveCount(0);
+    await section.getByLabel('Kind of work').selectOption('all');
+    await expect(section.getByTestId('skill-1')).toBeVisible();
+  });
+
+  test('UI-COP-11-03 a limit outside the bounds is refused on the screen and the typing is kept', async ({page}) => {
+    await page.goto('/');
+    await page.locator('#copilot-open-btn').click();
+    const panel = page.locator('#copilot-panel');
+    await panel.getByRole('button', {name: 'How I work'}).click();
+    const section = panel.getByTestId('copilot-skills');
+    await section.getByRole('button', {name: 'Limits'}).click();
+    const most = section.getByLabel('Most items');
+    await most.fill('5');
+    await section.getByRole('button', {name: 'Save limits'}).click();
+    await expect(section.getByRole('alert')).toContainText('10 and 200');
+    await expect(most).toHaveValue('5');
+  });
+});

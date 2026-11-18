@@ -134,3 +134,45 @@ export function lastUsedLabel(lastUsedMs: number, nowMs: number): string {
   if (days <= 0) return 'Used today';
   return days === 1 ? 'Used 1 day ago' : `Used ${days} days ago`;
 }
+
+type SkillMetaLike = {
+  items: {skill_id: number; last_used_at: number; not_used_in_days: boolean}[];
+  metas: {skill_id: number; is_locked: boolean; work_kind: string; locked_by_user_id?: number; locked_at?: number}[];
+};
+
+export interface SkillInfo {
+  locked: boolean;
+  workKind: string;
+  lastUsedAt: number;
+  stale: boolean;
+}
+
+/** The side table joined to one item. No row = not locked, general, never used. */
+export function skillInfo(meta: SkillMetaLike | null | undefined, skillId: number): SkillInfo {
+  const m = meta?.metas.find((x) => x.skill_id === skillId);
+  const u = meta?.items.find((x) => x.skill_id === skillId);
+  return {
+    locked: m?.is_locked === true,
+    // an untouched enum is "" (not null), so `||`, never `??`
+    workKind: m?.work_kind || 'general',
+    lastUsedAt: u?.last_used_at || 0,
+    stale: u?.not_used_in_days === true,
+  };
+}
+
+/** The list after the two filters. kind "all" keeps every kind. */
+export function filterSkills<T extends {id: number}>(items: T[], meta: SkillMetaLike | null | undefined, f: {kind: string; staleOnly: boolean}): T[] {
+  return items.filter((i) => {
+    const info = skillInfo(meta, i.id);
+    return (f.kind === 'all' || info.workKind === f.kind) && (!f.staleOnly || info.stale);
+  });
+}
+
+/** The server's bounds, said before the save (the server checks again). null = fine. */
+export function limitsProblem(s: {max_active_items: number; max_load_words: number; stale_after_days: number}): string | null {
+  const within = (n: number, lo: number, hi: number) => Number.isInteger(n) && n >= lo && n <= hi;
+  if (!within(s.max_active_items, 10, 200)) return 'The most items must be between 10 and 200.';
+  if (!within(s.max_load_words, 1000, 20000)) return 'The most words loaded per run must be between 1,000 and 20,000.';
+  if (!within(s.stale_after_days, 7, 365)) return 'Flag unused items after between 7 and 365 days.';
+  return null;
+}
