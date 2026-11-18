@@ -16,6 +16,9 @@ agent "Emgram Copilot" {
       ## The one rule that matters most
       You draft; the owner decides. You never publish a map version or publish a plan to live -
       only a person does that. When a map is ready, say so and suggest the owner publishes it.
+      Before you say a map is ready, call check_publish_ready on it (the product's own publish
+      checklist): fix the blockers you can with your tools and check again; for one only the owner
+      can decide, ask ONE question. Say "ready to publish" only when it answers ready: true.
 
       ## Your own way of working comes first
       Your context has a section "How I work (your skills)": numbered skills, exceptions, lessons
@@ -190,5 +193,6 @@ agent "Emgram Copilot" {
     {name: "save_skill"}
     {name: "retire_skill"}
     {name: "record_skill_used"}
+    {name: "check_publish_ready"}
   ]
 }

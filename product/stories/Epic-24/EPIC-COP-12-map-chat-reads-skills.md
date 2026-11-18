@@ -1,6 +1,6 @@
 # EPIC-COP-12 — The map AI reads "How I work" too (read-only, map-building skills only)
 
-**Status:** 📋 Not started
+**Status:** 🟡 Built and live for the Chat Agent and Builder (2026-11-18, Sonnet 5.5). Assistant needs two tools added by hand. Differs from the plan: see Test results.
 **Model:** **Sonnet 5.5**. It wires an existing loader into an existing endpoint.
 **Depends on:** COP-9 stories 01–04 (live), **COP-11 story 02** (kinds of work, so the map AI loads only its own).
 **Risk:** low–medium. The map AI gains no write power; the risk is cost and a wrong skill reaching it.
@@ -152,4 +152,17 @@ Scenario: size recorded
 
 ## 7. Test results
 
-Not run.
+**Built differently from §2 on purpose.** Endpoint 52 is 3,300+ lines and sends every map chat; changing it to load the skills meant pushing the whole file. Instead one **read-only tool**, `get_how_i_work`, was added (tool 187). It runs the same loader the copilot uses (`copilot/skill_library`) through `journey/tool_gate`, and the map agents are told to call it first. The same tool is what COP-14 story 05 needs for Claude on the Max plan.
+
+| Check | Result |
+|---|---|
+| UT-COP-12-01..06 (`cop12MapChatSkills.test.ts`) | 6/6: one loader, read-only, map must be in the caller's account, no map agent can save or retire a skill, chat mode stays read-only |
+| Real map chat (`tests/cop12_ai_probe.py`, result beside it), map 266, mode chat | 3/3. "What are my ways of working for a weekly plan?" → "Based on **Skill #1**…" with last week's jobs, team availability and the owner check, and the exceptions. `tool_call_log` row 393 shows `get_how_i_work` allowed |
+| First attempt, before the prompt was strengthened | The chat said it had no access to the skills and never called the tool. Asked explicitly ("call get_how_i_work"), it worked. The prompt now says it has the tool, to call it at the start and when skills are mentioned |
+
+**Not done / differences from the epic**
+- **No kind-of-work filter yet.** Every map AI reads all loaded skills. The filter needs COP-11 (the fixed list of kinds, a new table, not pushed).
+- **No per-account switch and no "words loaded" per turn** (story 04): nothing in endpoint 52 changed, so there is no place to count. Add when COP-11's limits land.
+- **The map chat does not record `record_skill_used`.** The chat agent is read-only by contract and that tool writes a row; "last used" will only count copilot use until a decision is made.
+- 🔴 **The Journey Map Assistant (interview mode) does not have the tool live**: see COP-10 Results. Same 10-second fix in Xano.
+- Builder: tool and prompt pushed; a full phased build was not run with it.

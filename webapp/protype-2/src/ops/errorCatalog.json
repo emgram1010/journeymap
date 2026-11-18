@@ -2546,5 +2546,15 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Reload 'How I work' and press Undo on the change you mean."
+  },
+  "E-COP-088": {
+    "code": "E-COP-088",
+    "feature": "COP-10",
+    "user_message": "I couldn't run the publish checklist just now. Nothing was changed; try again.",
+    "what_happened": "The check_publish_ready tool could not run the publish checklist (pub/check_map_ready failed).",
+    "likely_cause": "A short database problem, or a map whose content the checklist could not read.",
+    "owner": "engineer",
+    "severity": "warn",
+    "fix_hint": "Open the map's readiness in the app (endpoint 520) and compare; check event_log for the reason."
   }
 }

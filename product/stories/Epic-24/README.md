@@ -11,6 +11,7 @@
 | `EPIC-COP-11-locks-and-tidy-library.md` | You can lock a skill so the AI can't change it; the library has a size limit and flags unused items. |
 | `EPIC-COP-12-map-chat-reads-skills.md` | The map AI reads the same "How I work" skills (read-only, only the map-building ones). |
 | `EPIC-COP-13-right-model-for-the-job.md` | Every agent moves to a current model; later, start cheap and ask before using a stronger one. |
+| `EPIC-COP-14-emgram-operations.md` | Emgram maps its own way of working ("Who does the thinking": Max plan vs paid API), built through its own MCP door. |
 
 ---
 
@@ -58,6 +59,26 @@ new field on a table with text validators goes in a side table with its own GET,
 not work on arrays, a `conditional` in a loop must branch on the loop item, and every push gets a
 real smoke test.
 
+### Build order (reviewed 2026-11-18)
+
+| Step | Epic | Why here |
+|---|---|---|
+| 0 | ✅ **Real AI test** (done 2026-11-18: 8 of 8 on Sonnet 4.5, skill use recorded; commit e1ce703) | The baseline COP-13 needs, and the first real check of COP-9 skills |
+| 1 | **COP-10** Publish-checklist tool | Small, read-only, and COP-14 needs it |
+| 2 | **COP-13 part A** Move to Sonnet 5.5 | Saves money on every later test; can run in parallel with step 1 (different files) |
+| 3 | **COP-14** Emgram operations | Eats our own dog food early; its gaps steer what comes next |
+| 4 | **COP-11 + COP-9 story 05** Locks, tidy library, trial before trust | Build together; must exist before a second AI reads the library |
+| 5 | **COP-12** Map chat reads skills | Needs COP-11's kinds of work |
+| 6 | **COP-13 part B** Step up with approval | Last: needs real usage data to set the cap |
+
+### Review notes (2026-11-18)
+
+- **COP-11:** the duplicate-item rule sits only in Counter-measures; it needs its own story and test. The "suggest a change to a locked item" path forces the level to "wait", which changes `copilot/action_gate`; say so in Governance.
+- **COP-12:** `record_skill_used` calls `journey/tool_gate` with map 0. Check that a map-chat ticket passes it before relying on it; otherwise pass the map id.
+- **COP-13:** re-running a task on the strong copy "with the conversation so far" can hit Opus 5.5's preserved-thinking rules; re-run from the user messages and tool results, not the old thinking. E-COP-093 should be catalog owner `engineer`.
+- **COP-13:** add the Max-plan rule: in-app AI is for when no one is present; the founder's own work goes through Claude on the Max plan (COP-14).
+- **COP-10:** sound as written.
+
 ## 4. Decisions the founder owns
 
 Each has a default so the build is never blocked.
@@ -71,13 +92,17 @@ Each has a default so the build is never blocked.
 | **D-24-5** | Which model does each agent start on? | **Sonnet 5.5** for all 7 |
 | **D-24-6** | May the AI step up to a stronger model on its own? | **No by default.** A new approval type "use a stronger model", starting at "waits for you" |
 
+| **D-24-7** | Where do outside-app connections go (e.g. Booqable)? | **Founder-only tool → separate connectors workspace; customer feature → Emgram COP-6** (COP-14-06) |
+| **D-24-8** | Max plan or API? | **Someone at the keyboard → Claude on the Max plan via MCP; no one present or a customer's business → in-app copilot on the API** (COP-14) |
+
 ## 5. Status
 
 | Item | State |
 |---|---|
 | Epics and stories written | ✅ 2026-11-18 (Opus 5.5) |
 | Founder review | ⏳ waiting |
-| COP-10 | 📋 Not started |
+| COP-10 | 🟡 Built and live; Assistant agent needs the tool added in Xano (see its Results) |
 | COP-11 | 📋 Not started |
-| COP-12 | 📋 Not started |
+| COP-12 | 🟡 Built as a read-only tool (not an endpoint change); kind filter waits on COP-11 |
 | COP-13 | 📋 Not started |
+| COP-14 | 📋 Not started |

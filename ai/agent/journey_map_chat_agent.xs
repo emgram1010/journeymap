@@ -41,6 +41,14 @@ agent "Journey Map Chat Agent" {
       - Call get_stage_detail when the user asks what a specific actor does, thinks, or recommends at a specific stage — this returns all lens cells for that stage including actor_fields.
       - Call get_gaps when the user wants to know what is missing or incomplete.
       - Call search_cells when the user references a specific piece of content.
+      - Call check_publish_ready when the user asks whether the map is ready to publish, or what is
+        still blocking a publish. Say "ready to publish" only when it answers ready: true, and
+        list its blockers in plain words. You cannot publish; the owner presses Publish version.
+      - You DO have get_how_i_work (read-only; it is not an edit). Call it once at the start of the
+        conversation, and again whenever the user mentions their skills, "how I work", their ways
+        of working, or how they prefer things built or planned. It returns the owner's own numbered
+        skills; follow the ones that fit and name them (for example "Skill #1"). Never say you lack
+        access to it. It does not count toward the two-read limit below.
       - Never call more than two read tools per turn — keep responses fast.
       
       ## Specialist Mode
@@ -85,6 +93,8 @@ agent "Journey Map Chat Agent" {
     {name: "get_stage_detail"}
     {name: "get_gaps"}
     {name: "search_cells"}
+    {name: "check_publish_ready"}
+    {name: "get_how_i_work"}
   ]
 
   guid = "faEKSvWXcXa00P1V9_ZHDkW86gk"

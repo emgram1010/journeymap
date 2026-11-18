@@ -1,0 +1,273 @@
+{
+ "266": {
+  "ready": false,
+  "blockers": [
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s1",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s2",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s3",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "PARTIAL_WORK_CELL",
+    "stage_key": "s3",
+    "lens_key": "lens-3",
+    "message": "This row's cell was started but isn't finished \u2014 it needs both a task and a duration."
+   },
+   {
+    "code": "PARTIAL_WORK_CELL",
+    "stage_key": "s3",
+    "lens_key": "lens-4",
+    "message": "This row's cell was started but isn't finished \u2014 it needs both a task and a duration."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s4",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s5",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s6",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s7",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s8",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   }
+  ],
+  "warnings": [
+   {
+    "code": "items_cell_incomplete",
+    "stage_key": "s3",
+    "lens_key": "items",
+    "message": "This stage has no complete rate for one or more items yet.",
+    "item_keys": [
+     "ft-active-item-2"
+    ]
+   }
+  ],
+  "ready_count": 0,
+  "total": 8,
+  "gate_failures": [
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s1",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s2",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s3",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "PARTIAL_WORK_CELL",
+    "stage_key": "s3",
+    "lens_key": "lens-3",
+    "message": "This row's cell was started but isn't finished \u2014 it needs both a task and a duration."
+   },
+   {
+    "code": "PARTIAL_WORK_CELL",
+    "stage_key": "s3",
+    "lens_key": "lens-4",
+    "message": "This row's cell was started but isn't finished \u2014 it needs both a task and a duration."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s4",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s5",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s6",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s7",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s8",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   }
+  ]
+ },
+ "261": {
+  "ready": true,
+  "blockers": [],
+  "warnings": [],
+  "ready_count": 2,
+  "total": 2,
+  "gate_failures": []
+ },
+ "260": {
+  "code": "ERROR_CODE_ACCESS_DENIED",
+  "message": "You don't have access to this map. (E-PUB-004)",
+  "payload": ""
+ },
+ "267": {
+  "ready": false,
+  "blockers": [
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s1",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s2",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s3",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s4",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s5",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s6",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s7",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s8",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "PLACEHOLDER_TITLE",
+    "stage_key": null,
+    "lens_key": null,
+    "message": "Give this map a real name before publishing it."
+   }
+  ],
+  "warnings": [],
+  "ready_count": 0,
+  "total": 8,
+  "gate_failures": [
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s1",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s2",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s3",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s4",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s5",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s6",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s7",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "NO_OWNER",
+    "stage_key": "s8",
+    "lens_key": null,
+    "message": "Pick who owns this stage."
+   },
+   {
+    "code": "PLACEHOLDER_TITLE",
+    "stage_key": null,
+    "lens_key": null,
+    "message": "Give this map a real name before publishing it."
+   }
+  ]
+ }
+}

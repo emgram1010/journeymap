@@ -1,0 +1,6 @@
+(14s, 200) {"reply": "Based on **Skill #1**, your weekly planning process is:\n\n1. Review last week's jobs, check team availability, then draft the schedule.\n2. Always ask the owner to approve before publishing\u2014unless it's a rush job or a step is blocked, in which case you adapt accordingly.", "cell_updates": [{"cell_id": 10928, "stage_id": 1999, "lens_id": 1366, "content": "", "actor_fields": {"emotions": "Anxious, frustrated, impatient \u2014 every minute waiting cuts into earnings and delays next stops", "assumptions": "Order will be ready within 5 minutes of arrival; restaurant staff will prioritize delivery orders", "entry_trigger": "Arrival at restaurant location", "expected_output": "Order collected, verified, and ready to transport within 5 minutes", "friction_points": "23-minute average wait during lunch rush (40% of orders); no visibility into kitchen status; unclear pickup process
+PASS  chat answered 200
+PASS  it named skill #1 and its steps (last week's jobs, who is free)
+PASS  it did NOT say it lacks access
+
+3/3 passed

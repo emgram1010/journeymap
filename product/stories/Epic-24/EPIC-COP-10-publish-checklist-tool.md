@@ -1,6 +1,6 @@
 # EPIC-COP-10 — The AI checks a map against the real publish checklist
 
-**Status:** 📋 Not started
+**Status:** 🟡 Built and live (2026-11-18, Sonnet 5.5). The Journey Map Assistant (interview mode) does not have the tool yet: see Results.
 **Model:** **Sonnet 5.5**. It wraps a function that already exists and is tested.
 **Depends on:** PUB-1 (the publish gate, live), COP-1 (`journey/tool_gate`, run tickets).
 **Risk:** low. The tool only reads. It never publishes.
@@ -155,4 +155,27 @@ Scenario: it hands back what only I can decide
 
 ## 6. Test results
 
-Not run.
+**What was built**
+
+| Piece | Where | Live id |
+|---|---|---|
+| The checklist function (same three functions endpoint 520 chains) | `functions/pub/check_map_ready.xs` | fn 402 |
+| The read-only tool | `ai/tool/check_publish_ready.xs` | tool 186 |
+| E-COP-088 | `webapp/protype-2/src/ops/errorCatalog.json` | — |
+| Listed on | Journey Map Builder (9), Journey Map Chat Agent (10), Emgram Copilot (40); prompts tell them to check first | pushed live |
+
+**Results**
+
+| Check | Result |
+|---|---|
+| UT-COP-10-01..07 (`cop10Publish.test.ts`) | 7/7 |
+| FT-COP-10-01 / 02: the function against endpoint 520 on real maps | Same answer on all three maps 520 would show: map 266 (10 blockers, 1 warning, 0 of 8 ready), map 261 (ready, 2 of 2), map 267 (9 blockers incl. the placeholder-title rule). Map 260 belongs to another user, so 520 refuses it (403); the function returns its 4 stage-owner blockers |
+| FT-COP-10-03 / 04 (gate, read-only) | Tool goes through `journey/tool_gate` as a read; the tool and function contain no write. Real calls were logged as `allowed` in `tool_call_log` (rows 389, 391 by the copilot; 392 by the map chat) |
+| AI-COP-10-01 real AI (`tests/cop10_ai_probe.py`, result beside it) | 5/5. Map "Day-Before…" → "Not ready", 4 blockers, every stage needs an owner; map "COP-5 chain fixture" → "Yes, ready"; asked to publish → "I can't publish maps – only you can" |
+| Map chat (Chat Agent) asked "Is this map ready to publish?" on map 266 | Reported the same 10 blockers and the warning in plain words |
+
+**Not done / differences**
+- 🔴 **Journey Map Assistant (id 18, interview mode) does not have the tool live.** Its repo file said `system_prompt: "temp"` while the live agent holds a 70,000-character prompt, so pushing from the file would have wiped it, and pushing the live text means re-sending all of it. The repo file is now refreshed from the live source (with the tool added) and **not pushed**. **Founder, 10 seconds in Xano:** AI → Agents → Journey Map Assistant → Tools → add `check_publish_ready` (and `get_how_i_work`, COP-12) → save.
+- The function copies endpoint 520's glue (Items-row rates) rather than being called by it. Both call the same three functions; FT-COP-10-02 guards drift. Switching 520 and Publish version (201) to call it is a separate, careful change.
+- Publish version (201) calls the gate without the Items and exception inputs; those only add warnings, so its blockers equal the tool's.
+- Found while here: the live Builder prompt contains leftover merge-conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) and a duplicated "Stage Contract awareness" block. Left as it was; worth a clean-up.

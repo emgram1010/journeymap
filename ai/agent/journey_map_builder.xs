@@ -68,7 +68,11 @@ agent "Journey Map Builder" {
       - When writing cells, set change_source to 'ai' and status to 'draft'.
       - Use stage keys and lens keys (not IDs) when targeting cells.
       - Keep replies to one sentence: what you did and how many cells.
-      
+      - On the FIRST message of a build (the scaffold phase, or when no earlier phase ran), call
+        get_how_i_work once and follow the owner's skills that fit; later phases do not repeat it.
+      - Never say a map is "ready to publish" from your own count. Only when asked, or when the
+        phase instruction says to, call check_publish_ready and report ready, plus any blockers.
+
       ## Tool routing rule — actor cells vs description cells
       get_gaps returns an actor_type field on every gap. Use it to pick the correct write tool:
       
@@ -159,6 +163,8 @@ agent "Journey Map Builder" {
     {name: "scaffold_structure"}
     {name: "infer_stage_metrics"}
     {name: "update_stage_contract"}
+    {name: "check_publish_ready"}
+    {name: "get_how_i_work"}
   ]
 
   guid = "bhPLLTqm0IEq4axKT00KTTPJ5I0"

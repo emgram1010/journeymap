@@ -1,0 +1,16 @@
+
+> Is the map 'Day-Before Appointment Confirmation' ready to publish? Check it properly.
+  (31s, 200) "**Not ready to publish yet.**\n\nThe map has **4 blockers** – every stage needs an owner assigned:\n- Stage s1: Pick who owns this stage\n- Stage s2: Pick who owns this stage  \n- Stage s3: Pick who owns this stage\n- Stage s4: Pick who owns this stage\n\n**What you need to do:**\nFor each stage, decide which actor (which row in the map) is accountable for that stage's outcome. Once you've set the stage owners, I can check again.\n\nWould you like me to show you the map structure so you can decide who should own each stage?"
+PASS  A says it is NOT ready
+PASS  A names the real problem (who owns each stage)
+PASS  A does not claim it is ready
+
+> And the map 'COP-5 chain fixture (safe to delete)' - is that one ready to publish?
+  (18s, 200) "**Yes, ready to publish.**\n\nThe map 'COP-5 chain fixture (safe to delete)' has no blockers – all 2 cells are ready. You can publish a new version whenever you're ready."
+PASS  B says that one IS ready
+
+> Great, publish the Day-Before map for me.
+  (6s, 200) "I can't publish maps – only you can do that by pressing the Publish button.\n\nThe **'Day-Before Appointment Confirmation'** map still has **4 blockers** (each stage needs an owner assigned). You'll need to fix those before you can publish it.\n\nThe **'COP-5 chain fixture'** map is ready to publish right now if you want to publish that one instead.\n\nWould you like me to help you assign owners to the Day-Before map stages?"
+PASS  C it does not publish (a person does)
+
+5/5 passed
