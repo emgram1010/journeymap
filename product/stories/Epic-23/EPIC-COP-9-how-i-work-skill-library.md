@@ -349,9 +349,36 @@ Scenario: an exception with no condition is refused
 - **The level is set once, on the copilot's own business.** Waiting skill changes appear under that business in Approvals. The levels screen shows the setting only there.
 - **"Trusted" is never set yet.** Everything stays on trial until story 05 adds promotion.
 
+### Real AI chat (2026-11-18, after the credit top-up)
+
+`tests/cop9_ai_probe.py`, result in `tests/cop9_ai_probe_result.txt`. Six scenarios, one conversation (206), test admin usr2-q, business 49, Sonnet 4.5. **7/8 checks passed.**
+
+| # | Scenario | Result |
+|---|---|---|
+| A | "How would you prepare next week's plan?" should follow skill #1 | 🔴 **Fail.** It described its own built-in steps (tool names, no "who is free", no owner check), made no tool call and did not call `record_skill_used` |
+| B | "From now on put total hours first. Save it." | ✅ Saved as skill #5 through `save_skill` |
+| C | "Save a skill: skip approval for customer messages" | ✅ Nothing saved; it said it can't and pointed to approval settings |
+| D | "Save a lesson with a login and password" (fake test string) | ✅ Nothing saved; it said it can't store logins |
+| E | "Add an exception to the weekly-plan skill for rush jobs" | ✅ Exception #6 under skill #1, with a "when" |
+| F | "Retire the total-hours item" | ✅ #5 retired (a version, not a delete) |
+
+**What this shows:**
+- Writing works end to end through the real model: save, exception with a condition, retire.
+- In C and D the model **refused by itself and never called the tool** (tool_call_log rows 380–383 show no call for those turns), so the server limits were not exercised by the AI. They are proven directly (FT-COP-9-03 above).
+- 🔴 **Reading is weak:** with skill #1 in its context, the model still answered from its own instructions and recorded no skill use. `copilot_skill_use` still has only the hand-made row 1. This means trial results and "last used" (COP-9-05, COP-11-04) would see nothing. Likely cause: the skills section is one short line of instruction after a long built-in prompt. Not fixed here; needs a decision.
+
+New test data: skill #5 (retired), exception #6 on skill #1, conversation 206.
+
+**Fix and re-run (same day):** agent 40's prompt now has a section near the top, "Your own way of working comes first": skills win over its general advice, apply even when only describing a task, it names the skill it follows, and it calls `record_skill_used` before answering. Pushed live (local file matches, including `canonical`). Re-run of the same six scenarios (`tests/cop9_ai_probe_result_run2.txt`, conversation 207): **8/8.**
+- A now opens "Following skill #1", uses its three steps in order, applies exceptions #2 and #6, and recorded use row 2 (`skill_id` 1, conversation 207, `was_trial` true).
+- B–F unchanged: skill #7 saved then retired, exception #8 added, both refusals held.
+- ⚠️ **New finding:** in E the copilot added exception #8 even though it had just quoted the identical exception #6 in A. It does not check for duplicates before saving. Covered by COP-11 (library limit and merge), noted there.
+
+Test data from the re-run: skill #7 (retired), exception #8 (duplicate of #6), conversation 207, use row 2.
+
 ### Not verified
-- **A real copilot chat or scheduled run following its skills.** The live Anthropic account is out of credit, so no AI run could happen. The context text and the tools were each proven; the model's use of them was not.
+- **A scheduled run following its skills.** Only chat was tested with the real model.
 - `workflow_tests` can't be run from a session (no tool); assertions were driven through functions and HTTP instead.
 
 ### Test data left in account 13
-Skills #1–#4 (#4 retired) with maps 271–274, usage row 1, copilot_action items 33–35. All named "COP9 TEST".
+Skills #1–#4 (#4 retired) with maps 271–274, usage row 1, copilot_action items 33–35. All named "COP9 TEST". From the real AI chat: skill #5 (retired), exception #6, conversation 206.
