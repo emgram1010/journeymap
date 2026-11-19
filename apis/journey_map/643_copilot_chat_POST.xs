@@ -274,6 +274,11 @@ query "copilot/chat" verb=POST {
       value = []
     }
 
+    // COP-13: the same history, kept for a step-up re-run (which gets an extra note in its system text).
+    var $hist_msgs {
+      value = []
+    }
+
     array.push $agent_msgs {
       value = {role: "system", content: $ctx}
     }
@@ -292,6 +297,10 @@ query "copilot/chat" verb=POST {
         } as $hm_text
 
         array.push $agent_msgs {
+          value = {role: $hm.role, content: $hm_text}
+        }
+
+        array.push $hist_msgs {
           value = {role: $hm.role, content: $hm_text}
         }
       }
@@ -364,12 +373,67 @@ query "copilot/chat" verb=POST {
 
     conditional {
       if ($granted_now > 0) {
+        // COP-13: the standard copy may already have changed something in this turn before it asked.
+        // The strong copy re-does the whole request, so it is told what was already done and to check
+        // first instead of repeating it. Read from the audit trail: the copilot's own allowed writes since
+        // this turn started (a scheduled run of the same copilot at the same moment could also appear).
+        db.query tool_call_log {
+          where = $db.tool_call_log.user_id == $copilot_user_id && $db.tool_call_log.kind == "write" && $db.tool_call_log.verdict == "allowed" && $db.tool_call_log.created_at >= $turn_started_ms && $db.tool_call_log.tool != "request_step_up"
+          sort = {tool_call_log.created_at: "asc"}
+          return = {type: "list"}
+          output = ["tool", "journey_map_id"]
+        } as $done_writes
+
+        var $done_text {
+          value = ""
+        }
+
+        foreach ($done_writes) {
+          each as $w {
+            var.update $done_text {
+              value = $done_text ~ "- " ~ $w.tool ~ " (map " ~ ($w.journey_map_id|to_text) ~ ")\n"
+            }
+          }
+        }
+
+        var $done_count {
+          value = $done_writes|count
+        }
+
+        var $done_note {
+          value = (($done_count > 0) ? ("\n## Already done in this turn\nBefore asking for the stronger model, the standard model already made these changes in this same request:\n" ~ $done_text ~ "Do not repeat them. Read the current state first, then do only what is still missing.\n") : "")
+        }
+
+        var $strong_ctx {
+          value = $ctx ~ $done_note
+        }
+
+        var $strong_msgs {
+          value = []
+        }
+
+        array.push $strong_msgs {
+          value = {role: "system", content: $strong_ctx}
+        }
+
+        foreach ($hist_msgs) {
+          each as $hmsg {
+            array.push $strong_msgs {
+              value = $hmsg
+            }
+          }
+        }
+
+        array.push $strong_msgs {
+          value = {role: "user", content: $input.content}
+        }
+
         try_catch {
           try {
             group {
               stack {
                 ai.agent.run "Emgram Copilot Strong" {
-                  args = {}|set:"messages":$agent_msgs
+                  args = {}|set:"messages":$strong_msgs
                   allow_tool_execution = true
                 } as $strong_run
 
@@ -415,7 +479,7 @@ query "copilot/chat" verb=POST {
             account_id : $account_id
             entity_type: "agent_conversation"
             entity_id  : $conv_id
-            metadata   : {reason: $agent_err}
+            metadata   : {reason: $agent_err, earlier_writes: $done_count}
           }
         } as $_step_logged
       }

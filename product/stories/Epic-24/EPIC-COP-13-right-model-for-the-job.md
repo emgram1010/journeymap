@@ -218,7 +218,21 @@ UT-COP-13-01..03 (`cop13AgentModels.test.ts`) 3/3: each agent file's model match
 - Cap counted **per account, not per business**.
 - **Scheduled runs don't step up:** only the chat re-runs on the strong copy; `run_for_business` still uses the standard copy only.
 - **E-COP-093 / 095 not added:** declined and expired step-ups use the gate's own existing refusals.
-- **Risk:** the strong copy re-does the whole request. If the standard copy already changed something before asking, the strong run could repeat it. The prompt says to ask instead of trying everyday work, but nothing on the server prevents a repeat.
+- **Risk, reduced 2026-11-19 (overnight):** the strong copy re-does the whole request. Now, before it runs, the chat endpoint reads the copilot's own allowed writes in this turn from the audit trail and adds an "Already done in this turn" note (tools and maps) telling it not to repeat them and to read the current state first; `copilot.step_up.ran` records `earlier_writes` (UT-COP-13-B-10). It is a note, not a block: the server still cannot undo or refuse a repeat. Real-AI step-up probe rerun after the change: **7/7** (conversation 223, item 48). The note itself was not exercised live (that run made no write before asking).
+
+### Overnight 2026-11-19: the Orchestrator really runs a map now (Opus 5.5)
+
+Testing the Orchestrator on a map WITH an internal actor (fixture map 293) found two more old defects, both fixed and live:
+- **`validate_workflow` (tool 32) crashed on every map with an internal actor**: it read `$ln.actor_role`, a column that does not exist on `journey_lens` (live or repo). Now read through `??`. **Product call made overnight (founder asleep):** "several internal actors, none marked primary" was a *blocker* nobody could clear (there is nowhere to mark a role), so it is now *info*, matching the Orchestrator's own rule (the first internal actor with a task objective leads). UT-COP-13-06.
+- **`save_workflow_state` (tool 33) never saved stage outputs**: it merged them into a variable and then left them out of the write. Every Orchestrator run had saved `{}`. Fixed (UT-COP-13-07); each output now also gets a real time instead of the word "now" (UT-COP-13-08).
+
+| Run (map 293, real AI, `cop13_orch_probe.py`) | Result |
+|---|---|
+| Before the fixes (run 7) | pre-flight crashed: "Unable to locate var: ln.actor_role"; nothing ran |
+| After the validate fix (run 8) | all 11 stages ran with real output, but the saved record held `{}` |
+| After the save fix (run 9) | all 11 stages ran and **all 11 outputs are saved** in `workflow_execution.stage_outputs` |
+
+Still not covered: supporting actors, AI-agent delegation (`invoke_map`), resume, step mode with a person in the loop.
 
 ### Story 05 (Health part): step-ups per day per business (2026-11-19, Opus 5.5)
 

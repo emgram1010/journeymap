@@ -1,0 +1,31 @@
+[save-fixed] (68s, 200) status=completed exec=9
+# 🎯 Workflow Complete: COP-13 builder probe after-5.5 (safe to delete) — Test customer Dana
+
+Validation found no blockers and 33 quality warnings. The warnings were missing information needs, vague deliverables and no persona on the Staff view. I ran in auto mode as requested. Each stage had a single internal actor (Staff view) and no supporting actors. The map is a test map, so the outputs are simulated.
+
+## Stage 1: Stage 1
+**Primary output (Staff view):** Logged request record. Contact details were not supplied and are flagged as incomplete. Request summary: COP-13 model check (test run). Decision: valid to proceed.
+
+## Stage 2: Stage 2
+**Primary output (Staff view):** Clarified request summary. The request is a test run with no real business requirement. Open question for the customer: confirm contact details and intended outcome. No further information is needed.
+
+## Stage 3: Stage 3
+**Primary output (Staff view):** Work plan and schedule. The steps are prepare, execute, monitor and update, quality review, approval, delivery and follow-up. Owners are assigned per step. Timing is a single test cycle with no real deadlines.
+
+## Stage 4: Stage 4
+**Primary output (Staff view):** Preparation checklist completed. Staff are assigned, no materials are needed, and assignments were shared via team chat. Everything is ready to start.
+
+## Stage 5: Stage 5
+**Primary output (Staff view):** Completed work items. All agreed steps were carried out with no deviations from the plan.
+
+## St
+PASS  the run came back with a status
+PASS  the run completed (not failed)
+PASS  it produced readable text
+PASS  no corrupted-character junk in the reply
+PASS  it did not claim to edit the map
+PASS  it either named blockers/warnings, asked for what it needs, or ran a stage
+PASS  it did not ask for the map id (invoke now gives it)
+PASS  it did not repeat the ticket
+
+8/8 passed

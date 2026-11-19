@@ -1,6 +1,9 @@
-// v1.0 â€” Pre-flight validation of a journey map for Orchestrator execution.
+// v1.0 — Pre-flight validation of a journey map for Orchestrator execution.
 // Read-only. Returns a structured report of blockers, warnings, and info notices.
 // ready_to_execute is true only when blocker_count == 0.
+// COP-13 (2026-11-19): journey_lens has no actor_role column, so the old bare $ln.actor_role crashed every
+// check on a map with an internal actor. Read through ??; a missing primary role is info, not a blocker
+// (the Orchestrator's own rule: the first internal actor with a task objective leads).
 tool validate_workflow {
   instructions = """
       Run this tool before starting or resuming Orchestrator execution.
@@ -16,7 +19,6 @@ tool validate_workflow {
       - Internal actor lens exists but task_objective is empty
       - output_deliverable is missing on a stage referenced by a downstream handoff_dependencies
       - handoff_dependencies references a stage key that does not exist in the map
-      - No actor with actor_role='primary' on a stage that has an internal actor
     
       Warning checks:
       - information_needs is empty or fewer than 10 characters
@@ -286,7 +288,7 @@ tool validate_workflow {
                 }
               
                 conditional {
-                  if ($ln.actor_role == "primary") {
+                  if (($ln.actor_role ?? "") == "primary") {
                     var.update $has_primary_role {
                       value = true
                     }
@@ -299,15 +301,7 @@ tool validate_workflow {
               if (($stage_lenses|count) > 1 && $has_primary_role == false) {
                 var.update $issues {
                   value = $issues
-                    |push:{severity: "blocker", code: "no_primary_actor", message: "Multiple internal actors but none is actor_role='primary'. Orchestrator can't determine execution order."}
-                }
-              
-                var.update $st_status {
-                  value = "blocked"
-                }
-              
-                var.update $blocker_count {
-                  value = $blocker_count + 1
+                    |push:{severity: "info", code: "no_primary_actor", message: "Several internal actors and none is marked primary: the first internal actor with a task objective leads."}
                 }
               }
             }

@@ -1,0 +1,34 @@
+[internal-actor-map-fixed] (74s, 200) status=completed exec=8
+# 🎯 Workflow Complete: COP-13 builder probe after-5.5 (safe to delete), Test customer Dana
+
+I ran all 11 stages in auto mode. The Staff view was the only internal actor on each stage, so it was the primary actor throughout. No stage had supporting actors, dependencies or an AI sub-agent, so I didn't invoke any sub-maps.
+
+**Saved record:** The run is marked completed, but the saved record shows empty stage outputs, so the outputs below exist only in this reply. The save calls returned an empty list each time. Check this before relying on an export.
+
+## Stage 1: Stage 1
+**Primary output:** Logged request record for Dana. Contact details weren't supplied, so they're marked as still to collect. Request summary: test request for the COP-13 model check. Decision: valid enough to proceed.
+
+## Stage 2: Stage 2
+**Primary output:** Clarified request summary. The request is a COP-13 model check and a test run only. No further information is needed from the customer.
+
+## Stage 3: Stage 3
+**Primary output:** Work plan and schedule. The scope is a lightweight test run with an assigned staff owner. Timing is immediate and there's no cost to the customer.
+
+## Stage 4: Stage 4
+**Primary output:** Preparation checklist completed. Staff are assigned, no materials are needed, and the plan is confirmed.
+
+## Stage 5: Stage 5
+**Primary output:** Completed work items. The agreed test steps were carried out per plan with no deviations.
+
+## Stage 6: Stage 6
+**Primary output:** Progress update and issu
+PASS  the run came back with a status
+PASS  the run completed (not failed)
+PASS  it produced readable text
+PASS  no corrupted-character junk in the reply
+PASS  it did not claim to edit the map
+PASS  it either named blockers/warnings, asked for what it needs, or ran a stage
+PASS  it did not ask for the map id (invoke now gives it)
+PASS  it did not repeat the ticket
+
+8/8 passed

@@ -1,6 +1,6 @@
 # EPIC-COP-11 — Locks, and a library that stays tidy
 
-**Status:** 🟡 Server side live (2026-11-18, Sonnet 5.5). Screen (story 05) built 2026-11-18. Auto-lock on Undo built 2026-11-19. Old-item backfill not built. Review pass done 2026-11-18 (Fable 5.2), 3 findings fixed.
+**Status:** 🟡 Server side live (2026-11-18, Sonnet 5.5). Screen (story 05) built 2026-11-18. Auto-lock on Undo built 2026-11-19. Old-item backfill built 2026-11-19 (nothing to do: no item is scoped by kind of work). Review pass done 2026-11-18 (Fable 5.2), 3 findings fixed.
 **Model:** **Opus 5.5** for story 01 (the lock is a guard). **Sonnet 5.5** for 02–05. Opus review pass at the end.
 **Depends on:** COP-9 stories 01–04 (live). **Build together with COP-9 story 05** (trial before trust): both change how items are promoted, flagged and loaded.
 **Risk:** medium. Story 01 decides what the AI may never change.
@@ -244,3 +244,8 @@ Not covered by a browser test: the stale filter with a truly stale item (none ex
 - **"Least used" hint on a full library:** shows the oldest-updated item, not the least used.
 - **Stale flag:** computed on read, no `flagged_stale` event.
 - Test item #10 (locked, planning) left in account 13.
+
+### Old-item backfill (2026-11-19, overnight, Opus 5.5)
+
+`copilot/backfill_work_kinds` (function 408): maps a free-text kind of work to the fixed list (or general) for items scoped `work_kind`; only fills a kind that is not set; never overwrites, deletes, retires or locks; dry_run reports only; writes need one named account. Unit `cop11Backfill.test.ts` 4/4.
+**Live dry run across all accounts: 0 items.** Confirmed directly: no `copilot_skill` row has scope_type `work_kind`. So no real run was needed and none was made. The function stays for any later import.

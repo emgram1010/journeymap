@@ -89,6 +89,11 @@ tool save_workflow_state {
       }
     }
   
+    // COP-13: a real time for each stage (inside this object "now" was stored as the word "now").
+    var $done_at {
+      value = now|to_int
+    }
+
     // Merge stage output into existing stage_outputs map
     var $updated_stage_outputs {
       value = {}
@@ -109,7 +114,7 @@ tool save_workflow_state {
             |set:$input.stage_key_output:```
               {
                 output      : $input.stage_output
-                completed_at: "now"
+                completed_at: $done_at
               }
               ```
         }
@@ -119,6 +124,17 @@ tool save_workflow_state {
     // Build patch/insert data
     var $data {
       value = {}|set:"updated_at":"now"
+    }
+
+    // COP-13 (2026-11-19): the merged outputs were built above but never saved, so every run's stage
+    // outputs stayed empty. Save them whenever a stage output is sent. (A json column patch merges, which
+    // is what we want here: the map already holds the earlier stages.)
+    conditional {
+      if ($input.stage_key_output != null && $input.stage_key_output != "" && $input.stage_output != null) {
+        var.update $data {
+          value = $data|set:"stage_outputs":$updated_stage_outputs
+        }
+      }
     }
   
     conditional {

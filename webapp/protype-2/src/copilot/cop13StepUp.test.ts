@@ -107,3 +107,14 @@ test('UT-COP-13-B-07: the copilot is told when to ask, in one line, and that a "
   assert.match(p, /request_step_up/);
   assert.match(p, /carry on/i);
 });
+
+test('UT-COP-13-B-10: before re-doing a turn on the strong copy, it is told which changes this turn already made', () => {
+  const ep = read('apis/journey_map/643_copilot_chat_POST.xs');
+  const rerun = ep.slice(ep.indexOf('COP-13 part B: a step-up allowed'));
+  assert.match(rerun, /db\.query tool_call_log \{/, 'the turn\'s own writes are read from the audit trail');
+  assert.match(rerun, /\$db\.tool_call_log\.kind == "write"/);
+  assert.match(rerun, /\$db\.tool_call_log\.created_at >= \$turn_started_ms/);
+  assert.match(rerun, /\$db\.tool_call_log\.tool != "request_step_up"/);
+  assert.match(rerun, /Do not repeat them/);
+  assert.match(rerun, /ai\.agent\.run "Emgram Copilot Strong" \{\s*args = \{\}\|set:"messages":\$strong_msgs/, 'the strong copy gets the messages with the note');
+});
