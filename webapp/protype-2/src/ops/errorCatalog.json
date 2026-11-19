@@ -2162,10 +2162,10 @@
     "feature": "COP-4",
     "user_message": "This only works in a copilot conversation about one business.",
     "what_happened": "A copilot tool that works inside one business (goals, notes, research, business memory) was called outside a one-business conversation.",
-    "likely_cause": "The tool was called from another chat or without a business.",
+    "likely_cause": "The tool was called from another chat or without a business. From the outside MCP door, the planner tools need journey_architecture_id (COP-14-03).",
     "owner": "engineer",
     "severity": "info",
-    "fix_hint": "Use it from the copilot panel with a business picked."
+    "fix_hint": "Use it from the copilot panel with a business picked, or (outside assistant) pass journey_architecture_id for a business in your own account."
   },
   "E-COP-046": {
     "code": "E-COP-046",

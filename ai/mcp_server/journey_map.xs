@@ -54,6 +54,14 @@ mcp_server journey_map {
       get_how_i_work      — the owner's numbered skills, exceptions and lessons ("How I work"). Call it ONCE before you build or plan, and follow the ones that fit. It only reads: you cannot save or change a skill here.
       check_publish_ready — runs the product's own Publish version checklist on a map. Call it before you tell anyone a map is ready, fix the blockers you can, and check again. Say "ready" only when it answers ready: true. A person presses Publish version.
 
+      ## Planning (drafts only) — for the signed-in person
+      plan_create, plan_accept_map, plan_add_job, plan_add_person, plan_start_day, plan_schedule_step,
+      plan_schedule_card, plan_unschedule_step, plan_set_start_time, plan_set_time_window
+      Every planner call needs the business: pass journey_architecture_id (a business in your own account;
+      the server refuses any other). They act as YOU, under your own permissions (you need the Planner).
+      Everything is a DRAFT. No tool here publishes a plan to live: Publish to live is a button a person
+      presses in the planner.
+
       ## CRUD Pre-Flight Protocol
       Before executing any Create, Update, or Delete operation, follow this sequence:
     
@@ -109,6 +117,16 @@ mcp_server journey_map {
     {name: "calculate_leakage"}
     {name: "get_how_i_work"}
     {name: "check_publish_ready"}
+    {name: "plan_create"}
+    {name: "plan_accept_map"}
+    {name: "plan_add_job"}
+    {name: "plan_add_person"}
+    {name: "plan_start_day"}
+    {name: "plan_schedule_step"}
+    {name: "plan_schedule_card"}
+    {name: "plan_unschedule_step"}
+    {name: "plan_set_start_time"}
+    {name: "plan_set_time_window"}
   ]
 
   guid = "Hin32z0HEnscqbQVs1kSquiHiQ4"

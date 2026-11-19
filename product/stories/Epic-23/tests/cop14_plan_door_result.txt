@@ -1,0 +1,13 @@
+PASS  signed in: the door lists all 10 planner tools
+PASS  no tool on the door publishes a plan to live
+  tools on the door: 33
+PASS  no sign-in: no tools are listed
+PASS  no business named: refused, and told to pass journey_architecture_id (E-COP-045)
+PASS  a business outside the account: refused
+PASS  plan_create works for the signed-in person in their own business
+PASS  plan_add_person works through the door
+PASS  plan_start_day makes a DRAFT day
+  KNOWN GAP (not a check): empty plan + another own business -> allowed
+  plan: 143
+
+8/8 passed

@@ -189,8 +189,23 @@ Scenario: the map "How we stay in control"
 ## 6. Gaps found
 
 - **2026-11-18, story 05 built early (the tool, not the build).** `get_how_i_work` (tool 187) and COP-10's `check_publish_ready` (tool 186) are on the `journey_map` MCP server (22 → 23 tools listed; server pushed from `ai/mcp_server/journey_map.xs`, instructions updated). Proven over the real door as the test admin: `tools/list` shows both; `check_publish_ready` on map 261 returned ready with 2 of 2; `get_how_i_work` returned the account's 4 skills; no token still refused (SEC-3 probe 3/3). Not yet run with Claude on the Max plan and the founder's own sign-in.
-- **The MCP door exposes `publish_map`.** An outside Claude signed in as the founder can publish a version itself, which is not the rule in "Always the same" above ("a person presses Publish version"). For the copilot the gate refuses it (E-COP-025); for a person's token it does not. Decide: leave it (the founder is the person), or remove it from the MCP tool list for outside assistants. Not changed.
+- **The MCP door exposes `publish_map`.** An outside Claude signed in as the founder can publish a version itself, which is not the rule in "Always the same" above ("a person presses Publish version"). For the copilot the gate refuses it (E-COP-025); for a person's token it does not. **Decided 2026-11-19 (founder): keep it** - the founder is the person, so an outside Claude signed in as them may publish a version. Not changed.
 
 ## 7. Test results
 
-Not run.
+### Story 03: planner tools on the outside door (2026-11-19, Opus 5.5; founder approved the permission change)
+
+**Built:**
+- The 10 planner tools are on the `journey_map` MCP server (23 -> 33 tools), with a "Planning (drafts only)" section in its instructions. No tool publishes a plan to live.
+- Each planner tool takes an optional `journey_architecture_id` and passes it to `journey/tool_gate`, which already refuses a business outside the caller's account.
+- ONE new rule, `copilot/work_business` (function 406): the chat's pinned business always wins; only a caller signed in by token (the outside door) may name one; anything else = 0 and the tool refuses with E-COP-045 (new message says to pass `journey_architecture_id`).
+- Unchanged on purpose: approval levels still apply to AI identities only (a person is never stopped), and an AI with no pin is still refused (E-COP-048) even if it names a business. The gate itself was not edited.
+
+| Check | Result |
+|---|---|
+| Unit `cop14PlanDoor.test.ts` UT-COP-14-03-01..05 | 5/5; full suite **997/997** |
+| `copilot/work_business` live | token + named 49 -> 49; ticket + named 49 -> 0; pinned 48 -> 48 |
+| Real door (`tests/cop14_plan_door_probe.py`, test admin, no AI) | **8/8**: signed in lists all 10; no publish-to-live tool; no sign-in lists nothing; no business -> E-COP-045 with the fix; another account's business refused; `plan_create` -> plan 143, `plan_add_person`, `plan_start_day` made a draft day |
+
+**Known gap, not fixed:** an EMPTY plan (no map accepted yet) is tied to no business, so its creator can change it while naming another of their own businesses. That is the shared rule `copilot/plan_in_business` ("an empty plan is allowed only for its creator"); the in-app copilot behaves the same. Once the plan accepts a map it is bound.
+**Not run:** the in-app copilot planning after this change (the rule returns the pinned business unchanged, proven on the function, not in a real chat); Claude on the founder's Max plan (needs the founder's token). Test plans 142 and 143 are throwaways.

@@ -3,7 +3,7 @@
 // so the whole card the slot holds goes back to "waiting for a day", with the same checks
 // (E-SCHED-006/007), the same write and the same logging as a person's click.
 // Narrower than a person, on purpose:
-//   - only in a copilot conversation about one business (E-COP-045);
+//   - only for one business: the chat's, or the one an outside person names (E-COP-045);
 //   - only for a step whose plan belongs to that business (copilot/plan_in_business, E-COP-038);
 //   - only on a DRAFT day (epic governance): a live day is refused with E-COP-055 before the
 //     shared rule's own E-SCHED-006 is reached.
@@ -21,6 +21,10 @@ tool plan_unschedule_step {
       description = "Leave 0. Only when the owner approved a waiting action: its item number, sent with exactly the approved input."
     }
 
+    int journey_architecture_id? {
+      description = "Only for an outside assistant (no ticket): the business (architecture id) to plan in. Leave 0 in a copilot chat: the chat's business is used."
+    }
+
     text ticket? filters=trim {
       description = "COP-1 run ticket from your context. If you were given one, pass it on every tool call exactly as given. Otherwise leave it empty."
     }
@@ -34,7 +38,7 @@ tool plan_unschedule_step {
     }
 
     function.run "journey/tool_gate" {
-      input = {journey_map_id: 0, ticket: $input.ticket, tool: "plan_unschedule_step", kind: "write", act_type: "plan_draft", act_payload: {work_task_id: $input.work_task_id}, act_summary: $act_summary, act_approval_id: $input.approval_id}
+      input = {journey_map_id: 0, journey_architecture_id: $input.journey_architecture_id, ticket: $input.ticket, tool: "plan_unschedule_step", kind: "write", act_type: "plan_draft", act_payload: {work_task_id: $input.work_task_id}, act_summary: $act_summary, act_approval_id: $input.approval_id}
     } as $cop1_gate
 
     var $act_action_id {
@@ -56,8 +60,22 @@ tool plan_unschedule_step {
         group {
           stack {
 
-    var $pin {
+    // COP-14 story 03: the chat's business, or (outside door, signed in by token) the one the person
+    // named - checked by the gate to be in their account. The ONE rule: copilot/work_business.
+    var $gate_pin {
       value = $cop1_gate.pin_architecture_id ?? 0
+    }
+
+    var $gate_via {
+      value = $cop1_gate.via ?? ""
+    }
+
+    function.run "copilot/work_business" {
+      input = {pin: $gate_pin, via: $gate_via, named: $input.journey_architecture_id}
+    } as $work_biz
+
+    var $pin {
+      value = $work_biz.business ?? 0
     }
 
     var $caller_user {
@@ -70,7 +88,7 @@ tool plan_unschedule_step {
 
     precondition ($pin != 0 && $caller_user != 0 && $caller_account != 0) {
       error_type = "inputerror"
-      error = "This only works in a copilot conversation about one business. (E-COP-045)"
+      error = "This needs one business: use it in a copilot chat about a business or, from an outside assistant, pass journey_architecture_id. (E-COP-045)"
     }
 
     // Like any planner, the caller needs the Planner grant.
