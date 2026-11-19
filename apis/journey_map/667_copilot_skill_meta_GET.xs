@@ -3,6 +3,7 @@
 // work, when it was last used and whether it is "not used in N days", plus the three limits and the
 // active-item count for "23 of 50 items". Read-only; "last used" is computed from copilot_skill_use
 // (not stored); nothing is ever retired or changed for being stale (story 04).
+// COP-9-05: also each item's use count and the trial rule's two numbers, for "Trial: 3 of 5 uses".
 query "copilot/skill_meta" verb=GET {
   api_group = "journey-map"
   auth = "user"
@@ -50,6 +51,22 @@ query "copilot/skill_meta" verb=GET {
       value = (($stale_days_raw != 0) ? $stale_days_raw : 30)
     }
 
+    var $trial_min_raw {
+      value = ($setting|get:"trial_min_uses":0) ?? 0
+    }
+
+    var $trial_max_raw {
+      value = ($setting|get:"trial_max_overrides":0) ?? 0
+    }
+
+    var $trial_min {
+      value = (($trial_min_raw != 0) ? $trial_min_raw : 5)
+    }
+
+    var $trial_max {
+      value = (($trial_max_raw != 0) ? $trial_max_raw : 2)
+    }
+
     var $now_ms {
       value = now|to_int
     }
@@ -95,6 +112,18 @@ query "copilot/skill_meta" verb=GET {
       value = 0
     }
 
+    var $use_count {
+      value = {}
+    }
+
+    var $n1 {
+      value = 0
+    }
+
+    var $n2 {
+      value = 0
+    }
+
     foreach ($uses) {
       each as $u {
         var.update $key {
@@ -115,6 +144,22 @@ query "copilot/skill_meta" verb=GET {
 
         var.update $last_used {
           value = $last_used|set:$key2:$ts
+        }
+
+        var.update $n1 {
+          value = (($use_count|get:$key:null) ?? 0) + 1
+        }
+
+        var.update $use_count {
+          value = $use_count|set:$key:$n1
+        }
+
+        var.update $n2 {
+          value = (($use_count|get:$key2:null) ?? 0) + 1
+        }
+
+        var.update $use_count {
+          value = $use_count|set:$key2:$n2
         }
       }
     }
@@ -139,6 +184,10 @@ query "copilot/skill_meta" verb=GET {
       value = false
     }
 
+    var $uc {
+      value = 0
+    }
+
     foreach ($skills) {
       each as $s {
         var.update $key {
@@ -147,6 +196,10 @@ query "copilot/skill_meta" verb=GET {
 
         var.update $lu {
           value = ($last_used|get:$key:null) ?? 0
+        }
+
+        var.update $uc {
+          value = ($use_count|get:$key:null) ?? 0
         }
 
         var.update $created_ms {
@@ -162,7 +215,7 @@ query "copilot/skill_meta" verb=GET {
         }
 
         array.push $out {
-          value = {skill_id: $s.id, last_used_at: $lu, not_used_in_days: $stale}
+          value = {skill_id: $s.id, last_used_at: $lu, not_used_in_days: $stale, use_count: $uc}
         }
       }
     }
@@ -175,6 +228,8 @@ query "copilot/skill_meta" verb=GET {
     max_active_items    : $max_items
     max_load_words      : $max_words
     stale_after_days    : $stale_days
+    trial_min_uses      : $trial_min
+    trial_max_overrides : $trial_max
   }
   tags = ["cop-11"]
 }

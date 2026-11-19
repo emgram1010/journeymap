@@ -169,10 +169,15 @@ export function filterSkills<T extends {id: number}>(items: T[], meta: SkillMeta
 }
 
 /** The server's bounds, said before the save (the server checks again). null = fine. */
-export function limitsProblem(s: {max_active_items: number; max_load_words: number; stale_after_days: number}): string | null {
+export function limitsProblem(s: {max_active_items: number; max_load_words: number; stale_after_days: number; trial_min_uses?: number; trial_max_overrides?: number}): string | null {
   const within = (n: number, lo: number, hi: number) => Number.isInteger(n) && n >= lo && n <= hi;
   if (!within(s.max_active_items, 10, 200)) return 'The most items must be between 10 and 200.';
   if (!within(s.max_load_words, 1000, 20000)) return 'The most words loaded per run must be between 1,000 and 20,000.';
   if (!within(s.stale_after_days, 7, 365)) return 'Flag unused items after between 7 and 365 days.';
+  if (s.trial_min_uses !== undefined && !within(s.trial_min_uses, 1, 50)) return 'Uses before a skill is trusted must be between 1 and 50.';
+  if (s.trial_max_overrides !== undefined && !within(s.trial_max_overrides, 1, 10)) return 'Overrides before a trial skill is switched off must be between 1 and 10.';
   return null;
 }
+
+/** COP-9-05: "Trial: 3 of 5 uses" (capped at the target, since the rule promotes overnight). */
+export const trialProgress = (uses: number, target: number): string => `Trial: ${Math.min(uses, target)} of ${target} uses`;

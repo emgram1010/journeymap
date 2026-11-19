@@ -97,3 +97,17 @@ test.describe('UI-COP-11 locks and a tidy library', () => {
     await expect(most).toHaveValue('5');
   });
 });
+
+/** UI-COP-9-05 — trial before trust: a trial item shows its progress, and the limits form has the trial rule's two numbers. */
+test('UI-COP-9-05-01 a trial item shows "Trial: N of M uses" and the limits include the trial rule', async ({page}) => {
+  await page.goto('/');
+  await page.locator('#copilot-open-btn').click();
+  const panel = page.locator('#copilot-panel');
+  await panel.getByRole('button', {name: 'How I work'}).click();
+  const section = panel.getByTestId('copilot-skills');
+  await expect(section.getByTestId('skill-1')).toContainText(/Trial: \d+ of \d+ uses/);
+  await section.getByRole('button', {name: 'Limits'}).click();
+  await expect(section.getByLabel('Uses before trusted')).toHaveValue(/^\d+$/);
+  await expect(section.getByLabel('Overrides before switched off')).toHaveValue(/^\d+$/);
+  await page.screenshot({path: 'e2e/screenshots/cop9-05-trial.png'});
+});

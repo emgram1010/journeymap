@@ -2427,12 +2427,14 @@ export const setCopilotMapLabel = (body: {journey_map_id: number; kind: string; 
 
 // ── COP-11: lock, kind of work, last used, size limit ──
 export interface XanoCopilotSkillMeta {
-  items: {skill_id: number; last_used_at: number; not_used_in_days: boolean}[];
+  items: {skill_id: number; last_used_at: number; not_used_in_days: boolean; use_count?: number}[];
   metas: {skill_id: number; is_locked: boolean; locked_by_user_id: number; locked_at: number; work_kind: string}[];
   active_count: number;
   max_active_items: number;
   max_load_words: number;
   stale_after_days: number;
+  trial_min_uses?: number;
+  trial_max_overrides?: number;
 }
 
 export const getCopilotSkillMeta = (): Promise<XanoCopilotSkillMeta> => xanoRequest('/copilot/skill_meta');
@@ -2440,5 +2442,5 @@ export const getCopilotSkillMeta = (): Promise<XanoCopilotSkillMeta> => xanoRequ
 export const setCopilotSkillLock = (skillId: number, locked: boolean): Promise<{skill_id: number; locked: boolean; version_no: number}> =>
   xanoRequest('/copilot/skill_lock', {method: 'POST', body: {skill_id: skillId, locked}});
 
-export const saveCopilotLibrarySettings = (s: {max_active_items: number; max_load_words: number; stale_after_days: number}): Promise<typeof s> =>
+export const saveCopilotLibrarySettings = (s: {max_active_items: number; max_load_words: number; stale_after_days: number; trial_min_uses?: number; trial_max_overrides?: number}): Promise<typeof s> =>
   xanoRequest('/copilot/library_settings', {method: 'POST', body: s});

@@ -54,6 +54,7 @@ import {
   skillInfo,
   splitByStatus,
   statusLabel,
+  trialProgress,
   undoTarget,
   versionLine,
   workKindLabel,
@@ -261,7 +262,7 @@ function SkillsSection({businessId, businessName, isAdmin}: {businessId: number;
   const [kindFilter, setKindFilter] = useState('all');
   const [staleOnly, setStaleOnly] = useState(false);
   const [showLimits, setShowLimits] = useState(false);
-  const [limits, setLimits] = useState({items: '', words: '', days: ''});
+  const [limits, setLimits] = useState({items: '', words: '', days: '', trialUses: '', trialOverrides: ''});
   const seq = useRef(0);
 
   const load = useCallback(async () => {
@@ -318,12 +319,12 @@ function SkillsSection({businessId, businessName, isAdmin}: {businessId: number;
   };
 
   const openLimits = () => {
-    if (!showLimits && meta) setLimits({items: String(meta.max_active_items), words: String(meta.max_load_words), days: String(meta.stale_after_days)});
+    if (!showLimits && meta) setLimits({items: String(meta.max_active_items), words: String(meta.max_load_words), days: String(meta.stale_after_days), trialUses: String(meta.trial_min_uses ?? 5), trialOverrides: String(meta.trial_max_overrides ?? 2)});
     setShowLimits((v) => !v);
   };
 
   const saveLimits = async () => {
-    const next = {max_active_items: Number(limits.items), max_load_words: Number(limits.words), stale_after_days: Number(limits.days)};
+    const next = {max_active_items: Number(limits.items), max_load_words: Number(limits.words), stale_after_days: Number(limits.days), trial_min_uses: Number(limits.trialUses), trial_max_overrides: Number(limits.trialOverrides)};
     const problem = limitsProblem(next);
     // Refused on the screen first; the typing stays. The server checks again.
     if (problem) return setErr(problem);
@@ -339,6 +340,7 @@ function SkillsSection({businessId, businessName, isAdmin}: {businessId: number;
   const row = (s: XanoCopilotSkill) => {
     const off = isOffFor(data?.off ?? [], s.id, businessId);
     const info = skillInfo(meta, s.id);
+    const uses = meta?.items.find((x) => x.skill_id === s.id)?.use_count ?? 0;
     return (
       <li key={s.id} className="rounded border border-zinc-200 px-2 py-1 space-y-1" data-testid={`skill-${s.id}`}>
         <div className="flex flex-wrap items-center gap-2">
@@ -363,6 +365,7 @@ function SkillsSection({businessId, businessName, isAdmin}: {businessId: number;
         <p className="text-xs text-zinc-500">
           {scopeLabel(s, businessName)} · v{s.version_no}
           {meta ? ` · ${lastUsedLabel(info.lastUsedAt, now)}` : ''}
+          {meta && s.status === 'trial' ? ` · ${trialProgress(uses, meta.trial_min_uses ?? 5)}` : ''}
         </p>
         <div className="flex flex-wrap gap-1">
           <button type="button" className={btn} aria-expanded={openId === s.id} onClick={() => void openHistory(s.id)}>
@@ -471,6 +474,14 @@ function SkillsSection({businessId, businessName, isAdmin}: {businessId: number;
               <label className="flex flex-col">
                 Flag unused after (days)
                 <input className="w-20 rounded border border-zinc-300 px-1 py-0.5" inputMode="numeric" value={limits.days} onChange={(e) => setLimits((l) => ({...l, days: e.target.value}))} />
+              </label>
+              <label className="flex flex-col">
+                Uses before trusted
+                <input className="w-20 rounded border border-zinc-300 px-1 py-0.5" inputMode="numeric" value={limits.trialUses} onChange={(e) => setLimits((l) => ({...l, trialUses: e.target.value}))} />
+              </label>
+              <label className="flex flex-col">
+                Overrides before switched off
+                <input className="w-20 rounded border border-zinc-300 px-1 py-0.5" inputMode="numeric" value={limits.trialOverrides} onChange={(e) => setLimits((l) => ({...l, trialOverrides: e.target.value}))} />
               </label>
               <button type="button" className={btn} disabled={busy} onClick={() => void saveLimits()}>
                 Save limits

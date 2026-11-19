@@ -1,6 +1,6 @@
 # EPIC-COP-9 — "How I work" becomes the copilot's skill library: it reads it, writes it, and every change can be undone
 
-**Status:** 🟡 Stories 01–04 and 06 built and live (2026-11-18). Stories 05, 07, 08 not started (08's per-business switch is built, as story 01 needs it). Four new tables approved by the founder 2026-11-17. Results in §7.
+**Status:** 🟡 Stories 01–04 and 06 built and live (2026-11-18); story 05 built and live (2026-11-19). Stories 07, 08 not started (08's per-business switch is built, as story 01 needs it). Four new tables approved by the founder 2026-11-17. Results in §7.
 **Model:** **Opus 5.5** for stories 03 (hard limits) and 04 (versions and undo), since these are guards. **Sonnet 5.5** for the rest. Opus review pass at the end.
 **Depends on:** COP-2 (approval levels), COP-3 (copilot home), COP-4 (learning from results), the existing journey-map AI tools.
 **Risk:** high. This is an AI changing its own instructions. Every story below exists to keep that safe and cheap to undo.
@@ -375,6 +375,23 @@ New test data: skill #5 (retired), exception #6 on skill #1, conversation 206.
 - ⚠️ **New finding:** in E the copilot added exception #8 even though it had just quoted the identical exception #6 in A. It does not check for duplicates before saving. Covered by COP-11 (library limit and merge), noted there.
 
 Test data from the re-run: skill #7 (retired), exception #8 (duplicate of #6), conversation 207, use row 2.
+
+### Story 05: trial before trust (2026-11-19, Opus 5.5)
+
+**The rule (founder, 2026-11-19):** a trial item becomes **trusted** after 5 uses in at least 2 different chats or runs with no owner override; it is **switched off** (retired: kept, undoable) after 2 owner overrides. An override is an owner edit or Undo; pressing Lock / Unlock is not. Both numbers are settings (`trial_min_uses`, `trial_max_overrides`, two new columns on `copilot_library_setting`, founder approved). An item the rule switched off once and the owner brought back is never switched off again (otherwise Undo would be undone every night).
+
+**Live items:** `copilot/skill_trial_review` (403, one account, with `dry_run`), `copilot/skill_trial_review_all` (405, every account with a copilot), a step added to the nightly `ops_integrity_audit` task (19, 04:00 UTC). The Xano plan allows only 10 scheduled tasks and all 10 are used, so no new task. Endpoints 667 (use count, trial numbers) and 668 (saves the two numbers, 1-50 and 1-10; 0 = keep) updated. Screen: "Trial: 3 of 5 uses" on each trial item; the Limits form has the two numbers.
+
+| Check | Result |
+|---|---|
+| Dry run on account 13 | right decisions, nothing written: throwaway T1 (#14, 5 uses in 2 chats) trusted; T2 (#15, 2 owner edits) and skill #1 (5 owner overrides from earlier COP-9 tests) switched off |
+| Real run | **1 trusted, 2 switched off, 0 failed**; each wrote a version and an event (`copilot.skill.trusted`, `copilot.skill.trial_switched_off`) |
+| Owner Undo on #1, then dry run | #1 back on trial, **not** switched off again (exempt) |
+| Unit `cop9TrialRule.test.ts` | 8/8; full `npm test` 967/967; tsc clean |
+| Playwright, live, signed in | 6/6 incl. UI-COP-9-05-01 (trial progress, two new limit fields) |
+| HTTP probe `cop11_probe.py` | 14/14 (settings endpoint still accepts the old three-field call) |
+
+**Not proven:** `skill_trial_review_all` and the task step were not run (a real run reviews every account with a copilot); first nightly run is 2026-11-20 04:00 UTC. The weekly digest (story 07) that "says so" is not built; the events it will read are. Test data: #14 retired, #15 switched off by the rule, 5 fixture use rows on #14, skill #1 at v10 (unlocked again). Scratch function deleted.
 
 ### Not verified
 - **A scheduled run following its skills.** Only chat was tested with the real model.

@@ -1,6 +1,6 @@
 // COP-11 (2026-11-18) — the three size and tidiness limits of one account's skill library, as
 // settings the owner can change, not numbers in code. One row per account; no row = the defaults
-// (50 items, 4000 words, 30 days), which copilot/skill_write, copilot/skill_library and the
+// (50 items, 4000 words, 30 days, trusted after 5 uses, switched off after 2 overrides), which copilot/skill_write, copilot/skill_library and the
 // stale flag all fall back to the same way.
 //
 // Written ONLY by POST copilot/library_settings (a signed-in admin), inside server bounds:
@@ -38,6 +38,14 @@ table copilot_library_setting {
 
     int updated_by_user_id? {
       table = "user"
+    }
+
+    int trial_min_uses? {
+      description = "COP-9-05: a trial item becomes trusted after this many uses (in at least 2 chats or runs) with no owner override. Default 5."
+    }
+
+    int trial_max_overrides? {
+      description = "COP-9-05: a trial item the owner undoes or edits this many times is switched off and flagged. Default 2."
     }
   }
 

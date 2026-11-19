@@ -97,6 +97,32 @@ task ops_integrity_audit {
         } as $_prune_failed
       }
     }
+
+    // COP-9 story 05 — the nightly trial review (trusted / switched off), every account with a copilot.
+    try_catch {
+      try {
+        function.run "copilot/skill_trial_review_all" as $trials
+      }
+
+      catch {
+        function.run "ops/log_event" {
+          input = {
+            feature       : "COP-9"
+            step          : "skill_trial_review"
+            outcome       : "failure"
+            severity      : "warn"
+            user_id       : 0
+            account_id    : 0
+            entity_type   : "copilot_skill"
+            entity_id     : 0
+            correlation_id: ""
+            error_code    : ""
+            message       : "The nightly review of skills on trial could not run."
+            metadata      : {}
+          }
+        } as $_trials_failed
+      }
+    }
   }
 
   schedule = [{starts_on: 2026-10-14 04:00:00+0000, freq: 86400}]
