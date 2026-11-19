@@ -2444,3 +2444,13 @@ export const setCopilotSkillLock = (skillId: number, locked: boolean): Promise<{
 
 export const saveCopilotLibrarySettings = (s: {max_active_items: number; max_load_words: number; stale_after_days: number; trial_min_uses?: number; trial_max_overrides?: number}): Promise<typeof s> =>
   xanoRequest('/copilot/library_settings', {method: 'POST', body: s});
+
+// ── COP-9 story 07: the weekly "what I learned" digest ──
+export interface XanoCopilotSkillDigest {
+  days: number;
+  versions: {id: number; created_at: number; skill_id: number; version_no: number; change: string; changed_by: string; reason: string; undo_of_version_no: number}[];
+  skills: {id: number; title: string; kind: string; version_no: number; status: string}[];
+  refusals: {created_at: number; error_code: string; message: string; step: string}[];
+}
+
+export const getCopilotSkillDigest = (days = 7): Promise<XanoCopilotSkillDigest> => xanoRequest(`/copilot/skill_digest?days=${days}`);

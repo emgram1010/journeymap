@@ -181,3 +181,103 @@ export function limitsProblem(s: {max_active_items: number; max_load_words: numb
 
 /** COP-9-05: "Trial: 3 of 5 uses" (capped at the target, since the rule promotes overnight). */
 export const trialProgress = (uses: number, target: number): string => `Trial: ${Math.min(uses, target)} of ${target} uses`;
+
+// ── COP-9 story 07: the weekly "what I learned" digest ──
+
+export interface DigestVersion {
+  id: number;
+  created_at: number;
+  skill_id: number;
+  version_no: number;
+  change: string;
+  changed_by: string;
+  reason: string;
+  undo_of_version_no: number;
+}
+export interface DigestSkill {
+  id: number;
+  title: string;
+  kind: string;
+  version_no: number;
+  status: string;
+}
+export interface DigestRefusal {
+  created_at: number;
+  error_code: string;
+  message: string;
+  step: string;
+}
+export type DigestKind = 'new' | 'changed' | 'promoted' | 'switched_off' | 'retired' | 'undone' | 'refused';
+export interface DigestLine {
+  kind: DigestKind;
+  text: string;
+  at: number;
+  skillId: number;
+  versionId: number;
+  /** The version Undo would put back; 0 = no Undo for this line. */
+  undoTo: number;
+}
+
+// The trial rule's own reasons (copilot/skill_trial_review) - matched by their fixed start.
+const TRUSTED_PREFIX = 'Trial rule: trusted';
+const SWITCHED_PREFIX = 'Trial rule: switched off';
+
+/**
+ * Sorts a week of raw history into what needs reading (flagged: a trial switched off, a refusal) and
+ * the rest (collapsed). The owner pressing Lock / Unlock is left out: it is not something the copilot
+ * learned. Undo is offered only when the item is still at that line's version (otherwise putting back
+ * the earlier one would throw away a later change) and an earlier version exists.
+ */
+export function buildDigest(input: {versions: DigestVersion[]; skills: DigestSkill[]; refusals: DigestRefusal[]}): {
+  flagged: DigestLine[];
+  other: DigestLine[];
+  empty: boolean;
+} {
+  const byId = new Map(input.skills.map((s) => [s.id, s]));
+  const lines: DigestLine[] = [];
+  for (const v of input.versions) {
+    if (v.reason === 'locked' || v.reason === 'unlocked') continue;
+    const s = byId.get(v.skill_id);
+    const name = `${kindLabel(s?.kind ?? 'skill')} #${v.skill_id}${s ? ` "${s.title}"` : ''}`;
+    let kind: DigestKind;
+    let text: string;
+    if (v.change === 'create') {
+      kind = 'new';
+      text = `New: ${name}`;
+    } else if ((v.reason ?? '').startsWith(TRUSTED_PREFIX)) {
+      kind = 'promoted';
+      text = `${name} passed its trial and is now trusted`;
+    } else if ((v.reason ?? '').startsWith(SWITCHED_PREFIX)) {
+      kind = 'switched_off';
+      text = `${name} was switched off: you overrode it during its trial`;
+    } else if (v.change === 'retire') {
+      kind = 'retired';
+      text = `${v.changed_by === 'owner' ? 'You retired' : 'The copilot retired'} ${name}`;
+    } else if (v.change === 'undo') {
+      kind = 'undone';
+      text = `You put back an earlier version of ${name}`;
+    } else {
+      kind = 'changed';
+      text = `${v.changed_by === 'owner' ? 'You changed' : 'The copilot changed'} ${name}${v.reason ? `: ${v.reason}` : ''}`;
+    }
+    const current = s?.version_no === v.version_no;
+    lines.push({kind, text, at: v.created_at, skillId: v.skill_id, versionId: v.id, undoTo: current && v.version_no > 1 ? v.version_no - 1 : 0});
+  }
+  // The same refusal repeated is one line with a count, so a stubborn loop does not bury everything else.
+  const groups = new Map<string, {r: DigestRefusal; n: number; at: number}>();
+  for (const r of input.refusals) {
+    const key = `${r.error_code}::${r.message}`;
+    const g = groups.get(key);
+    if (g) {
+      g.n += 1;
+      g.at = Math.max(g.at, r.created_at);
+    } else groups.set(key, {r, n: 1, at: r.created_at});
+  }
+  for (const {r, n, at} of groups.values()) {
+    const times = n > 1 ? ` ${n} times` : '';
+    lines.push({kind: 'refused', text: `Refused${times} (${r.error_code || 'no code'}): ${r.message}`, at, skillId: 0, versionId: 0, undoTo: 0});
+  }
+  lines.sort((a, b) => b.at - a.at);
+  const flag = (l: DigestLine) => l.kind === 'switched_off' || l.kind === 'refused';
+  return {flagged: lines.filter(flag), other: lines.filter((l) => !flag(l)), empty: lines.length === 0};
+}

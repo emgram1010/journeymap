@@ -1,6 +1,6 @@
 # EPIC-COP-9 — "How I work" becomes the copilot's skill library: it reads it, writes it, and every change can be undone
 
-**Status:** 🟡 Stories 01–04 and 06 built and live (2026-11-18); story 05 built and live (2026-11-19). Stories 07, 08 not started (08's per-business switch is built, as story 01 needs it). Four new tables approved by the founder 2026-11-17. Results in §7.
+**Status:** 🟡 Stories 01–04 and 06 built and live (2026-11-18); stories 05 and 07 built and live (2026-11-19). Story 08 not started (08's per-business switch is built, as story 01 needs it). Four new tables approved by the founder 2026-11-17. Results in §7.
 **Model:** **Opus 5.5** for stories 03 (hard limits) and 04 (versions and undo), since these are guards. **Sonnet 5.5** for the rest. Opus review pass at the end.
 **Depends on:** COP-2 (approval levels), COP-3 (copilot home), COP-4 (learning from results), the existing journey-map AI tools.
 **Risk:** high. This is an AI changing its own instructions. Every story below exists to keep that safe and cheap to undo.
@@ -392,6 +392,21 @@ Test data from the re-run: skill #7 (retired), exception #8 (duplicate of #6), c
 | HTTP probe `cop11_probe.py` | 14/14 (settings endpoint still accepts the old three-field call) |
 
 **Not proven:** `skill_trial_review_all` and the task step were not run (a real run reviews every account with a copilot); first nightly run is 2026-11-20 04:00 UTC. The weekly digest (story 07) that "says so" is not built; the events it will read are. Test data: #14 retired, #15 switched off by the rule, 5 fixture use rows on #14, skill #1 at v10 (unlocked again). Scratch function deleted.
+
+### Story 07: the weekly digest (2026-11-19, Opus 5.5)
+
+**Built:** "What I learned this week" at the top of How I work. Flagged (shown): trials switched off, and the copilot's refused skill writes (hard limits, locks, duplicates, full library), the same refusal grouped with a count. Collapsed ("N more changes"): new, changed, trusted, retired, put back. Lock / Unlock is left out. Each line has Undo when it is safe (the item is still at that version and an earlier one exists). A quiet week says "Nothing new this week." Read-only endpoint `copilot/skill_digest` (669, last 1-31 days, default 7); the sorting is one pure function (`buildDigest`).
+
+| Check | Result |
+|---|---|
+| Endpoint live, test admin | 200 (47 changes, 23 refusals this week); days=40 refused 400; no sign-in 401 |
+| Unit `cop9Digest.test.ts` | 7/7; full `npm test` 974/974; tsc clean |
+| Playwright, live | UI-COP-9-07-01 passes (switched-off line flagged, rest collapsed then shown); 7/7 in the spec |
+
+**Differs from the epic:**
+- **In the app, not sent:** "once a week I get" is an in-app panel, not an email. Sending email is outward-facing and was not asked for.
+- **Two flags have no data source yet:** "two items conflict" and "a gap keeps repeating". Duplicate refusals (E-COP-096) are the nearest signal and are flagged.
+- **No Undo on a brand-new item:** there is nothing earlier to put back; retire it instead.
 
 ### Not verified
 - **A scheduled run following its skills.** Only chat was tested with the real model.

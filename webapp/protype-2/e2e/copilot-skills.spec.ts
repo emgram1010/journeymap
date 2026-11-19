@@ -111,3 +111,18 @@ test('UI-COP-9-05-01 a trial item shows "Trial: N of M uses" and the limits incl
   await expect(section.getByLabel('Overrides before switched off')).toHaveValue(/^\d+$/);
   await page.screenshot({path: 'e2e/screenshots/cop9-05-trial.png'});
 });
+
+/** UI-COP-9-07 — "What I learned this week": flagged lines first, the rest collapsed. Live account 13 had a trial switch-off this week (throwaway #15). */
+test('UI-COP-9-07-01 the weekly summary flags a switched-off trial and collapses the rest', async ({page}) => {
+  await page.goto('/');
+  await page.locator('#copilot-open-btn').click();
+  const panel = page.locator('#copilot-panel');
+  await panel.getByRole('button', {name: 'How I work'}).click();
+  const digest = panel.getByTestId('skills-digest');
+  await expect(digest).toContainText('What I learned this week');
+  await expect(digest.getByRole('list', {name: 'Needs a look'})).toContainText('was switched off');
+  await expect(digest.getByRole('list', {name: 'Other changes'})).toHaveCount(0);
+  await digest.getByRole('button', {name: /more change/}).click();
+  await expect(digest.getByRole('list', {name: 'Other changes'})).toContainText(/passed its trial|New:/);
+  await page.screenshot({path: 'e2e/screenshots/cop9-07-digest.png'});
+});

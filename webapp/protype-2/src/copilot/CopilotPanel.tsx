@@ -8,6 +8,7 @@ import {
   getCopilotHome,
   getCopilotMemory,
   getCopilotRuns,
+  getCopilotSkillDigest,
   getCopilotSkillMeta,
   getCopilotSkills,
   saveCopilotLibrarySettings,
@@ -17,6 +18,7 @@ import {
   undoCopilotSkill,
   type XanoCopilotRuns,
   type XanoCopilotSkill,
+  type XanoCopilotSkillDigest,
   type XanoCopilotSkillMeta,
   type XanoCopilotSkills,
   type XanoCopilotSkillVersion,
@@ -42,6 +44,7 @@ import {NOTE_MAX, goalStatusLabel, noteProblem} from './copilotMemoryModel';
 import {runCountsLine, runStatusLabel, runTone, runWhen, runsHeadline} from './copilotRunModel';
 import {
   WORK_KINDS,
+  buildDigest,
   changedFields,
   filterSkills,
   isOffFor,
@@ -259,6 +262,8 @@ function SkillsSection({businessId, businessName, isAdmin}: {businessId: number;
   const [history, setHistory] = useState<XanoCopilotSkillVersion[]>([]);
   const [showRetired, setShowRetired] = useState(false);
   const [meta, setMeta] = useState<XanoCopilotSkillMeta | null>(null);
+  const [digest, setDigest] = useState<XanoCopilotSkillDigest | null>(null);
+  const [showAllDigest, setShowAllDigest] = useState(false);
   const [kindFilter, setKindFilter] = useState('all');
   const [staleOnly, setStaleOnly] = useState(false);
   const [showLimits, setShowLimits] = useState(false);
@@ -282,6 +287,12 @@ function SkillsSection({businessId, businessName, isAdmin}: {businessId: number;
       if (my === seq.current) setMeta(m);
     } catch (e) {
       if (my === seq.current) setErr(serverText(e, 'Unable to load locks and limits. The list below is still right.'));
+    }
+    try {
+      const dg = await getCopilotSkillDigest(7);
+      if (my === seq.current) setDigest(dg);
+    } catch (e) {
+      if (my === seq.current) setErr(serverText(e, 'Unable to load this week’s summary. The list below is still right.'));
     }
   }, []);
 
@@ -336,6 +347,17 @@ function SkillsSection({businessId, businessName, isAdmin}: {businessId: number;
   const live = filterSkills(split.live, meta, {kind: kindFilter, staleOnly});
   const retired = split.retired;
   const now = Date.now();
+  const week = digest ? buildDigest(digest) : null;
+  const digestLine = (l: ReturnType<typeof buildDigest>['other'][number], i: number) => (
+    <li key={`${l.versionId}-${i}`} className="flex flex-wrap items-center gap-2 text-xs text-zinc-700">
+      <span className={l.kind === 'switched_off' || l.kind === 'refused' ? 'text-amber-800' : ''}>{l.text}</span>
+      {isAdmin && l.undoTo > 0 && (
+        <button type="button" className={btn} disabled={busy} onClick={() => void act(() => undoCopilotSkill({skill_id: l.skillId, restore_version_no: l.undoTo}))}>
+          Undo
+        </button>
+      )}
+    </li>
+  );
 
   const row = (s: XanoCopilotSkill) => {
     const off = isOffFor(data?.off ?? [], s.id, businessId);
@@ -434,6 +456,21 @@ function SkillsSection({businessId, businessName, isAdmin}: {businessId: number;
               ? 'The copilot hasn’t saved any skills yet. It writes them as it learns; you can undo any change.'
               : 'The copilot follows these in every chat and scheduled run. New ones start on trial; you can undo any change.'}
           </p>
+          {week && (
+            <div className="rounded border border-zinc-200 px-2 py-1 space-y-1" data-testid="skills-digest">
+              <p className="text-xs font-medium text-zinc-900">What I learned this week</p>
+              {week.empty && <p className="text-xs text-zinc-500">Nothing new this week.</p>}
+              {week.flagged.length > 0 && <ul className="space-y-0.5" aria-label="Needs a look">{week.flagged.map(digestLine)}</ul>}
+              {week.other.length > 0 && (
+                <>
+                  <button type="button" className="text-xs text-indigo-700 hover:underline" aria-expanded={showAllDigest} onClick={() => setShowAllDigest((x) => !x)}>
+                    {showAllDigest ? 'Hide the rest' : `${week.other.length} more change${week.other.length === 1 ? '' : 's'}`}
+                  </button>
+                  {showAllDigest && <ul className="space-y-0.5" aria-label="Other changes">{week.other.map(digestLine)}</ul>}
+                </>
+              )}
+            </div>
+          )}
           {meta && (
             <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-700">
               <span className="font-medium" data-testid="skills-counter">
