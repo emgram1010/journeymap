@@ -1,0 +1,10 @@
+[after-5.5] (6s, 200) status=completed exec=3
+None
+PASS  the run came back with a status
+PASS  the run completed (not failed)
+FAIL  it produced readable text   [None]
+PASS  no corrupted-character junk in the reply
+PASS  it did not claim to edit the map
+FAIL  it either named blockers/warnings, asked for what it needs, or ran a stage
+
+4/6 passed
