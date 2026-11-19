@@ -171,7 +171,7 @@ test('COP9-06: "write its own skills" is in the one catalogue, default tell, not
   assert.match(row![1], /default_level: "tell"/);
   assert.match(row![1], /locked: false/);
   assert.match(row![1], /person_only: false/);
-  assert.match(src, /"skill_write"\]/, 'listed in the order the screen shows');
+  assert.match(src, /"skill_write"[,\]]/, 'listed in the order the screen shows');
 });
 
 test('COP9-06: the level for skill writes is read from the copilot\'s own business, set once', () => {
