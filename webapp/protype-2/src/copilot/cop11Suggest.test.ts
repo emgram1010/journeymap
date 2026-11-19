@@ -24,6 +24,7 @@ test('UT-COP-11-S-02: save_skill forces waiting for a locked item (or locked par
   assert.match(t, /function\.run "usr\/tool_caller"/, 'the lock is looked up in the caller\'s own account');
   assert.match(t, /db\.query copilot_skill_meta \{[\s\S]*?is_locked == true/);
   assert.match(t, /act_force_wait: \$force_wait/);
+  assert.match(t, /value = \[\$input\.skill_id, \$input\.parent_skill_id, \$stored_parent\]/, 'the stored parent counts too');
   assert.match(t, /Before: /);
   assert.match(t, /After: /);
   assert.match(t, /owner_approved_action_id: \$approved_action_id/, 'an approved re-send tells the writer which approval');

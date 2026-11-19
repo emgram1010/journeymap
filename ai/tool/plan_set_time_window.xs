@@ -101,8 +101,16 @@ tool plan_set_time_window {
       value = $cop1_gate.via ?? ""
     }
 
+    var $gate_context {
+      value = $cop1_gate.context ?? ""
+    }
+
+    var $gate_account {
+      value = $cop1_gate.account_id ?? 0
+    }
+
     function.run "copilot/work_business" {
-      input = {pin: $gate_pin, via: $gate_via, named: $input.journey_architecture_id}
+      input = {pin: $gate_pin, via: $gate_via, context: $gate_context, named: $input.journey_architecture_id, account_id: $gate_account}
     } as $work_biz
 
     var $pin {

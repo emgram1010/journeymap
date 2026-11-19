@@ -84,8 +84,20 @@ tool save_skill {
       value = $pre_caller.account_id ?? 0
     }
 
+    db.query copilot_skill {
+      where = $db.copilot_skill.id == $input.skill_id && $input.skill_id != 0 && $db.copilot_skill.account_id == $pre_account && $pre_account != 0
+      return = {type: "single"}
+      output = ["id", "parent_skill_id"]
+    } as $stored_row
+
+    var $stored_parent {
+      value = ($stored_row|get:"parent_skill_id":0) ?? 0
+    }
+
+    // The item, the parent the copilot named, and the parent it really has (review 2026-11-19: an
+    // edit that left parent_skill_id out missed a locked parent).
     var $lock_ids {
-      value = [$input.skill_id, $input.parent_skill_id]
+      value = [$input.skill_id, $input.parent_skill_id, $stored_parent]
     }
 
     db.query copilot_skill_meta {

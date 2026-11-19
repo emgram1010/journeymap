@@ -8,6 +8,6 @@ PASS  plan_create works for the signed-in person in their own business
 PASS  plan_add_person works through the door
 PASS  plan_start_day makes a DRAFT day
   KNOWN GAP (not a check): empty plan + another own business -> allowed
-  plan: 143
+  plan: 144
 
 8/8 passed
