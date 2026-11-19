@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync, readdirSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import test from 'node:test';
+import {AGENT_MODELS} from '../health/agentModels';
 
 // COP-13 part A - which model each agent runs on. The model is a setting in each agent's file
 // (and in Xano); these tests keep the repo's files honest and guard the one known hazard: the
@@ -12,17 +13,8 @@ const AGENT_DIR = repo('ai/agent');
 
 // The model each agent is MEANT to run on right now. Change a line here only together with the agent's
 // file AND a passing run of its test scenarios (see EPIC-COP-13 Test results).
-const EXPECTED: Record<string, string> = {
-  'emgram_copilot.xs': 'claude-sonnet-5-5',
-  'journey_map_chat_agent.xs': 'claude-sonnet-5-5',
-  'journey_map_builder.xs': 'claude-sonnet-4-5',
-  'journey_map_assistant.xs': 'claude-sonnet-4-5',
-  'journey_map_orchestrator.xs': 'claude-sonnet-4-5',
-  'journey_compare_analyst.xs': 'claude-sonnet-4-5',
-  'emgram_copilot_researcher.xs': 'claude-sonnet-4-5',
-  // COP-13 part B: the strong twin, generated from emgram_copilot.xs; runs only after a step-up is allowed.
-  'emgram_copilot_strong.xs': 'claude-opus-5-5',
-};
+// One list only: the Health page's manifest (src/health/agentModels.ts), which agentModels.test.ts also checks.
+const EXPECTED: Record<string, string> = Object.fromEntries(AGENT_MODELS.map((a) => [a.file, a.model]));
 
 const NO_FIXED_TEMPERATURE = /^claude-(sonnet-5|opus-5|haiku-5|fable|mythos)/;
 

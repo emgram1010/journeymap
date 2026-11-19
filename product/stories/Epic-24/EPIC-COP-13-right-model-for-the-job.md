@@ -1,6 +1,6 @@
 # EPIC-COP-13 — The right model for each job, and permission before a dearer one
 
-**Status:** 🟡 Part A partly done (2026-11-18, Sonnet 5.5): the copilot and the map chat agent run on Sonnet 5.5. **Part B built and live (2026-11-19, Opus 5.5)** for the in-app copilot chat; story 02 (Health lists models) not built.
+**Status:** 🟡 Part A partly done (2026-11-18, Sonnet 5.5): the copilot and the map chat agent run on Sonnet 5.5. **Part B built and live (2026-11-19, Opus 5.5)** for the in-app copilot chat; story 02 (Health lists models) built 2026-11-19.
 **Model:** **Sonnet 5.5** for part A (stories 01–02). **Opus 5.5** for part B (stories 03–05): a new approval type and a spend cap. Opus review pass after part B.
 **Depends on:** part A none; part B on COP-2 (approval levels) and COP-1 story 05 (daily cap).
 **Risk:** part A low (a setting per agent, easy to roll back). Part B medium: it decides when the AI may spend more.
@@ -218,8 +218,16 @@ UT-COP-13-01..03 (`cop13AgentModels.test.ts`) 3/3: each agent file's model match
 - **E-COP-093 / 095 not added:** declined and expired step-ups use the gate's own existing refusals.
 - **Risk:** the strong copy re-does the whole request. If the standard copy already changed something before asking, the strong run could repeat it. The prompt says to ask instead of trying everyday work, but nothing on the server prevents a repeat.
 
-### Story 02: not started
-Health listing each agent's model is not built.
+### Story 02: Health lists each agent's model (2026-11-19, Sonnet 5.5)
+
+**Built:** a manifest `src/health/agentModels.ts` (8 agents: name, one plain line, model) and an "AI models" panel on Health (`AgentModelsPanel`) with a summary line ("5 of 8 agents are on an older model") and an amber "older" tag on anything not in the Claude 5 family. No server call, no table, no Xano change. The older UT-COP-13-01..03 now read the same manifest, so there is one list only.
+
+| Check | Result |
+|---|---|
+| Unit `agentModels.test.ts` UT-COP-13-02-01..06 | 6/6: every row matches its agent file (name and model); every agent file is listed; plain-word labels; older flagged; summary counts. Full suite **990/990**, tsc clean |
+| UI-COP-13-02-01 (`health-agent-models.spec.ts`) | pass, screenshot checked. No test account is a platform admin (founder decision), so the browser is told the user is one and the other Health data is stubbed; the panel itself needs no server data |
+
+**Not covered:** the manifest is kept by hand and checked against the repo files, not against what Xano actually has live (a live agent edited in Xano alone would not show). Step-up counts on Health (stories 04/05) are not built.
 
 ### Part B and story 02: not started (superseded above)
 
