@@ -48,6 +48,7 @@ function "copilot/skill_write" {
     int conversation_id?
     text work_kind? filters=trim
     bool let_ai_change?
+    int owner_approved_action_id?
   }
 
   stack {
@@ -398,8 +399,46 @@ function "copilot/skill_write" {
       value = (($parent_meta|get:"is_locked":false) == true)
     }
 
+    // COP-11 "suggest instead": the owner approved THIS change to a locked item. Checked here, in the
+    // database, not trusted from the caller: an approved (or edited) skill_write item of this account
+    // whose original request names the same item and the same parent. Only save_skill passes an id, and
+    // only the one the gate just claimed for an approved re-send. A retire is never let through.
+    var $owner_ok {
+      value = false
+    }
+
     conditional {
-      if ($reject_code == "" && $input.changed_by == "copilot" && (($input.op != "create" && $is_locked) || ($input.op != "retire" && $parent_locked))) {
+      if ($input.owner_approved_action_id != 0 && $input.changed_by == "copilot") {
+        db.query copilot_action {
+          where = $db.copilot_action.id == $input.owner_approved_action_id && $db.copilot_action.account_id == $input.account_id && $db.copilot_action.action_type == "skill_write" && ($db.copilot_action.status == "approved" || $db.copilot_action.status == "edited")
+          return = {type: "single"}
+          output = ["id", "payload"]
+        } as $appr
+
+        var $appr_id {
+          value = ($appr|get:"id":0) ?? 0
+        }
+
+        var $appr_payload {
+          value = ($appr|get:"payload":null) ?? {}
+        }
+
+        var $appr_skill {
+          value = ($appr_payload|get:"skill_id":0) ?? 0
+        }
+
+        var $appr_parent {
+          value = ($appr_payload|get:"parent_skill_id":0) ?? 0
+        }
+
+        var.update $owner_ok {
+          value = (($appr_id != 0) && ($appr_skill == $input.skill_id) && ($appr_parent == $input.parent_skill_id))
+        }
+      }
+    }
+
+    conditional {
+      if ($reject_code == "" && $input.changed_by == "copilot" && (($input.op == "retire" && $is_locked) || ($input.op == "edit" && $is_locked && $owner_ok == false) || ($input.op != "retire" && $parent_locked && $owner_ok == false))) {
         var.update $reject_code {
           value = "E-COP-089"
         }

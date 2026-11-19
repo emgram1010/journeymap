@@ -238,7 +238,7 @@ Not covered by a browser test: the stale filter with a truly stale item (none ex
 - **AI identity at the lock endpoint:** it reuses `copilot/assert_person_only` (refuses with E-COP-025, not E-COP-092); not run live as the copilot user. E-COP-092 is catalogued but nothing emits it.
 - **No caller passes kinds yet:** chat, runs and `get_how_i_work` all load every kind.
 - **Owner edits lock automatically (D-24-1):** `skill_write` does it when called as owner, but no owner edit screen or endpoint calls it yet (Undo now does lock).
-- **Suggest as an approval item:** the copilot proposes in chat; no approval request is created.
+- **Suggest as an approval item:** built 2026-11-19, see below.
 - **Full library (E-COP-091) and word limit:** coded, not hit live (bounds stop a tiny limit; account has about 6 items).
 - **Backfill of old free-text kinds:** not run; old items have no meta row so they read as "general".
 - **"Least used" hint on a full library:** shows the oldest-updated item, not the least used.
@@ -249,3 +249,21 @@ Not covered by a browser test: the stale filter with a truly stale item (none ex
 
 `copilot/backfill_work_kinds` (function 408): maps a free-text kind of work to the fixed list (or general) for items scoped `work_kind`; only fills a kind that is not set; never overwrites, deletes, retires or locks; dry_run reports only; writes need one named account. Unit `cop11Backfill.test.ts` 4/4.
 **Live dry run across all accounts: 0 items.** Confirmed directly: no `copilot_skill` row has scope_type `work_kind`. So no real run was needed and none was made. The function stays for any later import.
+
+### "Suggest instead" as a real approval item (2026-11-19, overnight, Opus 5.5)
+
+**Built:**
+- `save_skill` (tool 183) looks up the lock in the caller's own account; if the item (or the skill an exception changes) is locked, the request goes through the gate with `act_force_wait`, so it ALWAYS waits for the owner (E-COP-020), whatever the level, with "Before: ... After: ..." in the Approvals item.
+- `journey/tool_gate` (311) passes `act_force_wait` through; `copilot/action_gate` (330) turns it into "wait". Forcing can only make an action wait.
+- On the approved re-send, `save_skill` passes the action id the gate just claimed; `copilot/skill_write` (398) lets the locked edit through only after checking the database itself: an approved or edited `skill_write` item of this account whose request names the same item and parent. A retire of a locked item is never let through. The lock stays on.
+
+**Found and fixed on the way:**
+- The push-time review caught that the gate's decision branches still read the stored level, so a forced wait at "tell" or "own" went straight through (then refused). Fixed before anything was pushed (UT-COP-11-S-05).
+- **Older bug:** `get_approval` (161) only showed approvals of the chat's business, but skill changes are filed under the copilot home (COP-9 story 06), so no approved skill change could ever be finished from a business chat (E-COP-036). Now a `skill_write` item under this account's home is found from any business chat (UT-COP-11-S-06).
+
+| Check | Result |
+|---|---|
+| Unit `cop11Suggest.test.ts` UT-COP-11-S-01..06 (+ UT-COP-11-07 narrowed to "never sets or clears a lock") | pass; full suite **1015/1015** |
+| Real AI (`tests/cop11_suggest_probe.py`, conversation 227, item 50) | **8/8**: locked #10 change waited with before and after; nothing changed until approved; after approval the copilot re-sent it, #10 changed and stayed locked; clean-up Undo put #10 back |
+
+**Seen on the way (not fixed):** the chat history the copilot gets holds the text of earlier turns but not its tool calls, so in one turn it doubted (and wrongly withdrew) a change it had really made. Earlier test runs left approved/used items 48-50; #10 was put back each time.

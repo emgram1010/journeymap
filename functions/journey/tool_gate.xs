@@ -16,6 +16,7 @@ function "journey/tool_gate" {
     int act_amount?
     bool act_has_amount?
     int act_approval_id?
+    bool act_force_wait?
   }
 
   stack {
@@ -406,6 +407,7 @@ function "journey/tool_gate" {
             act_amount         : $input.act_amount
             act_has_amount     : $input.act_has_amount
             act_approval_id    : $input.act_approval_id
+            act_force_wait     : $input.act_force_wait
           }
         } as $act_gate
 

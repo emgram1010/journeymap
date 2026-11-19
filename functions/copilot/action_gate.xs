@@ -12,6 +12,7 @@ function "copilot/action_gate" {
     int act_amount?
     bool act_has_amount?
     int act_approval_id?
+    bool act_force_wait?
   }
 
   stack {
@@ -101,6 +102,12 @@ function "copilot/action_gate" {
 
         var.update $level {
           value = $lv.effective_level
+        }
+
+        // COP-11 "suggest instead": a copilot change to a LOCKED skill always waits for the owner,
+        // whatever the level. Forcing can only make an action wait, never let one through.
+        var.update $level {
+          value = (($input.act_force_wait == true) ? "wait" : $level)
         }
 
         conditional {
@@ -293,7 +300,7 @@ function "copilot/action_gate" {
           }
 
           // Runs, then tells you: do it, and list it for the owner.
-          elseif ($lv.effective_level == "tell") {
+          elseif ($level == "tell") {
             db.add copilot_action {
               data = {
                 account_id             : $input.account_id
@@ -318,7 +325,7 @@ function "copilot/action_gate" {
           }
 
           // Waits for you: store it, do nothing.
-          elseif ($lv.effective_level == "wait") {
+          elseif ($level == "wait") {
             var.update $proceed {
               value = false
             }

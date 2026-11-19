@@ -1,0 +1,18 @@
+PASS  setup: #10 exists and is locked
+
+> Skill #10 is locked. Please call save_skill to change its body to exactly 'COP11 suggest probe: check the locked item before planning.' (kee 
+   200 'Skill #10 is locked, so the change is waiting for your approval and has not been made yet.\n\n- **What I did:** I asked to change the body of skill #10 to "COP11 suggest probe: check the locked item before planning." The title stays "COP11 test locked item". I gave the reason "probe: owner asked for a change".\n- **What happened:** The request went to Approvals as item 50. The skill itself is unchanged.\n- **What I did not do:** I did not retry or work around the lock.\n- **What I need from you:** Ap'
+PASS  A one change to the locked item is waiting for the owner
+PASS  A the waiting item shows before and after
+PASS  A nothing changed yet
+PASS  B the owner approves
+
+> I approved item 50. Use get_approval, then call save_skill again with approval_id 50 and exactly the same input. 
+   200 'Skill #10 is changed. It is now at version 16, still on trial and still locked.\n\n- **Approval check:** Item 50 showed as approved. The approved change was the same one I asked for.\n- **Change applied:** I called save_skill again with approval_id 50 and exactly the approved input. The body is now "COP11 suggest probe: check the locked item before planning." The title is still "COP11 test locked item". The reason on record is "probe: owner asked for a change".\n- **What I did not do:** I changed no'
+PASS  B the locked item changed to the approved text
+PASS  B it is still locked
+PASS  C clean-up: #10 is back to its old text
+
+conversation: 227  approval item: 50
+
+8/8 passed

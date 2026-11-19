@@ -26,8 +26,32 @@ tool get_approval {
     }
 
     // COP-3 review fix: in a one-business conversation, only that business's approvals.
+    // COP-11 (2026-11-19): except a skill change, which is filed under the account's copilot home
+    // (COP-9 story 06) whichever business the chat is about - without this it could never be finished.
+    db.query copilot_home {
+      where = $db.copilot_home.account_id == $cop1_gate.account_id && $cop1_gate.account_id != 0
+      return = {type: "single"}
+      output = ["id", "journey_architecture_id"]
+    } as $home
+
+    var $home_arch {
+      value = ($home|get:"journey_architecture_id":0) ?? 0
+    }
+
+    var $pin {
+      value = $cop1_gate.pin_architecture_id ?? 0
+    }
+
+    var $act_arch {
+      value = ($act|get:"journey_architecture_id":0) ?? 0
+    }
+
+    var $act_type_v {
+      value = ($act|get:"action_type":"") ?? ""
+    }
+
     var $act_pin_ok {
-      value = (($cop1_gate.pin_architecture_id ?? 0) == 0 || ($act|get:"journey_architecture_id":0) == $cop1_gate.pin_architecture_id)
+      value = ($pin == 0 || $act_arch == $pin || ($act_type_v == "skill_write" && $home_arch != 0 && $act_arch == $home_arch))
     }
 
     precondition ($act_account != 0 && $act_account == $cop1_gate.account_id && $act_pin_ok) {

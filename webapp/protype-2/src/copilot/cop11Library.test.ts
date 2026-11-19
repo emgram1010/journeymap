@@ -93,7 +93,9 @@ test('UT-COP-11-07: no AI tool can touch a lock; only the owner endpoint can, an
   assert.match(lock, /auth = "user"/);
   for (const f of ['ai/tool/save_skill.xs', 'ai/tool/retire_skill.xs', 'ai/tool/record_skill_used.xs']) {
     const t = read(f);
-    assert.ok(!/is_locked|skill_lock|copilot_skill_meta/.test(t), `${f} never touches a lock`);
+    // Reading the lock is allowed (save_skill reads it to route a locked change to the owner, COP-11
+    // "suggest instead"); setting or clearing one is not.
+    assert.ok(!/db\.(add|patch|del) copilot_skill_meta|is_locked\s*:|skill_lock/.test(t), `${f} never sets or clears a lock`);
   }
 });
 
