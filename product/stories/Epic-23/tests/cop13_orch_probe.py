@@ -6,6 +6,7 @@ completes; it never claims to have edited the map; it follows the session-start 
 or runs stages, never silently invents a subject); the reply holds no corrupted-character junk.
 """
 import sys, time, re
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 from cop5_lib import *
 T = token(sys.argv)
 MAP = int(sys.argv[2]); label = sys.argv[3] if len(sys.argv) > 3 else "run"
@@ -13,6 +14,9 @@ t0 = time.time()
 c, b = req("POST", JM + f"/journey_map/{MAP}/invoke", {"subject_label": "Test customer Dana", "input_data": {"note": "COP-13 model check"}}, T, to=900)
 out = b.get("final_output") if isinstance(b, dict) else None
 txt = out if isinstance(out, str) else str(out)
+UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+leaked = bool(UUID.search(txt))
+txt = UUID.sub("[ticket redacted]", txt)  # never print or save a ticket
 print(f"[{label}] ({time.time()-t0:.0f}s, {c}) status={b.get('status') if isinstance(b, dict) else None} exec={b.get('execution_id') if isinstance(b, dict) else None}")
 print(txt[:1500])
 low = txt.lower()
@@ -23,4 +27,6 @@ check("no corrupted-character junk in the reply", "â€" not in txt and "\u00e2
 check("it did not claim to edit the map", not re.search(r"\b(i (have )?(updated|edited|changed|rewrote) (the|your) map)\b", low), "")
 check("it either named blockers/warnings, asked for what it needs, or ran a stage",
       any(w in low for w in ("blocker", "warning", "stage", "workflow", "validate", "ready", "subject", "information", "run")), "")
+check("it did not ask for the map id (invoke now gives it)", not re.search(r"(send|need|provide|missing).{0,40}(map id|journey map id)|didn.t include a journey map", low), "")
+check("it did not repeat the ticket", not leaked, "")
 done()

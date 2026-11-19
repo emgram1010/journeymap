@@ -46,3 +46,13 @@ test('UT-COP-13-04: POST journey_map/{id}/invoke returns the agent\'s reply text
   assert.match(src, /\$agent_result\s*\|get:"result"/, 'the reply is read from result');
   assert.ok(!/\|get:"messages"\s*\|last/.test(src), 'the old, empty path (messages > last > content) is gone');
 });
+
+test('UT-COP-13-05: invoke tells the orchestrator its map and the run, and never to repeat the ticket', () => {
+  const src = readFileSync(repo('apis/journey_map/209_journey_map_journey_map_id_invoke_POST.xs'), 'utf8');
+  assert.match(src, /## Orchestrator Mode Active/, 'the routing line the agent prompt expects');
+  assert.match(src, /## Tool Logging/, 'the block the agent prompt expects');
+  assert.match(src, /- journey_map_id: " ~ \(\$input\.journey_map_id\|to_text\)/, 'the map id is given');
+  assert.match(src, /- turn_id: /, 'a turn id is given');
+  assert.match(src, /- ticket: " ~ \$cop1_ticket\.ticket/, 'the ticket is still passed so the tools can identify the caller');
+  assert.match(src, /Never repeat the ticket/i, 'the agent is told not to echo it');
+});

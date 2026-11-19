@@ -1,0 +1,40 @@
+[after-5.5-context-fixed] (17s, 200) status=completed exec=6
+# 🎯 Workflow Complete: Day-Before Appointment Confirmation — Test customer Dana
+
+The run finished, but no stage produced any output. None of the four stages has an internal actor, so I skipped all of them. The only actor type on the map is Customer, and the other rows have no actor type set. The map passed validation with no blockers or warnings.
+
+## Stage 1: Send Reminder
+**Primary output:** None. Skipped because there is no internal actor.
+
+## Stage 2: Receive Response
+**Primary output:** None. Skipped because there is no internal actor.
+
+## Stage 3: Handle Response
+**Primary output:** None. Skipped because there is no internal actor.
+
+## Stage 4: Update & Follow-up
+**Primary output:** None. Skipped because there is no internal actor.
+
+---
+*0 of 4 stages produced output · Run ID: 6*
+
+To get real output from this map, the Staff/System row needs to be set up as an internal actor. It would need a task objective and a primary role. Its cells already describe the work, such as sending the reminder and handling replies.
+
+Export this run as:
+- **Markdown**: full structured report
+- **JSON**: machine-readable artifact
+- **Clipboard**: final stage deliverable only
+
+Which format would you like? Or say "all three".
+
+If you want to improve the map based on this run, switch to Interview mode. I'll carry over the fact that every stage was skipped for lack of an internal actor.
+PASS  the run came back with a status
+PASS  the run completed (not failed)
+PASS  it produced readable text
+PASS  no corrupted-character junk in the reply
+PASS  it did not claim to edit the map
+PASS  it either named blockers/warnings, asked for what it needs, or ran a stage
+PASS  it did not ask for the map id (invoke now gives it)
+PASS  it did not repeat the ticket
+
+8/8 passed

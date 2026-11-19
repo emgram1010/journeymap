@@ -107,7 +107,7 @@ query "journey_map/{journey_map_id}/invoke" verb=POST {
     // Build agent messages — inject input_data as the opening context. COP-1 review: each piped
     // value is wrapped in its own parentheses before `??`.
     var $invoke_context {
-      value = `"## Map Invocation\nThis map has been invoked programmatically.\nParent execution ID: " ~ (($input.parent_execution_id|to_text) ?? "none") ~ "\nSubject: " ~ ($input.subject_label ?? $input.subject_id ?? "unspecified") ~ "\nInput context:\n" ~ (($input.input_data|json_encode) ?? "{}") ~ "\n- ticket: " ~ $cop1_ticket.ticket`
+      value = "## Map Invocation\nThis map has been invoked programmatically.\nParent execution ID: " ~ (($input.parent_execution_id|to_text) ?? "none") ~ "\nSubject: " ~ ($input.subject_label ?? $input.subject_id ?? "unspecified") ~ "\nInput context:\n" ~ (($input.input_data|json_encode) ?? "{}") ~ "\n\n## Orchestrator Mode Active\nRun in auto mode. The subject above is the subject_label: do not ask for it again.\n\n## Tool Logging\n- journey_map_id: " ~ ($input.journey_map_id|to_text) ~ "\n- conversation_id: 0\n- turn_id: invoke_" ~ ($child_exec.id|to_text) ~ "\n- ticket: " ~ $cop1_ticket.ticket ~ "\nPass the ticket to every tool call. Never repeat the ticket in your reply or anywhere else."
     }
   
     var $invoke_messages {
