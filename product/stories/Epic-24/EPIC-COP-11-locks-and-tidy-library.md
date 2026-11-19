@@ -1,6 +1,6 @@
 # EPIC-COP-11 — Locks, and a library that stays tidy
 
-**Status:** 🟡 Server side live (2026-11-18, Sonnet 5.5). Screen (story 05) built 2026-11-18. Auto-lock on Undo and the old-item backfill not built. Review pass done 2026-11-18 (Fable 5.2), 3 findings fixed.
+**Status:** 🟡 Server side live (2026-11-18, Sonnet 5.5). Screen (story 05) built 2026-11-18. Auto-lock on Undo built 2026-11-19. Old-item backfill not built. Review pass done 2026-11-18 (Fable 5.2), 3 findings fixed.
 **Model:** **Opus 5.5** for story 01 (the lock is a guard). **Sonnet 5.5** for 02–05. Opus review pass at the end.
 **Depends on:** COP-9 stories 01–04 (live). **Build together with COP-9 story 05** (trial before trust): both change how items are promoted, flagged and loaded.
 **Risk:** medium. Story 01 decides what the AI may never change.
@@ -230,10 +230,14 @@ In the copilot panel's "How I work" list (`CopilotPanel.tsx`, `SkillsSection`): 
 
 Not covered by a browser test: the stale filter with a truly stale item (none exists in the test account), and saving in-bounds limits from the screen (the HTTP probe covers the endpoint).
 
+### Auto-lock on Undo (2026-11-19, Sonnet 5.5)
+
+`copilot/skill_undo` (live fn 400) now locks the item in the same transaction as the undo, so a failed undo leaves no lock. Live proof on the test account: the copilot created and edited throwaway item #13 (allowed, unlocked); the owner pressed Undo (version 3); the copilot's next edit was refused with **E-COP-089**. #13 retired afterwards. Unit test UT-COP-11-13.
+
 **Not done / not proven:**
 - **AI identity at the lock endpoint:** it reuses `copilot/assert_person_only` (refuses with E-COP-025, not E-COP-092); not run live as the copilot user. E-COP-092 is catalogued but nothing emits it.
 - **No caller passes kinds yet:** chat, runs and `get_how_i_work` all load every kind.
-- **Owner edits and Undo lock automatically (D-24-1):** `skill_write` does it when called as owner, but no owner endpoint calls it yet, and `skill_undo` does not lock.
+- **Owner edits lock automatically (D-24-1):** `skill_write` does it when called as owner, but no owner edit screen or endpoint calls it yet (Undo now does lock).
 - **Suggest as an approval item:** the copilot proposes in chat; no approval request is created.
 - **Full library (E-COP-091) and word limit:** coded, not hit live (bounds stop a tiny limit; account has about 6 items).
 - **Backfill of old free-text kinds:** not run; old items have no meta row so they read as "general".

@@ -130,3 +130,13 @@ test('UT-COP-11-11: the lock endpoint file and tables are not listed twice or mi
     assert.ok(existsSync(repo(f)), f);
   }
 });
+
+test('UT-COP-11-13: pressing Undo locks the item (D-24-1), inside the same transaction as the undo', () => {
+  const fn = read('functions/copilot/skill_undo.xs');
+  assert.match(fn, /copilot_skill_meta/, 'the lock lives in the side table');
+  assert.match(fn, /is_locked: true/, 'the item is locked');
+  assert.match(fn, /locked_by_user_id: \$input\.actor_user_id/, 'by the person who pressed Undo');
+  const tx = fn.indexOf('db.transaction');
+  assert.ok(tx > 0 && fn.indexOf('copilot_skill_meta', tx) > tx, 'written inside the transaction, so a failed undo leaves no lock behind');
+  assert.ok(!/E-COP-089/.test(fn), 'the owner is never refused by a lock');
+});

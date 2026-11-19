@@ -8,6 +8,10 @@
 // json history row is only ever inserted), so a patch fully replaces and nothing is merged.
 // A version that is not in the history, or is the current one, is refused (E-COP-087); a failed
 // write is logged and raised as E-COP-085. Either way the item keeps its latest version.
+//
+// COP-11 (D-24-1): what the owner puts back is the owner's decision, so Undo also LOCKS the item
+// (copilot_skill_meta), in the same transaction: a failed undo leaves no lock behind. The owner is
+// never refused by a lock; only the copilot is.
 function "copilot/skill_undo" {
   input {
     int account_id
@@ -81,6 +85,15 @@ function "copilot/skill_undo" {
     precondition ($reject_msg == "") {
       error_type = "inputerror"
       error = $reject_msg
+    }
+
+    db.query copilot_skill_meta {
+      where = $db.copilot_skill_meta.skill_id == $cur_id && $cur_id != 0
+      return = {type: "single"}
+    } as $meta
+
+    var $meta_id {
+      value = $meta|get:"id":0
     }
 
     var $content {
@@ -173,6 +186,22 @@ function "copilot/skill_undo" {
                   field_value = $map_id
                   data = {updated_at: "now", title: $map_title, journey_scope: $c_body}
                 } as $_map_patched
+              }
+            }
+
+            conditional {
+              if ($meta_id == 0) {
+                db.add copilot_skill_meta {
+                  data = {updated_at: "now", skill_id: $cur_id, account_id: $input.account_id, is_locked: true, locked_by_user_id: $input.actor_user_id, locked_at: "now", work_kind: "general"}
+                } as $_meta_added
+              }
+
+              else {
+                db.patch copilot_skill_meta {
+                  field_name = "id"
+                  field_value = $meta_id
+                  data = {updated_at: "now", is_locked: true, locked_by_user_id: $input.actor_user_id, locked_at: "now"}
+                } as $_meta_patched
               }
             }
 
