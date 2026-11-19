@@ -53,13 +53,13 @@ test('UT-COP-9-03: nothing in the skill code deletes from a history table', () =
   }
 });
 
-// ── Story 01: the copilot reads "how I work" every time ─────────────────────
+// ── Story 01: the copilot reads "playbook" every time ─────────────────────
 
 test('COP9-01: chat and scheduled runs both load the library through the ONE function', () => {
   for (const f of ['apis/journey_map/643_copilot_chat_POST.xs', 'functions/copilot/run_for_business.xs']) {
     const src = read(f);
     assert.match(src, /function\.run "copilot\/skill_library"/, `${f} loads the library`);
-    assert.match(src, /## How I work/, `${f} puts the skills in the copilot's context`);
+    assert.match(src, /## Your playbook/, `${f} puts the skills in the copilot's context`);
   }
 });
 

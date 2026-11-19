@@ -394,7 +394,7 @@ function LevelsTab() {
       )}
       {homeArchId !== 0 && archId !== homeArchId && archId !== 0 && (
         <p className="text-xs text-zinc-500 mt-3">
-          How much the copilot may change its own skills is set once, on &ldquo;Copilot&rsquo;s own: how I work&rdquo;.
+          How much the copilot may change its own skills is set once, on &ldquo;Copilot&rsquo;s own: playbook&rdquo;.
         </p>
       )}
       {archId !== 0 && <ConnectionsSection archId={archId} />}

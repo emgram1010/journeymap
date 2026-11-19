@@ -1,9 +1,9 @@
-// COP-9 stories 02/03/04/08 — THE one writer for the copilot's skill library ("how I work"). The
+// COP-9 stories 02/03/04/08 — THE one writer for the copilot's skill library (the Playbook). The
 // copilot's tools (save_skill, retire_skill) and nothing else call it; it never deletes - the
 // copilot retires.
 //
 // op "create": a new skill / exception / lesson / link, on trial, with a draft map in the
-//   account's copilot home so it shows in "how I work".
+//   account's copilot home so it shows in "playbook".
 // op "edit": new text for an existing item. An empty field keeps what is there (kind never changes).
 // op "retire": stops it loading. Undo (copilot/skill_undo) can bring it back.
 //
@@ -93,7 +93,7 @@ function "copilot/skill_write" {
         }
 
         var.update $reject_msg {
-          value = "The copilot has no business of its own yet, so it can't keep skills. An admin can set it up on Manage users. (E-COP-086)"
+          value = "The copilot has no business of its own yet, so it can't keep a playbook. An admin can set it up on Manage users. (E-COP-086)"
         }
       }
     }
@@ -123,7 +123,7 @@ function "copilot/skill_write" {
         }
 
         var.update $reject_msg {
-          value = "The copilot can only write skills in its own business, 'how I work'. (E-COP-081)"
+          value = "The copilot can only write playbook entries in its own business, the Playbook. (E-COP-081)"
         }
       }
     }
@@ -320,7 +320,7 @@ function "copilot/skill_write" {
         }
 
         var.update $reject_msg {
-          value = "The copilot can only write skills in its own business, 'how I work'. (E-COP-081)"
+          value = "The copilot can only write playbook entries in its own business, the Playbook. (E-COP-081)"
         }
       }
     }
@@ -407,6 +407,12 @@ function "copilot/skill_write" {
       value = false
     }
 
+    // Founder decision 2026-11-19: the approval is for one version of the item. If the item has a newer
+    // version now (the owner edited it after approving), the approval does not cover it.
+    var $cur_version {
+      value = ($cur|get:"version_no":0) ?? 0
+    }
+
     conditional {
       if ($input.owner_approved_action_id != 0 && $input.changed_by == "copilot") {
         db.query copilot_action {
@@ -431,8 +437,12 @@ function "copilot/skill_write" {
           value = ($appr_payload|get:"parent_skill_id":0) ?? 0
         }
 
+        var $appr_version {
+          value = ($appr_payload|get:"based_on_version":-1) ?? -1
+        }
+
         var.update $owner_ok {
-          value = (($appr_id != 0) && ($appr_skill == $input.skill_id) && ($appr_parent == $input.parent_skill_id))
+          value = (($appr_id != 0) && ($appr_skill == $input.skill_id) && ($appr_parent == $input.parent_skill_id) && ($appr_version == $cur_version))
         }
       }
     }
@@ -476,7 +486,7 @@ function "copilot/skill_write" {
         }
 
         var.update $reject_msg {
-          value = "How I work is full (" ~ $active_text ~ " of " ~ $max_text ~ " items). Merge or retire an item first. Oldest: #" ~ $oldest_id_text ~ " " ~ $oldest_title ~ ". (E-COP-091)"
+          value = "The Playbook is full (" ~ $active_text ~ " of " ~ $max_text ~ " items). Merge or retire an item first. Oldest: #" ~ $oldest_id_text ~ " " ~ $oldest_title ~ ". (E-COP-091)"
         }
       }
     }
@@ -558,7 +568,7 @@ function "copilot/skill_write" {
         }
 
         var.update $reject_msg {
-          value = "That already exists in How I work as #" ~ $dup_text ~ ", so I didn't save it twice. Change that one instead if it needs different wording. (E-COP-096)"
+          value = "That already exists in the Playbook as #" ~ $dup_text ~ ", so I didn't save it twice. Change that one instead if it needs different wording. (E-COP-096)"
         }
       }
     }
@@ -860,7 +870,7 @@ function "copilot/skill_write" {
         outcome    : "success"
         severity   : "info"
         error_code : ""
-        message    : "A skill in 'how I work' was saved."
+        message    : "A skill in the Playbook was saved."
         user_id    : $input.actor_user_id
         account_id : $input.account_id
         entity_type: "copilot_skill"

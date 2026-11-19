@@ -19,7 +19,7 @@ function "copilot/action_types" {
         booking_change     : {key: "booking_change", name: "Create or change a booking", touches: "booking", reversible: true, default_level: "wait", locked: false, person_only: false, has_limit: false, wired: false}
         money_payment      : {key: "money_payment", name: "Charge, pay or refund money", touches: "money", reversible: false, default_level: "wait", locked: false, person_only: false, has_limit: true, wired: false}
         scheduled_work     : {key: "scheduled_work", name: "Work on its tasks on a schedule, with nobody at the screen", touches: "internal", reversible: true, default_level: "wait", locked: false, person_only: false, has_limit: false, wired: true}
-        skill_write        : {key: "skill_write", name: "Write its own skills in 'how I work'", touches: "internal", reversible: true, default_level: "tell", locked: false, person_only: false, has_limit: false, wired: true}
+        skill_write        : {key: "skill_write", name: "Write its own playbook entries", touches: "internal", reversible: true, default_level: "tell", locked: false, person_only: false, has_limit: false, wired: true}
         step_up_model      : {key: "step_up_model", name: "Use a stronger, dearer AI model for a hard task", touches: "money", reversible: false, default_level: "wait", locked: false, person_only: false, has_limit: false, wired: true}
       }
     }

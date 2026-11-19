@@ -1,7 +1,7 @@
 import type {XanoCopilotLevelRow, XanoCopilotSkill, XanoCopilotSkillVersion, XanoCopilotSkills} from '../xano';
 
 /**
- * COP-9 — plain words for the copilot's skill library ("how I work"). Pure functions only; the
+ * COP-9 — plain words for the copilot's skill library (the Playbook). Pure functions only; the
  * server decides and refuses again (copilot/skill_write, copilot/skill_undo, copilot/skill_switch).
  */
 

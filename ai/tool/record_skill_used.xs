@@ -5,11 +5,11 @@
 // never waits for approval. The skill must be this account's and not retired; an exception must be
 // one that branches that skill.
 tool record_skill_used {
-  instructions = "Record which skill from 'How I work' you are following for this task (once per task), and the exception's number if one applied. Use the numbers shown in your context."
+  instructions = "Record which skill from the Playbook you are following for this task (once per task), and the exception's number if one applied. Use the numbers shown in your context."
 
   input {
     int skill_id {
-      description = "The skill's number from 'How I work'."
+      description = "The skill's number from the Playbook."
     }
 
     int exception_skill_id? {
@@ -49,7 +49,7 @@ tool record_skill_used {
 
     precondition ($skill_found != 0) {
       error_type = "inputerror"
-      error = "That skill isn't in 'How I work' (or it is retired). Use a number shown in your context."
+      error = "That skill isn't in the Playbook (or it is retired). Use a number shown in your context."
     }
 
     db.query copilot_skill {

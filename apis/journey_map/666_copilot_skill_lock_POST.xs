@@ -50,7 +50,7 @@ query "copilot/skill_lock" verb=POST {
 
     precondition ($skill_id != 0) {
       error_type = "inputerror"
-      error = "The copilot can only write skills in its own business, 'how I work'. (E-COP-081)"
+      error = "The copilot can only write playbook entries in its own business, the Playbook. (E-COP-081)"
     }
 
     db.query copilot_skill_meta {

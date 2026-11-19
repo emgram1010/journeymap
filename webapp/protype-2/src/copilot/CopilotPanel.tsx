@@ -245,7 +245,7 @@ function MemorySection({businessId, isAdmin}: {businessId: number; isAdmin: bool
 }
 
 /**
- * COP-9 stories 01/04 — "How I work": the copilot's own skills, exceptions, lessons and links.
+ * COP-9 stories 01/04 — the Playbook: the copilot's own skills, exceptions, lessons and links.
  * Each item shows its history (newest first) with Undo on every change; an admin can switch an
  * item off for the business being looked at. The server decides and refuses again; its own
  * sentence is shown.
@@ -453,7 +453,7 @@ function SkillsSection({businessId, businessName, isAdmin}: {businessId: number;
         <>
           <p className="text-zinc-600">
             {split.live.length === 0
-              ? 'The copilot hasn’t saved any skills yet. It writes them as it learns; you can undo any change.'
+              ? 'The copilot hasn’t saved any playbook entries yet. It writes them as it learns; you can undo any change.'
               : 'The copilot follows these in every chat and scheduled run. New ones start on trial; you can undo any change.'}
           </p>
           {week && (
@@ -781,7 +781,7 @@ export default function CopilotPanel({open, onClose, userId, isAdmin}: Props) {
     .filter((a) => !(home?.has_home && a.id === home.journey_architecture_id))
     .map((a) => ({id: a.id, label: a.title || `Business ${a.id}`}));
   if (home?.has_home && home.journey_architecture_id) {
-    options.push({id: home.journey_architecture_id, label: 'Copilot’s own: how I work'});
+    options.push({id: home.journey_architecture_id, label: 'Copilot’s own: playbook'});
   }
 
   return (
@@ -861,7 +861,7 @@ export default function CopilotPanel({open, onClose, userId, isAdmin}: Props) {
                   aria-expanded={showSkills}
                   className="text-indigo-700 hover:underline ml-4"
                 >
-                  {showSkills ? 'Hide how I work' : 'How I work'}
+                  {showSkills ? 'Hide playbook' : 'Playbook'}
                 </button>
               )}
             </div>

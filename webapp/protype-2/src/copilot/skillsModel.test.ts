@@ -74,7 +74,7 @@ test('UT-COP-9-17: "write its own skills" shows only on the copilot\'s own busin
   assert.deepEqual(visibleLevelRows(rows, 0, 0).map((r) => r.key), ['map_read'], 'hidden when there is no copilot home');
 });
 
-// ── COP-11 story 05: the lock, kind of work, last used and filters on the "How I work" screen ──
+// ── COP-11 story 05: the lock, kind of work, last used and filters on the Playbook screen ──
 test('UT-COP-11-20: skillInfo joins the side table to an item, and a missing row reads as unlocked + general', async () => {
   const {skillInfo} = await import('./skillsModel');
   const meta = {

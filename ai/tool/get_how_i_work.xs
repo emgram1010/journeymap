@@ -1,4 +1,4 @@
-// COP-12 / COP-14-05 — a READ-ONLY view of the copilot's skill library ("How I work") for the AIs that
+// COP-12 / COP-14-05 — a READ-ONLY view of the copilot's skill library (the Playbook) for the AIs that
 // are not the main copilot: the map chat agents (COP-12) and Claude on the founder's Max plan through
 // the MCP door (COP-14-05). It runs the ONE loader the copilot's chat and scheduled runs use
 // (copilot/skill_library), so every AI follows the same skills. It has no write twin: only the main
@@ -9,7 +9,7 @@
 // comes back as ok false with empty text, logged as E-COP-080, and the AI carries on without it.
 tool get_how_i_work {
   instructions = """
-      Read the owner's "How I work" skills: the numbered skills, exceptions, lessons and links the
+      Read the owner's playbook entries: the numbered skills, exceptions, lessons and links the
       owner and the copilot built up. Call this ONCE at the start of any build or planning task,
       before you change anything. Pass journey_map_id when you are working on a map.
 

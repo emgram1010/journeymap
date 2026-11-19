@@ -28,7 +28,7 @@ test('UT-COP-11-S-02: save_skill forces waiting for a locked item (or locked par
   assert.match(t, /Before: /);
   assert.match(t, /After: /);
   assert.match(t, /owner_approved_action_id: \$approved_action_id/, 'an approved re-send tells the writer which approval');
-  assert.match(t, /\$input\.approval_id != 0\) \? \$act_action_id : 0/, 'only a re-send with an approval passes one');
+  assert.match(t, /\$gate_approval_id != 0\) \? \$act_action_id : 0/, 'only a re-send with a (still current) approval passes one');
 });
 
 test('UT-COP-11-S-03: the writer accepts a locked change only for a real, approved skill_write item for THIS change', () => {
@@ -56,6 +56,26 @@ test('UT-COP-11-S-05: the decision branches read the (possibly forced) level, so
   assert.match(ag, /elseif \(\$level == "tell"\)/);
   assert.match(ag, /elseif \(\$level == "wait"\)/);
   assert.ok(!/elseif \(\$lv\.effective_level == "(tell|wait)"\)/.test(ag));
+});
+
+test('UT-COP-11-S-07: the request remembers the version it was based on; a stale approval asks the owner again', () => {
+  // Founder decision 2026-11-19: an approved change must not overwrite text the owner edited after approving.
+  const t = read('ai/tool/save_skill.xs');
+  assert.match(t, /output = \["id", "parent_skill_id", "version_no"\]/, 'reads the current version of the item');
+  assert.match(t, /based_on_version: \$stored_version/, 'the request (and so the approval) carries that version');
+  assert.match(t, /\$prior_payload\|get:"based_on_version":-1/, 'compares it with the version the owner approved');
+  assert.match(t, /\$gate_approval_id/, 'a stale approval is not used');
+  assert.match(t, /act_approval_id: \$gate_approval_id/);
+  assert.match(t, /\(\$locked_count > 0\) \|\| \(\$approval_stale == true\)/, 'a stale approval always waits again');
+  assert.match(t, /changed after you approved/, 'the new request says why it is asking again');
+});
+
+test('UT-COP-11-S-08: the writer refuses an approval for an older version of the item (checked in the database)', () => {
+  const w = read('functions/copilot/skill_write.xs');
+  const block = w.slice(w.indexOf('var $owner_ok'), w.indexOf('E-COP-089"'));
+  assert.match(w, /var \$cur_version \{\s*value = \(\$cur\|get:"version_no":0\) \?\? 0/);
+  assert.match(block, /\$appr_payload\|get:"based_on_version":-1/);
+  assert.match(block, /\(\$appr_version == \$cur_version\)/, 'an approval of an older version is not enough');
 });
 
 test('UT-COP-11-S-06: get_approval finds a skill change filed under the account\'s copilot home, from any business chat', () => {

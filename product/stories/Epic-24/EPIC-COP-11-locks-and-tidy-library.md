@@ -267,3 +267,20 @@ Not covered by a browser test: the stale filter with a truly stale item (none ex
 | Real AI (`tests/cop11_suggest_probe.py`, conversation 227, item 50) | **8/8**: locked #10 change waited with before and after; nothing changed until approved; after approval the copilot re-sent it, #10 changed and stayed locked; clean-up Undo put #10 back |
 
 **Seen on the way (not fixed):** the chat history the copilot gets holds the text of earlier turns but not its tool calls, so in one turn it doubted (and wrongly withdrew) a change it had really made. Earlier test runs left approved/used items 48-50; #10 was put back each time.
+
+### An approval is for one version of the item (2026-11-19, founder decision, Opus 5.5)
+
+**Why:** an approved change could overwrite text the owner changed after approving it.
+
+**Built:**
+- `save_skill` (183) puts the item's current `version_no` into the request as `based_on_version`, so the owner approves that version. On a re-send it compares the approval's version with the item's version now. If they differ, the approval is not used: the change waits again as a NEW request whose summary starts "Asking again: this item changed after you approved."
+- `copilot/skill_write` (398) re-checks in the database: an approval whose `based_on_version` is not the item's current version does not unlock the edit. Approvals made before this change carry no version, so they are asked again (the safe side).
+
+| Check | Result |
+|---|---|
+| Unit UT-COP-11-S-07, S-08 (S-02 updated) | pass; full suite **1017/1017** |
+| Real AI (`tests/cop11_stale_probe.py`, items 52/53) | **8/8**: the request waited; the owner approved, then changed #10 (Undo, v17→v18); the copilot's re-send with approval 52 did NOT change #10 and filed item 53 "Asking again"; 53 rejected in clean-up |
+
+**Probe notes:** the first run failed on probe setup, not the product. Undo cannot restore the current version, and a 10-digit number in the test text tripped the personal-details check (E-COP-083). The test text is now letters only. #10 was put back by hand to its pre-probe text (v19), and the probe now does that itself.
+
+**Renamed the same day (founder):** "How I work" is now the **Playbook**; its items are **playbook entries**. That covers the screen, error messages, the copilot's context heading ("## Your playbook (playbook entries)") and the AI instructions. 16 Xano objects were pushed after a live-vs-git diff, and each was verified. Screen tests `e2e/copilot-skills.spec.ts` pass **7/7** against the live test account; UI-COP-9-02 now finds the home by "Copilot's own" because the Approvals picker shows the stored name. Internal names (`get_how_i_work`, table names) are unchanged. Existing copilot homes keep their stored business name "Copilot's own: how I work" until someone renames them; only new homes get "Copilot's own: playbook".

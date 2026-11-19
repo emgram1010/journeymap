@@ -78,7 +78,7 @@ export const HISTORY_TABLES: HistoryTable[] = [
   },
   {
     table: 'copilot_skill_version',
-    why: "Every change the copilot or the owner made to a skill in 'how I work', as a full copy. Undo reads from here; delete a row and that change can no longer be put back or explained.",
+    why: "Every change the copilot or the owner made to a skill in the Playbook, as a full copy. Undo reads from here; delete a row and that change can no longer be put back or explained.",
   },
   {
     table: 'copilot_skill_use',

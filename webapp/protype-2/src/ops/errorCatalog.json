@@ -2151,7 +2151,7 @@
     "code": "E-COP-044",
     "feature": "COP-3",
     "user_message": "The copilot already has its own business.",
-    "what_happened": "Someone tried to set up the copilot's own 'how I work' business a second time. There is one per account.",
+    "what_happened": "Someone tried to set up the copilot's own Playbook business a second time. There is one per account.",
     "likely_cause": "Setup was clicked twice.",
     "owner": "user",
     "severity": "info",
@@ -2470,8 +2470,8 @@
   "E-COP-080": {
     "code": "E-COP-080",
     "feature": "COP-9",
-    "user_message": "The copilot couldn't read its skills this time, so it used its built-in instructions.",
-    "what_happened": "copilot/skill_library failed while loading 'how I work' for a chat or scheduled run.",
+    "user_message": "The copilot couldn't read its playbook this time, so it used its built-in instructions.",
+    "what_happened": "copilot/skill_library failed while loading the Playbook for a chat or scheduled run.",
     "likely_cause": "A short database problem, or an item with broken scope data.",
     "owner": "engineer",
     "severity": "warn",
@@ -2480,7 +2480,7 @@
   "E-COP-081": {
     "code": "E-COP-081",
     "feature": "COP-9",
-    "user_message": "The copilot can only write skills in its own business, 'how I work'.",
+    "user_message": "The copilot can only write playbook entries in its own business, the Playbook.",
     "what_happened": "A skill write named an item, scope or link outside the account's copilot home.",
     "likely_cause": "The copilot passed a skill, map or business id from somewhere else, or the account has no copilot home yet.",
     "owner": "user",
@@ -2530,9 +2530,9 @@
   "E-COP-086": {
     "code": "E-COP-086",
     "feature": "COP-9",
-    "user_message": "The copilot has no business of its own yet, so it can't keep skills. An admin can set it up on Manage users.",
+    "user_message": "The copilot has no business of its own yet, so it can't keep a playbook. An admin can set it up on Manage users.",
     "what_happened": "A skill write found no copilot_home row for the account.",
-    "likely_cause": "The copilot's own business ('how I work') was never set up for this account.",
+    "likely_cause": "The copilot's own business (the Playbook) was never set up for this account.",
     "owner": "user",
     "severity": "warn",
     "fix_hint": "An admin opens the copilot panel and presses 'Set up the copilot's own business'."
@@ -2545,7 +2545,7 @@
     "likely_cause": "The screen was out of date (someone else already changed or undid the item), or a wrong number was sent.",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "Reload 'How I work' and press Undo on the change you mean."
+    "fix_hint": "Reload the Playbook and press Undo on the change you mean."
   },
   "E-COP-088": {
     "code": "E-COP-088",
@@ -2561,11 +2561,11 @@
     "code": "E-COP-089",
     "feature": "COP-11",
     "user_message": "That item is locked by the owner. You can follow it but not change it: tell the owner what you would change and why, and let them edit it.",
-    "what_happened": "The copilot tried to edit or retire a locked item in How I work; nothing changed.",
+    "what_happened": "The copilot tried to edit or retire a locked item in the Playbook; nothing changed.",
     "likely_cause": "The owner locked it (or wrote it, which locks it by default).",
     "owner": "user",
     "severity": "info",
-    "fix_hint": "Unlock the item in How I work if you want the copilot to change it, or tell it what to change and edit it yourself."
+    "fix_hint": "Unlock the item in the Playbook if you want the copilot to change it, or tell it what to change and edit it yourself."
   },
   "E-COP-090": {
     "code": "E-COP-090",
@@ -2580,12 +2580,12 @@
   "E-COP-091": {
     "code": "E-COP-091",
     "feature": "COP-11",
-    "user_message": "How I work is full. Merge or retire an item first.",
+    "user_message": "The Playbook is full. Merge or retire an item first.",
     "what_happened": "The library is at its active-item limit; nothing was saved.",
     "likely_cause": "Too many active items for this account's limit.",
     "owner": "user",
     "severity": "warn",
-    "fix_hint": "Retire or merge the least-used items in How I work, or raise the limit in the library settings."
+    "fix_hint": "Retire or merge the least-used items in the Playbook, or raise the limit in the library settings."
   },
   "E-COP-092": {
     "code": "E-COP-092",
@@ -2600,7 +2600,7 @@
   "E-COP-096": {
     "code": "E-COP-096",
     "feature": "COP-11",
-    "user_message": "That already exists in How I work, so I didn't save it twice.",
+    "user_message": "That already exists in the Playbook, so I didn't save it twice.",
     "what_happened": "A new item matches an active item of the same kind and parent (same title and text); nothing was saved.",
     "likely_cause": "The copilot tried to save a duplicate.",
     "owner": "user",

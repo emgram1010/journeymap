@@ -1,15 +1,15 @@
 // COP-9 story 02 — the copilot writes down HOW it works: a new skill, exception, lesson or link in
-// its own business ("how I work"), or new text for an existing one. Passes the gate like every tool
+// its own business (the Playbook), or new text for an existing one. Passes the gate like every tool
 // (ticket, switched on, daily cap, audit row) with action type skill_write, so the owner's ONE
 // level for "write its own skills" applies (default: runs, then tells you). The write itself is
 // copilot/skill_write, where the hard limits sit (E-COP-081..084); this tool adds no rule of its own.
 // New items start on trial. Every change is a version the owner can undo.
 tool save_skill {
-  instructions = "Save something you learned about HOW to work, in your own business 'how I work'. kind: skill (a repeatable way to do a task: steps, inputs, what done looks like), exception (WHEN something happens, do this instead - needs condition_text and parent_skill_id), lesson (something a real result taught you), or link (skill parent_skill_id feeds or triggers skill link_to_skill_id). To change an existing item, pass its skill_id with the full new text; leave a field empty to keep it. Never put logins, customer details, permissions or approval rules in a skill - the server refuses them. Tag it with work_kind (map_building, planning, doing_work, research or general). If an item (or the skill an exception changes) is locked by the owner, send the change anyway with a clear reason: it does not change the item, it goes to the owner as an approval request showing before and after (it waits, code E-COP-020). If the owner approves, send exactly the same input again with approval_id. You can never retire a locked item. Facts about one business go in save_note instead."
+  instructions = "Save something you learned about HOW to work, in your own business, the Playbook. kind: skill (a repeatable way to do a task: steps, inputs, what done looks like), exception (WHEN something happens, do this instead - needs condition_text and parent_skill_id), lesson (something a real result taught you), or link (skill parent_skill_id feeds or triggers skill link_to_skill_id). To change an existing item, pass its skill_id with the full new text; leave a field empty to keep it. Never put logins, customer details, permissions or approval rules in a skill - the server refuses them. Tag it with work_kind (map_building, planning, doing_work, research or general). If an item (or the skill an exception changes) is locked by the owner, send the change anyway with a clear reason: it does not change the item, it goes to the owner as an approval request showing before and after (it waits, code E-COP-020). If the owner approves, send exactly the same input again with approval_id. If the item changed after they approved, that re-send waits again as a new request: tell the owner it needs a fresh look. You can never retire a locked item. Facts about one business go in save_note instead."
 
   input {
     int skill_id? {
-      description = "0 for a new item. The item number from 'How I work' to change one."
+      description = "0 for a new item. The item number from the Playbook to change one."
     }
 
     text kind? filters=trim {
@@ -87,11 +87,40 @@ tool save_skill {
     db.query copilot_skill {
       where = $db.copilot_skill.id == $input.skill_id && $input.skill_id != 0 && $db.copilot_skill.account_id == $pre_account && $pre_account != 0
       return = {type: "single"}
-      output = ["id", "parent_skill_id"]
+      output = ["id", "parent_skill_id", "version_no"]
     } as $stored_row
 
     var $stored_parent {
       value = ($stored_row|get:"parent_skill_id":0) ?? 0
+    }
+
+    // The version this change is based on goes into the request, so the owner approves THAT version.
+    // Founder decision 2026-11-19: if the item changed after the owner approved (they edited it
+    // themselves, say), the approval is not used: the change waits again with a fresh before/after.
+    var $stored_version {
+      value = ($stored_row|get:"version_no":0) ?? 0
+    }
+
+    db.query copilot_action {
+      where = $db.copilot_action.id == $input.approval_id && $input.approval_id != 0 && $db.copilot_action.account_id == $pre_account && $pre_account != 0
+      return = {type: "single"}
+      output = ["id", "payload"]
+    } as $prior_appr
+
+    var $prior_payload {
+      value = ($prior_appr|get:"payload":null) ?? {}
+    }
+
+    var $prior_version {
+      value = ($prior_payload|get:"based_on_version":-1) ?? -1
+    }
+
+    var $approval_stale {
+      value = ($input.approval_id != 0) && ($input.skill_id != 0) && ($prior_version != $stored_version)
+    }
+
+    var $gate_approval_id {
+      value = (($approval_stale == true) ? 0 : $input.approval_id)
     }
 
     // The item, the parent the copilot named, and the parent it really has (review 2026-11-19: an
@@ -106,7 +135,7 @@ tool save_skill {
     } as $locked_count
 
     var $force_wait {
-      value = $locked_count > 0
+      value = ($locked_count > 0) || ($approval_stale == true)
     }
 
     db.query copilot_skill {
@@ -132,15 +161,19 @@ tool save_skill {
     }
 
     var $act_summary {
-      value = (($input.skill_id == 0) ? ("Save a new " ~ $input.kind ~ " in 'how I work': " ~ $act_title_head) : ("Change skill #" ~ ($input.skill_id|to_text) ~ " in 'how I work': " ~ $act_title_head))
+      value = (($input.skill_id == 0) ? ("Save a new " ~ $input.kind ~ " in the Playbook: " ~ $act_title_head) : ("Change skill #" ~ ($input.skill_id|to_text) ~ " in the Playbook: " ~ $act_title_head))
     }
 
-    var $gate_summary {
+    var $base_summary {
       value = (($force_wait == true && $input.skill_id != 0) ? $locked_summary : $act_summary)
     }
 
+    var $gate_summary {
+      value = (($approval_stale == true) ? ("Asking again: this item changed after you approved. " ~ $base_summary) : $base_summary)
+    }
+
     function.run "journey/tool_gate" {
-      input = {journey_map_id: 0, ticket: $input.ticket, tool: "save_skill", kind: "write", act_type: "skill_write", act_force_wait: $force_wait, act_payload: {skill_id: $input.skill_id, kind: $input.kind, title: $input.title, body: $input.body, condition_text: $input.condition_text, parent_skill_id: $input.parent_skill_id, link_to_skill_id: $input.link_to_skill_id, scope_type: $input.scope_type, scope_ref_id: $input.scope_ref_id, scope_text: $input.scope_text, work_kind: $input.work_kind, reason: $input.reason}, act_summary: $gate_summary, act_approval_id: $input.approval_id}
+      input = {journey_map_id: 0, ticket: $input.ticket, tool: "save_skill", kind: "write", act_type: "skill_write", act_force_wait: $force_wait, act_payload: {skill_id: $input.skill_id, kind: $input.kind, title: $input.title, body: $input.body, condition_text: $input.condition_text, parent_skill_id: $input.parent_skill_id, link_to_skill_id: $input.link_to_skill_id, scope_type: $input.scope_type, scope_ref_id: $input.scope_ref_id, scope_text: $input.scope_text, work_kind: $input.work_kind, reason: $input.reason, based_on_version: $stored_version}, act_summary: $gate_summary, act_approval_id: $gate_approval_id}
     } as $cop1_gate
 
     var $act_action_id {
@@ -148,7 +181,7 @@ tool save_skill {
     }
 
     var $approved_action_id {
-      value = (($input.approval_id != 0) ? $act_action_id : 0)
+      value = (($gate_approval_id != 0) ? $act_action_id : 0)
     }
 
     var $act_account_id {

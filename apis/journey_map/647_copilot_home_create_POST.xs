@@ -1,4 +1,4 @@
-// COP-3 story 01 — an account admin sets up the copilot's own "how I work" business (decision D-2:
+// COP-3 story 01 — an account admin sets up the copilot's own "playbook" business (decision D-2:
 // one per account, never shared). Creates one journey architecture owned by the admin (so the
 // admin can open and edit its maps like any other), marks it in copilot_home (unique per account,
 // so a second setup is refused by the database, E-COP-044), and returns its id. The four starter
@@ -60,7 +60,7 @@ query "copilot/home_create" verb=POST {
               data = {
                 created_at : "now"
                 updated_at : "now"
-                title      : "Copilot's own: how I work"
+                title      : "Copilot's own: playbook"
                 description: "The copilot's working methods, as maps you can read and improve. Shared by every business in this account."
                 status     : "draft"
                 account_id : $admin_user.account_id

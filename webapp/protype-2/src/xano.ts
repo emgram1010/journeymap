@@ -2351,7 +2351,7 @@ export interface XanoCopilotMemory {
   }[];
 }
 
-/** COP-9 — one item in the copilot's skill library ("how I work"). */
+/** COP-9 — one item in the copilot's skill library (the Playbook). */
 export interface XanoCopilotSkill {
   id: number;
   updated_at: number;

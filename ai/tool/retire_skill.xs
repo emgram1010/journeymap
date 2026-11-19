@@ -4,11 +4,11 @@
 // action type skill_write; the write is copilot/skill_write (op retire), which checks the item is
 // in the copilot's own business (E-COP-081).
 tool retire_skill {
-  instructions = "Stop using one of your own skills, exceptions, lessons or links in 'how I work'. It is kept (retired), not deleted, and the owner can bring it back. Give a one-line reason."
+  instructions = "Stop using one of your own skills, exceptions, lessons or links in the Playbook. It is kept (retired), not deleted, and the owner can bring it back. Give a one-line reason."
 
   input {
     int skill_id {
-      description = "The item number from 'How I work'."
+      description = "The item number from the Playbook."
     }
 
     text reason? filters=trim {
@@ -30,7 +30,7 @@ tool retire_skill {
 
   stack {
     var $act_summary {
-      value = "Retire skill #" ~ ($input.skill_id|to_text) ~ " in 'how I work'"
+      value = "Retire skill #" ~ ($input.skill_id|to_text) ~ " in the Playbook"
     }
 
     function.run "journey/tool_gate" {

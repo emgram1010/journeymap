@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import test from 'node:test';
 
-// COP-12 / COP-14-05 - the map AIs and outside Claude READ "How I work" through one read-only tool.
+// COP-12 / COP-14-05 - the map AIs and outside Claude READ the Playbook through one read-only tool.
 // The rules live in XanoScript; these tests read the source. Live behaviour (FT-COP-12-*) is proven
 // against the real workspace and recorded in the epic's Test results.
 

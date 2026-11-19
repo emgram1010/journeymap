@@ -33,7 +33,7 @@ query "copilot/skill_versions" verb=GET {
 
     precondition ($skill_found != 0) {
       error_type = "notfound"
-      error = "The copilot can only write skills in its own business, 'how I work'. (E-COP-081)"
+      error = "The copilot can only write playbook entries in its own business, the Playbook. (E-COP-081)"
     }
 
     db.query copilot_skill_version {

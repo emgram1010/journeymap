@@ -1,5 +1,5 @@
 /**
- * UI-COP-9 — "How I work" (the copilot's skill library) and its approval level.
+ * UI-COP-9 — the Playbook (the copilot's skill library) and its approval level.
  *
  * Runs against the LIVE test account (account 13), which holds the COP-9 test items: skill #1
  * with an exception #2 under it. Read-mostly: it opens history and the level screen; it does not
@@ -13,7 +13,7 @@ test.describe('UI-COP-9 skill library', () => {
     await page.locator('#copilot-open-btn').click();
     const panel = page.locator('#copilot-panel');
     await expect(panel).toBeVisible();
-    await panel.getByRole('button', {name: 'How I work'}).click();
+    await panel.getByRole('button', {name: 'Playbook'}).click();
     const section = panel.getByTestId('copilot-skills');
     await expect(section).toBeVisible();
     const skill = section.getByTestId('skill-1');
@@ -31,12 +31,16 @@ test.describe('UI-COP-9 skill library', () => {
     await page.goto('/approvals');
     await page.getByRole('tab', {name: /levels/i}).click();
     const picker = page.locator('#approval-levels-business');
-    await picker.selectOption({label: "Copilot's own: how I work"});
+    // The picker shows the STORED business name: homes made before the 2026-11-19 rename are still
+    // called "Copilot's own: how I work"; new ones "Copilot's own: playbook".
+    await expect(picker.locator('option', {hasText: "Copilot's own"})).toHaveCount(1);
+    const home = await picker.locator('option', {hasText: "Copilot's own"}).getAttribute('value');
+    await picker.selectOption(home!);
     await expect(page.locator('#level-skill_write')).toBeVisible();
-    await expect(page.locator('#level-skill_write')).toContainText("Write its own skills");
+    await expect(page.locator('#level-skill_write')).toContainText('Write its own playbook entries');
     await page.screenshot({path: 'e2e/screenshots/cop9-skills-level.png'});
     const other = await picker.locator('option').evaluateAll((os) =>
-      os.map((o) => ({v: (o as HTMLOptionElement).value, t: o.textContent ?? ''})).find((o) => o.v !== '0' && !o.t.includes('how I work')),
+      os.map((o) => ({v: (o as HTMLOptionElement).value, t: o.textContent ?? ''})).find((o) => o.v !== '0' && !o.t.includes("Copilot's own")),
     );
     test.skip(!other, 'the test account has only the copilot business');
     await picker.selectOption(other!.v);
@@ -55,7 +59,7 @@ test.describe('UI-COP-11 locks and a tidy library', () => {
     await page.goto('/');
     await page.locator('#copilot-open-btn').click();
     const panel = page.locator('#copilot-panel');
-    await panel.getByRole('button', {name: 'How I work'}).click();
+    await panel.getByRole('button', {name: 'Playbook'}).click();
     const section = panel.getByTestId('copilot-skills');
     await expect(section.getByTestId('skills-counter')).toContainText(/\d+ of \d+ items/);
     const item = section.getByTestId('skill-10');
@@ -69,7 +73,7 @@ test.describe('UI-COP-11 locks and a tidy library', () => {
     await page.goto('/');
     await page.locator('#copilot-open-btn').click();
     const panel = page.locator('#copilot-panel');
-    await panel.getByRole('button', {name: 'How I work'}).click();
+    await panel.getByRole('button', {name: 'Playbook'}).click();
     const section = panel.getByTestId('copilot-skills');
     const item = section.getByTestId('skill-10');
     await item.getByRole('button', {name: 'Unlock'}).click();
@@ -87,7 +91,7 @@ test.describe('UI-COP-11 locks and a tidy library', () => {
     await page.goto('/');
     await page.locator('#copilot-open-btn').click();
     const panel = page.locator('#copilot-panel');
-    await panel.getByRole('button', {name: 'How I work'}).click();
+    await panel.getByRole('button', {name: 'Playbook'}).click();
     const section = panel.getByTestId('copilot-skills');
     await section.getByRole('button', {name: 'Limits'}).click();
     const most = section.getByLabel('Most items');
@@ -103,7 +107,7 @@ test('UI-COP-9-05-01 a trial item shows "Trial: N of M uses" and the limits incl
   await page.goto('/');
   await page.locator('#copilot-open-btn').click();
   const panel = page.locator('#copilot-panel');
-  await panel.getByRole('button', {name: 'How I work'}).click();
+  await panel.getByRole('button', {name: 'Playbook'}).click();
   const section = panel.getByTestId('copilot-skills');
   await expect(section.getByTestId('skill-1')).toContainText(/Trial: \d+ of \d+ uses/);
   await section.getByRole('button', {name: 'Limits'}).click();
@@ -123,7 +127,7 @@ test('UI-COP-9-07-01 the weekly summary flags a switched-off trial and collapses
   await page.goto('/');
   await page.locator('#copilot-open-btn').click();
   const panel = page.locator('#copilot-panel');
-  await panel.getByRole('button', {name: 'How I work'}).click();
+  await panel.getByRole('button', {name: 'Playbook'}).click();
   const digest = panel.getByTestId('skills-digest');
   await expect(digest).toContainText('What I learned this week');
   await expect(digest.getByRole('list', {name: 'Needs a look'})).toContainText('was switched off');

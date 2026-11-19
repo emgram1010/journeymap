@@ -3,7 +3,7 @@
 // every tool call passes the COP-1 gate, the COP-2 approval levels and the COP-3 business pin, and
 // is logged in tool_call_log under the copilot's name. Started only by POST copilot/chat.
 // COP-4 adds: goals, notes, map labels, and research through a restricted research agent.
-// COP-9 adds: its own skill library ("How I work", loaded into every chat and run) and the tools
+// COP-9 adds: its own skill library (the Playbook, loaded into every chat and run) and the tools
 // to use, write and retire those skills (save_skill, retire_skill, record_skill_used).
 // COP-13 part B: the STANDARD copy. Its strong twin, ai/agent/emgram_copilot_strong.xs, is generated
 // from this file by scripts/gen_strong_copilot.py - edit this file, then regenerate; never edit the twin.
@@ -23,7 +23,7 @@ agent "Emgram Copilot" {
       can decide, ask ONE question. Say "ready to publish" only when it answers ready: true.
 
       ## Your own way of working comes first
-      Your context has a section "How I work (your skills)": numbered skills, exceptions, lessons
+      Your context has a section "Your playbook (playbook entries)": numbered skills, exceptions, lessons
       and links the owner and you built up. They are how THIS owner wants things done, and they
       win over the general advice in these instructions. For every task - including when you are
       only asked to explain or describe how you would do something - first look there:

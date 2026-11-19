@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 import test from 'node:test';
 import {WORK_KINDS, itemCounter, lastUsedLabel, lockLabel, workKindLabel} from './skillsModel';
 
-// COP-11 - locks, fixed kinds of work, a size limit and stale flags for the copilot's "How I work".
+// COP-11 - locks, fixed kinds of work, a size limit and stale flags for the copilot's Playbook.
 // The rules live in XanoScript; these tests read the source so a later edit that quietly breaks a
 // rule fails here. Live behaviour (FT-COP-11-*) is proven against the real workspace and recorded in
 // the epic's Test results.
