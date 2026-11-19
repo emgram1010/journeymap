@@ -57,6 +57,7 @@ async function copyBundleToClipboard(issue: OpsIssue) {
 import {openChildSentence, reasonWords} from '../exceptions/healthText';
 import ToolCallsPanel from './ToolCallsPanel';
 import AgentModelsPanel from './AgentModelsPanel';
+import StepUpsPanel from './StepUpsPanel';
 
 export default function HealthPage() {
   const [health, setHealth] = useState<OpsHealthResponse | null>(null);
@@ -150,6 +151,9 @@ export default function HealthPage() {
 
       {/* COP-13 story 02 - which model each AI agent runs on */}
       <AgentModelsPanel />
+
+      {/* COP-13 story 05 - how often the copilot used the stronger model */}
+      <StepUpsPanel />
 
       <div>
         <h2 className="text-sm font-medium text-zinc-700 mb-2">Estimates</h2>

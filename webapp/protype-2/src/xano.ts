@@ -1908,6 +1908,28 @@ export interface OpsToolCallsResponse {
 
 export const getOpsToolCalls = () => xanoRequest<OpsToolCallsResponse>('/ops/tool_calls', {baseUrl: getXanoOpsBaseUrl()});
 
+/** COP-13 story 05 - Health page "Stronger model" panel (last 7 days, per UTC day and business). */
+export interface OpsStepUpRow {
+  day: number;
+  journey_architecture_id: number;
+  business: string;
+  requested: number;
+  capped: number;
+  granted: number;
+  ran: number;
+  approved: number;
+  declined: number;
+  expired: number;
+  waiting: number;
+}
+
+export interface OpsStepUpsResponse {
+  days: number;
+  rows: OpsStepUpRow[];
+}
+
+export const getOpsStepUps = () => xanoRequest<OpsStepUpsResponse>('/ops/step_ups', {baseUrl: getXanoOpsBaseUrl()});
+
 export const getOpsBundle = (params: {correlationId?: string; entityType?: string; entityId?: number; accountId?: number}) => {
   const query = new URLSearchParams();
   if (params.correlationId) query.set('correlation_id', params.correlationId);

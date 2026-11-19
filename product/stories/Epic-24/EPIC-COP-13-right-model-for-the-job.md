@@ -220,6 +220,19 @@ UT-COP-13-01..03 (`cop13AgentModels.test.ts`) 3/3: each agent file's model match
 - **E-COP-093 / 095 not added:** declined and expired step-ups use the gate's own existing refusals.
 - **Risk:** the strong copy re-does the whole request. If the standard copy already changed something before asking, the strong run could repeat it. The prompt says to ask instead of trying everyday work, but nothing on the server prevents a repeat.
 
+### Story 05 (Health part): step-ups per day per business (2026-11-19, Opus 5.5)
+
+**Built:** read-only `ops/step_ups` (Ops group, API 670, platform admins only) over one function `ops/step_ups_panel` (407): last 7 days, per UTC day and business - asked, refused by the daily limit, approved, declined, expired, still waiting, and re-done on the stronger model. Events come from `event_log` (`copilot.step_up.*`), decisions from the approval items (`copilot_action`, `step_up_model`). Health has a "Stronger model" panel with a one-line summary and one line per day and business. No table, no write.
+
+| Check | Result |
+|---|---|
+| Unit `stepUps.test.ts` UT-COP-13-05-01..04 | 4/4; full suite **1001/1001** |
+| Live function | ok, one real row for test business 49 today: 1 asked, 1 capped, 1 approved, 1 re-done |
+| Real HTTP | signed-in non-admin 403 (E-OBS-001); no sign-in 401 |
+| UI-COP-13-05-01 (`health-step-ups.spec.ts`) | pass with stubbed data (no test account is a platform admin); UI-COP-13-02-01 updated (the Builder is no longer "older") and passes |
+
+**Not covered:** the panel seen with live data by a real platform admin (needs the founder's account); counts are per business of the conversation, so a step-up whose conversation has no business shows as "Unknown business".
+
 ### Story 02: Health lists each agent's model (2026-11-19, Sonnet 5.5)
 
 **Built:** a manifest `src/health/agentModels.ts` (8 agents: name, one plain line, model) and an "AI models" panel on Health (`AgentModelsPanel`) with a summary line ("5 of 8 agents are on an older model") and an amber "older" tag on anything not in the Claude 5 family. No server call, no table, no Xano change. The older UT-COP-13-01..03 now read the same manifest, so there is one list only.

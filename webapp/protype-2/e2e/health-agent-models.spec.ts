@@ -24,6 +24,6 @@ test('UI-COP-13-02-01 Health shows each agent with its model and flags older one
   await expect(panel).toContainText(/\d of \d agents are on an older model|All \d+ agents are on a current model/);
   await expect(panel.getByTestId('agent-model-emgram_copilot')).toContainText('Sonnet 5.5');
   await expect(panel.getByTestId('agent-model-emgram_copilot_strong')).toContainText('Opus 5.5');
-  await expect(panel.getByTestId('agent-model-journey_map_builder')).toContainText('older');
+  await expect(panel.getByTestId('agent-model-journey_map_assistant')).toContainText('older');
   await page.screenshot({path: 'e2e/screenshots/cop13-02-health-models.png'});
 });
