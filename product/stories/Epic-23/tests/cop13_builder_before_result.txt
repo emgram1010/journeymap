@@ -1,0 +1,18 @@
+[before-4.5] map 292 made: 25 cells
+  description: (17s, 200) 'Description phase complete — 11 cells filled.'
+PASS  description: the phase answered
+  customer: (68s, 200) 'Customer phase complete — 11 cells filled.'
+PASS  customer: the phase answered
+  internal: (60s, 200) 'Internal phase complete — 11 cells filled.'
+PASS  internal: the phase answered
+  filled: description 11/11, customer 11/11, internal 11/11  (148s total)
+PASS  description row filled with text (most cells)
+PASS  customer row filled with actor fields (most cells)
+PASS  internal row filled with actor fields (most cells)
+PASS  only allowed field keys were used
+PASS  actor cells left no text in 'content' (right tool for the right lens)
+PASS  description cells carry no actor fields (right tool for the right lens)
+PASS  the structure was not changed
+map id: 292  conversation: 0
+
+10/10 passed

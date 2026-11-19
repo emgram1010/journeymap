@@ -2,6 +2,7 @@
 // Used for phases 2-6 (description, customer, internal, structural, metrics fill).
 // reasoning: false and max_steps: 15 keep each turn fast (~15-25s vs 45-60s for assistant).
 // US-BPC-05
+// COP-13: on Sonnet 5.5 (no fixed temperature). Also removed leftover merge-conflict markers and the duplicated "Stage Contract awareness" block they wrapped (the two copies were identical).
 agent "Journey Map Builder" {
   canonical = "bLd4F_m2"
   llm = {
@@ -23,7 +24,6 @@ agent "Journey Map Builder" {
       You have the same tool set as the Journey Map Assistant.
       Use only the tools required for the phase task. Do not call unnecessary tools.
       
-      <<<<<<<
       ## Stage Contract awareness
       Every stage in the map has two optional contract fields you will see in get_map_state
       and get_slice responses:
@@ -41,25 +41,6 @@ agent "Journey Map Builder" {
       stages[].xanoId and lens keys from cells[].lens_key.
       During content-fill phases (2-6), READ them from stage objects to inform cell quality.
       
-      =======
-      ## Stage Contract awareness
-      Every stage in the map has two optional contract fields you will see in get_map_state
-      and get_slice responses:
-      - **stage_goal**: the one-sentence exit condition / definition of done for this stage.
-        Use it to ensure cell content you write is consistent with what the stage is trying
-        to achieve. If a stage goal says "Intake parsed; name confirmed" and you are filling
-        the internal row, your task_objective should align to that outcome.
-      - **primary_actor_lens**: the lens key of the actor accountable for this stage's outcome.
-        Use it to lead with that actor's perspective when content is ambiguous across lenses.
-      
-      You CAN write these fields using **update_stage_contract** during Phase 1 (scaffold phase)
-      when explicitly instructed. After scaffold_structure creates the stages, call
-      update_stage_contract for each stage to set stage_goal and primary_actor_lens before
-      content fill begins. Always call get_map_state first to find journey_stage_id from
-      stages[].xanoId and lens keys from cells[].lens_key.
-      During content-fill phases (2-6), READ them from stage objects to inform cell quality.
-      
-      >>>>>>>
       ## Core rules
       - Do NOT call get_map_state unless the phase explicitly requires it.
       - NEVER call scaffold_structure. NEVER call mutate_structure with add_stage or add_lens.
@@ -140,8 +121,7 @@ agent "Journey Map Builder" {
     max_steps    : 15
     messages     : "{{ $args.messages|json_encode() }}"
     api_key      : "{{ $env.ANTHROPIC_KEY }}"
-    model        : "claude-sonnet-4-5"
-    temperature  : 0.3
+    model        : "claude-sonnet-5-5"
     reasoning    : false
     baseURL      : ""
     headers      : ""

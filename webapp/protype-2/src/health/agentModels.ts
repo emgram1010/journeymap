@@ -18,7 +18,7 @@ export const AGENT_MODELS: AgentModelRow[] = [
   {file: 'emgram_copilot_strong.xs', name: 'Emgram Copilot Strong', does: 'The copilot on the dearer model, only after you approve a step-up.', model: 'claude-opus-5-5'},
   {file: 'emgram_copilot_researcher.xs', name: 'Emgram Copilot Researcher', does: 'Researches a topic and drafts maps with sources.', model: 'claude-sonnet-5-5'},
   {file: 'journey_map_chat_agent.xs', name: 'Journey Map Chat Agent', does: 'Answers questions in the map chat.', model: 'claude-sonnet-5-5'},
-  {file: 'journey_map_builder.xs', name: 'Journey Map Builder', does: 'Builds a map in phases.', model: 'claude-sonnet-4-5'},
+  {file: 'journey_map_builder.xs', name: 'Journey Map Builder', does: 'Builds a map in phases.', model: 'claude-sonnet-5-5'},
   {file: 'journey_map_assistant.xs', name: 'Journey Map Assistant', does: 'Interviews you to draft a map.', model: 'claude-sonnet-4-5'},
   {file: 'journey_map_orchestrator.xs', name: 'Journey Map Orchestrator', does: 'Runs multi-step workflows across maps.', model: 'claude-sonnet-5-5'},
   {file: 'journey_compare_analyst.xs', name: 'Journey Compare Analyst', does: 'Compares scenarios and explains the gaps.', model: 'claude-sonnet-5-5'},
