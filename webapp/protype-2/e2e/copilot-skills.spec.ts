@@ -31,11 +31,8 @@ test.describe('UI-COP-9 skill library', () => {
     await page.goto('/approvals');
     await page.getByRole('tab', {name: /levels/i}).click();
     const picker = page.locator('#approval-levels-business');
-    // The picker shows the STORED business name: homes made before the 2026-11-19 rename are still
-    // called "Copilot's own: how I work"; new ones "Copilot's own: playbook".
-    await expect(picker.locator('option', {hasText: "Copilot's own"})).toHaveCount(1);
-    const home = await picker.locator('option', {hasText: "Copilot's own"}).getAttribute('value');
-    await picker.selectOption(home!);
+    // The picker shows the STORED business name (existing homes renamed 2026-11-19).
+    await picker.selectOption({label: "Copilot's own: playbook"});
     await expect(page.locator('#level-skill_write')).toBeVisible();
     await expect(page.locator('#level-skill_write')).toContainText('Write its own playbook entries');
     await page.screenshot({path: 'e2e/screenshots/cop9-skills-level.png'});
