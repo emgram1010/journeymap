@@ -174,6 +174,7 @@ Scenario: Health
 |---|---|---|---|
 | Emgram Copilot (40) | Sonnet 4.5, temperature 0.3, thinking on | **Sonnet 5.5**, no temperature, thinking on | Xano accepted `claude-sonnet-5-5` (no 400). Real AI, same scenarios as on 4.5: COP-10 **5/5** (was 5/5); COP-9 **7/8** (was 8/8): the one miss is the old probe expecting a new rush-job exception, while the 5.5 copilot noticed #6 and #8 already exist and refused to add a third. Behaviour better than before; probe widened to accept it. Results in `tests/cop13_s55_cop10_result.txt` and `cop13_s55_cop9_result.txt` |
 | Emgram Copilot Researcher (41) | Sonnet 4.5, temperature 0.2, thinking on | **Sonnet 5.5**, no temperature, thinking on | Real research turn through the copilot chat (`tests/cop13_researcher_probe.py`, real AI + web search, 86 s) **4/4**: drafted map 288 labelled `copilot_research` with sources and not tested; report names sources and what was general or thin. **No 4.5 baseline run** (it costs a real search and a real map); pass rests on the prompt's own promises. Search wording is not recorded by the tool log, so "no business details in searches" is not checked. File and live agree (canonical added to the file). Result in `tests/cop13_researcher_result.txt` |
+| Journey Compare Analyst (3) | Sonnet 4.5, temperature 0.3, thinking on | **Sonnet 5.5**, no temperature, thinking on | Same real compare question on the same two maps before and after (`tests/cop13_compare_probe.py`): **5/6 before, 6/6 after**. The one before-miss is the optional closing question (the prompt says "optional"). Both used the real map titles, said "no data yet", declared no winner. The first after-run showed 5/6 only because my label check matched the words "each scenario are"; check fixed and rerun. **`get_stage_detail` was not exercised**: both maps have no scores, so the analyst had no reason to call it. Results in `tests/cop13_compare_before_result.txt` / `_after_result.txt` |
 | Journey Map Chat Agent (10) | Sonnet 4.5, temperature 0.4, thinking off | **Sonnet 5.5**, no temperature, thinking off | Real map chat (`tests/cop12_ai_probe.py`) **3/3**: names Skill #1 and its steps (`tests/cop13_s55_chat_result.txt`) |
 
 UT-COP-13-01..03 (`cop13AgentModels.test.ts`) 3/3: each agent file's model matches the expected list, no agent is missing from it, and an agent on a newer model sets no temperature.
@@ -186,7 +187,7 @@ UT-COP-13-01..03 (`cop13AgentModels.test.ts`) 3/3: each agent file's model match
 |---|---|
 | Journey Map Assistant (18, interview mode) | Its repo file had drifted (a `"temp"` prompt; live holds ~70,000 characters). Pushing means re-sending all of it. Safer: **in Xano, AI → Agents → Journey Map Assistant → change the model to Sonnet 5.5, delete the temperature line** (and add `check_publish_ready` and `get_how_i_work`, see COP-10). Then run a short interview in the app |
 | Journey Map Builder (9) | Needs a phased-build run on a spare map to prove fast cell fills still use the right write tool; no spare fixture map was safe to change. Chat (same thinking-off setting) works on 5.5, so the setting shape is fine |
-| Orchestrator (15), Compare Analyst (3) | Need one real run each (a workflow, a scenario comparison). Not run |
+| Orchestrator (15) | Needs one real run (a workflow). Not run |
 
 ### Part B: start cheap, ask before stepping up (2026-11-19, Opus 5.5)
 

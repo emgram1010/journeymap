@@ -1,0 +1,10 @@
+maps in business: [259, 288, 244, 260]
+[after-5.5] (5s, 200) "I can't say which is healthier because there's **no data yet** for either one.\n\n- **Equipment Rental Returns and Damage Checks:** The journey health score is blank and all 7 stages are null. Revenue at risk, cost to serve, automation savings and upsell opportunity are all **$0**.\n- **Dental Appointment Reminders and No-Show Handling:** It has the same blank health score, 7 null stages and **$0** across all four financial metrics.\n- **Delta table:** Every stage shows as tied, but that only reflects missing scores. It doesn't mean the two perform equally.\n\nThe two journeys also have different stage structures. One covers equipment returns and the other covers appointment reminders. Even once they're scored, stage-by-stage comparisons will only be loosely comparable.\n\nDo you want me to pull the stage details for either map to check for qualitative notes, such as friction points or emotions,"
+PASS  answered
+PASS  no error text came back as the reply
+PASS  never just 'Scenario A' / 'Scenario B'
+PASS  does not declare an overall winner
+PASS  says no data yet where there is none
+PASS  ends with a follow-up question
+
+6/6 passed

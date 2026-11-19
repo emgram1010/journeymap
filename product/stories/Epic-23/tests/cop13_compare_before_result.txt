@@ -1,0 +1,10 @@
+maps in business: [259, 288, 244, 260]
+[before-4.5] (6s, 200) "Both **Equipment Rental Returns and Damage Checks** and **Dental Appointment Reminders and No-Show Handling** have **no data yet** — all stages show null scores, and both journeys have no calculated health score.\n\n**There is no healthier scenario to identify.** Neither journey has been scored or populated with qualitative data (emotions, friction points, etc.), so they're tied at baseline.\n\nYou'll need to fill in at least some lens rows in one or both maps before a meaningful comparison can be made."
+PASS  answered
+PASS  no error text came back as the reply
+PASS  never just 'Scenario A' / 'Scenario B'
+PASS  does not declare an overall winner
+PASS  says no data yet where there is none
+FAIL  ends with a follow-up question   [t some lens rows in one or both maps before a meaningful comparison can be made.]
+
+5/6 passed

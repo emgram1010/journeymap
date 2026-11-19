@@ -1,6 +1,7 @@
 // Journey Compare Analyst — read-only AI agent for side-by-side scenario analysis.
 // Receives dual scorecard context injected by the orchestrator. Uses get_stage_detail
 // to drill into underlying cell data when explaining why a stage scores differently.
+// COP-13: on Sonnet 5.5 (no fixed temperature: newer models reject it).
 agent "Journey Compare Analyst" {
   canonical = "xtmN5kO9"
   llm = {
@@ -55,8 +56,7 @@ agent "Journey Compare Analyst" {
     max_steps    : 10
     messages     : "{{ $args.messages|json_encode() }}"
     api_key      : "{{ $env.ANTHROPIC_KEY }}"
-    model        : "claude-sonnet-4-5"
-    temperature  : 0.3
+    model        : "claude-sonnet-5-5"
     reasoning    : true
     baseURL      : ""
     headers      : ""
