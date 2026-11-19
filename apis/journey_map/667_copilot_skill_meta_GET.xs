@@ -67,6 +67,14 @@ query "copilot/skill_meta" verb=GET {
       value = (($trial_max_raw != 0) ? $trial_max_raw : 2)
     }
 
+    var $step_cap_raw {
+      value = ($setting|get:"step_up_daily_cap":0) ?? 0
+    }
+
+    var $step_cap {
+      value = (($step_cap_raw != 0) ? $step_cap_raw : 5)
+    }
+
     var $now_ms {
       value = now|to_int
     }
@@ -230,6 +238,7 @@ query "copilot/skill_meta" verb=GET {
     stale_after_days    : $stale_days
     trial_min_uses      : $trial_min
     trial_max_overrides : $trial_max
+    step_up_daily_cap   : $step_cap
   }
   tags = ["cop-11"]
 }

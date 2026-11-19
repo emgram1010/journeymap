@@ -1,0 +1,2 @@
+2026-11-19 cop13b_cap_probe.py (real AI, after one network-drop retry): 8/8 passed.
+Cap 21 refused (1-20); omitted cap keeps saved value; cap 1 saved and read back; real copilot refused with E-COP-094 text, stepped_up false, no new waiting item; cap restored to 5.

@@ -2435,6 +2435,7 @@ export interface XanoCopilotSkillMeta {
   stale_after_days: number;
   trial_min_uses?: number;
   trial_max_overrides?: number;
+  step_up_daily_cap?: number;
 }
 
 export const getCopilotSkillMeta = (): Promise<XanoCopilotSkillMeta> => xanoRequest('/copilot/skill_meta');
@@ -2442,7 +2443,7 @@ export const getCopilotSkillMeta = (): Promise<XanoCopilotSkillMeta> => xanoRequ
 export const setCopilotSkillLock = (skillId: number, locked: boolean): Promise<{skill_id: number; locked: boolean; version_no: number}> =>
   xanoRequest('/copilot/skill_lock', {method: 'POST', body: {skill_id: skillId, locked}});
 
-export const saveCopilotLibrarySettings = (s: {max_active_items: number; max_load_words: number; stale_after_days: number; trial_min_uses?: number; trial_max_overrides?: number}): Promise<typeof s> =>
+export const saveCopilotLibrarySettings = (s: {max_active_items: number; max_load_words: number; stale_after_days: number; trial_min_uses?: number; trial_max_overrides?: number; step_up_daily_cap?: number}): Promise<typeof s> =>
   xanoRequest('/copilot/library_settings', {method: 'POST', body: s});
 
 // ── COP-9 story 07: the weekly "what I learned" digest ──

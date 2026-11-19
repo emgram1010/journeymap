@@ -47,6 +47,10 @@ table copilot_library_setting {
     int trial_max_overrides? {
       description = "COP-9-05: a trial item the owner undoes or edits this many times is switched off and flagged. Default 2."
     }
+
+    int step_up_daily_cap? {
+      description = "COP-13 part B: the most times in 24 hours the copilot may ask to use the stronger, dearer model. Default 5."
+    }
   }
 
   index = [

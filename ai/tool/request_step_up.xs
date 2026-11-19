@@ -1,7 +1,8 @@
 // COP-13 part B — the copilot asks to re-do the current request on the stronger, dearer model
 // (Opus 5.5; about twice the price per word of the standard Sonnet 5.5). Order matters:
 //   1. who is asking (usr/tool_caller) and a one-line reason (1-200 characters);
-//   2. the daily cap: at most 5 step-up requests per account in 24 hours, counted from event_log
+//   2. the daily cap: at most N step-up requests per account in 24 hours (the owner's setting
+//      step_up_daily_cap, 1-20, default 5), counted from event_log
 //      (copilot.step_up.requested). Over it: refused with E-COP-094 BEFORE anything waits for the owner.
 //      Re-sending an approved item (approval_id) is not a new request: not counted, never capped;
 //   3. the approval gate (journey/tool_gate, action type step_up_model, default "waits for you"):
@@ -58,8 +59,19 @@ tool request_step_up {
       return = {type: "count"}
     } as $today
 
+    // The owner's setting (copilot_library_setting.step_up_daily_cap); no row or 0 = the default 5.
+    db.query copilot_library_setting {
+      where = $db.copilot_library_setting.account_id == $account_id && $account_id != 0
+      return = {type: "single"}
+      output = ["id", "step_up_daily_cap"]
+    } as $setting
+
+    var $cap_raw {
+      value = ($setting|get:"step_up_daily_cap":0) ?? 0
+    }
+
     var $cap {
-      value = 5
+      value = (($cap_raw != 0) ? $cap_raw : 5)
     }
 
     conditional {

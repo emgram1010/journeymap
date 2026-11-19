@@ -5,6 +5,8 @@
 // COP-9-05 adds the trial rule's two numbers: trusted after trial_min_uses uses (1-50, default 5),
 // switched off after trial_max_overrides owner overrides (1-10, default 2). Optional: 0 = not sent,
 // keep what is saved (older callers send only the first three).
+// COP-13 part B adds step_up_daily_cap: the most stronger-model requests per 24 hours (1-20, default 5).
+// Optional the same way: 0 = keep what is saved.
 query "copilot/library_settings" verb=POST {
   api_group = "journey-map"
   auth = "user"
@@ -15,6 +17,7 @@ query "copilot/library_settings" verb=POST {
     int stale_after_days?
     int trial_min_uses?
     int trial_max_overrides?
+    int step_up_daily_cap?
   }
 
   stack {
@@ -66,11 +69,20 @@ query "copilot/library_settings" verb=POST {
       error = "Overrides before a trial skill is switched off must be between 1 and 10."
     }
 
+    precondition ($input.step_up_daily_cap == 0 || ($input.step_up_daily_cap >= 1 && $input.step_up_daily_cap <= 20)) {
+      error_type = "inputerror"
+      error = "Stronger-model uses per day must be between 1 and 20."
+    }
+
     db.query copilot_library_setting {
       where = $db.copilot_library_setting.account_id == $account_id && $account_id != 0
       return = {type: "single"}
-      output = ["id", "trial_min_uses", "trial_max_overrides"]
+      output = ["id", "trial_min_uses", "trial_max_overrides", "step_up_daily_cap"]
     } as $existing
+
+    var $step_cap {
+      value = (($input.step_up_daily_cap != 0) ? $input.step_up_daily_cap : (($existing|get:"step_up_daily_cap":0) ?? 0))
+    }
 
     var $min_uses {
       value = (($input.trial_min_uses != 0) ? $input.trial_min_uses : (($existing|get:"trial_min_uses":0) ?? 0))
@@ -89,13 +101,13 @@ query "copilot/library_settings" verb=POST {
         db.patch copilot_library_setting {
           field_name = "id"
           field_value = $existing_id
-          data = {updated_at: "now", max_active_items: $input.max_active_items, max_load_words: $input.max_load_words, stale_after_days: $input.stale_after_days, trial_min_uses: $min_uses, trial_max_overrides: $max_overrides, updated_by_user_id: $auth.id}
+          data = {updated_at: "now", max_active_items: $input.max_active_items, max_load_words: $input.max_load_words, stale_after_days: $input.stale_after_days, trial_min_uses: $min_uses, trial_max_overrides: $max_overrides, step_up_daily_cap: $step_cap, updated_by_user_id: $auth.id}
         } as $_patched
       }
 
       else {
         db.add copilot_library_setting {
-          data = {updated_at: "now", account_id: $account_id, max_active_items: $input.max_active_items, max_load_words: $input.max_load_words, stale_after_days: $input.stale_after_days, trial_min_uses: $min_uses, trial_max_overrides: $max_overrides, updated_by_user_id: $auth.id}
+          data = {updated_at: "now", account_id: $account_id, max_active_items: $input.max_active_items, max_load_words: $input.max_load_words, stale_after_days: $input.stale_after_days, trial_min_uses: $min_uses, trial_max_overrides: $max_overrides, step_up_daily_cap: $step_cap, updated_by_user_id: $auth.id}
         } as $_added
       }
     }
@@ -112,11 +124,11 @@ query "copilot/library_settings" verb=POST {
         account_id : $account_id
         entity_type: "copilot_library_setting"
         entity_id  : $existing_id
-        metadata   : {max_active_items: $input.max_active_items, max_load_words: $input.max_load_words, stale_after_days: $input.stale_after_days, trial_min_uses: $min_uses, trial_max_overrides: $max_overrides}
+        metadata   : {max_active_items: $input.max_active_items, max_load_words: $input.max_load_words, stale_after_days: $input.stale_after_days, trial_min_uses: $min_uses, trial_max_overrides: $max_overrides, step_up_daily_cap: $step_cap}
       }
     } as $_logged
   }
 
-  response = {max_active_items: $input.max_active_items, max_load_words: $input.max_load_words, stale_after_days: $input.stale_after_days, trial_min_uses: $min_uses, trial_max_overrides: $max_overrides}
+  response = {max_active_items: $input.max_active_items, max_load_words: $input.max_load_words, stale_after_days: $input.stale_after_days, trial_min_uses: $min_uses, trial_max_overrides: $max_overrides, step_up_daily_cap: $step_cap}
   tags = ["cop-11"]
 }

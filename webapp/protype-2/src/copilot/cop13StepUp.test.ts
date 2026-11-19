@@ -77,6 +77,31 @@ test('UT-COP-13-B-06: E-COP-094 is catalogued with a plain message', () => {
   assert.ok((entries['E-COP-094']?.user_message ?? '').length > 10);
 });
 
+test('UT-COP-13-B-08: the daily cap is an owner setting (default 5, 1-20), read by the tool and saved only by an admin', () => {
+  const table = read('static/tables/166_copilot_library_setting.xs');
+  assert.match(table, /int step_up_daily_cap\?/);
+  const t = read(TOOL);
+  assert.match(t, /db\.query copilot_library_setting \{/, 'the tool reads the owner setting');
+  assert.match(t, /step_up_daily_cap/);
+  assert.match(t, /\(\$cap_raw != 0\) \? \$cap_raw : 5/, 'no row or 0 = the default 5');
+  assert.ok(!/value = 5\s*\n\s*\}/.test(t.slice(t.indexOf('var $cap '), t.indexOf('var $cap ') + 40)), 'the cap is no longer a fixed number');
+  const save = read('apis/journey_map/668_copilot_library_settings_POST.xs');
+  assert.match(save, /int step_up_daily_cap\?/);
+  assert.match(save, /\$input\.step_up_daily_cap == 0 \|\| \(\$input\.step_up_daily_cap >= 1 && \$input\.step_up_daily_cap <= 20\)/);
+  assert.match(save, /function\.run "copilot\/assert_person_only"/, 'never an AI');
+  const meta = read('apis/journey_map/667_copilot_skill_meta_GET.xs');
+  assert.match(meta, /step_up_daily_cap\s*:/);
+});
+
+test('UT-COP-13-B-09: the screen checks the cap the same way the server does', async () => {
+  const {limitsProblem} = await import('./skillsModel');
+  const base = {max_active_items: 50, max_load_words: 4000, stale_after_days: 30};
+  assert.equal(limitsProblem({...base, step_up_daily_cap: 5}), null);
+  assert.equal(limitsProblem({...base, step_up_daily_cap: 20}), null);
+  assert.match(limitsProblem({...base, step_up_daily_cap: 0}) ?? '', /1 and 20/);
+  assert.match(limitsProblem({...base, step_up_daily_cap: 21}) ?? '', /1 and 20/);
+});
+
 test('UT-COP-13-B-07: the copilot is told when to ask, in one line, and that a "no" means carry on', () => {
   const p = read(STD);
   assert.match(p, /request_step_up/);

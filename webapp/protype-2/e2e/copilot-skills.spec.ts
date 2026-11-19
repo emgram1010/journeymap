@@ -109,6 +109,12 @@ test('UI-COP-9-05-01 a trial item shows "Trial: N of M uses" and the limits incl
   await section.getByRole('button', {name: 'Limits'}).click();
   await expect(section.getByLabel('Uses before trusted')).toHaveValue(/^\d+$/);
   await expect(section.getByLabel('Overrides before switched off')).toHaveValue(/^\d+$/);
+  // UI-COP-13-B-01: the daily stronger-model cap is in the same form, read from the server.
+  await expect(section.getByLabel('Stronger-model uses per day')).toHaveValue(/^\d+$/);
+  await section.getByLabel('Stronger-model uses per day').fill('21');
+  await section.getByRole('button', {name: 'Save limits'}).click();
+  await expect(section).toContainText('between 1 and 20');
+  await expect(section.getByLabel('Stronger-model uses per day')).toHaveValue('21');
   await page.screenshot({path: 'e2e/screenshots/cop9-05-trial.png'});
 });
 

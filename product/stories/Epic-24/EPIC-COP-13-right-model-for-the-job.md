@@ -201,9 +201,19 @@ UT-COP-13-01..03 (`cop13AgentModels.test.ts`) 3/3: each agent file's model match
 | Real AI (`tests/cop13b_ai_probe.py`, conversation 213) | **7/7**: everyday question stays on Sonnet; the copilot asked and item 47 waited, showing the reason and "about twice the price"; owner approved; the re-sent request re-ran the turn on Opus 5.5 (`stepped_up: true`, correct answer). Xano accepted `claude-opus-5-5` |
 | Unit `cop13StepUp.test.ts` + model list | 7/7 + 3/3; full suite green |
 
+**Cap as an owner setting (2026-11-19, founder approved the column):**
+- New column `copilot_library_setting.step_up_daily_cap` (table 166; additive; 0 / no row = default 5). It lives with the other copilot limits, not in `action_types` (that catalogue is code, not per-account data).
+- Saved by `POST copilot/library_settings` (668, admin, person only), bounds **1–20**, optional (0 = keep saved). Read by `GET copilot/skill_meta` (667) and by `request_step_up` (195).
+- Screen: How I work → Limits → "Stronger-model uses per day", checked on the screen first (typing kept), server checks again.
+
+| Check | Result |
+|---|---|
+| Real AI cap (`tests/cop13b_cap_probe.py`) | **8/8** (one rerun after a network drop): 21 refused; omitted cap kept; cap 1 saved and read back; the real copilot asked and was refused with E-COP-094, `stepped_up: false`, nothing waiting; restored to 5 |
+| Unit UT-COP-13-B-08/09 | pass; full suite **984/984**; tsc clean |
+| UI-COP-9-05-01 (extended, UI-COP-13-B-01) | pass: field shows the server value; 21 refused on screen, typing kept. Skills spec 7/7 |
+
 **Differs from the epic / not proven:**
-- **Cap is fixed at 5 in code**, not an owner setting: making it editable needs a new column (ask before any table change). Counted per account, not per business.
-- **Cap not hit live** (needs 5 requests in a day); covered by the unit test only.
+- Cap counted **per account, not per business**.
 - **Scheduled runs don't step up:** only the chat re-runs on the strong copy; `run_for_business` still uses the standard copy only.
 - **E-COP-093 / 095 not added:** declined and expired step-ups use the gate's own existing refusals.
 - **Risk:** the strong copy re-does the whole request. If the standard copy already changed something before asking, the strong run could repeat it. The prompt says to ask instead of trying everyday work, but nothing on the server prevents a repeat.

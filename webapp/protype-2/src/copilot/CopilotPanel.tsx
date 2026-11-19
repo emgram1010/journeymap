@@ -267,7 +267,7 @@ function SkillsSection({businessId, businessName, isAdmin}: {businessId: number;
   const [kindFilter, setKindFilter] = useState('all');
   const [staleOnly, setStaleOnly] = useState(false);
   const [showLimits, setShowLimits] = useState(false);
-  const [limits, setLimits] = useState({items: '', words: '', days: '', trialUses: '', trialOverrides: ''});
+  const [limits, setLimits] = useState({items: '', words: '', days: '', trialUses: '', trialOverrides: '', stepUpCap: ''});
   const seq = useRef(0);
 
   const load = useCallback(async () => {
@@ -330,12 +330,12 @@ function SkillsSection({businessId, businessName, isAdmin}: {businessId: number;
   };
 
   const openLimits = () => {
-    if (!showLimits && meta) setLimits({items: String(meta.max_active_items), words: String(meta.max_load_words), days: String(meta.stale_after_days), trialUses: String(meta.trial_min_uses ?? 5), trialOverrides: String(meta.trial_max_overrides ?? 2)});
+    if (!showLimits && meta) setLimits({items: String(meta.max_active_items), words: String(meta.max_load_words), days: String(meta.stale_after_days), trialUses: String(meta.trial_min_uses ?? 5), trialOverrides: String(meta.trial_max_overrides ?? 2), stepUpCap: String(meta.step_up_daily_cap ?? 5)});
     setShowLimits((v) => !v);
   };
 
   const saveLimits = async () => {
-    const next = {max_active_items: Number(limits.items), max_load_words: Number(limits.words), stale_after_days: Number(limits.days), trial_min_uses: Number(limits.trialUses), trial_max_overrides: Number(limits.trialOverrides)};
+    const next = {max_active_items: Number(limits.items), max_load_words: Number(limits.words), stale_after_days: Number(limits.days), trial_min_uses: Number(limits.trialUses), trial_max_overrides: Number(limits.trialOverrides), step_up_daily_cap: Number(limits.stepUpCap)};
     const problem = limitsProblem(next);
     // Refused on the screen first; the typing stays. The server checks again.
     if (problem) return setErr(problem);
@@ -519,6 +519,10 @@ function SkillsSection({businessId, businessName, isAdmin}: {businessId: number;
               <label className="flex flex-col">
                 Overrides before switched off
                 <input className="w-20 rounded border border-zinc-300 px-1 py-0.5" inputMode="numeric" value={limits.trialOverrides} onChange={(e) => setLimits((l) => ({...l, trialOverrides: e.target.value}))} />
+              </label>
+              <label className="flex flex-col">
+                Stronger-model uses per day
+                <input className="w-20 rounded border border-zinc-300 px-1 py-0.5" inputMode="numeric" value={limits.stepUpCap} onChange={(e) => setLimits((l) => ({...l, stepUpCap: e.target.value}))} />
               </label>
               <button type="button" className={btn} disabled={busy} onClick={() => void saveLimits()}>
                 Save limits
