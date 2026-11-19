@@ -1,0 +1,8 @@
+(86s, 200) 'I drafted the map: "Dental Appointment Reminders and No-Show Handling" (map 288). It\'s a draft, and nobody has tested it. No skill covers research yet, so I did this my own way.\n\n**Stages**\n1. Booking and policy set-up\n2. Early reminder, 2–3 days before\n3. Final reminder, the day before and the morning of\n4. Unconfirmed or cancelled: fill the slot\n5. No-show at the chair\n6. Follow-up, policy and review\n7. Closed-day rule for Monday appointments\n\n**Rows:** Description, Patient, Front desk and Reminder software.\n\n**Common practice from the sources**\n- Send several reminders, and use text rather than email.\n- Send one reminder 48–72 hours ahead, one 24 hours ahead, and a nudge on the morning of'
+PASS  the research turn answered
+PASS  a researched map was drafted
+PASS  each is labelled with sources and not marked tested
+PASS  the report names sources and what was thin or general
+new research map ids: [288]  conversation: 215
+
+4/4 passed

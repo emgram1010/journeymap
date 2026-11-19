@@ -3,7 +3,9 @@
 // reading maps, drafting maps in this business, and labelling them. It has no approval, plan,
 // publish, note or goal tools. COP-7: it runs on a research ticket, so the gate lets it change only
 // maps the copilot itself made (E-COP-051) - a web page cannot make it change a person's map.
+// COP-13: on Sonnet 5.5 (no fixed temperature: newer models reject it).
 agent "Emgram Copilot Researcher" {
+  canonical = "-w86z3d_"
   llm = {
     type         : "anthropic"
     system_prompt: """
@@ -44,8 +46,7 @@ agent "Emgram Copilot Researcher" {
     max_steps    : 10
     messages     : "{{ $args.messages|json_encode() }}"
     api_key      : "{{ $env.ANTHROPIC_KEY }}"
-    model        : "claude-sonnet-4-5"
-    temperature  : 0.2
+    model        : "claude-sonnet-5-5"
     reasoning    : true
     baseURL      : ""
     headers      : ""
