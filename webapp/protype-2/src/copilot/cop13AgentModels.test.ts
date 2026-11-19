@@ -20,6 +20,8 @@ const EXPECTED: Record<string, string> = {
   'journey_map_orchestrator.xs': 'claude-sonnet-4-5',
   'journey_compare_analyst.xs': 'claude-sonnet-4-5',
   'emgram_copilot_researcher.xs': 'claude-sonnet-4-5',
+  // COP-13 part B: the strong twin, generated from emgram_copilot.xs; runs only after a step-up is allowed.
+  'emgram_copilot_strong.xs': 'claude-opus-5-5',
 };
 
 const NO_FIXED_TEMPERATURE = /^claude-(sonnet-5|opus-5|haiku-5|fable|mythos)/;

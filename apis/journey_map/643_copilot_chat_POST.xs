@@ -16,6 +16,11 @@
 //
 // History: every earlier message of this conversation is passed to the agent. (No positional
 // slicing — indexing into script-built arrays is unreliable in this engine, CLAUDE.md.)
+//
+// COP-13 part B: the turn runs on the standard copy ("Emgram Copilot"). If, during THIS turn of THIS
+// conversation, request_step_up was allowed (event copilot.step_up.granted, logged against the
+// conversation), the same messages are re-run on "Emgram Copilot Strong" and its answer replaces the
+// first. The strong copy has no request_step_up tool, so it cannot ask again. stepped_up says so.
 query "copilot/chat" verb=POST {
   api_group = "journey-map"
   auth = "user"
@@ -308,6 +313,14 @@ query "copilot/chat" verb=POST {
       value = null
     }
 
+    var $turn_started_ms {
+      value = now|to_int
+    }
+
+    var $stepped_up {
+      value = false
+    }
+
     try_catch {
       try {
         group {
@@ -340,6 +353,71 @@ query "copilot/chat" verb=POST {
         var.update $reply {
           value = $agent_run|get:"result":""
         }
+      }
+    }
+
+    // ── COP-13 part B: a step-up allowed in this turn re-runs it on the strong copy ──
+    db.query event_log {
+      where = $db.event_log.step == "copilot.step_up.granted" && $db.event_log.entity_type == "agent_conversation" && $db.event_log.entity_id == $conv_id && $db.event_log.created_at >= $turn_started_ms
+      return = {type: "count"}
+    } as $granted_now
+
+    conditional {
+      if ($granted_now > 0) {
+        try_catch {
+          try {
+            group {
+              stack {
+                ai.agent.run "Emgram Copilot Strong" {
+                  args = {}|set:"messages":$agent_msgs
+                  allow_tool_execution = true
+                } as $strong_run
+
+                var $strong_reply {
+                  value = $strong_run|get:"result":""
+                }
+
+                conditional {
+                  if ($strong_reply != "") {
+                    var.update $reply {
+                      value = $strong_reply
+                    }
+
+                    var.update $stepped_up {
+                      value = true
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          catch {
+            var $strong_caught {
+              value = $error
+            }
+
+            var.update $agent_err {
+              value = ($strong_caught|get:"message":"The stronger model could not answer.")
+            }
+          }
+        }
+
+        function.run "ops/log_event" {
+          input = {
+            feature    : "COP-13"
+            step       : "copilot.step_up.ran"
+            outcome    : (($stepped_up == true) ? "success" : "failure")
+            severity   : (($stepped_up == true) ? "info" : "warn")
+            error_code : ""
+            message    : (($stepped_up == true) ? "The request was re-done on the stronger model." : "The stronger model could not answer; the standard answer was kept.")
+            user_id    : $auth.id
+            account_id : $account_id
+            entity_type: "agent_conversation"
+            entity_id  : $conv_id
+            metadata   : {reason: $agent_err}
+          }
+        } as $_step_logged
       }
     }
 
@@ -399,6 +477,7 @@ query "copilot/chat" verb=POST {
     journey_architecture_id: $input.journey_architecture_id
     reply                  : $reply
     waiting_count          : $waiting_after
+    stepped_up             : $stepped_up
   }
   tags = ["cop-3"]
 }

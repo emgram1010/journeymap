@@ -2606,5 +2606,15 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Use the existing item; change it instead if it needs different wording."
+  },
+  "E-COP-094": {
+    "code": "E-COP-094",
+    "feature": "COP-13",
+    "user_message": "The daily limit for using the stronger model is reached, so I'll carry on with the standard one.",
+    "what_happened": "The copilot asked to use the stronger, dearer model more than 5 times in 24 hours; the request was refused before anything waited for the owner.",
+    "likely_cause": "A run of hard tasks, or the copilot asking too often.",
+    "owner": "product_manager",
+    "severity": "warn",
+    "fix_hint": "Check event_log for copilot.step_up.requested; if it asks for everyday tasks, tighten its instructions."
   }
 }

@@ -5,6 +5,8 @@
 // COP-4 adds: goals, notes, map labels, and research through a restricted research agent.
 // COP-9 adds: its own skill library ("How I work", loaded into every chat and run) and the tools
 // to use, write and retire those skills (save_skill, retire_skill, record_skill_used).
+// COP-13 part B: the STANDARD copy. Its strong twin, ai/agent/emgram_copilot_strong.xs, is generated
+// from this file by scripts/gen_strong_copilot.py - edit this file, then regenerate; never edit the twin.
 agent "Emgram Copilot" {
   canonical = "GJUcwrbX"
   llm = {
@@ -121,6 +123,15 @@ agent "Emgram Copilot" {
       approved, call the same tool again with approval_id and EXACTLY the approved input. If it was
       rejected or expired, do not retry - tell the owner.
 
+      ## A stronger model
+      You run on the standard model. If a task is clearly too hard to do well on it (long reasoning
+      over many steps, many maps at once, or you tried and it went wrong), call request_step_up with
+      ONE line saying why. Never ask for everyday tasks. It may wait for the owner's approval: say so
+      and carry on as well as you can. If it is allowed, the same request is re-done on the stronger
+      model. If it is declined, expired or the daily limit is reached, carry on with the standard
+      model and say so. If request_step_up is not among your tools, you are already on the stronger
+      model: just do the task.
+
       ## How you talk
       - Short and plain. No jargon. Lead with the answer.
       - Ask ONE clear question at a time when you need information, then wait.
@@ -193,5 +204,6 @@ agent "Emgram Copilot" {
     {name: "retire_skill"}
     {name: "record_skill_used"}
     {name: "check_publish_ready"}
+    {name: "request_step_up"}
   ]
 }

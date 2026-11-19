@@ -1,0 +1,20 @@
+
+> In one line: what business are we working on?
+  (5s, 200, stepped_up=False) 'We\'re working on "COP-1 endpoint test ws (safe to delete)", and its goal is to handle twice as many bookings by June 2027.\n\nNo skill for this yet.'
+PASS  A an everyday question runs on the standard copy (no step-up)
+
+> This is a test of the stronger model. Please call request_step_up now with the reason 'owner-requested test of the stronger model', then tell me what happened.
+  (10s, 200, stepped_up=False) 'The step-up request is waiting for your approval. I haven\'t switched to the stronger model yet.\n\n- **What I did:** I asked to re-run this request on the stronger model. The stated reason was "owner-requested test of the stronger model."\n- **What happened:** The system put the request in Approvals as item 47. Nothing has been done yet.\n- **What I need from you:** Please approve item 47 in Approvals. After that, I\'ll check it with get_approval and call the tool again with exactly the approved input. If it\'s allowed, the request is re-done on the stronger model.\n\nFor now I\'m still on the standard'
+PASS  B a step-up item is waiting for the owner
+PASS  B the item shows the reason and the price difference
+PASS  B the copilot says it is waiting, and nothing stepped up yet
+PASS  C the owner approves it
+
+> I approved the stronger model, item 47. Please use get_approval and then call request_step_up again with that approval_id and exactly the same input. Then answer in one line: what is 17 times 23?
+  (17s, 200, stepped_up=True) '17 × 23 = 391.\n\nI didn\'t call request_step_up again because it isn\'t in my tools this time, which means I\'m already on the stronger model. Item 47 shows as "executed," so your approval took effect and the switch has happened.'
+PASS  C the same turn was re-done on the strong copy (stepped_up true)
+PASS  C the answer is still right
+
+conversation_id: 213  approval item: 47
+
+7/7 passed
