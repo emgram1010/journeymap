@@ -187,7 +187,7 @@ UT-COP-13-01..03 (`cop13AgentModels.test.ts`) 3/3: each agent file's model match
 |---|---|
 | Journey Map Assistant (18, interview mode) | Its repo file had drifted (a `"temp"` prompt; live holds ~70,000 characters). Pushing means re-sending all of it. Safer: **in Xano, AI → Agents → Journey Map Assistant → change the model to Sonnet 5.5, delete the temperature line** (and add `check_publish_ready` and `get_how_i_work`, see COP-10). Then run a short interview in the app |
 | Journey Map Builder (9) | Needs a phased-build run on a spare map to prove fast cell fills still use the right write tool; no spare fixture map was safe to change. Chat (same thinking-off setting) works on 5.5, so the setting shape is fine |
-| Orchestrator (15) | Needs one real run (a workflow). Not run |
+| Orchestrator (15) | **Found 2026-11-19: its prompt is corrupted both live and in the repo** (dashes, arrows and box lines show as stray "â€”" text, from a past encoding mistake). A model-only push would need all ~13,000 characters re-sent exactly; a clean copy (repaired text saved in the session scratchpad, not in the repo) would change the prompt as well as the model, so it needs a before/after workflow run on a runnable map. Decision for the founder: repair the text together with the model move. Not done |
 
 ### Part B: start cheap, ask before stepping up (2026-11-19, Opus 5.5)
 
