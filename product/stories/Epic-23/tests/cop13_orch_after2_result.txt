@@ -1,0 +1,18 @@
+[after-5.5-fixed-route] (7s, 200) status=completed exec=4
+I can't start this run yet because the invocation didn't include a journey map ID. The Tool Logging section that normally supplies it is also missing. Every step needs that ID, including the resume check, validation and stage reads. I don't want to guess it and risk running against the wrong map.
+
+What I have:
+- **Subject:** Test customer Dana
+- **Input context:** `{"note":"COP-13 model check"}`
+- **Parent execution ID:** 0
+- **Ticket:** [ticket redacted]
+
+Please send the journey map ID, and the conversation ID if you have it. Then I'll run the usual start sequence: resume check, pre-flight validation, then create the execution record for "Test customer Dana" in step mode.
+PASS  the run came back with a status
+PASS  the run completed (not failed)
+PASS  it produced readable text
+PASS  no corrupted-character junk in the reply
+PASS  it did not claim to edit the map
+PASS  it either named blockers/warnings, asked for what it needs, or ran a stage
+
+6/6 passed

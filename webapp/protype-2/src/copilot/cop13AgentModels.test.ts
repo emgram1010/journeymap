@@ -40,3 +40,9 @@ test('UT-COP-13-03: an agent on a newer model sets no fixed temperature (it woul
     }
   }
 });
+
+test('UT-COP-13-04: POST journey_map/{id}/invoke returns the agent\'s reply text (read from "result", like the chat endpoints)', () => {
+  const src = readFileSync(repo('apis/journey_map/209_journey_map_journey_map_id_invoke_POST.xs'), 'utf8');
+  assert.match(src, /\$agent_result\s*\|get:"result"/, 'the reply is read from result');
+  assert.ok(!/\|get:"messages"\s*\|last/.test(src), 'the old, empty path (messages > last > content) is gone');
+});

@@ -156,11 +156,10 @@ query "journey_map/{journey_map_id}/invoke" verb=POST {
   
     conditional {
       if ($agent_result != null) {
+        // COP-13: the agent's reply is under "result" (as in the chat and compare endpoints). The old
+        // path (messages > last > content) does not exist, so final_output was always null.
         var.update $final_output {
-          value = $agent_result
-            |get:"messages"
-            |last
-            |get:"content"
+          value = $agent_result|get:"result"
         }
       }
     }
