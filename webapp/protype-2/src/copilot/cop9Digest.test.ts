@@ -84,3 +84,18 @@ test('UT-COP-9-07-07: the same refusal repeated is one flagged line with a count
   assert.equal(d.flagged.length, 2);
   assert.match(d.flagged.find((l) => l.text.includes('E-COP-081'))!.text, /3 times/);
 });
+
+// COP-9 story 08 - exceptions per scenario. Built across stories 01/02 (scope on every item, the
+// per-business switch, the "when" rule); these pin the three pieces so a later edit cannot drop one.
+test('UT-COP-9-08-01: every exception carries a scope, an exception needs a when, and the loader honours both', () => {
+  const write = read('functions/copilot/skill_write.xs');
+  assert.match(write, /\$scope_type != "all" && \$scope_type != "business" && \$scope_type != "map" && \$scope_type != "work_kind"/);
+  assert.match(write, /\$kind == "exception" && \(\$condition == "" \|\| \$parent_id == 0\)/);
+  assert.match(write, /E-COP-084/);
+  const lib = read('functions/copilot/skill_library.xs');
+  assert.match(lib, /copilot_skill_off/, 'switched-off items are left out for that business');
+  assert.match(lib, /scope_type != "business" \|\| \$db\.copilot_skill\.scope_ref_id == \$input\.journey_architecture_id/, 'a business-scoped item loads only in its business');
+  const sw = read('apis/journey_map/665_copilot_skill_switch_POST.xs');
+  assert.match(sw, /usr\/assert_team_admin/);
+  assert.match(sw, /copilot\/assert_person_only/);
+});

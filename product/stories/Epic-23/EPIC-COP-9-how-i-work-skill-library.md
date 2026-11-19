@@ -1,6 +1,6 @@
 # EPIC-COP-9 — "How I work" becomes the copilot's skill library: it reads it, writes it, and every change can be undone
 
-**Status:** 🟡 Stories 01–04 and 06 built and live (2026-11-18); stories 05 and 07 built and live (2026-11-19). Story 08 not started (08's per-business switch is built, as story 01 needs it). Four new tables approved by the founder 2026-11-17. Results in §7.
+**Status:** 🟡 Stories 01–04 and 06 built and live (2026-11-18); stories 05, 07 and 08 built and live (2026-11-19). **All 8 stories done.** Four new tables approved by the founder 2026-11-17. Results in §7.
 **Model:** **Opus 5.5** for stories 03 (hard limits) and 04 (versions and undo), since these are guards. **Sonnet 5.5** for the rest. Opus review pass at the end.
 **Depends on:** COP-2 (approval levels), COP-3 (copilot home), COP-4 (learning from results), the existing journey-map AI tools.
 **Risk:** high. This is an AI changing its own instructions. Every story below exists to keep that safe and cheap to undo.
@@ -407,6 +407,20 @@ Test data from the re-run: skill #7 (retired), exception #8 (duplicate of #6), c
 - **In the app, not sent:** "once a week I get" is an in-app panel, not an email. Sending email is outward-facing and was not asked for.
 - **Two flags have no data source yet:** "two items conflict" and "a gap keeps repeating". Duplicate refusals (E-COP-096) are the nearest signal and are flagged.
 - **No Undo on a brand-new item:** there is nothing earlier to put back; retire it instead.
+
+### Story 08: exceptions per scenario (2026-11-19, Opus 5.5)
+
+No new code: the pieces were built with stories 01/02 (scope on every item, the per-business switch, the "when" rule). This pass proved them live and pinned them with a unit test (UT-COP-9-08-01).
+
+| Scenario | Live proof (account 13) |
+|---|---|
+| Scope on every exception | Throwaway exception #16 scoped to business 49: loads in 49 ("this business only"), not in 54. Retired afterwards |
+| Switch off for one business | Exception #2 switched off for 49 (HTTP, admin): gone from 49's load, still in 54's. Switched back on |
+| No "when" is refused | Copilot create with no condition: **E-COP-084** |
+
+Probe: `tests/cop9_08_probe.py` (2/2) plus loader runs from the session.
+
+**Note:** the copilot sets an item's scope; the owner can switch it off per business but has no screen to change the scope itself. Not in this story's scenarios.
 
 ### Not verified
 - **A scheduled run following its skills.** Only chat was tested with the real model.
