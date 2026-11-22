@@ -171,6 +171,24 @@ export const TABLE_MANIFEST: Record<string, TableExpectation> = {
     enumFields: ['link_type', 'reason_code', 'source'],
     appendOnly: true,
   },
+
+  // ── Epic-27 (2026-11-21): tags, items on jobs, AI members, orders ───
+  map_tag: {naturalKeys: [['account_id', 'name_key']]},
+  // A tag link is added or removed, never edited.
+  journey_map_tag: {naturalKeys: [['journey_map_id', 'map_tag_id']], appendOnly: true},
+  // Replaced as a set when the order changes, never edited.
+  work_item_unmatched_line: {appendOnly: true},
+  ai_member_profile: {naturalKeys: [['user_id']]},
+  // A token is never edited: only revoked_at and last_used_at are stamped
+  // (same shape as work_item_exception's one bool set once).
+  agent_access_token: {appendOnly: true},
+  work_item_origin: {naturalKeys: [['account_id', 'source_system', 'external_id']], enumFields: ['order_flag']},
+  order_route: {naturalKeys: [['account_id', 'source_system', 'match_fulfilment']]},
+  // One row per order received; kept 30 days, never edited.
+  order_inbox: {enumFields: ['outcome'], appendOnly: true},
+  order_route_live_day: {naturalKeys: [['route_id']]},
+  // One row per job added to a live day (D-11); never edited, never deleted.
+  live_day_addition: {appendOnly: true},
 };
 
 const FIELD_TYPES = [

@@ -1,4 +1,4 @@
-// DEMAND-1 story 03 — turn ONE order from an outside system into a job, exactly once. Called by orders/ingest (after the key is checked) and by the retry of held or unrouted orders. Only structured fields are read: id, order number, status, two dates, fulfilment type and lines of {external_id, name, quantity}. A customer note or any other free text is never read, stored or shown to an AI. Rules, in order: orders paused for the account are held; no matching routing rule = no_route (nothing is added, it is listed for the owner); a new order inserts its claim row FIRST (the unique index on account + source + order id decides a race; the loser is a duplicate), then the job is made with its items through the same rule a person's job uses (planner_ops/create_work_item) and lands in the plan's backlog flagged unplanned. An order seen before: unchanged = duplicate; cancelled, or changed after work started = the job is flagged and nothing else is touched; changed before work started = its items are replaced. It never creates a day, never publishes, and never moves planned work. Every outcome writes an order_inbox row and an event.
+// DEMAND-1 story 03 — turn ONE order from an outside system into a job, exactly once. Called by orders/ingest (after the key is checked) and by the retry of held or unrouted orders. Only structured fields are read: id, order number, status, two dates, fulfilment type and lines of {external_id, name, quantity}. A customer note or any other free text is never read, stored or shown to an AI. Rules, in order: orders paused for the account are held; no matching routing rule = no_route (nothing is added, it is listed for the owner); a new order inserts its claim row FIRST (the unique index on account + source + order id decides a race; the loser is a duplicate), then the job is made with its items through the same rule a person's job uses (planner_ops/create_work_item) and lands in the plan's backlog flagged unplanned. An order seen before: unchanged = duplicate; cancelled, or changed after work started = the job is flagged and nothing else is touched; changed before work started = its items are replaced. When the routing rule has a same-day member and that member's day for the order's start date is already live, the new job is then added to the END of that live day (orders/place_live, decision D-11); otherwise it stays in the backlog. A job that is on a live day is treated like started work: a later change only flags it. It never creates a day, never publishes a draft day, and never moves planned work. Every outcome writes an order_inbox row and an event.
 function "orders/process" {
   input {
     int account_id
@@ -489,6 +489,11 @@ function "orders/process" {
           return = {type: "count"}
         } as $started
 
+        db.query live_day_addition {
+          where = $db.live_day_addition.work_item_id == $origin_job
+          return = {type: "count"}
+        } as $on_live
+
         var $old_print {
           value = ($origin|get:"lines_fingerprint":"") ?? ""
         }
@@ -524,7 +529,7 @@ function "orders/process" {
             }
           }
 
-          elseif ($started > 0) {
+          elseif ($started > 0 || $on_live > 0) {
             db.patch work_item_origin {
               field_name = "id"
               field_value = $origin_id
@@ -536,7 +541,7 @@ function "orders/process" {
             }
 
             var.update $detail {
-              value = "The order changed after work started. The job is flagged for a person; its items were not changed."
+              value = "The order changed after work started or after the job went onto a live day. The job is flagged for a person; its items were not changed."
             }
           }
 
@@ -607,6 +612,31 @@ function "orders/process" {
       }
     }
 
+    // D-11: a new order's job goes onto its live day when the rule has a same-day member.
+    var $live_reason {
+      value = ""
+    }
+
+    conditional {
+      if ($outcome == "created" && $job_id != 0) {
+        function.run "orders/place_live" {
+          input = {account_id: $acct, work_item_id: $job_id, route_id: $route_id, actor_user_id: $route_user}
+        } as $live
+
+        var.update $live_reason {
+          value = $live.reason
+        }
+
+        conditional {
+          if ($live.reason != "off") {
+            var.update $detail {
+              value = $live.detail
+            }
+          }
+        }
+      }
+    }
+
     var $severity {
       value = "info"
     }
@@ -646,9 +676,9 @@ function "orders/process" {
     }
 
     function.run "ops/log_event" {
-      input = {feature: "DEMAND-1", step: $step, outcome: $ev_outcome, severity: $severity, error_code: "", message: $detail, user_id: 0, account_id: $acct, entity_type: "work_item", entity_id: $job_id, correlation_id: "", duration_ms: 0, metadata: {source_system: $source, order_inbox_id: $inbox.id, line_count: $line_count, unmatched_count: $unmatched_count}}
+      input = {feature: "DEMAND-1", step: $step, outcome: $ev_outcome, severity: $severity, error_code: "", message: $detail, user_id: 0, account_id: $acct, entity_type: "work_item", entity_id: $job_id, correlation_id: "", duration_ms: 0, metadata: {source_system: $source, order_inbox_id: $inbox.id, line_count: $line_count, unmatched_count: $unmatched_count, live_day: $live_reason}}
     } as $_ev
   }
 
-  response = {outcome: $outcome, detail: $detail, work_item_id: $job_id, order_inbox_id: $inbox.id, line_count: $line_count, unmatched_count: $unmatched_count}
+  response = {outcome: $outcome, detail: $detail, work_item_id: $job_id, order_inbox_id: $inbox.id, line_count: $line_count, unmatched_count: $unmatched_count, live_day: $live_reason}
 }

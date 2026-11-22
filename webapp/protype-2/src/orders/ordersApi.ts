@@ -71,3 +71,11 @@ export const clearOrderFlag = (workItemId: number) => change<{status: string}>({
 
 export const retryOrder = (orderInboxId: number) =>
   change<{outcome: string; detail: string}>({action: 'retry', order_inbox_id: orderInboxId});
+
+/** Pick the member whose live day takes same-day orders of one rule. 0 switches it off. */
+export const saveLiveMember = (routeId: number, agentId: number) =>
+  change<{status: string}>({action: 'live_member_save', route_id: routeId, agent_id: agentId});
+
+/** Try to put one order's job onto its live day. `detail` says what happened, in a sentence. */
+export const placeOrderOnLiveDay = (workItemId: number) =>
+  change<{status: string; placed: boolean; reason: string; detail: string}>({action: 'place_live', work_item_id: workItemId});

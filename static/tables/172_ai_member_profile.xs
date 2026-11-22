@@ -42,5 +42,6 @@ table ai_member_profile {
       type : "btree"
       field: [{name: "manager_user_id", op: "asc"}]
     }
+    {type: "btree", field: [{name: "updated_by_user_id", op: "asc"}]}
   ]
 }

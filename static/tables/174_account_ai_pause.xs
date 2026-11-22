@@ -25,5 +25,6 @@ table account_ai_pause {
       type : "btree|unique"
       field: [{name: "account_id", op: "asc"}]
     }
+    {type: "btree", field: [{name: "updated_by_user_id", op: "asc"}]}
   ]
 }

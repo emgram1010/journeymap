@@ -15,6 +15,8 @@ import {
   createOrderKey,
   clearOrderFlag,
   retryOrder,
+  saveLiveMember,
+  placeOrderOnLiveDay,
   orderInboundUrl,
 } from './ordersApi';
 import {
@@ -22,6 +24,9 @@ import {
   mapsForPlan,
   outcomeLabel,
   flagLabel,
+  liveMemberOptions,
+  type PlanAgent,
+  type WaitingOrder,
   type OrderSetup,
   type OrderRoute,
   type OrderNeedingPerson,
@@ -71,6 +76,8 @@ export default function IncomingOrdersTab() {
   const flagged = setup?.flagged ?? [];
   const plans = setup?.plans ?? [];
   const planMaps = setup?.plan_maps ?? [];
+  const agents = setup?.agents ?? [];
+  const waiting = setup?.waiting ?? [];
   const counts = {...EMPTY_COUNTS, ...(setup?.last_24_hours ?? {})};
 
   const mapTitle = useCallback((id: number) => maps.find((m) => m.id === id)?.title || `Map #${id}`, [maps]);
@@ -112,6 +119,9 @@ export default function IncomingOrdersTab() {
                 <th className="px-3 py-2 font-medium">Plan</th>
                 <th className="px-3 py-2 font-medium">Map</th>
                 <th className="px-3 py-2 font-medium">On / off</th>
+                <th className="px-3 py-2 font-medium" title="An order dated for a day that is already live is added to the end of this person's day.">
+                  Same-day orders go to
+                </th>
                 <th className="px-3 py-2 font-medium">Key</th>
                 <th className="px-3 py-2" />
               </tr>
@@ -119,7 +129,7 @@ export default function IncomingOrdersTab() {
             <tbody className="divide-y divide-zinc-200">
               {routes.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="p-4 text-sm text-zinc-500">
+                  <td colSpan={8} className="p-4 text-sm text-zinc-500">
                     No routing rules yet. Add one below to start receiving orders.
                   </td>
                 </tr>
@@ -130,6 +140,7 @@ export default function IncomingOrdersTab() {
                   route={route}
                   planName={planName(route.workspace_id)}
                   mapTitle={mapTitle(route.journey_map_id)}
+                  agents={agents}
                   onChanged={load}
                   onError={setActionError}
                   onKey={(key) => {
@@ -141,6 +152,11 @@ export default function IncomingOrdersTab() {
             </tbody>
           </table>
         </div>
+
+        <p className="mt-2 text-xs text-zinc-500">
+          Same-day orders: when a rule names a person, an order dated for a day that is already live is added to the end of that
+          person&apos;s day. Work already on the day is never moved. Off = the order waits in the backlog.
+        </p>
 
         <AddRuleForm plans={plans} planMaps={planMaps} mapTitle={mapTitle} onAdded={load} />
 
@@ -193,6 +209,18 @@ export default function IncomingOrdersTab() {
         </ul>
       </section>
 
+      {/* 3b — Orders not on a day yet */}
+      <section>
+        <h2 className="text-sm font-semibold text-zinc-900">Orders not on a day yet ({waiting.length})</h2>
+        <p className="mt-0.5 text-xs text-zinc-500">Order jobs dated today or later that are still in the backlog.</p>
+        <ul className="mt-2 divide-y divide-zinc-200 rounded-md border border-zinc-200 bg-white">
+          {waiting.length === 0 && <li className="p-4 text-sm text-zinc-500">Every recent order is on a day.</li>}
+          {waiting.map((order) => (
+            <WaitingRow key={order.work_item_id} order={order} onChanged={load} />
+          ))}
+        </ul>
+      </section>
+
       {/* 4 — Jobs to check */}
       <section>
         <h2 className="text-sm font-semibold text-zinc-900">Jobs to check ({flagged.length})</h2>
@@ -215,6 +243,7 @@ function RouteRow({
   route,
   planName,
   mapTitle,
+  agents,
   onChanged,
   onError,
   onKey,
@@ -222,6 +251,7 @@ function RouteRow({
   route: OrderRoute;
   planName: string;
   mapTitle: string;
+  agents: PlanAgent[];
   onChanged: () => void;
   onError: (message: string | null) => void;
   onKey: (key: string) => void;
@@ -255,6 +285,17 @@ function RouteRow({
       onChanged();
     }, 'Unable to change this rule.');
 
+  const liveOptions = liveMemberOptions(route.workspace_id, agents);
+  const liveValue = route.live_agent_id ?? 0;
+  // A chosen member who has since lost their login or left the plan still shows, so it can be seen and changed.
+  const liveMissing = liveValue !== 0 && !liveOptions.some((a) => a.agent_id === liveValue);
+
+  const setLiveMember = (agentId: number) =>
+    run(async () => {
+      await saveLiveMember(route.route_id, agentId);
+      onChanged();
+    }, 'Unable to change who takes same-day orders.');
+
   return (
     <>
       <tr>
@@ -274,6 +315,23 @@ function RouteRow({
           >
             {route.is_enabled ? 'On' : 'Off'}
           </button>
+        </td>
+        <td className="px-3 py-2">
+          <select
+            value={liveValue}
+            onChange={(e) => setLiveMember(Number(e.target.value))}
+            disabled={isBusy}
+            aria-label={`Same-day orders for ${route.source_system} go to`}
+            className="rounded border border-zinc-300 px-1.5 py-1 text-xs disabled:opacity-50"
+          >
+            <option value={0}>Off (backlog)</option>
+            {liveMissing && <option value={liveValue}>A member who can no longer take them</option>}
+            {liveOptions.map((a) => (
+              <option key={a.agent_id} value={a.agent_id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
         </td>
         <td className="px-3 py-2 text-zinc-700">{route.has_key ? 'Has a key' : 'No key yet'}</td>
         <td className="px-3 py-2">
@@ -301,7 +359,7 @@ function RouteRow({
       </tr>
       {confirming && (
         <tr>
-          <td colSpan={7} className="bg-amber-50 px-3 py-2">
+          <td colSpan={8} className="bg-amber-50 px-3 py-2">
             <InlineConfirm
               message={
                 confirming === 'key'
@@ -538,6 +596,54 @@ function NeedsPersonRow({order, onChanged}: {order: OrderNeedingPerson; onChange
         </button>
       </div>
       {result && <p className="mt-1 text-xs text-zinc-600">Result: {result}</p>}
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+    </li>
+  );
+}
+
+function WaitingRow({order, onChanged}: {order: WaitingOrder; onChanged: () => void}) {
+  const [isBusy, setIsBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<string | null>(null);
+
+  const place = async () => {
+    setIsBusy(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await placeOrderOnLiveDay(order.work_item_id);
+      setResult(res?.detail || (res?.placed ? 'Added to the live day.' : 'Not added. The job is still in the backlog.'));
+      if (res?.placed) onChanged();
+    } catch (err) {
+      setError(isAccessError(err) ? ADMIN_ONLY : friendlyError(err, 'Unable to add this order to the live day.'));
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  return (
+    <li className="p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <span className="text-sm font-medium text-zinc-900">Order {order.order_number || `job #${order.work_item_id}`}</span>
+          <div className="text-xs text-zinc-500">
+            {order.source_system}
+            {order.fulfilment ? ` · ${order.fulfilment}` : ''}
+            {order.starts_on ? ` · for ${order.starts_on}` : ''}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={place}
+          disabled={isBusy}
+          title="Adds this job to the end of the day it is for, if that day is live. Work already on the day is not moved."
+          className="flex shrink-0 items-center gap-1 rounded border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-100 disabled:opacity-50"
+        >
+          {isBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+          Add to live day
+        </button>
+      </div>
+      {result && <p className="mt-1 text-xs text-zinc-600">{result}</p>}
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </li>
   );

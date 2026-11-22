@@ -22,6 +22,7 @@ function "aim/policy" {
         check_publish_ready   : "read"
         plan_list             : "read"
         plan_get              : "read"
+        plan_live_days        : "read"
         list_tags             : "read"
         list_business_jobs    : "read"
         get_job_variance      : "read"

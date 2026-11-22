@@ -39,5 +39,6 @@ table item_external_ref {
       ]
     }
     {type: "btree", field: [{name: "item_type_id", op: "asc"}]}
+    {type: "btree", field: [{name: "updated_by_user_id", op: "asc"}]}
   ]
 }

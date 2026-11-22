@@ -25,6 +25,25 @@ export interface OrderRoute {
   journey_map_id: number;
   is_enabled: boolean;
   has_key: boolean;
+  /** The plan member whose live day takes same-day orders. 0 = off. */
+  live_agent_id?: number;
+}
+
+/** A member of a plan, as the same-day picker needs it. */
+export interface PlanAgent {
+  agent_id: number;
+  name: string;
+  workspace_id: number;
+  has_login: boolean;
+}
+
+/** An order's job that is not on any day yet. */
+export interface WaitingOrder {
+  work_item_id: number;
+  source_system: string;
+  order_number: string;
+  starts_on: string | null;
+  fulfilment: string | null;
 }
 
 export type OrderOutcome = 'no_route' | 'held' | 'failed' | 'refused';
@@ -72,6 +91,8 @@ export interface OrderSetup {
   last_24_hours: OrderCounts;
   plans: {id: number; name: string}[];
   plan_maps: PlanMap[];
+  agents?: PlanAgent[];
+  waiting?: WaitingOrder[];
 }
 
 export type RefStatus = 'Linked' | 'Not an item' | 'Needs linking';
@@ -108,6 +129,18 @@ export function mapsForPlan(planId: number, planMaps: PlanMap[]): number[] {
     if (pm.workspace_id === planId && !ids.includes(pm.journey_map_id)) ids.push(pm.journey_map_id);
   }
   return ids;
+}
+
+/** Who may take same-day orders for a rule: members of the rule's plan who can sign in. */
+export function liveMemberOptions(planId: number, agents: PlanAgent[]): PlanAgent[] {
+  return agents.filter((a) => a.workspace_id === planId && a.has_login);
+}
+
+/** What the same-day setting of a rule says, in plain words. */
+export function liveMemberLabel(liveAgentId: number | undefined, agents: PlanAgent[]): string {
+  if (!liveAgentId) return 'Off';
+  const agent = agents.find((a) => a.agent_id === liveAgentId);
+  return agent?.name ? agent.name : 'A member who was removed';
 }
 
 const OUTCOME_LABELS: Record<string, string> = {

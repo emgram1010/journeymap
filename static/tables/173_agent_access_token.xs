@@ -39,5 +39,7 @@ table agent_access_token {
     }
     {type: "btree", field: [{name: "user_id", op: "asc"}]}
     {type: "btree", field: [{name: "account_id", op: "asc"}]}
+    {type: "btree", field: [{name: "created_by_user_id", op: "asc"}]}
+    {type: "btree", field: [{name: "revoked_by_user_id", op: "asc"}]}
   ]
 }

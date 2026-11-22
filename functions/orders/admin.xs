@@ -1,4 +1,4 @@
-// DEMAND-1 story 03 — what an admin (a person, never an AI: aim/assert_admin_person) may change about incoming orders. action route_save: add or change a routing rule (decision D-5): orders from source_system with this fulfilment type (empty = any) become jobs in one plan from one map; the plan and the map must be in the account and the plan must already accept the map (E-HOOK-005). key_create: make a new order key for a source (it replaces the old one on every rule of that source) and return it ONCE; only its hash is stored. route_delete: remove one rule. flag_clear: mark an "order changed" or "order cancelled" job as handled, logged with who and when. retry: run a held, unrouted or failed order again from what was kept of it.
+// DEMAND-1 story 03 — what an admin (a person, never an AI: aim/assert_admin_person) may change about incoming orders. action route_save: add or change a routing rule (decision D-5): orders from source_system with this fulfilment type (empty = any) become jobs in one plan from one map; the plan and the map must be in the account and the plan must already accept the map (E-HOOK-005). key_create: make a new order key for a source (it replaces the old one on every rule of that source) and return it ONCE; only its hash is stored. route_delete: remove one rule. flag_clear: mark an "order changed" or "order cancelled" job as handled, logged with who and when. retry: run a held, unrouted or failed order again from what was kept of it. live_member_save (decision D-11): pick the plan member whose LIVE day same-day orders of one rule are added to, or 0 to switch that off; the member must be in the rule's plan and have a login (E-HOOK-010). place_live: try again to put one order's job onto its live day; the answer says in a sentence whether it went on.
 function "orders/admin" {
   input {
     int actor_user_id
@@ -11,6 +11,7 @@ function "orders/admin" {
     bool is_enabled?
     int work_item_id?
     int order_inbox_id?
+    int agent_id?
   }
 
   stack {
@@ -26,9 +27,9 @@ function "orders/admin" {
       value = $input.action
     }
 
-    precondition ($action == "route_save" || $action == "key_create" || $action == "route_delete" || $action == "flag_clear" || $action == "retry") {
+    precondition ($action == "route_save" || $action == "key_create" || $action == "route_delete" || $action == "flag_clear" || $action == "retry" || $action == "live_member_save" || $action == "place_live") {
       error_type = "inputerror"
-      error = "action is route_save, key_create, route_delete, flag_clear or retry."
+      error = "action is route_save, key_create, route_delete, flag_clear, retry, live_member_save or place_live."
     }
 
     var $source {
@@ -223,9 +224,27 @@ function "orders/admin" {
           error = "Routing rule not found. (E-HOOK-007)"
         }
 
-        db.del order_route {
-          field_name = "id"
-          field_value = $input.route_id
+        db.query order_route_live_day {
+          where = $db.order_route_live_day.route_id == $input.route_id
+          return = {type: "list"}
+        } as $live_rows_del
+
+        db.transaction {
+          stack {
+            foreach ($live_rows_del) {
+              each as $lrd {
+                db.del order_route_live_day {
+                  field_name = "id"
+                  field_value = $lrd.id
+                }
+              }
+            }
+
+            db.del order_route {
+              field_name = "id"
+              field_value = $input.route_id
+            }
+          }
         }
 
         var.update $result {
@@ -256,6 +275,79 @@ function "orders/admin" {
 
         var.update $result {
           value = {status: "cleared", work_item_id: $input.work_item_id}
+        }
+      }
+
+      elseif ($action == "live_member_save") {
+        db.query order_route {
+          where = $db.order_route.id == $input.route_id && $db.order_route.account_id == $acct
+          return = {type: "single"}
+        } as $live_route
+
+        var $live_route_id {
+          value = $live_route|get:"id":0
+        }
+
+        precondition ($live_route_id != 0) {
+          error_type = "notfound"
+          error = "Routing rule not found. (E-HOOK-007)"
+        }
+
+        var $live_plan {
+          value = $live_route|get:"workspace_id":0
+        }
+
+        var $want_agent {
+          value = $input.agent_id ?? 0
+        }
+
+        db.query planner_agent {
+          where = $db.planner_agent.id == $want_agent && $db.planner_agent.workspace_id == $live_plan && $db.planner_agent.user_id != 0
+          return = {type: "count"}
+        } as $agent_ok
+
+        precondition ($want_agent == 0 || $agent_ok == 1) {
+          error_type = "inputerror"
+          error = "Pick a member of that plan who has a login. (E-HOOK-010)"
+        }
+
+        db.query order_route_live_day {
+          where = $db.order_route_live_day.route_id == $live_route_id
+          return = {type: "single"}
+        } as $live_old
+
+        var $live_old_id {
+          value = $live_old|get:"id":0
+        }
+
+        conditional {
+          if ($live_old_id == 0) {
+            db.add order_route_live_day {
+              data = {created_at: "now", updated_at: "now", account_id: $acct, route_id: $live_route_id, agent_id: $want_agent, updated_by_user_id: $input.actor_user_id}
+            } as $live_made
+          }
+
+          else {
+            db.patch order_route_live_day {
+              field_name = "id"
+              field_value = $live_old_id
+              data = {agent_id: $want_agent, updated_at: "now", updated_by_user_id: $input.actor_user_id}
+            } as $live_saved
+          }
+        }
+
+        var.update $result {
+          value = {status: "saved", route_id: $live_route_id, live_agent_id: $want_agent}
+        }
+      }
+
+      elseif ($action == "place_live") {
+        function.run "orders/place_live" {
+          input = {account_id: $acct, work_item_id: ($input.work_item_id ?? 0), route_id: 0, actor_user_id: $input.actor_user_id}
+        } as $place
+
+        var.update $result {
+          value = {status: "done", placed: $place.placed, reason: $place.reason, detail: $place.detail}
         }
       }
 
@@ -301,7 +393,7 @@ function "orders/admin" {
     }
 
     function.run "ops/log_event" {
-      input = {feature: "DEMAND-1", step: $step, outcome: "success", severity: "info", error_code: "", message: "An admin changed the incoming-orders setup or handled an order.", user_id: $input.actor_user_id, account_id: $acct, entity_type: "order_route", entity_id: ($input.route_id ?? 0), correlation_id: "", duration_ms: 0, metadata: {action: $action, source_system: $source, work_item_id: ($input.work_item_id ?? 0), order_inbox_id: ($input.order_inbox_id ?? 0)}}
+      input = {feature: "DEMAND-1", step: $step, outcome: "success", severity: "info", error_code: "", message: "An admin changed the incoming-orders setup or handled an order.", user_id: $input.actor_user_id, account_id: $acct, entity_type: "order_route", entity_id: ($input.route_id ?? 0), correlation_id: "", duration_ms: 0, metadata: {action: $action, source_system: $source, work_item_id: ($input.work_item_id ?? 0), order_inbox_id: ($input.order_inbox_id ?? 0), agent_id: ($input.agent_id ?? 0)}}
     } as $_ev
   }
 

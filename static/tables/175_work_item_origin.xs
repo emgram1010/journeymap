@@ -46,5 +46,6 @@ table work_item_origin {
       ]
     }
     {type: "btree", field: [{name: "work_item_id", op: "asc"}]}
+    {type: "btree", field: [{name: "flag_cleared_by_user_id", op: "asc"}]}
   ]
 }

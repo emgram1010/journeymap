@@ -38,5 +38,6 @@ table journey_map_tag {
     }
     {type: "btree", field: [{name: "map_tag_id", op: "asc"}]}
     {type: "btree", field: [{name: "account_id", op: "asc"}]}
+    {type: "btree", field: [{name: "added_by_user_id", op: "asc"}]}
   ]
 }

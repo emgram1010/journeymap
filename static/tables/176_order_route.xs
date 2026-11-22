@@ -41,5 +41,8 @@ table order_route {
       ]
     }
     {type: "btree", field: [{name: "key_hash", op: "asc"}]}
+    {type: "btree", field: [{name: "workspace_id", op: "asc"}]}
+    {type: "btree", field: [{name: "journey_map_id", op: "asc"}]}
+    {type: "btree", field: [{name: "created_by_user_id", op: "asc"}]}
   ]
 }

@@ -58,6 +58,7 @@ mcp_server journey_map {
       ## Planning (drafts only) — for the signed-in person
       plan_list — find a plan by name: the plans in one business, with their maps and counts (read-only).
       plan_get  — read one plan before you change it: its people, open jobs and days, draft or live (read-only).
+      plan_live_days — the LIVE days of one plan: who is working, steps not started / in progress / blocked / done / skipped, and jobs added after going live (read-only).
       Never ask the owner for a plan id: call plan_list, then plan_get.
       plan_create, plan_accept_map, plan_add_job, plan_add_person, plan_start_day, plan_schedule_step,
       plan_schedule_card, plan_unschedule_step, plan_set_start_time, plan_set_time_window
@@ -135,6 +136,7 @@ mcp_server journey_map {
     {name: "untag_map"}
     {name: "plan_list"}
     {name: "plan_get"}
+    {name: "plan_live_days"}
     {name: "plan_create"}
     {name: "plan_accept_map"}
     {name: "plan_add_job"}

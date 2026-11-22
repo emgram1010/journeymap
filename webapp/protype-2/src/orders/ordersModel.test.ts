@@ -9,6 +9,9 @@ import {
   mapsForPlan,
   outcomeLabel,
   flagLabel,
+  liveMemberOptions,
+  liveMemberLabel,
+  type PlanAgent,
   type ExternalRef,
 } from './ordersModel';
 
@@ -101,4 +104,22 @@ test('UT-ORD-10: flagLabel uses plain words, with a safe fallback', () => {
   assert.equal(flagLabel('order_changed'), 'Order changed after work started');
   assert.equal(flagLabel('order_cancelled'), 'Order cancelled');
   assert.equal(flagLabel('other'), 'Needs a check');
+});
+
+const agents: PlanAgent[] = [
+  {agent_id: 1, name: 'Ana', workspace_id: 10, has_login: true},
+  {agent_id: 2, name: 'Ben', workspace_id: 10, has_login: false},
+  {agent_id: 3, name: 'Cy', workspace_id: 11, has_login: true},
+];
+
+test('UT-ORD-11: only members of the rule plan who can sign in may take same-day orders', () => {
+  assert.deepEqual(liveMemberOptions(10, agents).map((a) => a.name), ['Ana']);
+  assert.deepEqual(liveMemberOptions(99, agents), []);
+});
+
+test('UT-ORD-12: the same-day setting reads Off, a name, or a safe fallback', () => {
+  assert.equal(liveMemberLabel(0, agents), 'Off');
+  assert.equal(liveMemberLabel(undefined, agents), 'Off');
+  assert.equal(liveMemberLabel(1, agents), 'Ana');
+  assert.equal(liveMemberLabel(77, agents), 'A member who was removed');
 });

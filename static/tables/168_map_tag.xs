@@ -32,5 +32,6 @@ table map_tag {
         {name: "name_key", op: "asc"}
       ]
     }
+    {type: "btree", field: [{name: "created_by_user_id", op: "asc"}]}
   ]
 }

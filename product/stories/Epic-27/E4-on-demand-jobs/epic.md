@@ -1,7 +1,7 @@
 # DEMAND-1 — On-demand jobs and the order webhook
 
 **Epic ID:** DEMAND-1 (E4 in the founder's list)
-**Status:** 🟡 Order intake built and verified live 2026-11-21. Placing work on a live day, the webhook and polling are NOT built. See Test Results.
+**Status:** 🟡 Order intake and same-day placement on a live day (D-11) built and verified live 2026-11-21. The webhook and polling are NOT built. See Test Results.
 **Size:** L
 **Model:** **Opus 5.5** for story 01 (it writes to a live day and must not double); Sonnet 5.5
 for stories 02–04; Opus review pass at the gate.
@@ -81,10 +81,15 @@ day, and never publishes one. The same order can arrive any number of times and 
 
 **Partly built and verified live 2026-11-21 (Fable 5.2). The order intake works; placing work on a live day does not exist yet.**
 
-**The one decision I did not take (critical)**
-An order usually arrives on a day that has already started. Publishing refuses to re-publish a started day on purpose (E-LIVE-007), because the activity log points at the frozen day. Putting on-demand work onto that day means overriding that rule in the most protected write path. I did not do that unattended.
-**So today an order becomes a job in the plan's backlog**, with its items and a correct estimate, flagged unplanned, exactly once. A person drags it onto a day.
-**Recommended next step:** an append-only republish (old items must be unchanged, new ones added at the end), built on Opus with a review.
+**D-11, same-day orders onto a live day: founder said yes (2026-11-21), built the same day (Opus 5.5)**
+Use case: a party-rental crew is out on today's deliveries and a customer books a bounce house for this afternoon.
+- **Add-only, never a republish.** The publish endpoint and its seal (E-LIVE-007) are untouched. A new function writes a new version of the live day whose frozen blocks are copied unchanged and in order, with the new job's blocks after the last one. Before writing, the new day's text must start with the old day's text, byte for byte (E-DEMAND-006).
+- **Off until an admin turns it on:** each routing rule gets a "Same-day orders go to" member (new side table `order_route_live_day`). Off = the order waits in the backlog, as before.
+- **Only an order's own job is added.** Other unpublished changes on the plan are never swept in.
+- **A race is settled by the database:** the unique (day, version) index; the loser rolls back fully (its cards too) and tries again, up to 3 times. If it still loses, the job stays in the backlog with a message, and the admin can press "Add to live day".
+- **A job on a live day is treated like started work:** a later change to its order only flags it.
+- **Every add is recorded** (`live_day_addition`, append-only) and written to the plan change log as "added", so it shows as unplanned work.
+- Limits: 50 adds per day (E-DEMAND-005); past days refused (E-DEMAND-008); "today" accepts yesterday in UTC, so it holds in every time zone.
 
 **Other decisions taken**
 1. **No webhook was registered and nothing was built in the order system's workspace (Xano 5).** That is an outward action on a real booking system and needs its credentials. Emgram's side is ready: one address that accepts an order.
@@ -95,6 +100,8 @@ An order usually arrives on a day that has already started. Publishing refuses t
 6. **"Pause all AI" also holds incoming orders.** They are kept and can be tried again.
 
 **What was built**
+- D-11: tables `order_route_live_day` (178), `live_day_addition` (179); functions `live/canonical_items` (447), `planner_ops/live_add_attempt` (448), `planner_ops/add_job_to_live_day` (449), `orders/place_live` (450); `orders/process`, `orders/admin` (actions `live_member_save`, `place_live`), `orders/overview` (members, waiting orders) and endpoint 681 extended; app: "Same-day orders go to" column and "Orders not on a day yet" list with "Add to live day"; `src/liveAppend.ts` is the TypeScript twin of the add-only rule.
+- Read-only connector tool `plan_live_days` (201): a plan's live days, who works each, step counts by status, work begun, jobs added after going live. In the connector, both copilots and the AI-member policy (read).
 - Tables `work_item_origin` (175), `order_route` (176), `order_inbox` (177).
 - Functions `orders/process` (441), `ingest` (442), `admin` (443), `overview` (444).
 - Endpoints `POST order-inbound` (679, key instead of sign-in), `GET order-setup` (680), `POST order-setup-change` (681).
@@ -114,14 +121,27 @@ An order usually arrives on a day that has already started. Publishing refuses t
 | Unlinked products | Pass: kept by name on the job and listed under Outside products |
 | A customer note in the request | Pass: not accepted, not stored |
 | Another account, a member, an AI login | Pass: refused |
+| D-11: add a job to a day that has **already started** (sealed) | Pass: version 1 → 2, old block unchanged byte for byte, new block at the end, stored hash = recomputed hash |
+| D-11: same job again | Pass: `already_live`, nothing written |
+| D-11: cancelled job | Pass: refused (E-SCHED-008), nothing written |
+| D-11: 5 adds one after another | Pass: versions 3–7, each one item longer |
+| D-11: 6 different same-day orders sent at the **same moment** (real HTTP) | Pass on safety: 3 placed, 3 stayed in the backlog with E-DEMAND-007 after 3 retries; versions 1–10 with no gaps, 10 blocks on the plan = 10 frozen items, nothing half-written |
+| D-11: "Add to live day" on one left behind | Pass: placed |
+| D-11: order changed after its job went onto a live day | Pass: flagged, items not changed |
+| D-11: same-day member not in the plan / no login; a non-admin | Pass: refused (E-HOOK-010; Access Denied) |
+| D-11: delete a routing rule | Pass: its same-day row removed with it |
+| `plan_live_days`: test plan; another account's plan | Pass: 1 live day, version 11, 22 steps, 10 added; "Not Found" |
+| Unit tests | `liveAppend.test.ts` 8 of 8, `ordersModel.test.ts` 12 of 12; full app suite 1,066 of 1,066 |
 
 **Not built**
-- Story 01: `plan_add_on_demand_job`, the on/off switch per plan, time zone handling, over-capacity message.
+- Story 01: the AI tool `plan_add_on_demand_job` (deliberately not built: only orders and an admin can add to a live day), over-capacity message, a true local time zone per business (the UTC-yesterday rule is used instead).
+- D-11 weak spots for review: more than 3 adds to one day in the same second leaves the extra ones in the backlog; the add is not yet shown in Planning as "added after live"; `plan_live_days` reads step statuses, which stay "not started" when an event was written without them.
 - Story 02: the planned / unplanned split in reports.
 - Story 03: the receiver in the order system's workspace, the webhook, retries with growing gaps, the Health page panel, the 30-day clean-up of the inbox.
 - Story 04: backup polling.
 - The flag does not show on the job in Planning or Execution yet (it is on the Incoming orders tab).
-- No Opus review pass was run.
+- No separate review pass was run on D-11. **Recommended before real use**, by a fresh session.
+- **Correction:** the earlier claim that all 1,056 tests passed was wrong. The schema audit failed on the ten new Epic-27 tables (missing indexes, append-only not declared). Fixed: 16 indexes added live and locally, manifest entries added.
 
-**Left on the test account (13):** jobs 254, 255, 256 on plan 115 and their inbox rows.
+**Left on the test account (13):** jobs 254, 255, 256 and the D-11 jobs 257–262 on plan 115; member "D11 Tester" (156) and its live day 155 with 11 versions; their inbox and event rows. The test routing rule and its key were deleted.
 

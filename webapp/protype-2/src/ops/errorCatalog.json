@@ -3126,5 +3126,95 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-HOOK-010": {
+    "code": "E-HOOK-010",
+    "feature": "DEMAND-1",
+    "user_message": "Pick a member of that plan who has a login.",
+    "what_happened": "A same-day member was chosen who is not in the routing rule's plan or cannot sign in.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-DEMAND-001": {
+    "code": "E-DEMAND-001",
+    "feature": "DEMAND-1",
+    "user_message": "That day is not live yet. Publish it first.",
+    "what_happened": "A job was to be added to a live day, but the day is a draft or was never published.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Publish the day, or leave the job in the backlog and plan it as usual."
+  },
+  "E-DEMAND-002": {
+    "code": "E-DEMAND-002",
+    "feature": "DEMAND-1",
+    "user_message": "That job has no steps, so there is nothing to add to the day.",
+    "what_happened": "A job with no steps was to be added to a live day.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-DEMAND-003": {
+    "code": "E-DEMAND-003",
+    "feature": "DEMAND-1",
+    "user_message": "Part of this job is already on another day, so it was not added.",
+    "what_happened": "A job was to be added to a live day, but some of its steps already sit on a different day.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Take the job off the other day first, or leave it where it is."
+  },
+  "E-DEMAND-004": {
+    "code": "E-DEMAND-004",
+    "feature": "DEMAND-1",
+    "user_message": "The person for that day has no login, or a step still needs information, so the job was not added.",
+    "what_happened": "The new blocks could not be shown to anyone, or are marked 'needs info'. The whole add was rolled back.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Give the person a login or complete the step, then press Add to live day."
+  },
+  "E-DEMAND-005": {
+    "code": "E-DEMAND-005",
+    "feature": "DEMAND-1",
+    "user_message": "This day already took 50 jobs after it went live, so this one stays in the backlog.",
+    "what_happened": "The cap on jobs added to one live day was reached.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Plan the job onto another day."
+  },
+  "E-DEMAND-006": {
+    "code": "E-DEMAND-006",
+    "feature": "DEMAND-1",
+    "user_message": "Adding this job would have changed work already on the day, so nothing was added.",
+    "what_happened": "The add-only check failed: the new day would not have started with the old day unchanged. Nothing was written.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "error",
+    "fix_hint": "This should never happen. Tell the developer; the event has the detail."
+  },
+  "E-DEMAND-007": {
+    "code": "E-DEMAND-007",
+    "feature": "DEMAND-1",
+    "user_message": "The job could not be added to the live day. Nothing was changed. Try again.",
+    "what_happened": "Three adds in a row lost a race with another add, or an unexpected fault stopped the add. Everything was rolled back.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Press Add to live day again. If it repeats, check the Health page for the detail."
+  },
+  "E-DEMAND-008": {
+    "code": "E-DEMAND-008",
+    "feature": "DEMAND-1",
+    "user_message": "That day is in the past, so nothing was added to it.",
+    "what_happened": "A job was to be added to a live day that is already over.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
   }
 }

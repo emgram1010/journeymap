@@ -49,5 +49,6 @@ table order_inbox {
       ]
     }
     {type: "btree", field: [{name: "outcome", op: "asc"}]}
+    {type: "btree", field: [{name: "work_item_id", op: "asc"}]}
   ]
 }
