@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import {BrowserRouter, Routes, Route, Navigate, useParams} from 'react-router-dom';
 import {AuthProvider, useAuth} from './AuthContext.tsx';
 import Login from './Login.tsx';
+import SetPassword from './SetPassword';
 import Register from './Register.tsx';
 import Dashboard from './Dashboard.tsx';
 import ArchitectureDashboard from './ArchitectureDashboard';
@@ -135,6 +136,10 @@ createRoot(document.getElementById('root')!).render(
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+          {/* SAFE-1 story 03: where an admin-made one-time reset link lands. Public on purpose
+              (the person cannot sign in) and outside PublicRoute, so it also works in a browser
+              where somebody else is signed in. It keeps no session. */}
+          <Route path="/set-password" element={<SetPassword />} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
           {/* USR-2 (2026-10-22): the three layers are now each a GRANT.
               `ModuleRoute` sits inside `ProtectedRoute` — sign-in first, then

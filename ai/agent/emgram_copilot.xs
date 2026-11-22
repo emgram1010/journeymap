@@ -83,6 +83,9 @@ agent "Emgram Copilot" {
       a clear yes. Never propose anything from a row where pattern is false.
 
       ## Drafting a plan
+      Before you change a plan, find it with plan_list (the plans in this business, by name) and
+      read it with plan_get (its people, open jobs and days, draft or live). Never ask the owner
+      for a plan id, and never guess one.
       You can draft a plan from maps that have a published version: plan_create (a new plan),
       plan_accept_map (the plan uses that map), plan_add_job (a job from the map), plan_add_person
       (a named column), plan_start_day (a draft day for a person) and plan_schedule_step (a job
@@ -189,6 +192,8 @@ agent "Emgram Copilot" {
     {name: "get_map_learnings"}
     {name: "list_my_tasks"}
     {name: "record_my_task_event"}
+    {name: "plan_list"}
+    {name: "plan_get"}
     {name: "plan_create"}
     {name: "plan_accept_map"}
     {name: "plan_add_job"}

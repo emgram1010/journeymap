@@ -1614,6 +1614,55 @@ export async function setCopilotCap(dailyCap: number): Promise<{user_id: number;
   });
 }
 
+/** SAFE-1 / D-10 — who owns the signed-in person's account. owner_user_id 0 = no owner. */
+export async function getAccountOwner(): Promise<{account_id: number; owner_user_id: number}> {
+  return xanoRequest('/account/owner', {baseUrl: getXanoMembersBaseUrl()});
+}
+
+/**
+ * SAFE-1 story 03 — an admin makes a one-time "set a new password" link for a person.
+ * The token comes back ONCE; the caller shows the link and never stores it.
+ */
+export async function createResetLink(
+  userId: number,
+): Promise<{user_id: number; email: string; cancelled: boolean; token: string; expires_in_minutes: number}> {
+  return xanoRequest('/admin/user_reset_link', {
+    method: 'POST',
+    body: {user_id: userId},
+    baseUrl: getXanoMembersBaseUrl(),
+  });
+}
+
+/** SAFE-1 story 03 — retire a person's current reset link without making a new one. */
+export async function cancelResetLink(userId: number): Promise<{user_id: number; cancelled: boolean}> {
+  return xanoRequest('/admin/user_reset_link', {
+    method: 'POST',
+    body: {user_id: userId, cancel: true},
+    baseUrl: getXanoMembersBaseUrl(),
+  });
+}
+
+/**
+ * SAFE-1 story 03 — the person's side of the reset link, in one step: trade the one-time token
+ * for a short session, set the new password with it, and keep NOTHING. The session token is
+ * never stored, so the only thing the link can be used for here is setting a password; the
+ * person then signs in normally.
+ */
+export async function setPasswordWithResetLink(token: string, email: string, password: string): Promise<void> {
+  const post = async (path: string, body: unknown, bearer?: string) => {
+    const headers: Record<string, string> = {Accept: 'application/json', 'Content-Type': 'application/json'};
+    if (bearer) headers['Authorization'] = `Bearer ${bearer}`;
+    const response = await fetch(`${getXanoAuthBaseUrl()}${path}`, {method: 'POST', headers, body: JSON.stringify(body)});
+    const text = await response.text();
+    if (!response.ok) {
+      throw new XanoHttpError(response.status, `Auth POST ${path} failed (${response.status})`, '', extractServerMessage(text));
+    }
+    return text ? JSON.parse(text) : undefined;
+  };
+  const session = (await post('/reset/magic-link-login', {magic_token: token, email})) as {authToken: string};
+  await post('/reset/update_password', {password, confirm_password: password}, session.authToken);
+}
+
 export async function listUserStatuses(): Promise<XanoUserStatus[]> {
   return xanoRequest<XanoUserStatus[]>('/user_status', {baseUrl: getXanoMembersBaseUrl()});
 }

@@ -447,6 +447,7 @@ Pauses are **not captured in the MVP** (D-17). Actual time is elapsed time, and 
 | D-44 | Job attributes are **free key/value pairs** in the MVP (with source and time); a controlled list per work type comes later with the intake schema. | 2026-10-12 |
 | D-45 | Required cells: the **stage owner's cell plus any other work-doing cell the user has started** need a task and duration. | 2026-10-12 |
 | D-46 | Feature flags live in `account.feature_flags` (`required_fields_ui`, `publish_gate`): off while building, on at launch. Failure tests use Xano unit-test mocks, never switches in production endpoints. | 2026-10-12 |
+| D-47 | **An AI agent may be a member with its own login, treated like an employee with a narrower key.** Amends USR-3's "an AI agent has no login and holds no grant". The login is marked as AI and signs in only with an access token (no password). It has a named human manager, reads maps and plans, writes drafts and records its own work; it never publishes, deletes, approves, or changes passwords, tokens, permissions or settings. Any team admin can switch it off or revoke its tokens; its history is kept. People's rules are unchanged. See `stories/Epic-27/E3-ai-agent-member/`. | 2026-11-21 |
 
 ---
 

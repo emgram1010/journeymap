@@ -2616,5 +2616,85 @@
     "owner": "product_manager",
     "severity": "warn",
     "fix_hint": "Check event_log for copilot.step_up.requested; if it asks for everyday tasks, tighten its instructions."
+  },
+  "E-SAFE-002": {
+    "code": "E-SAFE-002",
+    "feature": "SAFE-1",
+    "user_message": "You've made several reset links in the last hour. Try again later.",
+    "what_happened": "One admin asked for a sixth password reset link inside an hour. Nothing was made.",
+    "likely_cause": "Either a run of real lockouts, or a stolen admin session making links for many people.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "If the admin did not make these, switch that admin off and check the SAFE-1 events on the Health page. Otherwise wait an hour; the count is per admin."
+  },
+  "E-SAFE-004": {
+    "code": "E-SAFE-004",
+    "feature": "SAFE-1",
+    "user_message": "This person is switched off. Switch them back on first.",
+    "what_happened": "An admin asked for a reset link for a person who is switched off. Nothing was made.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Switch the person back on from Manage users, then make the link. A switched-off person could not use the link anyway."
+  },
+  "E-SAFE-005": {
+    "code": "E-SAFE-005",
+    "feature": "SAFE-1",
+    "user_message": "This person's email was changed in the last 24 hours, so a reset has to wait.",
+    "what_happened": "An admin changed this person's email address less than 24 hours ago and then asked for a reset link. Nothing was made.",
+    "likely_cause": "Usually an honest correction followed by a reset. It is also the shape of an account takeover: change the address, then reset.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Wait 24 hours from the email change, or have the account owner confirm the change with the person directly. The 24 hours cannot be shortened from the app."
+  },
+  "E-SAFE-006": {
+    "code": "E-SAFE-006",
+    "feature": "SAFE-1",
+    "user_message": "Only the account owner can reset another admin.",
+    "what_happened": "An admin who is not the account owner asked for a reset link for another admin. Nothing was made.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Ask the account owner to make the link. Manage users shows who the owner is in the Role column."
+  },
+  "E-SAFE-007": {
+    "code": "E-SAFE-007",
+    "feature": "SAFE-1",
+    "user_message": "The account owner can't be reset here. Contact Emgram support.",
+    "what_happened": "Somebody asked for a reset link for the account owner. Nobody inside an account can reset its owner.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Support confirms who the owner is by another route, then makes the link by hand. This is deliberate: a link shown on an admin's screen would let that admin take the account."
+  },
+  "E-SAFE-008": {
+    "code": "E-SAFE-008",
+    "feature": "SAFE-1",
+    "user_message": "This person owns the account, so only they can change their own login.",
+    "what_happened": "An admin tried to change the account owner's role, status, name or email, or to remove them. Nothing was changed.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "The owner edits their own details. Changing who the owner is happens by hand through support (the account_owner table), never from the app."
+  },
+  "E-SAFE-009": {
+    "code": "E-SAFE-009",
+    "feature": "SAFE-1",
+    "user_message": "To change your own password, use your own profile.",
+    "what_happened": "An admin asked for a reset link for themself. Nothing was made.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Change the password from the profile page while signed in. A reset link is for somebody who cannot sign in."
+  },
+  "E-SAFE-010": {
+    "code": "E-SAFE-010",
+    "feature": "SAFE-1",
+    "user_message": "AI members don't use passwords. Re-issue its access token instead.",
+    "what_happened": "An admin asked for a reset link for an AI login. Nothing was made.",
+    "likely_cause": "The AI looked like any other person on Manage users.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "An AI connects with access tokens, never a password. A password for it would let a person act as the AI outside its limits and audit trail."
   }
 }

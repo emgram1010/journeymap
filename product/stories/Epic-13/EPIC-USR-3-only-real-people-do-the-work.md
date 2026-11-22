@@ -500,7 +500,7 @@ _Not started._
 
 | Question | Decision | Date |
 |---|---|---|
-| Does this apply to AI agents? | **No.** The founder's own clarification: *"when I mean an agent, I mean a person, not an AI agent."* An AI agent has no login, holds no grant, and `kind = "ai"` skips every check here | 2026-10-22 |
+| Does this apply to AI agents? | **No.** The founder's own clarification: *"when I mean an agent, I mean a person, not an AI agent."* An AI agent has no login, holds no grant, and `kind = "ai"` skips every check here. **⚠ Amended 2026-11-21 (PRD D-47):** an AI agent may now hold its own AI-marked login with a narrower scope than a person. This epic's checks still apply to people only; AI members are governed by `Epic-27/E3-ai-agent-member/` (AIM-1) | 2026-10-22 |
 | Enforce on everything, or only on new writes? | **Write-time only.** No flag, no backfill, no migration — and no flag that can default wrong or never be cleared. Existing rows are never re-validated | 2026-10-22 |
 | Which grant does being **assigned** work require? | **Execution.** The founder said *"planning and execution"*; read strictly that would stop a performer being staffed unless they could also open the Planner. Being *given* work needs the module where work is done; **Planning** is for whoever *builds* the plan, and USR-2's middleware already checks that on the caller. Flagged to the founder when this file was written | 2026-10-22 |
 | Is the Intelligence Layer part of this epic? | **No story needed.** "A user using the intelligence layer" is a question about the caller, which is exactly USR-2's middleware on the `journey_map` group. Adding a second check here would be a second copy of one rule | 2026-10-22 |
@@ -512,6 +512,8 @@ _Not started._
 - 🟡 **Does an AI agent need an owning user?** Today nothing records who owns an
   AI agent, so nothing can be checked. Probably worth a story of its own once
   module grants exist; deliberately not guessed here.
+  **→ Answered 2026-11-21:** yes. Every AI member has a named human manager
+  (`Epic-27/E3-ai-agent-member/US-AIM-1-05`).
 - 🟡 **`agent_profile` has no unique index on `user_id`** — by design, because
   an int column cannot hold a real null and every AI profile shares `0` (the
   table header documents this). Once story 01 requires a real user for person

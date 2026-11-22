@@ -9,6 +9,8 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/architectures';
+  // SAFE-1 story 03: the set-password page sends the person here with one line of good news.
+  const arrivalNotice = (location.state as { notice?: string } | null)?.notice ?? null;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -53,6 +55,11 @@ export default function Login() {
 
         {/* Card */}
         <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm p-8">
+          {arrivalNotice && !apiError && (
+            <div role="status" className="mb-5 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 font-medium">
+              {arrivalNotice}
+            </div>
+          )}
           {/* API error banner */}
           {apiError && (
             <div className="mb-5 px-3 py-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 font-medium">

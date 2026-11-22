@@ -52,6 +52,18 @@ export interface TeamMember {
    * invite exactly the `??` mistakes this file keeps warning about.
    */
   modules: ModuleGrants;
+  /**
+   * SAFE-1 / D-10. True for the account's owner (`account_owner` side table). The owner is
+   * still `role: 'admin'` underneath, so every admin count and rule is unchanged; this only
+   * adds the "Owner" label and keeps the owner's row out of other admins' role controls.
+   */
+  is_owner: boolean;
+}
+
+/** What the Role column shows: Owner, Admin or Member. */
+export function roleLabel(member: {role: Role; is_owner?: boolean}): 'Owner' | 'Admin' | 'Member' {
+  if (member.is_owner === true) return 'Owner';
+  return member.role === 'admin' ? 'Admin' : 'Member';
 }
 
 /** The only two roles there are. A value outside this list is never written. */
@@ -87,6 +99,8 @@ export function mergeTeam(
   members: RawMember[],
   statuses: RawStatus[],
   grants: RawGrant[] = [],
+  // SAFE-1 / D-10: the owner's user id from GET account_owner. 0 = the account has no owner.
+  ownerUserId: number = 0,
 ): TeamMember[] {
   const byUserId = new Map<number, RawStatus>();
   for (const status of statuses) {
@@ -107,6 +121,7 @@ export function mergeTeam(
       is_active: status ? status.is_active === true : true,
       deactivated_at: status?.deactivated_at ?? null,
       modules: grantsByUserId.get(member.id) ?? noModules(),
+      is_owner: ownerUserId > 0 && member.id === ownerUserId,
     };
   });
 }

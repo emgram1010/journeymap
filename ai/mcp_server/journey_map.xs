@@ -55,6 +55,9 @@ mcp_server journey_map {
       check_publish_ready — runs the product's own Publish version checklist on a map. Call it before you tell anyone a map is ready, fix the blockers you can, and check again. Say "ready" only when it answers ready: true. A person presses Publish version.
 
       ## Planning (drafts only) — for the signed-in person
+      plan_list — find a plan by name: the plans in one business, with their maps and counts (read-only).
+      plan_get  — read one plan before you change it: its people, open jobs and days, draft or live (read-only).
+      Never ask the owner for a plan id: call plan_list, then plan_get.
       plan_create, plan_accept_map, plan_add_job, plan_add_person, plan_start_day, plan_schedule_step,
       plan_schedule_card, plan_unschedule_step, plan_set_start_time, plan_set_time_window
       Every planner call needs the business: pass journey_architecture_id (a business in your own account;
@@ -117,6 +120,8 @@ mcp_server journey_map {
     {name: "calculate_leakage"}
     {name: "get_how_i_work"}
     {name: "check_publish_ready"}
+    {name: "plan_list"}
+    {name: "plan_get"}
     {name: "plan_create"}
     {name: "plan_accept_map"}
     {name: "plan_add_job"}

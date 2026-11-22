@@ -1,11 +1,14 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
-import {AlertCircle, Bot, Check, Loader2, Plus, ShieldCheck, Trash2, Users, X} from 'lucide-react';
+import {AlertCircle, Bot, Check, Copy, KeyRound, Loader2, Plus, ShieldCheck, Trash2, Users, X} from 'lucide-react';
 import {useAuth} from '../AuthContext';
 import {
+  cancelResetLink,
   createCopilot,
+  createResetLink,
   createUser,
   deleteUser,
   getAccountCopilot,
+  getAccountOwner,
   listTeamMembers,
   listUserModuleAccess,
   listUserStatuses,
@@ -17,6 +20,7 @@ import {
   XanoHttpError,
 } from '../xano';
 import {getCatalogEntry} from '../ops/errorCatalog';
+import {buildResetLink, resetBlockedBy} from './resetLink';
 import {announceCopilotChanged} from '../planner/useAccountCopilot';
 import {
   canCreateCopilot,
@@ -28,6 +32,7 @@ import {
   deleteBlockedBy,
   grantChangeBlockedBy,
   mergeTeam,
+  roleLabel,
   profileUpdateBlockedBy,
   roleChangeBlockedBy,
   statusChangeBlockedBy,
@@ -86,6 +91,12 @@ export default function TeamPage() {
   // control on the page.
   const [confirmRemoveId, setConfirmRemoveId] = useState<number | null>(null);
 
+  // SAFE-1 story 03. The one-time reset link lives ONLY in this state: it is never stored,
+  // and closing the panel drops it for good (the admin makes a new one, which retires the old).
+  const [confirmResetId, setConfirmResetId] = useState<number | null>(null);
+  const [resetLink, setResetLink] = useState<{memberId: number; name: string; link: string; minutes: number} | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+
   // COP-1-01. A separate fetch. null = it failed or has not loaded: the page
   // then shows no AI marking and no copilot controls, and works as before.
   const [copilot, setCopilot] = useState<CopilotInfo | null>(null);
@@ -101,12 +112,15 @@ export default function TeamPage() {
       // Three fetches now, and all three for the same reason: `user_status`
       // and `user_module_access` are side tables, and a side table is
       // invisible to the original table's list endpoint (the AUTH-1 trap).
-      const [members, statuses, grants] = await Promise.all([
+      // SAFE-1 / D-10: the owner is a fourth side table. If it can't be read the page still
+      // loads; nobody is shown as Owner (the safe reading), never the wrong person.
+      const [members, statuses, grants, owner] = await Promise.all([
         listTeamMembers(),
         listUserStatuses(),
         listUserModuleAccess(),
+        getAccountOwner().catch(() => ({account_id: 0, owner_user_id: 0})),
       ]);
-      setTeam(mergeTeam(members, statuses, grants));
+      setTeam(mergeTeam(members, statuses, grants, owner.owner_user_id));
       try {
         const c = await getAccountCopilot();
         setCopilot(c);
@@ -245,6 +259,58 @@ export default function TeamPage() {
     await apply(null, null, () => setCopilotCap(Number(capText.trim())), 'Daily limit saved.');
   };
 
+  // SAFE-1 / D-10: is the signed-in admin the account owner? Only the owner resets another admin.
+  const viewerIsOwner = team.some((m) => m.id === user?.id && m.is_owner);
+
+  const makeResetLink = async (member: TeamMember) => {
+    const blocked = resetBlockedBy(user, viewerIsOwner, member, isCopilotRow(member.id, copilot));
+    if (blocked) {
+      setError(getCatalogEntry(blocked)?.user_message ?? 'That reset is not allowed.');
+      return;
+    }
+    setSavingId(member.id);
+    setError(null);
+    setNotice(null);
+    setLinkCopied(false);
+    try {
+      const made = await createResetLink(member.id);
+      setResetLink({
+        memberId: member.id,
+        name: member.name || member.email,
+        link: buildResetLink(window.location.origin, made.token, made.email),
+        minutes: made.expires_in_minutes,
+      });
+      setConfirmResetId(null);
+    } catch (err) {
+      const serverMessage = err instanceof XanoHttpError ? err.serverMessage : null;
+      setError(serverMessage ?? 'The reset link could not be made. Please try again.');
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const cancelShownLink = async () => {
+    if (!resetLink) return;
+    try {
+      await cancelResetLink(resetLink.memberId);
+      setNotice(`The reset link for ${resetLink.name} was cancelled and no longer works.`);
+      setResetLink(null);
+    } catch (err) {
+      const serverMessage = err instanceof XanoHttpError ? err.serverMessage : null;
+      setError(serverMessage ?? 'The link could not be cancelled. It still expires on its own.');
+    }
+  };
+
+  const copyShownLink = async () => {
+    if (!resetLink) return;
+    try {
+      await navigator.clipboard.writeText(resetLink.link);
+      setLinkCopied(true);
+    } catch {
+      setError('Copy did not work. Select the link and copy it by hand.');
+    }
+  };
+
   const removePerson = async (member: TeamMember) => {
     const ok = await apply(
       member.id,
@@ -311,6 +377,52 @@ export default function TeamPage() {
           >
             <Check className="w-4 h-4 mt-0.5 shrink-0" />
             <span>{notice}</span>
+          </div>
+        )}
+
+        {/* ── SAFE-1 story 03: the one-time reset link, shown once ──────────── */}
+        {resetLink && (
+          <div
+            role="status"
+            aria-label="One-time reset link"
+            className="mb-5 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+          >
+            <p className="font-medium">One-time link for {resetLink.name}</p>
+            <p className="mt-1 text-xs">
+              Give this link to them directly. It works once, for {resetLink.minutes} minutes. Anyone who has it can
+              set this person&apos;s password, and it is not shown again after you close this.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <input
+                readOnly
+                aria-label="Reset link"
+                value={resetLink.link}
+                onFocus={(e) => e.currentTarget.select()}
+                className="min-w-0 flex-1 rounded border border-amber-300 bg-white px-2 py-1 font-mono text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => void copyShownLink()}
+                className="inline-flex items-center gap-1 rounded bg-zinc-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-zinc-800"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                {linkCopied ? 'Copied' : 'Copy link'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void cancelShownLink()}
+                className="rounded border border-amber-400 px-2.5 py-1.5 text-xs text-amber-900 hover:bg-amber-100"
+              >
+                Cancel this link
+              </button>
+              <button
+                type="button"
+                onClick={() => setResetLink(null)}
+                className="rounded border border-zinc-300 bg-white px-2.5 py-1.5 text-xs text-zinc-700 hover:bg-zinc-50"
+              >
+                Done
+              </button>
+            </div>
           </div>
         )}
 
@@ -501,6 +613,9 @@ export default function TeamPage() {
                 const busy = savingId === member.id;
                 const isEditing = editingId === member.id;
                 const isAi = isCopilotRow(member.id, copilot);
+                // SAFE-1 / D-10: only the owner changes the owner's own row (server: E-SAFE-008).
+                const ownerLocked = member.is_owner && !isSelf;
+                const canReset = resetBlockedBy(user, viewerIsOwner, member, isAi) === null;
                 return (
                   <tr key={member.id} data-user-id={member.id} className={member.is_active ? '' : 'bg-zinc-50/60'}>
                     <td className="px-4 py-3">
@@ -543,7 +658,7 @@ export default function TeamPage() {
                     </td>
 
                     <td className="px-4 py-3">
-                      {isAdmin && !isSelf && !isAi ? (
+                      {isAdmin && !isSelf && !isAi && !member.is_owner ? (
                         <select
                           aria-label={`Role for ${member.name || member.email}`}
                           className="rounded border border-zinc-300 bg-white px-2 py-1 text-sm disabled:opacity-50"
@@ -556,8 +671,10 @@ export default function TeamPage() {
                         </select>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-zinc-700">
-                          {member.role === 'admin' && <ShieldCheck className="w-3.5 h-3.5 text-zinc-400" />}
-                          {member.role === 'admin' ? 'Admin' : 'Member'}
+                          {member.role === 'admin' && (
+                            <ShieldCheck className={`w-3.5 h-3.5 ${member.is_owner ? 'text-amber-500' : 'text-zinc-400'}`} />
+                          )}
+                          {roleLabel(member)}
                         </span>
                       )}
                     </td>
@@ -629,7 +746,7 @@ export default function TeamPage() {
                                 Cancel
                               </button>
                             </>
-                          ) : isAi ? null : (
+                          ) : isAi || ownerLocked ? null : (
                             <button
                               type="button"
                               className="rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
@@ -640,7 +757,7 @@ export default function TeamPage() {
                             </button>
                           )}
 
-                          {!isSelf && !isEditing && (
+                          {!isSelf && !isEditing && !ownerLocked && (
                             <button
                               type="button"
                               className="rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
@@ -668,7 +785,45 @@ export default function TeamPage() {
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          {!isSelf && !isEditing && !isAi && (
+                          {/* SAFE-1 story 03: make a one-time reset link. Offered only where the rules allow
+                              it; asks once more before making one, because a new link retires the last. */}
+                          {!isEditing &&
+                            canReset &&
+                            (confirmResetId === member.id ? (
+                              <>
+                                <button
+                                  type="button"
+                                  className="rounded bg-amber-600 px-2 py-1 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                                  disabled={busy}
+                                  onClick={() => void makeResetLink(member)}
+                                >
+                                  {busy ? 'Making…' : 'Make reset link'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-50"
+                                  onClick={() => setConfirmResetId(null)}
+                                >
+                                  Keep
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                aria-label={`Reset password for ${member.name || member.email}`}
+                                title="Reset password"
+                                className="rounded border border-zinc-300 p-1 text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
+                                disabled={busy}
+                                onClick={() => {
+                                  setConfirmResetId(member.id);
+                                  setError(null);
+                                }}
+                              >
+                                <KeyRound className="w-3.5 h-3.5" />
+                              </button>
+                            ))}
+
+                          {!isSelf && !isEditing && !isAi && !ownerLocked && (
                             <>
                               {confirmRemoveId === member.id ? (
                                 <>
