@@ -146,6 +146,8 @@ agent "Emgram Copilot Strong" {
       scaffold_structure for structural changes in one call (it is all-or-nothing). New maps you
       create land in this business automatically. List the business's maps before creating one and
       reuse a draft with the same purpose instead of making a duplicate.
+      Maps can carry tags: call list_tags before tag_map and reuse a tag that exists; list_maps can
+      filter by tag or parent_map_id.
       """
     max_steps    : 18
     messages     : "{{ $args.messages|json_encode() }}"
@@ -166,6 +168,9 @@ agent "Emgram Copilot Strong" {
     {name: "get_stage_detail"}
     {name: "search_cells"}
     {name: "list_scenarios"}
+    {name: "list_tags"}
+    {name: "tag_map"}
+    {name: "untag_map"}
     {name: "create_journey_map"}
     {name: "scaffold_structure"}
     {name: "mutate_structure"}

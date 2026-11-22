@@ -28,6 +28,8 @@ import {useAuth} from './AuthContext';
 import {canManageTeam} from './team/teamModel';
 import {mapLabelChips, profileByMap, safeSources, type MapProfile} from './copilot/copilotMemoryModel';
 import ScenariosTab from './ScenariosTab';
+import {MapTagChips, TagFilterBar, useMapTags, type MapTagsState} from './tags/MapTags';
+import {filterByTag} from './tags/tagModel';
 import CompareHealthView from './CompareHealthView';
 
 function relativeTime(value: string | number | null | undefined): string {
@@ -174,9 +176,10 @@ interface MapTileProps {
   onExportMarkdownBundle: () => void;
   onExportNotebookLM: () => void;
   onRemoveLink: (linkId: number) => Promise<void>;
+  tagState: MapTagsState;
 }
 
-function MapTile({profile, isAdmin = false, onSetLabel, map, links, allMaps, onOpen, onRename, onDelete, onArchive, onDuplicate, onExportMarkdownBundle, onExportNotebookLM, onRemoveLink}: MapTileProps) {
+function MapTile({tagState, profile, isAdmin = false, onSetLabel, map, links, allMaps, onOpen, onRename, onDelete, onArchive, onDuplicate, onExportMarkdownBundle, onExportNotebookLM, onRemoveLink}: MapTileProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(map.title);
@@ -234,6 +237,7 @@ function MapTile({profile, isAdmin = false, onSetLabel, map, links, allMaps, onO
           <h3 className="text-sm font-semibold text-zinc-900 truncate pr-6">{map.title}</h3>
         )}
         {onSetLabel && <MapLabels mapId={map.id} profile={profile} isAdmin={isAdmin} onSet={onSetLabel} />}
+        <MapTagChips mapId={map.id} state={tagState} />
         <div className="flex items-center gap-2 mt-auto pt-2 flex-wrap">
           <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${MAP_STATUS_STYLES[map.status]}`}>{map.status}</span>
           {map.map_level && MAP_LEVEL_STYLES[map.map_level] && (
@@ -333,6 +337,8 @@ export default function ArchitectureDetail() {
   // Link drawer state
   // View tab toggle — initialise from ?tab= URL param so back-nav from editor restores the right tab
   const initialTab = searchParams.get('tab');
+  const tagState = useMapTags();
+  const [tagFilter, setTagFilter] = useState(0);
   const [viewMode, setViewMode] = useState<'grid' | 'graph' | 'scenarios'>(
     initialTab === 'scenarios' ? 'scenarios' : 'grid',
   );
@@ -749,10 +755,13 @@ export default function ArchitectureDetail() {
             </button>
           </div>
         ) : viewMode === 'grid' ? (
+          <>
+          <TagFilterBar state={tagState} selected={tagFilter} onSelect={setTagFilter} />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {maps.map((map) => (
+            {filterByTag(maps, tagState.links, tagFilter).map((map) => (
               <MapTile
                 key={map.id}
+                tagState={tagState}
                 map={map}
                 profile={profiles.get(map.id)}
                 isAdmin={isAdmin}
@@ -770,6 +779,7 @@ export default function ArchitectureDetail() {
               />
             ))}
           </div>
+          </>
         ) : null}
       </main>
 

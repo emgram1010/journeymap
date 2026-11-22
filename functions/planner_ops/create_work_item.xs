@@ -3,6 +3,7 @@ function "planner_ops/create_work_item" {
   input {
     // What planner/resolve_actor returns: {user_id, account_id, role}.
     json actor
+
     int workspace_id filters=min:1
     int journey_map_id filters=min:1
 
@@ -10,16 +11,23 @@ function "planner_ops/create_work_item" {
     // input would refuse that with a bare "Missing param" and no event. Optional lets it reach the
     // E-JOB-001 check below, which is what endpoint 554 always answered.
     text title? filters=trim
+
     json attributes?
 
     // EXC-1 - 0 (omitted) = no parent. An optional int arrives as 0, never null.
     int parent_work_item_id?
+
     text correlation_id? filters=trim
+    json order_lines?
+    json unmatched_lines?
   }
 
   stack {
     function.run "planner/assert_workspace" {
-      input = {account_id: $input.actor.account_id, workspace_id: $input.workspace_id}
+      input = {
+        account_id  : $input.actor.account_id
+        workspace_id: $input.workspace_id
+      }
     } as $guard
 
     function.run "guards/assert_not_archived" {
@@ -90,7 +98,7 @@ function "planner_ops/create_work_item" {
     }
 
     conditional {
-      if ($reject_code == "" && ("/<[a-zA-Z][^>]*>/"|regex_matches:$input.title) == true) {
+      if ($reject_code == "" && ("/<[a-zA-Z][^>]*>/"|regex_matches:$input.title)) {
         var.update $reject_code {
           value = "E-JOB-001"
         }
@@ -228,6 +236,8 @@ function "planner_ops/create_work_item" {
             parent_work_item_id   : $parent_id
             created_by            : $input.actor.user_id
             tasks                 : $plan.tasks
+            order_lines           : ($input.order_lines ?? [])
+            unmatched_lines       : ($input.unmatched_lines ?? [])
           }
         } as $job
       }
@@ -246,11 +256,11 @@ function "planner_ops/create_work_item" {
         correlation_id: $input.correlation_id
         message       : "Job added to plan."
         metadata      : {
-          task_count   : ($plan.tasks|count)
-          skipped_count: ($plan.skipped|count)
-          version_id   : $version.id
-          version_no   : $version.version_no
-        }
+        task_count   : $plan.tasks|count
+        skipped_count: $plan.skipped|count
+        version_id   : $version.id
+        version_no   : $version.version_no
+      }
       }
     }
 
@@ -268,7 +278,11 @@ function "planner_ops/create_work_item" {
             entity_id     : $job.id
             correlation_id: $input.correlation_id
             message       : "Job added under a parent job."
-            metadata      : {parent_work_item_id: $parent_id, journey_map_version_id: $version.id, task_count: ($plan.tasks|count)}
+            metadata      : {
+            parent_work_item_id   : $parent_id
+            journey_map_version_id: $version.id
+            task_count            : $plan.tasks|count
+          }
           }
         }
       }
@@ -278,7 +292,7 @@ function "planner_ops/create_work_item" {
   response = {
     work_item     : $job
     pinned_version: {id: $version.id, version_no: $version.version_no}
-    task_count    : ($plan.tasks|count)
+    task_count    : $plan.tasks|count
     tasks         : $plan.tasks
     skipped_stages: $plan.skipped
   }

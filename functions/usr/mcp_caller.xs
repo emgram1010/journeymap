@@ -71,8 +71,38 @@ function "usr/mcp_caller" {
       value = false
     }
 
+    // AIM-1 story 03: an AI member's own access token (emg_ai_ + 64 hex). Looked up by hash in
+    // aim/token_lookup; never sent to auth/whoami, never logged.
+    var $is_agent_token {
+      value = "/^emg_ai_[a-f0-9]{64}$/"|regex_matches:$token
+    }
+
+    var $agent_token_id {
+      value = 0
+    }
+
     conditional {
-      if ($token != "") {
+      if ($is_agent_token) {
+        function.run "aim/token_lookup" {
+          input = {token: $token}
+        } as $agent_lookup
+
+        var.update $user_id {
+          value = $agent_lookup.user_id
+        }
+
+        var.update $agent_token_id {
+          value = $agent_lookup.token_id
+        }
+
+        var.update $reason {
+          value = $agent_lookup.reason
+        }
+      }
+    }
+
+    conditional {
+      if ($token != "" && $is_agent_token == false) {
         var.update $reason {
           value = "bad_token"
         }
@@ -121,6 +151,29 @@ function "usr/mcp_caller" {
       }
     }
 
+    // AIM-1 (threat T-7): an AI member comes in with its own access token only. A person-style
+    // sign-in for an AI member's login is refused here, so revoking its token really stops it.
+    conditional {
+      if ($user_id != 0 && $is_agent_token == false) {
+        db.query ai_member_profile {
+          where = $db.ai_member_profile.user_id == $user_id
+          return = {type: "count"}
+        } as $ai_login_rows
+
+        conditional {
+          if ($ai_login_rows > 0) {
+            var.update $user_id {
+              value = 0
+            }
+
+            var.update $reason {
+              value = "bad_token"
+            }
+          }
+        }
+      }
+    }
+
     conditional {
       if ($user_id != 0) {
         var.update $reason {
@@ -162,7 +215,7 @@ function "usr/mcp_caller" {
     // db.query count against a cutoff var (no redis on this plan; OBS-1 pattern). Never logs the
     // token, the header or the address. "not_allowed" is already logged by usr/assert_module_access.
     var $log_refusal {
-      value = ($reason == "no_token") || ($reason == "bad_token") || ($reason == "check_failed")
+      value = ($reason == "no_token") || ($reason == "bad_token") || ($reason == "check_failed") || ($reason == "revoked_token") || ($reason == "expired_token")
     }
 
     conditional {
@@ -206,8 +259,9 @@ function "usr/mcp_caller" {
   }
 
   response = {
-    allowed: $allowed
-    user_id: $user_id
-    reason : $reason
+    allowed : $allowed
+    user_id : $user_id
+    reason  : $reason
+    token_id: $agent_token_id
   }
 }

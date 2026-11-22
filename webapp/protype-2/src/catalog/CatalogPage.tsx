@@ -26,8 +26,17 @@ import {
 } from './catalogApi';
 import {normaliseKey, validateKey, validateLabel, validateUnit, validateSizeLabel, validateExternalRef} from './catalogValidation';
 import type {ItemType, CatalogMethod, CatalogUnit} from './catalogTypes';
+import OutsideProductsTab from '../orders/OutsideProductsTab';
+import IncomingOrdersTab from '../orders/IncomingOrdersTab';
 
-type Tab = 'items' | 'methods';
+type Tab = 'items' | 'methods' | 'outside-products' | 'incoming-orders';
+
+const TAB_LABELS: Record<Tab, string> = {
+  items: 'Items',
+  methods: 'Methods',
+  'outside-products': 'Outside products',
+  'incoming-orders': 'Incoming orders',
+};
 
 function friendlyError(err: unknown, fallback: string): string {
   const withServerMessage = err as {serverMessage?: string | null} | null;
@@ -92,22 +101,25 @@ export default function CatalogPage() {
         </p>
 
         <div className="mt-6 flex gap-1 border-b border-zinc-200">
-          {(['items', 'methods'] as Tab[]).map((t) => (
+          {(Object.keys(TAB_LABELS) as Tab[]).map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => setTab(t)}
-              className={`px-3 py-2 text-sm font-medium capitalize ${
+              className={`px-3 py-2 text-sm font-medium ${
                 tab === t ? 'border-b-2 border-zinc-900 text-zinc-900' : 'text-zinc-500 hover:text-zinc-700'
               }`}
             >
-              {t}
+              {TAB_LABELS[t]}
             </button>
           ))}
         </div>
 
         <div className="mt-6">
-          {tab === 'items' ? <ItemTypesTab isAdmin={isAdmin} /> : <MethodsTab isAdmin={isAdmin} />}
+          {tab === 'items' && <ItemTypesTab isAdmin={isAdmin} />}
+          {tab === 'methods' && <MethodsTab isAdmin={isAdmin} />}
+          {tab === 'outside-products' && <OutsideProductsTab />}
+          {tab === 'incoming-orders' && <IncomingOrdersTab />}
         </div>
       </div>
     </div>

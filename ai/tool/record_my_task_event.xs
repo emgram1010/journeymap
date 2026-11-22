@@ -10,7 +10,7 @@
 //   - the caller needs the Execution grant, like any performer (usr/assert_module_access).
 // Every miss answers "Task not found"; not-yours answers E-COP-054.
 tool record_my_task_event {
-  instructions = "Record an event on one of YOUR tasks (work_task_id from list_my_tasks): event_type is started, completed, blocked, unblocked, skipped, reopened or note. blocked needs reason_code (waiting_on_someone, missing_information, something_went_wrong or other) and a short note. If you cannot complete a task, block it with a reason and tell the owner - never guess. You can only record completed after doing real work on the task with your other tools; otherwise it is refused (E-COP-075) - then explain to the owner, do not retry. You cannot record anything on a task assigned to someone else."
+  instructions = "Record an event on one of YOUR tasks (work_task_id from list_my_tasks): event_type is started, completed, blocked, unblocked, skipped, reopened or note. blocked needs reason_code (waiting_on_someone, missing_information, something_went_wrong or other) and a short note. If you cannot complete a task, block it with a reason and tell the owner - never guess. You can only record completed after doing real work on the task with your other tools; otherwise it is refused (E-COP-075) - then explain to the owner, do not retry. You cannot record anything on a task assigned to someone else. From an outside assistant, pass journey_architecture_id."
 
   input {
     int work_task_id filters=min:1
@@ -20,6 +20,10 @@ tool record_my_task_event {
 
     int approval_id? {
       description = "Leave 0. Only when the owner approved a waiting action: its item number, sent with exactly the approved input."
+    }
+
+    int journey_architecture_id? {
+      description = "Only for an outside assistant (no ticket): the business (architecture id) to work in. Leave 0 in a copilot chat: the chat's business is used."
     }
 
     text ticket? filters=trim {
@@ -80,7 +84,7 @@ tool record_my_task_event {
     }
 
     function.run "journey/tool_gate" {
-      input = {journey_map_id: 0, ticket: $input.ticket, tool: "record_my_task_event", kind: "write", act_type: $act_type, act_payload: {work_task_id: $input.work_task_id, event_type: $input.event_type, reason_code: $input.reason_code, note: $input.note}, act_summary: $act_summary, act_approval_id: $input.approval_id}
+      input = {journey_map_id: 0, journey_architecture_id: $input.journey_architecture_id, ticket: $input.ticket, tool: "record_my_task_event", kind: "write", act_type: $act_type, act_payload: {work_task_id: $input.work_task_id, event_type: $input.event_type, reason_code: $input.reason_code, note: $input.note}, act_summary: $act_summary, act_approval_id: $input.approval_id}
     } as $cop1_gate
 
     var $act_action_id {
@@ -102,8 +106,16 @@ tool record_my_task_event {
         group {
           stack {
 
-    var $pin {
+    var $gate_pin {
       value = $cop1_gate.pin_architecture_id ?? 0
+    }
+
+    var $gate_via {
+      value = $cop1_gate.via ?? ""
+    }
+
+    var $gate_context {
+      value = $cop1_gate.context ?? ""
     }
 
     var $caller_user {
@@ -114,9 +126,17 @@ tool record_my_task_event {
       value = $cop1_gate.account_id ?? 0
     }
 
+    function.run "copilot/work_business" {
+      input = {pin: $gate_pin, via: $gate_via, context: $gate_context, named: $input.journey_architecture_id, account_id: $caller_account}
+    } as $work_biz
+
+    var $pin {
+      value = $work_biz.business ?? 0
+    }
+
     precondition ($pin != 0 && $caller_user != 0 && $caller_account != 0) {
       error_type = "inputerror"
-      error = "This only works in a copilot conversation about one business. (E-COP-045)"
+      error = "This needs one business: use it in a copilot chat about a business or, from an outside assistant, pass journey_architecture_id. (E-COP-045)"
     }
 
     // The task -> its job -> the pinned version -> the map.

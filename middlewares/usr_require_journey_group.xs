@@ -26,6 +26,11 @@ middleware usr_require_journey_group {
 
     conditional {
       if ($caller_id != 0) {
+        // AIM-1 (T-7): the app's own screens are for people; an AI member's login is refused.
+        function.run "aim/assert_person_door" {
+          input = {user_id: $caller_id, step: "middleware"}
+        } as $_person_door
+
         function.run "usr/journey_group_module" {
           input = {uri: $env.$request_uri, method: $env.$request_method}
         } as $need

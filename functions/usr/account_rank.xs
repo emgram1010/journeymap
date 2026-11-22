@@ -43,6 +43,12 @@ function "usr/account_rank" {
       return = {type: "count"}
     } as $ai_count
 
+    // AIM-1: a login with an ai_member_profile row is an AI member too.
+    db.query ai_member_profile {
+      where = $db.ai_member_profile.user_id == $uid
+      return = {type: "count"}
+    } as $aim_count
+
     // Real ids start at 1, so a 0 here means "not found" (never a real user).
     var $found {
       value = $uid > 0
@@ -61,5 +67,5 @@ function "usr/account_rank" {
     }
   }
 
-  response = {found: $found, user_id: $uid, account_id: $acct, rank: $rank, is_owner: $is_owner, is_admin: $is_admin, is_ai: ($ai_count > 0), account_owner_user_id: $owner_uid}
+  response = {found: $found, user_id: $uid, account_id: $acct, rank: $rank, is_owner: $is_owner, is_admin: $is_admin, is_ai: (($ai_count + $aim_count) > 0), account_owner_user_id: $owner_uid}
 }

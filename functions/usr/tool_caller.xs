@@ -38,6 +38,10 @@ function "usr/tool_caller" {
       value = ""
     }
 
+    var $token_id {
+      value = 0
+    }
+
     var $authz {
       value = ""
     }
@@ -199,6 +203,10 @@ function "usr/tool_caller" {
         var.update $user_id {
           value = $who.user_id
         }
+
+        var.update $token_id {
+          value = $who.token_id ?? 0
+        }
       }
     }
 
@@ -227,5 +235,6 @@ function "usr/tool_caller" {
     ticket_map_id         : $ticket_map_id
     ticket_architecture_id: $ticket_architecture_id
     ticket_source         : $ticket_source
+    token_id              : $token_id
   }
 }

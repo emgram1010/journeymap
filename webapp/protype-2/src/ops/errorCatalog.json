@@ -2696,5 +2696,435 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "An AI connects with access tokens, never a password. A password for it would let a person act as the AI outside its limits and audit trail."
+  },
+  "E-TAG-001": {
+    "code": "E-TAG-001",
+    "feature": "TAG-1",
+    "user_message": "A tag needs a name of 1 to 40 characters.",
+    "what_happened": "A tag name was empty or too long. Nothing was saved.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-TAG-002": {
+    "code": "E-TAG-002",
+    "feature": "TAG-1",
+    "user_message": "A tag name cannot contain < or >.",
+    "what_happened": "A tag name contained HTML characters. Nothing was saved.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-TAG-003": {
+    "code": "E-TAG-003",
+    "feature": "TAG-1",
+    "user_message": "This map already has 20 tags, the most allowed. Remove one first.",
+    "what_happened": "A 21st tag was added to one map.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-TAG-004": {
+    "code": "E-TAG-004",
+    "feature": "TAG-1",
+    "user_message": "This account already has 200 tags, the most allowed. Reuse or delete one first.",
+    "what_happened": "A 201st tag was created in one account.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-TAG-005": {
+    "code": "E-TAG-005",
+    "feature": "TAG-1",
+    "user_message": "Tag not found. Call list_tags to see the tags that exist.",
+    "what_happened": "A tag was named that does not exist in this account, or belongs to another account.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-TAG-006": {
+    "code": "E-TAG-006",
+    "feature": "TAG-1",
+    "user_message": "The tag could not be saved. Try again.",
+    "what_happened": "A new tag could not be written, usually because two saves happened at the same moment.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Try once more. If it repeats, check the Health page for TAG-1 events."
+  },
+  "E-SCL-001": {
+    "code": "E-SCL-001",
+    "feature": "SCALE-1",
+    "user_message": "Say which product: its source system (up to 40 characters) and its id (up to 120).",
+    "what_happened": "An outside product was saved without a source system or product id.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-SCL-002": {
+    "code": "E-SCL-002",
+    "feature": "SCALE-1",
+    "user_message": "That item isn't in your catalog.",
+    "what_happened": "A product was linked to an item that is not in the caller's account.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-SCL-003": {
+    "code": "E-SCL-003",
+    "feature": "SCALE-1",
+    "user_message": "Someone else just saved this product. Reload and try again.",
+    "what_happened": "Two people saved the same outside product at the same moment.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-SCL-004": {
+    "code": "E-SCL-004",
+    "feature": "SCALE-1",
+    "user_message": "Product not found.",
+    "what_happened": "An outside product row was named that does not exist in this account.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-001": {
+    "code": "E-AIM-001",
+    "feature": "AIM-1",
+    "user_message": "Only an ordinary member's login can be an AI member: not an admin, the owner, yourself or the copilot.",
+    "what_happened": "An admin tried to mark an admin, the owner, themself or the copilot as an AI member.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-002": {
+    "code": "E-AIM-002",
+    "feature": "AIM-1",
+    "user_message": "AI member not found.",
+    "what_happened": "An AI member was named that does not exist in this account.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-003": {
+    "code": "E-AIM-003",
+    "feature": "AIM-1",
+    "user_message": "This login is an AI member. It works through its access token, not the app.",
+    "what_happened": "An AI member's login tried to use the app's own screens.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Expected. If a person needs the app, give them their own login; never share an AI member's."
+  },
+  "E-AIM-010": {
+    "code": "E-AIM-010",
+    "feature": "AIM-1",
+    "user_message": "That is outside what this access token may do.",
+    "what_happened": "An AI member used a token that was made narrower than the call it tried.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-011": {
+    "code": "E-AIM-011",
+    "feature": "AIM-1",
+    "user_message": "Access token not found.",
+    "what_happened": "A token was named that does not exist in this account.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-012": {
+    "code": "E-AIM-012",
+    "feature": "AIM-1",
+    "user_message": "Access tokens are for AI members only. Make this login an AI member first.",
+    "what_happened": "A token was requested for a login that is not an AI member.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-013": {
+    "code": "E-AIM-013",
+    "feature": "AIM-1",
+    "user_message": "This AI member already has 2 live tokens. Revoke one first.",
+    "what_happened": "A third live token was requested.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-014": {
+    "code": "E-AIM-014",
+    "feature": "AIM-1",
+    "user_message": "A token can only be narrower than the AI member's own job, never wider.",
+    "what_happened": "A token was requested with an action the AI member itself may not take.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-015": {
+    "code": "E-AIM-015",
+    "feature": "AIM-1",
+    "user_message": "A token's name cannot contain < or >.",
+    "what_happened": "A token label contained HTML characters.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-016": {
+    "code": "E-AIM-016",
+    "feature": "AIM-1",
+    "user_message": "This AI member is switched off. Switch it back on before making a token.",
+    "what_happened": "A token was requested for a switched-off AI member.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-030": {
+    "code": "E-AIM-030",
+    "feature": "AIM-1",
+    "user_message": "An AI member needs a manager: a person who answers for it.",
+    "what_happened": "An AI member was saved with no manager.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-031": {
+    "code": "E-AIM-031",
+    "feature": "AIM-1",
+    "user_message": "The manager must be a switched-on person in your account, not an AI.",
+    "what_happened": "The chosen manager is switched off, in another account, an AI, or the AI member itself.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-032": {
+    "code": "E-AIM-032",
+    "feature": "AIM-1",
+    "user_message": "This AI member has no active manager, so it cannot work. An admin has to name one.",
+    "what_happened": "An AI member was called while its manager is switched off, gone or missing.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Open Manage users, AI members, and pick a new manager."
+  },
+  "E-AIM-033": {
+    "code": "E-AIM-033",
+    "feature": "AIM-1",
+    "user_message": "Say in one line what this AI member is for (up to 200 characters, no < or >).",
+    "what_happened": "The purpose was empty, too long or contained HTML characters.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-034": {
+    "code": "E-AIM-034",
+    "feature": "AIM-1",
+    "user_message": "Choose what it may do from: read, draft_map, draft_plan, own_work. Nothing else can be given to an AI member.",
+    "what_happened": "An action outside the fixed list (for example publish or delete) was sent, or none was chosen.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-035": {
+    "code": "E-AIM-035",
+    "feature": "AIM-1",
+    "user_message": "One of those plans isn't in your account, or a plan is listed twice.",
+    "what_happened": "The plan list for an AI member held a plan from another account or a repeat.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-040": {
+    "code": "E-AIM-040",
+    "feature": "AIM-1",
+    "user_message": "This AI member is switched off. A person has to switch it back on.",
+    "what_happened": "A switched-off or automatically paused AI member made a call.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Check why it was paused (the reason is on the AI members list) before switching it back on."
+  },
+  "E-AIM-041": {
+    "code": "E-AIM-041",
+    "feature": "AIM-1",
+    "user_message": "AI is paused for this account. A person has to turn it back on.",
+    "what_happened": "An AI member made a call while Pause all AI is on.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-050": {
+    "code": "E-AIM-050",
+    "feature": "AIM-1",
+    "user_message": "This AI member has reached its hourly limit for changes. Reading still works.",
+    "what_happened": "An AI member hit its writes-per-hour cap.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-051": {
+    "code": "E-AIM-051",
+    "feature": "AIM-1",
+    "user_message": "This AI member has reached its daily limit for changes. Reading still works.",
+    "what_happened": "An AI member hit its writes-per-day cap.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-052": {
+    "code": "E-AIM-052",
+    "feature": "AIM-1",
+    "user_message": "Limits: up to 200 changes an hour and 2000 a day.",
+    "what_happened": "Caps above the account maximum were sent.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-060": {
+    "code": "E-AIM-060",
+    "feature": "AIM-1",
+    "user_message": "An AI member can never do this. A person has to.",
+    "what_happened": "An AI member tried something no AI may ever do (for example publish or delete). Counted as suspicious; three in a day pauses it.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "error",
+    "fix_hint": "Look at what it was reading just before: text in a map, job or order may have told it to. Pause it if in doubt."
+  },
+  "E-AIM-061": {
+    "code": "E-AIM-061",
+    "feature": "AIM-1",
+    "user_message": "This tool isn't open to AI members.",
+    "what_happened": "An AI member called a tool that is not on the allow-list (new tools are closed by default).",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-062": {
+    "code": "E-AIM-062",
+    "feature": "AIM-1",
+    "user_message": "Only a person can manage AI members.",
+    "what_happened": "An AI login tried to manage AI members, tokens or the pause switches.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "error",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-AIM-063": {
+    "code": "E-AIM-063",
+    "feature": "AIM-1",
+    "user_message": "That is outside this AI member's job. An admin can change what it may do.",
+    "what_happened": "An AI member called a tool whose kind of work was not given to it.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-HOOK-001": {
+    "code": "E-HOOK-001",
+    "feature": "DEMAND-1",
+    "user_message": "This order key isn't recognised, or it is switched off.",
+    "what_happened": "An order arrived with a wrong, old or switched-off key. Nothing was added.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Create a new order key on the Incoming orders tab and give it to the sender."
+  },
+  "E-HOOK-003": {
+    "code": "E-HOOK-003",
+    "feature": "DEMAND-1",
+    "user_message": "The order has no id.",
+    "what_happened": "An order arrived without its id, so it could not be matched or de-duplicated.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-HOOK-004": {
+    "code": "E-HOOK-004",
+    "feature": "DEMAND-1",
+    "user_message": "No routing rule matches this order, so nothing was added.",
+    "what_happened": "An order arrived for a source or fulfilment type with no routing rule.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Add a routing rule on the Incoming orders tab, then press Try again on the order."
+  },
+  "E-HOOK-005": {
+    "code": "E-HOOK-005",
+    "feature": "DEMAND-1",
+    "user_message": "Pick a plan and a map from your account, where the plan already uses that map.",
+    "what_happened": "A routing rule named a plan or map from another account, or a map the plan does not use.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-HOOK-006": {
+    "code": "E-HOOK-006",
+    "feature": "DEMAND-1",
+    "user_message": "Name the order system in 2 to 40 lower-case letters, digits or hyphens. A fulfilment type is up to 40 letters, digits, spaces or hyphens.",
+    "what_happened": "A routing rule had a badly formed order-system name or fulfilment type.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-HOOK-007": {
+    "code": "E-HOOK-007",
+    "feature": "DEMAND-1",
+    "user_message": "Routing rule not found.",
+    "what_happened": "A routing rule was named that does not exist in this account.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-HOOK-008": {
+    "code": "E-HOOK-008",
+    "feature": "DEMAND-1",
+    "user_message": "Only a held, unrouted or failed order can be tried again.",
+    "what_happened": "Try again was pressed on an order that was already added.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-HOOK-009": {
+    "code": "E-HOOK-009",
+    "feature": "DEMAND-1",
+    "user_message": "Add a routing rule for this order system first.",
+    "what_happened": "An order key was requested for an order system with no routing rule.",
+    "likely_cause": "Expected: this is a guard rail, not a fault.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Follow the message. Nothing was changed."
   }
 }

@@ -1,6 +1,6 @@
 # Epic-27 — START HERE. AI members, on-demand work, and safer tools
 
-**Status:** E1 (SAFE-1) and E2 (DISC-1) ✅ built and verified live 2026-11-21. E3–E6 📋 written, not built.
+**Status (2026-11-21):** E1, E2, E5, E6 ✅ built and verified live. E3 🟡 core built (guardrails, tokens, off switches). E4 🟡 order intake built; live-day placement, webhook and polling not built. Each epic's Test Results lists what was not built or not run.
 **Raised by:** founder, 2026-11-21 ("Emgram: fleshed-out features", six backend epics).
 **Hardened by:** Fable 5.2, same day, against the repo files. **Live Xano was not compared.**
 Every epic starts with a read-only story or check that does that.
@@ -47,7 +47,8 @@ These are the differences between the request as written and what the repo shows
 | D-1 | Reset link lifetime | SAFE-1 story 03 | ✅ Approved 2026-11-21 | **1 hour, single use** |
 | D-2 | Who may reset another member's password? | SAFE-1 story 03 | ✅ Approved | **Any team admin** (not only the owner) |
 | D-3 | May an AI member hold its own login, replacing USR-3's "AI holds no grant"? | AIM-1 story 00 | ✅ Approved | Yes. AI logins are marked as AI; they read, write drafts and log their own steps; they never publish, delete, approve or change permissions |
-| D-4 | Do AI tokens expire? | AIM-1 story 03 | ⏸ **On hold** | Suggested: 90 days, warning 7 days before. Ask again before story 03 |
+| D-4 | Do AI tokens expire? | AIM-1 story 03 | ✅ Taken by the builder 2026-11-21 (founder: "make the calls") | **90 days.** The 7-day warning is not built |
+| D-11 | May an order be added to a day that has already started? | DEMAND-1 story 01 | ⏸ **Founder's call** | Not built: it overrides E-LIVE-007. Until decided, an order becomes a backlog job. Recommended: append-only republish, on Opus |
 | D-5 | Routing rule: which plan, map, member and date an order becomes | DEMAND-1 story 03 | ✅ Approved | A small routing table the owner fills once; unmatched orders are listed on the Health page and nothing is added |
 | D-6 | An order changed or cancelled after work started | DEMAND-1 story 03 | ✅ Approved (shape to confirm) | Never change started work. Show "order changed" / "order cancelled" in **both Planning and Execution**. Built as a **flag beside the status**, because the five step statuses are fixed by design (recommended; founder did not object) |
 | D-7 | Approval level for adding work to a live day | DEMAND-1 story 01 | ✅ Approved | "Runs, then tells you" |

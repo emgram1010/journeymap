@@ -1,7 +1,7 @@
 # SCALE-1 — Item-scaled durations
 
 **Epic ID:** SCALE-1 (E5 in the founder's list)
-**Status:** 📋 Written, not built (2026-11-21). **Story 00 decides how much of this is left to build.**
+**Status:** ✅ Built and verified live 2026-11-21. Story 00's report and the gaps are in Test Results.
 **Size:** M as requested; likely S to M once story 00 is done (finding F-5).
 **Model:** Sonnet 5.5 to build, then an **Opus review** (it changes what every planner card's length means).
 **Depends on:** DEMAND-1 (order items arrive through the webhook), EST-1, ITEM-1, RATE-1, CAT-1 (phase-6).
@@ -81,4 +81,48 @@ the existing function and its TypeScript twin, with the golden fixtures updated.
 
 ## 8. Test Results
 
-_Not run. Nothing built yet._
+**Built and verified live 2026-11-21 (Fable 5.2).**
+
+### Story 00 report: why the order planned 11 hours
+
+| Question | Answer |
+|---|---|
+| Where do the 11 hours come from? | Plan 146, jobs 249 and 250. Each has **no order lines** (`reasons: ["no_lines"]`), so the estimate is only the map's fixed stage times: 60 + 10 + 120 + 240 + 10 + 30 + 180 + 60 = **710 minutes** |
+| Cause | The jobs were made by `plan_add_job`, which could not send items. The formula itself is right |
+| Second cause, in the map's own data | Version 4 of map 193 holds test numbers: fixed stage times of 710 minutes **plus** 5 to 20 minutes per item per stage. With 14 chairs the honest answer from this map is far more than 20 minutes. The 20 minutes the owner expects needs real times typed on the map |
+| Items on that map | `foldable-chair` and `moonbouncer` only. "Six-foot table" and "adult chair" are not in its Items row |
+| EST-1, RATE-1, ITEM-1, CAT-1 | All live and working: lines table, lines endpoints, rates, `estimate/compute_estimate` |
+| Story 01 | Built as written |
+| Story 02 | Shrunk to its test: the formula already scales |
+| Story 03 | Built (backend and screen) |
+
+**What was built**
+- Tables `item_external_ref` (170) and `work_item_unmatched_line` (171).
+- Functions `estimate/resolve_item_lines` (426), `items/resolve_external` (427), `items/set_external_ref` (428).
+- `jobs/create_job` (241) and `planner_ops/create_work_item` (348) accept order lines, written in the job's own transaction.
+- `plan_add_job` (tool 173) takes `items` and returns lines, unknown items, items not on the map and the estimate.
+- Endpoints `GET item_external_refs` (675), `POST item_external_ref_set` (676); an "Outside products" tab in Catalog.
+
+| Test | Result |
+|---|---|
+| Job with items | Pass: job 253 on plan 146 with 14 chairs, 2 bouncers and one unknown item |
+| Estimate matches a hand calculation | Pass, to the minute: 710 fixed + 910 chairs + 320 bouncers = **1,940** |
+| An item with no time in a stage adds 0 and is named | Pass: chairs have no time in stage s3; estimate marked incomplete, no default added |
+| Same key twice is added together | Pass (10 + 4 = 14) |
+| Unknown key | Pass: job still made, key returned and kept in `work_item_unmatched_line` |
+| Bad quantity (0, 2.5) | Pass: whole call refused (E-EST-001), no job made |
+| No items | Pass: `plan_add_job` test suite green; the job is made as before |
+| Link a product, mark "not an item", move a link | Pass (`saved`, `move_needed`) |
+| Linked product becomes an item line; ignored product is skipped | Pass |
+| Another account | Pass ("Not Found") |
+| The owner's own example (tables and chairs) | **Cannot pass yet:** those items and their real times are not on the map |
+
+**Different from the stories**
+- The rules behind `PUT lines` (endpoint 607) were **not** moved into the new function. 607 works on item ids and refuses an item that is not on the map; the new path works on item keys and keeps such an item with "no time set", as the story asks. The 1 to 9999 range now lives in two places.
+- Unknown items are kept in a small side table, not in the job's attributes.
+- "Refresh jobs not yet started with one press" was not built.
+- The job card does not list unknown items yet (the data is stored).
+- No Opus review pass was run.
+
+**Left in the founder's test plan:** job 253 "SCALE-1 test … (safe to cancel)" on plan 146.
+

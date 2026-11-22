@@ -359,6 +359,49 @@ function "journey/tool_gate" {
       }
     }
 
+    // AIM-1: an AI member (a login with an ai_member_profile row) must also pass aim/check: the
+    // account-wide pause, its own off switch, an active manager, the ceiling, default deny, its
+    // job, its token's scope and its caps. One query for a person. Refused in ANY mode.
+    var $aim_refused {
+      value = false
+    }
+
+    var $aim_msg {
+      value = ""
+    }
+
+    var $aim_token_id {
+      value = $caller.token_id ?? 0
+    }
+
+    conditional {
+      if ($ok == true && $caller.user_id != 0) {
+        function.run "aim/check" {
+          input = {user_id: $caller.user_id, account_id: $caller.account_id, tool: $input.tool, kind: $kind, token_id: $aim_token_id}
+        } as $aim
+
+        conditional {
+          if ($aim.ok != true) {
+            var.update $ok {
+              value = false
+            }
+
+            var.update $code {
+              value = $aim.code
+            }
+
+            var.update $aim_refused {
+              value = true
+            }
+
+            var.update $aim_msg {
+              value = $aim.message
+            }
+          }
+        }
+      }
+    }
+
     // COP-2: approval levels, for AI identities, when the tool declares an action type. A refusal
     // here is enforced whatever usr/tool_gate_mode says: "waits for you" must be a real stop.
     var $action_refused {
@@ -471,7 +514,7 @@ function "journey/tool_gate" {
     }
 
     conditional {
-      if ($ok == false && $recent_logs < 60 && $action_refused == false && $pin_refused == false && $ai_unpinned == false && $research_refused == false) {
+      if ($ok == false && $recent_logs < 60 && $action_refused == false && $pin_refused == false && $ai_unpinned == false && $research_refused == false && $aim_refused == false) {
         function.run "ops/log_event" {
           input = {
             feature    : "COP-1"
@@ -498,7 +541,7 @@ function "journey/tool_gate" {
     }
 
     conditional {
-      if ($ok == false && ($mode == "enforce" || $action_refused == true || $pin_refused == true || $over_cap == true || $ai_unpinned == true || $research_refused == true)) {
+      if ($ok == false && ($mode == "enforce" || $action_refused == true || $pin_refused == true || $over_cap == true || $ai_unpinned == true || $research_refused == true || $aim_refused == true)) {
         var.update $verdict {
           value = "refused"
         }
@@ -644,6 +687,12 @@ function "journey/tool_gate" {
 
     var $refuse_cap {
       value = ($refuse == true && $code == "E-COP-004")
+    }
+
+    // AIM-1: an AI member outside its job, switched off, paused, capped or at the ceiling.
+    precondition ($aim_refused == false) {
+      error_type = "accessdenied"
+      error = $aim_msg
     }
 
     // COP-3 review fix: the copilot outside a one-business conversation — refused in any mode.

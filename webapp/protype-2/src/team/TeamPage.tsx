@@ -22,6 +22,7 @@ import {
 import {getCatalogEntry} from '../ops/errorCatalog';
 import {buildResetLink, resetBlockedBy} from './resetLink';
 import {announceCopilotChanged} from '../planner/useAccountCopilot';
+import AiMembersPanel from '../aim/AiMembersPanel';
 import {
   canCreateCopilot,
   canManageTeam,
@@ -104,7 +105,14 @@ export default function TeamPage() {
   const [capText, setCapText] = useState('');
   const [capError, setCapError] = useState<string | null>(null);
 
+  // AIM-1. Which logins are AI members, lifted up from the AI members panel so the people
+  // table can badge them. Empty until the panel has loaded (or if it could not).
+  const [aiMemberIds, setAiMemberIds] = useState<number[]>([]);
+
   const isAdmin = canManageTeam(user);
+
+  // AIM-1. The copilot is its own kind of AI: never offered as an AI-member login or a manager.
+  const peopleForAiPanel = useMemo(() => team.filter((m) => !isCopilotRow(m.id, copilot)), [team, copilot]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -640,7 +648,7 @@ export default function TeamPage() {
                         <>
                           <div className="font-medium text-zinc-900 flex items-center gap-2">
                             {member.name || '—'}
-                            {isAi && (
+                            {(isAi || aiMemberIds.includes(member.id)) && (
                               <span className="inline-flex items-center gap-1 rounded bg-violet-100 px-1.5 py-0.5 text-[11px] font-medium text-violet-700">
                                 <Bot className="w-3 h-3" />
                                 AI
@@ -882,6 +890,11 @@ export default function TeamPage() {
           A new person starts with all three unticked and sees nothing until you tick something. Nobody can change their
           own access — ask another admin.
         </p>
+
+        {/* ── AIM-1: AI members (admins only; the server refuses everyone else) ── */}
+        {isAdmin && (
+          <AiMembersPanel members={peopleForAiPanel} viewerId={user?.id} onAiUserIds={setAiMemberIds} />
+        )}
       </div>
     </div>
   );

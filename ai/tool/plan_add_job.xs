@@ -8,7 +8,7 @@
 //     an exception child;
 //   - it only adds the job to the plan. It schedules nothing and publishes nothing to live.
 tool plan_add_job {
-  instructions = "Add a job to a plan (workspace_id) from one map (journey_map_id), with a short title (up to 120 characters, no HTML). The job gets its tasks from the map's latest published version and stays pinned to that version. Before calling: the plan must already accept the map (use plan_accept_map first) and the map must have a published version - otherwise this is refused and the message says which. Returns work_item_id, title, task_count and skipped_stages (stages that produced no task, with the reason). It never puts the job on anyone's day, never makes a job under another job, and never publishes anything to live."
+  instructions = "Add a job to a plan (workspace_id) from one map (journey_map_id), with a short title (up to 120 characters, no HTML). The job gets its tasks from the map's latest published version and stays pinned to that version. Optional items: a JSON list of {item_key, quantity} for what the order contains, e.g. [{\"item_key\": \"chair-adult\", \"quantity\": 14}]. item_key is the catalog item's key; quantity is a whole number 1 to 9999; the same key twice is added together. With items the job's planned time scales with the quantities. A bad quantity refuses the whole call and nothing is added. A key that is not in the catalog is returned under unknown_items, and an item the map has no time for under not_on_map: the job is still created and shows 'no time set' for them. Before calling: the plan must already accept the map (use plan_accept_map first) and the map must have a published version - otherwise this is refused and the message says which. Returns work_item_id, title, task_count, skipped_stages, lines, unknown_items, not_on_map, estimated_minutes and estimate_complete. It never puts the job on anyone's day, never makes a job under another job, and never publishes anything to live."
 
   input {
     int workspace_id filters=min:1 {
@@ -21,6 +21,10 @@ tool plan_add_job {
 
     text title filters=trim {
       description = "A short name for the job, up to 120 characters."
+    }
+
+    json items? {
+      description = "Optional. What the order contains: [{item_key, quantity}]. Leave out for a job with no items."
     }
 
     int approval_id? {
@@ -45,7 +49,7 @@ tool plan_add_job {
     }
 
     function.run "journey/tool_gate" {
-      input = {journey_map_id: $input.journey_map_id, journey_architecture_id: $input.journey_architecture_id, ticket: $input.ticket, tool: "plan_add_job", kind: "write", act_type: "plan_draft", act_payload: {workspace_id: $input.workspace_id, journey_map_id: $input.journey_map_id, title: $input.title}, act_summary: $act_summary, act_approval_id: $input.approval_id}
+      input = {journey_map_id: $input.journey_map_id, journey_architecture_id: $input.journey_architecture_id, ticket: $input.ticket, tool: "plan_add_job", kind: "write", act_type: "plan_draft", act_payload: {workspace_id: $input.workspace_id, journey_map_id: $input.journey_map_id, title: $input.title, items: $input.items}, act_summary: $act_summary, act_approval_id: $input.approval_id}
     } as $cop1_gate
 
     var $act_action_id {
@@ -138,6 +142,29 @@ tool plan_add_job {
       input = {user_id: $caller_user}
     } as $actor
 
+    // SCALE-1 story 01: the job's items, checked before anything is written (one rule:
+    // estimate/resolve_item_lines). A bad quantity refuses the whole call.
+    function.run "estimate/resolve_item_lines" {
+      input = {account_id: $caller_account, journey_map_id: $input.journey_map_id, items: $input.items}
+    } as $item_lines
+
+    precondition ($item_lines.ok == true) {
+      error_type = "inputerror"
+      error = $item_lines.message
+    }
+
+    var $unmatched {
+      value = []
+    }
+
+    foreach ($item_lines.unknown_items) {
+      each as $ui {
+        array.push $unmatched {
+          value = {source_system: "", external_id: "", label: $ui.item_key, quantity: $ui.quantity, reason: "unknown_item"}
+        }
+      }
+    }
+
     // No attributes and no parent: a job made by the copilot is never an exception child.
     function.run "planner_ops/create_work_item" {
       input = {
@@ -148,12 +175,18 @@ tool plan_add_job {
         attributes         : {}
         parent_work_item_id: 0
         correlation_id     : ""
+        order_lines        : $item_lines.lines
+        unmatched_lines    : $unmatched
       }
     } as $created
 
     var $job_row {
       value = $created.work_item
     }
+
+    function.run "estimate/estimate_job" {
+      input = {work_item_id: $job_row.id}
+    } as $est
           }
         }
       }
@@ -176,5 +209,10 @@ tool plan_add_job {
     title         : $job_row.title
     task_count    : $created.task_count
     skipped_stages: $created.skipped_stages
+    lines            : $item_lines.lines
+    unknown_items    : $item_lines.unknown_items
+    not_on_map       : $item_lines.not_on_map
+    estimated_minutes: $est.total_minutes
+    estimate_complete: $est.complete
   }
 }

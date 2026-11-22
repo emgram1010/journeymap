@@ -30,6 +30,16 @@ function "copilot/plan_in_business" {
       value = ($plan_id != 0 && $input.account_id != 0 && $plan_account == $input.account_id)
     }
 
+    // AIM-1 story 08: an AI member only works on the plans in its own scope. Any other plan
+    // answers exactly like one that does not exist (aim/plan_allowed is the one rule).
+    function.run "aim/plan_allowed" {
+      input = {user_id: $input.user_id, workspace_id: $input.workspace_id}
+    } as $aim_plan
+
+    var.update $found {
+      value = ($found == true && $aim_plan.allowed == true)
+    }
+
     db.query planner_workspace_map {
       where = $db.planner_workspace_map.workspace_id == $input.workspace_id
       return = {type: "list"}

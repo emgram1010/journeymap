@@ -1614,6 +1614,26 @@ export async function setCopilotCap(dailyCap: number): Promise<{user_id: number;
   });
 }
 
+/** TAG-1 — the account's tags (with how many visible maps carry each) and the map-tag links. */
+export async function getMapTags(): Promise<{
+  tags: {map_tag_id: number; name: string; map_count: number}[];
+  links: {journey_map_id: number; map_tag_id: number}[];
+}> {
+  return xanoRequest('/map_tags');
+}
+
+/** TAG-1 — add, remove, rename or delete a tag. Rename and delete may answer "…_needed" first. */
+export async function changeMapTag(body: {
+  action: 'add' | 'remove' | 'rename' | 'delete';
+  journey_map_id?: number;
+  map_tag_id?: number;
+  name?: string;
+  merge?: boolean;
+  confirm?: boolean;
+}): Promise<{status?: string; name?: string; other_name?: string; map_count?: number; removed?: boolean}> {
+  return xanoRequest('/map_tag_change', {method: 'POST', body});
+}
+
 /** SAFE-1 / D-10 — who owns the signed-in person's account. owner_user_id 0 = no owner. */
 export async function getAccountOwner(): Promise<{account_id: number; owner_user_id: number}> {
   return xanoRequest('/account/owner', {baseUrl: getXanoMembersBaseUrl()});

@@ -11,6 +11,8 @@ import {
   friendlyError,
 } from './xano';
 import { useAuth } from './AuthContext';
+import { MapTagChips, TagFilterBar, useMapTags, type MapTagsState } from './tags/MapTags';
+import { filterByTag } from './tags/tagModel';
 
 function relativeTime(value: string | number | null | undefined): string {
   if (!value) return '';
@@ -51,9 +53,10 @@ interface MapTileProps {
   onRename: (title: string) => Promise<void>;
   onDelete: () => void;
   onArchive: () => void;
+  tagState: MapTagsState;
 }
 
-function MapTile({ map, onOpen, onRename, onDelete, onArchive }: MapTileProps) {
+function MapTile({ map, onOpen, onRename, onDelete, onArchive, tagState }: MapTileProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(map.title);
@@ -148,6 +151,9 @@ function MapTile({ map, onOpen, onRename, onDelete, onArchive }: MapTileProps) {
           </div>
         </div>
 
+        {/* TAG-1 — labels beside the map; changing them never changes the map. */}
+        <MapTagChips mapId={map.id} state={tagState} />
+
         {/* Status & timestamp */}
         <div className="flex items-center gap-2 mt-auto flex-wrap">
           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${STATUS_STYLES[map.status]}`}>
@@ -182,6 +188,8 @@ export default function Dashboard() {
   const [createLevel, setCreateLevel] = useState<string>('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const tagState = useMapTags();
+  const [tagFilter, setTagFilter] = useState(0);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -277,6 +285,7 @@ export default function Dashboard() {
 
   const initials = user?.name ? user.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() : 'U';
   const activeCount = maps.filter((m) => m.status !== 'archived').length;
+  const shownMaps = filterByTag(maps, tagState.links, tagFilter);
 
   return (
     <div className="min-h-screen bg-zinc-50 font-sans">
@@ -360,6 +369,10 @@ export default function Dashboard() {
           </div>
         )}
 
+        {!isLoading && maps.length > 0 && (
+          <TagFilterBar state={tagState} selected={tagFilter} onSelect={setTagFilter} />
+        )}
+
         {/* Loading skeleton */}
         {isLoading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -388,7 +401,7 @@ export default function Dashboard() {
         {/* Tile grid */}
         {!isLoading && maps.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {maps.map((map) => (
+            {shownMaps.map((map) => (
               <MapTile
                 key={map.id}
                 map={map}
@@ -396,9 +409,14 @@ export default function Dashboard() {
                 onRename={(title) => handleRename(map.id, title)}
                 onDelete={() => void handleDelete(map.id)}
                 onArchive={() => void handleArchive(map)}
+                tagState={tagState}
               />
             ))}
           </div>
+        )}
+
+        {!isLoading && maps.length > 0 && shownMaps.length === 0 && (
+          <p className="text-sm text-zinc-500 py-10 text-center">No maps carry this tag here. <button className="underline" onClick={() => setTagFilter(0)}>Show all</button></p>
         )}
       </main>
 

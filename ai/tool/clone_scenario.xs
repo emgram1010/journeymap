@@ -1,26 +1,26 @@
-// SCN-MCP-2: MCP tool — deep-clone a journey map into a new scenario within the same architecture.
-// Maps to POST /journey_architecture/{id}/scenarios/clone
-// Clone order: journey_map → journey_stage → journey_lens → journey_cell
-//              → journey_stage_owner → journey_lens_planned_work
-// journey_link and agent_conversation records are intentionally NOT cloned.
+//  SCN-MCP-2: MCP tool — deep-clone a journey map into a new scenario within the same architecture.
+//  Maps to POST /journey_architecture/{id}/scenarios/clone
+//  Clone order: journey_map → journey_stage → journey_lens → journey_cell
+//               → journey_stage_owner → journey_lens_planned_work
+//  journey_link and agent_conversation records are intentionally NOT cloned.
 //
-// FIXED 2026-10-14 (stabilisation pass). Two problems, both found because
-// CLAUDE.md requires testing migrations on a CLONE of map 178 and this tool
-// was the only way to make one:
+//  FIXED 2026-10-14 (stabilisation pass). Two problems, both found because
+//  CLAUDE.md requires testing migrations on a CLONE of map 178 and this tool
+//  was the only way to make one:
 //
-//  1. It crashed with "Unable to locate var: cell.stage_key". The cell loop
-//     matched `$cell.stage_key` / `$cell.lens_key` against the new map's
-//     keys, but a journey_cell row has no such columns — it has `stage` and
-//     `lens`, which are integer ids. The remap now goes id → key (in the
-//     SOURCE map) → id (in the NEW map), which is what was intended.
+//   1. It crashed with "Unable to locate var: cell.stage_key". The cell loop
+//      matched `$cell.stage_key` / `$cell.lens_key` against the new map's
+//      keys, but a journey_cell row has no such columns — it has `stage` and
+//      `lens`, which are integer ids. The remap now goes id → key (in the
+//      SOURCE map) → id (in the NEW map), which is what was intended.
 //
-//  2. Worse than the crash, because it was silent: the clone dropped every
-//     field added since this tool was written — cell durations (TIME-1),
-//     stage ownership and the planned-work switch (STAGE-1), lens cost
-//     rates, and the stage's primary_actor_lens. A clone missing those
-//     reads as "no owner, no duration" and would have made PUB-1's gate and
-//     AUTH-1's readiness look broken on a clone when they were fine. A
-//     faithful clone matters more here than a fast one.
+//   2. Worse than the crash, because it was silent: the clone dropped every
+//      field added since this tool was written — cell durations (TIME-1),
+//      stage ownership and the planned-work switch (STAGE-1), lens cost
+//      rates, and the stage's primary_actor_lens. A clone missing those
+//      reads as "no owner, no duration" and would have made PUB-1's gate and
+//      AUTH-1's readiness look broken on a clone when they were fine. A
+//      faithful clone matters more here than a fast one.
 tool clone_scenario {
   instructions = "Deep-clone an existing journey map into a new scenario within the same architecture. Returns the new map id — pass it directly to fill_cells or scaffold_map to make targeted modifications. journey_link records and AI conversation history are NOT cloned — the scenario starts clean. Always pass a descriptive title — the backend fallback is a generic string."
 
@@ -29,15 +29,20 @@ tool clone_scenario {
     int source_map_id filters=min:1
     text title? filters=trim
 
-    text ticket? filters=trim {
-      description = "COP-1 run ticket from your context. If you were given one, pass it on every tool call exactly as given. Otherwise leave it empty."
-    }
+    // COP-1 run ticket from your context. If you were given one, pass it on every tool call exactly as given. Otherwise leave it empty.
+    text ticket? filters=trim
   }
 
   stack {
     // COP-1: who is calling, and is this map theirs? Reports only until usr/tool_gate_mode says enforce.
     function.run "journey/tool_gate" {
-      input = {journey_map_id: $input.source_map_id, journey_architecture_id: $input.journey_architecture_id, ticket: $input.ticket, tool: "clone_scenario", kind: "write"}
+      input = {
+        journey_map_id         : $input.source_map_id
+        journey_architecture_id: $input.journey_architecture_id
+        ticket                 : $input.ticket
+        tool                   : "clone_scenario"
+        kind                   : "write"
+      }
     } as $cop1_gate
 
     db.get journey_architecture {
@@ -92,6 +97,16 @@ tool clone_scenario {
         cloned_from_map_id  : $input.source_map_id
       }
     } as $new_map
+
+    // TAG-1: the copy carries the same tags as its source (a tag is a label, not part of the map).
+    function.run "tags/copy_links" {
+      input = {
+        account_id   : $arch.account_id
+        user_id      : ($cop1_gate.user_id ?? 0)
+        source_map_id: $input.source_map_id
+        new_map_id   : $new_map.id
+      }
+    } as $tag_copy
 
     // 2 — Clone stages
     db.query journey_stage {
@@ -405,7 +420,7 @@ tool clone_scenario {
         }
 
         conditional {
-          if ($has_override == true) {
+          if ($has_override) {
             var $pw_lens_key {
               value = $pw_lens.key
             }
@@ -441,6 +456,4 @@ tool clone_scenario {
     journey_architecture: $new_map.journey_architecture
     created_at          : $new_map.created_at
   }
-
-  guid = "1FP0jFNc7G1gIp-RJwp95JFt1x8"
 }

@@ -18,40 +18,40 @@ query "journey_architecture/{journey_architecture_id}/scenarios/clone" verb=POST
       field_name = "id"
       field_value = $input.journey_architecture_id
     } as $arch
-  
+
     precondition ($arch != null) {
       error_type = "notfound"
       error = "Journey Architecture not found"
     }
-  
+
     precondition ($arch.owner_user == $auth.id) {
       error_type = "accessdenied"
       error = "Access denied"
     }
-  
+
     // 2 — Verify source map exists and belongs to this architecture
     db.get journey_map {
       field_name = "id"
       field_value = $input.source_map_id
     } as $source
-  
+
     precondition ($source != null) {
       error_type = "notfound"
       error = "Source scenario not found"
     }
-  
+
     precondition ($source.journey_architecture == $input.journey_architecture_id) {
       error_type = "accessdenied"
       error = "Source scenario does not belong to this architecture"
     }
-  
+
     // 3 — Determine title for the clone.
     // Title is always composed on the frontend (xs + operator is numeric-only in API context).
     // Fallback used only when no title is sent (e.g. direct API calls).
     var $new_title {
       value = "Copy of Scenario"
     }
-  
+
     conditional {
       if ($input.title != null && $input.title != "") {
         var.update $new_title {
@@ -59,7 +59,7 @@ query "journey_architecture/{journey_architecture_id}/scenarios/clone" verb=POST
         }
       }
     }
-  
+
     // 4 — Create the new map record (settings reset to null — clean slate)
     db.add journey_map {
       enforce_hidden_fields = false
@@ -75,14 +75,24 @@ query "journey_architecture/{journey_architecture_id}/scenarios/clone" verb=POST
         cloned_from_map_id  : $input.source_map_id
       }
     } as $new_map
-  
+
+    // TAG-1: the copy carries the same tags as its source (a tag is a label, not part of the map).
+    function.run "tags/copy_links" {
+      input = {
+        account_id   : $arch.account_id
+        user_id      : $auth.id
+        source_map_id: $input.source_map_id
+        new_map_id   : $new_map.id
+      }
+    } as $tag_copy
+
     // 5 — Clone stages (preserve key, label, display_order)
     db.query journey_stage {
       where = $db.journey_stage.journey_map == $input.source_map_id
       sort = {display_order: "asc"}
       return = {type: "list"}
     } as $source_stages
-  
+
     foreach ($source_stages) {
       each as $stage {
         db.add journey_stage {
@@ -98,14 +108,14 @@ query "journey_architecture/{journey_architecture_id}/scenarios/clone" verb=POST
         } as $_stage_added
       }
     }
-  
+
     // 6 — Clone lenses (preserve all actor and persona fields)
     db.query journey_lens {
       where = $db.journey_lens.journey_map == $input.source_map_id
       sort = {display_order: "asc"}
       return = {type: "list"}
     } as $source_lenses
-  
+
     foreach ($source_lenses) {
       each as $lens {
         db.add journey_lens {
@@ -128,7 +138,7 @@ query "journey_architecture/{journey_architecture_id}/scenarios/clone" verb=POST
         } as $_lens_added
       }
     }
-  
+
     // 7 — Clone cells
     // Stage and lens IDs differ between source and clone. We resolve the new IDs by
     // fetching the source stage/lens key, then querying the matching new stage/lens by key.
@@ -137,17 +147,17 @@ query "journey_architecture/{journey_architecture_id}/scenarios/clone" verb=POST
       where = $db.journey_cell.journey_map == $input.source_map_id
       return = {type: "list"}
     } as $source_cells
-  
+
     foreach ($source_cells) {
       each as $cell {
         var $new_stage_id {
           value = null
         }
-      
+
         var $new_lens_id {
           value = null
         }
-      
+
         // Resolve new stage ID via key match
         conditional {
           if ($cell.stage != null) {
@@ -155,14 +165,14 @@ query "journey_architecture/{journey_architecture_id}/scenarios/clone" verb=POST
               field_name = "id"
               field_value = $cell.stage
             } as $orig_stage
-          
+
             conditional {
               if ($orig_stage != null) {
                 db.query journey_stage {
                   where = $db.journey_stage.journey_map == $new_map.id && $db.journey_stage.key == $orig_stage.key
                   return = {type: "single"}
                 } as $mapped_stage
-              
+
                 conditional {
                   if ($mapped_stage != null) {
                     var.update $new_stage_id {
@@ -174,7 +184,7 @@ query "journey_architecture/{journey_architecture_id}/scenarios/clone" verb=POST
             }
           }
         }
-      
+
         // Resolve new lens ID via key match
         conditional {
           if ($cell.lens != null) {
@@ -182,14 +192,14 @@ query "journey_architecture/{journey_architecture_id}/scenarios/clone" verb=POST
               field_name = "id"
               field_value = $cell.lens
             } as $orig_lens
-          
+
             conditional {
               if ($orig_lens != null) {
                 db.query journey_lens {
                   where = $db.journey_lens.journey_map == $new_map.id && $db.journey_lens.key == $orig_lens.key
                   return = {type: "single"}
                 } as $mapped_lens
-              
+
                 conditional {
                   if ($mapped_lens != null) {
                     var.update $new_lens_id {
@@ -201,7 +211,7 @@ query "journey_architecture/{journey_architecture_id}/scenarios/clone" verb=POST
             }
           }
         }
-      
+
         db.add journey_cell {
           enforce_hidden_fields = false
           data = {
@@ -219,17 +229,17 @@ query "journey_architecture/{journey_architecture_id}/scenarios/clone" verb=POST
         } as $_cell_added
       }
     }
-  
+
     // 8 — Resolve owner name for response
     db.get user {
       field_name = "id"
       field_value = $auth.id
     } as $owner
-  
+
     var $owner_name {
       value = "Unknown"
     }
-  
+
     conditional {
       if ($owner != null && $owner.name != null && $owner.name != "") {
         var.update $owner_name {
@@ -237,7 +247,7 @@ query "journey_architecture/{journey_architecture_id}/scenarios/clone" verb=POST
         }
       }
     }
-  
+
     conditional {
       if ($owner != null && ($owner.name == null || $owner.name == "") && $owner.email != null) {
         var.update $owner_name {

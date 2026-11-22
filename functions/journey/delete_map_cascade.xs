@@ -1,37 +1,34 @@
-// US-DEL-1-03 (2026-10-18) — Delete a map and everything that is
-// only meaningful because that map exists.
+//  US-DEL-1-03 (2026-10-18) — Delete a map and everything that is
+//  only meaningful because that map exists.
 //
-// THE ONE IMPLEMENTATION. Both `DELETE journey_map` (api 22) and the
-// architecture cascade (api 69) call this, so a map removed on its
-// own and a map removed with its architecture leave the database in
-// the same state. Before this, api 22 deleted the map row and nothing
-// else: 583 orphaned cells, 78 lenses and 55 stages had built up that
-// way, invisible to every query and waiting to confuse the first
-// audit or migration that looked.
+//  THE ONE IMPLEMENTATION. Both `DELETE journey_map` (api 22) and the
+//  architecture cascade (api 69) call this, so a map removed on its
+//  own and a map removed with its architecture leave the database in
+//  the same state. Before this, api 22 deleted the map row and nothing
+//  else: 583 orphaned cells, 78 lenses and 55 stages had built up that
+//  way, invisible to every query and waiting to confuse the first
+//  audit or migration that looked.
 //
-// 🔴 `journey_map_version` IS NOT IN THIS CASCADE AND MUST NEVER BE.
-// A job reads its steps, done-whens and durations out of a version's
-// frozen `snapshot`, never from the live map — which is the entire
-// reason deleting a map cannot break work in flight. Removing a
-// version here would silently strip the instructions from live and
-// historical work. `historyTables.ts` fails the build on any
-// `db.del journey_map_version` anywhere, including this file.
+//  🔴 `journey_map_version` IS NOT IN THIS CASCADE AND MUST NEVER BE.
+//  A job reads its steps, done-whens and durations out of a version's
+//  frozen `snapshot`, never from the live map — which is the entire
+//  reason deleting a map cannot break work in flight. Removing a
+//  version here would silently strip the instructions from live and
+//  historical work. `historyTables.ts` fails the build on any
+//  `db.del journey_map_version` anywhere, including this file.
 //
-// WHY A CASCADE AND NOT A SOFT DELETE (founder's decision,
-// 2026-10-18): US-DEL-1-01 ships first and refuses to delete a map
-// any plan, template or job depends on. So the only maps that can
-// ever reach this function are ones nothing references — exactly the
-// case where destroying content is safe. The codebase's instinct to
-// hold deletes is honoured by the REFUSAL, not by keeping debris.
+//  WHY A CASCADE AND NOT A SOFT DELETE (founder's decision,
+//  2026-10-18): US-DEL-1-01 ships first and refuses to delete a map
+//  any plan, template or job depends on. So the only maps that can
+//  ever reach this function are ones nothing references — exactly the
+//  case where destroying content is safe. The codebase's instinct to
+//  hold deletes is honoured by the REFUSAL, not by keeping debris.
 //
-// EVERY CHILD IS DELETED BY ITS OWN id, inside one transaction.
-// `db.del` with a non-unique field only removes the FIRST match
-// (CLAUDE.md), so a `where`-style delete would silently half-clear
-// each table; and a cascade that fails partway through would leave a
-// map with some of its content gone.
-//
-// Verified live: a scaffolded map with 8 stages, 1 lens and 8 cells
-// deleted cleanly and the orphan count did not move.
+//  EVERY CHILD IS DELETED BY ITS OWN id, inside one transaction.
+//  `db.del` with a non-unique field only removes the FIRST match
+//  (CLAUDE.md), so a `where`-style delete would silently half-clear
+//  each table; and a cascade that fails partway through would leave a
+//  map with some of its content gone.
 function "journey/delete_map_cascade" {
   input {
     int journey_map_id filters=min:1
@@ -176,6 +173,12 @@ function "journey/delete_map_cascade" {
       return = {type: "list"}
     } as $clones
 
+    // TAG-1: this map's tag links go with it (the tags themselves stay in the account's list).
+    db.query journey_map_tag {
+      where = $db.journey_map_tag.journey_map_id == $input.journey_map_id
+      return = {type: "list"}
+    } as $tag_links
+
     db.transaction {
       stack {
         foreach ($message_rows) {
@@ -289,6 +292,15 @@ function "journey/delete_map_cascade" {
           }
         }
 
+        foreach ($tag_links) {
+          each as $tgl {
+            db.del journey_map_tag {
+              field_name = "id"
+              field_value = $tgl.id
+            }
+          }
+        }
+
         db.del journey_map {
           field_name = "id"
           field_value = $input.journey_map_id
@@ -298,16 +310,16 @@ function "journey/delete_map_cascade" {
   }
 
   response = {
-    journey_map_id        : $input.journey_map_id
-    stages_deleted        : ($stages|count)
-    lenses_deleted        : ($lenses|count)
-    cells_deleted         : ($cells|count)
-    stage_owners_deleted  : ($owner_rows|count)
-    planned_work_deleted  : ($planned_rows|count)
-    links_deleted         : ($links|count)
-    conversations_deleted : ($conversations|count)
-    messages_deleted      : ($message_rows|count)
-    automation_deleted    : (($automation_configs|count) + ($automation_snapshots|count))
-    pointers_cleared      : (($children|count) + ($clones|count))
+    journey_map_id       : $input.journey_map_id
+    stages_deleted       : $stages|count
+    lenses_deleted       : $lenses|count
+    cells_deleted        : $cells|count
+    stage_owners_deleted : $owner_rows|count
+    planned_work_deleted : $planned_rows|count
+    links_deleted        : $links|count
+    conversations_deleted: $conversations|count
+    messages_deleted     : $message_rows|count
+    automation_deleted   : (($automation_configs|count) + ($automation_snapshots|count))
+    pointers_cleared     : (($children|count) + ($clones|count))
   }
 }

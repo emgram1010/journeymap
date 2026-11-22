@@ -5,11 +5,15 @@
 // The business filter is done by constraining the queries (maps of the pinned business -> their
 // versions -> their jobs -> the tasks), never by an `if` inside a loop (CLAUDE.md).
 tool list_my_tasks {
-  instructions = "List the tasks assigned to you on published days, for one date (default: today), in this business: work_task_id, the job, the stage, and the status (not_started, in_progress, blocked, done, skipped). Use record_my_task_event to start, finish, block or skip one. You never see or touch another person's tasks."
+  instructions = "List the tasks assigned to you on published days, for one date (default: today), in this business: work_task_id, the job, the stage, and the status (not_started, in_progress, blocked, done, skipped). Use record_my_task_event to start, finish, block or skip one. You never see or touch another person's tasks. From an outside assistant, pass journey_architecture_id."
 
   input {
     text date? filters=trim {
       description = "YYYY-MM-DD. Leave empty for today."
+    }
+
+    int journey_architecture_id? {
+      description = "Only for an outside assistant (no ticket): the business (architecture id) to work in. Leave 0 in a copilot chat: the chat's business is used."
     }
 
     text ticket? filters=trim {
@@ -19,16 +23,36 @@ tool list_my_tasks {
 
   stack {
     function.run "journey/tool_gate" {
-      input = {journey_map_id: 0, ticket: $input.ticket, tool: "list_my_tasks", kind: "read"}
+      input = {journey_map_id: 0, journey_architecture_id: $input.journey_architecture_id, ticket: $input.ticket, tool: "list_my_tasks", kind: "read"}
     } as $cop1_gate
 
-    var $pin {
+    var $gate_pin {
       value = $cop1_gate.pin_architecture_id ?? 0
+    }
+
+    var $gate_via {
+      value = $cop1_gate.via ?? ""
+    }
+
+    var $gate_context {
+      value = $cop1_gate.context ?? ""
+    }
+
+    var $caller_account {
+      value = $cop1_gate.account_id ?? 0
+    }
+
+    function.run "copilot/work_business" {
+      input = {pin: $gate_pin, via: $gate_via, context: $gate_context, named: $input.journey_architecture_id, account_id: $caller_account}
+    } as $work_biz
+
+    var $pin {
+      value = $work_biz.business ?? 0
     }
 
     precondition ($pin != 0 && $cop1_gate.user_id != 0 && $cop1_gate.account_id != 0) {
       error_type = "inputerror"
-      error = "This only works in a copilot conversation about one business. (E-COP-045)"
+      error = "This needs one business: use it in a copilot chat about a business or, from an outside assistant, pass journey_architecture_id. (E-COP-045)"
     }
 
     var $date_ok {

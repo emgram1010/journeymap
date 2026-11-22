@@ -1,7 +1,7 @@
 # AIM-1 — AI agent membership and execution
 
 **Epic ID:** AIM-1 (E3 in the founder's list)
-**Status:** 📋 Written, not built (2026-11-21).
+**Status:** 🟡 Core built and verified live 2026-11-21 (identity, tokens, gate, off switches, screen). Not built: stories 02 and parts of 06, 07, 09. See Test Results.
 **Decisions (2026-11-21):** D-3 ✅ approved: an AI member may hold its own AI login, with the
 narrow scope in section 4. D-4 ⏸ token expiry on hold. Story 00's inventory is still required before any build.
 **Size:** L
@@ -147,4 +147,60 @@ come before the agent gets a token (03), and the off switches (06, 07) before it
 
 ## 9. Test Results
 
-_Not run. Nothing built yet._
+**Core built and verified live 2026-11-21 (Fable 5.2). Stories 02, parts of 06, 07 and 09 are not built (listed below).**
+Tests ran over real HTTP and the real connector address, on the test account (13) with a temporary AI member (removed after).
+
+**Key decisions taken while building (founder said: make the calls, list them)**
+1. **A login is an AI member when it has an `ai_member_profile` row.** That one row holds its manager, purpose, what it may do and its plans.
+2. **An AI member cannot use the app's own screens** (E-AIM-003) and cannot come in with a person-style sign-in. It works only through its access token. This is new behaviour for Eli Claude.
+3. **Tokens last 90 days (D-4).** No 7-day warning is sent yet.
+4. **Eli Claude (user 34) is now marked as an AI member:** manager Jav, plans 146 and 147, may read, edit draft maps, draft plans and record its own work. It has no token until an admin makes one.
+5. **An AI member is made from an existing ordinary login** (Add someone first, then "Make a login an AI member"). No separate "create AI login" flow.
+6. **The fixed list of what an AI may be given is four things:** read, edit draft maps, draft plans, record its own work. Publishing, creating a business, deleting a stage and spending on a stronger model can never be given.
+7. **"The manager is told" means an event on the Health page.** There is no notice list and no email (D-8).
+
+**What was built**
+- Tables `ai_member_profile` (172), `agent_access_token` (173), `account_ai_pause` (174).
+- Functions `aim/policy` (429), `check` (430), `assert_person_door` (431), `token_lookup` (432), `plan_allowed` (433), `assert_admin_person` (434), `save_profile` (435), `create_token` (436), `revoke_token` (437), `switch_member` (438), `pause_all` (439), `overview` (440).
+- Changed, by insertion only: `journey/tool_gate` (311), `usr/mcp_caller` (307), `usr/tool_caller` (309), `copilot/plan_in_business` (344), `usr/account_rank` (416), both group middlewares.
+- Endpoints `GET admin/ai_members` (677), `POST admin/ai_member_action` (678).
+- `list_my_tasks` and `record_my_task_event` now also work from the connector, and are in it.
+- App: an "AI members" section on Manage users (make, edit, switch off, tokens shown once, Pause all AI) and an "AI" badge.
+
+| Threat / test | Result |
+|---|---|
+| T-1 stolen token: hashed, revocable, last used shown | Pass: only the hash is stored; a revoked token is refused on the very next call; last used is stamped |
+| T-2 gives itself more power | Pass: the AI login is refused on every admin action (not an admin; and E-AIM-062 guards an AI that is ever made admin). A ceiling action sent in a save is refused (E-AIM-034) |
+| T-3 approves its own action | No approve tool exists. **Not tested against the approvals endpoint**, which the app-door block (E-AIM-003) should refuse |
+| T-4 text tells it to publish | Pass at the server: `publish_map` and `create_workspace` refused (E-AIM-060) and logged as suspicious. **No red-team cell was planted** |
+| T-5 runaway loop | Caps are in the check (60 an hour, 400 a day by default). **Reaching a cap was not exercised.** The 3rd ceiling attempt in a day paused the member automatically: pass |
+| T-6 marks a person's work done | Own-work tools keep their own "is it yours" rule. **Not run with an AI member on a live day** (the completion gate's Eli step) |
+| T-7 AI passed off as a person | Pass: the AI login is refused by the app (E-AIM-003) and by the connector when it uses a normal sign-in; an admin or the owner cannot be made an AI (E-AIM-001) |
+| T-8 nobody notices | Counts per member on the screen (calls, changes, refusals). **No weekly digest, no last-50 list** |
+| T-9 manager leaves | The check refuses when the manager is switched off or gone (E-AIM-032). **Not exercised live** |
+| T-10 personal data | The new screens and functions return names and ids only. **The older read tools were not audited for emails** |
+| T-11 switch off | Pass: next call refused, every token revoked, history kept. **No "work to reassign" list** |
+| T-12 pause all AI | Pass: next call refused (E-AIM-041), resumes when turned back on; incoming orders are held |
+| Token narrower than the member | Pass: a read-only token was refused on a write (E-AIM-010); a wider token cannot be made (E-AIM-014) |
+| At most 2 live tokens | Pass (E-AIM-013) |
+| Token for a person | Pass: refused (E-AIM-012) |
+| Other account | Pass: "not found" |
+| Plans outside its scope | Pass on the rule (`aim/plan_allowed`: plan 145 no, 146 yes for Eli). **Not run through a plan tool** |
+| People still get in | Pass: an admin's pages and connector calls work as before; full app suite green (1,056) |
+
+**Not built**
+- Story 02: a renamed account does not yet rename its plan member.
+- Story 06: the "work to reassign" list, and the admin banner on every page (the banner is on Manage users only).
+- Story 07: weekly digest, last-50 actions, changing caps on the screen, a Health page panel for AI members.
+- Story 09: marking tool results as "data", and the suspicious-text list.
+- Story 05's 14-day cautious start (on hold by the founder).
+- `plan_add_person` did not gain a `kind`.
+- The whole-tool-list automated test (story 08). The list itself lives in one function, `aim/policy`.
+
+**Known weak spots for the Opus review**
+- If a gate switch is ever set back to "report", an AI member whose call fails an *earlier* check skips `aim/check`. All four switches are "enforce" today.
+- A revoked or expired token answers "Sign in to use these tools", not a sentence about the token.
+- The first calls with a brand-new token answered "tool not found" for a short time after its grant was added (the connector seems to cache who may see tools).
+- `aim/assert_person_door` runs on every signed-in request to two API groups. A fault in it would block those groups.
+- No Opus review pass was run. **Recommended before real use.**
+
