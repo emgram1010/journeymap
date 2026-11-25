@@ -130,7 +130,10 @@ can be tested alone.
 |---|---|
 | T-REPEAT-00-1 live compared | ✅ every table in section 2 fetched live or compared by the same-day planner pull; no differences |
 | T-REPEAT-00-2 no table unknown | ✅ see section 2a |
-| T-REPEAT-00-3 large-write timing | ⏳ **not run.** It needs a scratch function pushed to live Xano and rows written (then rolled back). Waiting for the founder's yes |
+| T-REPEAT-00-3 large-write timing | ✅ one transaction, jobs × 10 steps: 110 rows 1.2 s · 275 rows 3.1 s · 550 rows 5.9 s. All finished |
 
-- Nothing was written to Xano or to the repo outside docs.
+- **Timing reads as about 11 ms per row, in a straight line.** One transaction holds 550 rows without trouble. A real week also writes days, slots, links, item lines and time windows, so a 50-job week is roughly 1,200–1,500 rows: 13–17 s. That works but is slow enough to need a "building" message on screen, and 8 periods at once must be 8 separate writes, never one (story 06 already says so).
+- **Decision for story 02:** one all-or-nothing write per period is fine. The staged `building` state stays as the fallback for plans above about 150 jobs; the preview (story 01) shows the row estimate so a very large plan is warned before it starts.
+- **How it was measured:** a scratch function wrote the rows inside a transaction and then forced a rollback; a count afterwards found 0 rows left each time. The scratch function was deleted. Nothing else was written to Xano.
+- **Learned on the way:** `work_task` refuses two steps with the same job, stage and row (the first run stopped at the second step). A repeat gets this for free from `jobs/tasks_from_version`. Also confirmed live: `while` loops nest, a `throw` inside `db.transaction` rolls it back, and a `var.update` made inside the transaction before the throw is still readable after the `try_catch`.
 - One thing from the same-day review still matters here: `live/build_publication` loads the whole link table on every publish (README F-15). Each repeated week makes publishing slower, so measure it with the large write.
