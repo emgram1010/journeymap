@@ -177,7 +177,9 @@ can be tested alone.
 ### Story 02 — new plan, people and days (started 2026-11-25)
 
 - **Tests written first:** T-REPEAT-02-1 (dates move across a month end, a year end and a leap day; 7, 14 and 31-day plans keep their length) — 3 unit tests, passing against `shiftDate` in `repeatPreviewModel.ts`.
-- **Table drafted, not pushed:** `static/tables/181_plan_repeat.xs`. Waiting for the founder's yes before any schema push.
+- **Table pushed 2026-11-25 (founder's yes):** `plan_repeat`, live table id 181, from `static/tables/181_plan_repeat.xs`. New table only; no existing table changed. Live schema read back: every field and all 4 indexes present (unique source+date, unique new plan, account btree).
+- **Race guard proved live:** a scratch function inserted two rows with the same (source plan, start date) in one transaction → refused ("Duplicate record detected"), whole transaction rolled back. Two different start dates for the same source → both accepted (then rolled back on purpose). Table read back empty afterwards; scratch function deleted.
+- **Learning:** `db.query … return = {type: "count"}` on a query matching nothing came back as `[]`, not `0`. Treat a zero count as "empty or 0" (`|count` or a loose `== 0`), not a strict int.
 - **Design decided from story 00's timing:** one all-or-nothing write, so the row is written as `ready`; no plan is ever visible half-built, and no existing plan list needs a "hide building plans" change.
 - **Known limit:** the race guard is unique on (source plan, start date). Plans are archived, never deleted, so once a repeat to a date exists, repeating the same plan to the same date again is refused with a link to the existing plan.
 

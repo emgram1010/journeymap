@@ -1,7 +1,7 @@
 // REPEAT-1 (US-REPEAT-1-02) — one row per repeat of a plan: which plan it came from, which plan it
 // made, how many days everything moved, who did it, and what was left out.
 //
-// DRAFT, NOT PUSHED. Waiting for the founder's yes (CLAUDE.md: ask before any schema push).
+// Pushed 2026-11-25 with the founder's yes (new table; no existing table changed).
 //
 // WHY A NEW TABLE, NOT A COLUMN ON `planner_workspace`: changes to existing tables are
 // additive-only, and `updateTableSchema` silently drops trim validators (planner_workspace.name
