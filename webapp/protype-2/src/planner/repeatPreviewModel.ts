@@ -158,3 +158,15 @@ export const capList = <T>(items: T[], cap: number): {shown: T[]; more: number} 
   shown: items.slice(0, cap),
   more: Math.max(0, items.length - cap),
 });
+
+/**
+ * The "Repeat this plan" action stays hidden until the copy itself is built (stories 02-04), so
+ * nobody presses a button that does nothing. Set VITE_REPEAT_PLAN_UI=1 to see the preview.
+ */
+export const isRepeatPlanUiEnabled = (): boolean => {
+  try {
+    return import.meta.env?.VITE_REPEAT_PLAN_UI === '1';
+  } catch {
+    return false;
+  }
+};

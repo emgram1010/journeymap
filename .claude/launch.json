@@ -38,6 +38,23 @@
         "--strictPort"
       ],
       "port": 3011
+    },
+    {
+      "name": "protype-2-repeat-ui",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "webapp/protype-2",
+        "run",
+        "dev",
+        "--",
+        "--mode",
+        "repeatui",
+        "--port",
+        "3012",
+        "--strictPort"
+      ],
+      "port": 3012
     }
   ]
 }

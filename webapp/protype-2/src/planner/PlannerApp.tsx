@@ -23,6 +23,8 @@ import { SettingsModal } from './components/SettingsModal';
 import { WorkspaceSettingsModal } from './components/WorkspaceSettingsModal';
 import { AgentProfilesModal } from './components/AgentProfilesModal';
 import { TemplatesModal } from './components/TemplatesModal';
+import { RepeatPlanModal } from './components/RepeatPlanModal';
+import { isRepeatPlanUiEnabled } from './repeatPreviewModel';
 import { CreateWorkspaceModal } from './components/CreateWorkspaceModal';
 import { JobsModal } from './components/JobsModal';
 import { JobPanel } from './components/JobPanel';
@@ -74,6 +76,7 @@ export default function PlannerApp() {
   const [isWorkspaceSettingsOpen, setIsWorkspaceSettingsOpen] = useState(false);
   const [isAgentProfilesOpen, setIsAgentProfilesOpen] = useState(false);
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
+  const [isRepeatOpen, setIsRepeatOpen] = useState(false);
   // GAP-FIX W1 — the screen that turns a map into real work.
   // PUX-1 — the Jobs modal is only the list of jobs now; one job opens in
   // the side panel (`openJobId`).
@@ -1415,6 +1418,7 @@ export default function PlannerApp() {
           onOpenWorkspaceSettings={() => setIsWorkspaceSettingsOpen(true)}
           onOpenAgentProfiles={() => setIsAgentProfilesOpen(true)}
           onOpenTemplates={() => setIsTemplatesOpen(true)}
+          onOpenRepeat={isRepeatPlanUiEnabled() ? () => setIsRepeatOpen(true) : undefined}
         />
 
         {/* Workspace Body: Board/Grid + Backlog */}
@@ -1635,6 +1639,15 @@ export default function PlannerApp() {
             .catch(() => {});
         }}
       />
+
+      {/* Repeat this plan (REPEAT-1 story 01): preview only; hidden until the copy is built */}
+      {activeWorkspace && (
+        <RepeatPlanModal
+          isOpen={isRepeatOpen}
+          workspaceId={Number(activeWorkspace.id)}
+          onClose={() => setIsRepeatOpen(false)}
+        />
+      )}
 
       {/* New plan from a template (US-PLN-9-07) */}
       <CreateWorkspaceModal

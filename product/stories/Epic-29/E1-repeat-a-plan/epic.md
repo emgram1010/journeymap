@@ -138,7 +138,7 @@ can be tested alone.
 - **Learned on the way:** `work_task` refuses two steps with the same job, stage and row (the first run stopped at the second step). A repeat gets this for free from `jobs/tasks_from_version`. Also confirmed live: `while` loops nest, a `throw` inside `db.transaction` rolls it back, and a `var.update` made inside the transaction before the throw is still readable after the `try_catch`.
 - One thing from the same-day review still matters here: `live/build_publication` loads the whole link table on every publish (README F-15). Each repeated week makes publishing slower, so measure it with the large write.
 
-### Story 01 — preview a repeat (2026-11-25, in progress: server done, screen not built)
+### Story 01 — preview a repeat (2026-11-25: built, hidden until the copy exists)
 
 **Built:** `functions/repeat/build_plan.xs` (live id 459), endpoint `POST workspace/{id}/repeat-preview` (live id 682), `webapp/protype-2/src/planner/repeatPreviewModel.ts` with its tests, `previewRepeat` in `plannerApi.ts`, and three entries in `errorCatalog.json`.
 
@@ -148,22 +148,25 @@ can be tested alone.
 | T-REPEAT-01-2 counts | ✅ live on plan 115: 26 jobs = 12 repeat + 2 left out + 12 will not; steps, slots and backlog add up |
 | T-REPEAT-01-3 one-off jobs | ✅ live: 9 outside orders, 2 exception children and 1 cancelled job on plan 115 all `will_not_repeat` with the right reason. Unit: not tickable |
 | T-REPEAT-01-4 inactive person | ✅ live on plan 42: Tony (login switched off) is left off, 1 slot goes to the backlog |
-| T-REPEAT-01-5 map versions | 🟡 "newer version" ✅ live (plan 42: 3 jobs move from version 27 to 29). **Archived map and no-published-version: not run**, no fixture exists; the code path is the same lookup returning 0 |
+| T-REPEAT-01-5 map versions | ✅ "newer version" live (plan 42: 3 jobs move from version 27 to 29). ✅ archived map: test map 261 archived inside a transaction that was then rolled back; all 14 jobs became `cannot_repeat`, the 12 one-offs stayed `will_not_repeat`, and the map was `active` again afterwards. "No published version" cannot happen with real data (a job is always pinned to a version that exists, so its map always has one); the branch stays as a guard |
 | T-REPEAT-01-6 weekday warning, overlap | ✅ live: shift of 9 days gives `weekdays_align: false`; start inside the window returns E-REPEAT-003. Unit: 5 cases |
 | T-REPEAT-01-7 writes nothing | ✅ by construction: the function has no add, patch or delete (checked by search). Row counts were not compared |
 | T-REPEAT-01-8 second account | ✅ live: account 13 asking for account 2's plan 42 gets "Not Found" |
 | Bad dates (E-REPEAT-002) | ✅ live: "tomorrow", "2026-13-45" and "2027-02-31" all refused with the plain message |
 
-- Unit: `repeatPreviewModel.test.ts` 16 of 16. Full `npm test` 1,092 of 1,092. `tsc` clean.
-- **Not verified:** the endpoint over real HTTP with a signed-in user (it needs a test login token). The function behind it was run directly. Workflow tests and Playwright were not run.
-- **Not built yet:** the preview screen (the "Repeat this plan" action and its panel).
+- Unit: `repeatPreviewModel.test.ts` 16 of 16. Full `npm test` 1,108 of 1,108. `tsc` clean.
+- **Over real HTTP** (test user 21, account 13, one-time magic link): own plan 200 with the right counts; unticked job counted as left out; overlap 400 E-REPEAT-003; impossible date 400 E-REPEAT-002; another account's plan 404 "Plan not found"; no token 401; a user without planner access 403 E-USR-006. Both refusals were written to `event_log` as `plan.repeat_preview` / `rejected`.
+- **Screen** (`components/RepeatPlanModal.tsx`, checked in the browser on the test account): opens from the plan menu, shows the server's counts and lists, unticking a job updates the counts (14 → 13), an overlapping date shows the E-REPEAT-003 message and keeps the typed date, a later date clears it and shows the weekday warning. Phone width 375 px: no sideways scroll. No console errors.
+- **Found and fixed in the browser:** the tickable job list was capped at 8, so jobs 9+ could not be unticked. The list a planner ticks is now never capped.
+- **Hidden:** the menu item only appears when `VITE_REPEAT_PLAN_UI=1` (launch entry `protype-2-repeat-ui`, file `webapp/protype-2/.env.repeatui`, git-ignored). It is switched on for everyone when the copy (stories 02–04) lands.
+- Workflow tests and Playwright were not run (no workflow test can be run from a session; no Playwright spec covers this yet).
 
 **Differs from the story, and why**
 - The endpoint is a POST, not a GET: it carries the list of unticked jobs, and optional list inputs on a GET are unreliable here. It still writes nothing.
 - Lists are returned whole, not capped; the screen caps them ("and N more"). The real copy needs the whole list from the same function.
 - E-REPEAT-001 is in the catalog but the server returns the planner's usual "Plan not found", so another account's plan looks exactly like a missing one.
 - The three codes were added to `errorCatalog.json` only. The server copy (`functions/ops/error_catalog.xs`) holds 55 of 324 codes and has someone's unpushed edit, so it was left alone.
-- `errorCatalog.json` and `package.json` already had uncommitted edits from other work (BRIEF-1), so they are **not committed** here, and the new test is not yet in the `npm test` list. Run it with `node --import tsx --test src/planner/repeatPreviewModel.test.ts`.
+- `errorCatalog.json` and `package.json` also hold uncommitted edits from other work (BRIEF-1). Only this story's lines were committed (the three codes, and the test in `npm test`); the BRIEF-1 lines are still uncommitted in the working tree.
 
 **Learned (XanoScript, confirmed live)**
 - `to_timestamp` throws on a month or day that cannot exist ("2026-13-45") and rolls over a day that is only too large ("2027-02-31" becomes 3 March). Validate the shape, catch the throw, and compare the round trip.

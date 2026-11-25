@@ -9,8 +9,7 @@ import {
   CalendarRange,
   SlidersHorizontal,
   Users,
-  FileStack
-} from 'lucide-react';
+  FileStack, Repeat } from 'lucide-react';
 import { Workspace } from '../types';
 import { formatShortDate, getDaysDifference } from '../utils/dateUtils';
 
@@ -36,6 +35,8 @@ interface HeaderProps {
   // PLAN-3 (US-PLAN-3-04) — build/edit templates (maps + agent roster),
   // separate from "New Plan from Template" which only instantiates one.
   onOpenTemplates: () => void;
+  // REPEAT-1 (US-REPEAT-1-01) — preview repeating the open plan. Hidden (undefined) until the copy exists.
+  onOpenRepeat?: () => void;
 }
 
 export function Header({
@@ -48,6 +49,7 @@ export function Header({
   onOpenWorkspaceSettings,
   onOpenAgentProfiles,
   onOpenTemplates,
+  onOpenRepeat,
 }: HeaderProps) {
   // Workspace dropdown state
   const [isWsDropdownOpen, setIsWsDropdownOpen] = useState(false);
@@ -225,6 +227,16 @@ export function Header({
                   <FileStack className="w-3.5 h-3.5" />
                   Manage Templates
                 </button>
+                {onOpenRepeat && activeWorkspace && (
+                  <button
+                    id="repeat-plan-dropdown-btn"
+                    onClick={() => { setIsWsDropdownOpen(false); onOpenRepeat(); }}
+                    className="w-full text-left px-2 py-1.5 text-xs text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 rounded flex items-center gap-1.5 font-medium"
+                  >
+                    <Repeat className="w-3.5 h-3.5" />
+                    Repeat this plan
+                  </button>
+                )}
               </div>
             </div>
           )}
