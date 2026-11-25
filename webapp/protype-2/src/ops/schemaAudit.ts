@@ -147,6 +147,10 @@ export const TABLE_MANIFEST: Record<string, TableExpectation> = {
   // be unique, because a reorder rewrites several rows and would collide
   // mid-flight. PLN-7's resequence function guarantees the ordering instead.
   planner_task: {enumFields: ['status']},
+  // REPEAT-1 story 02: one row per repeat, written once inside the repeat's own transaction and
+  // never edited (a repeat is one all-or-nothing write, so it is born `ready`). If the staged
+  // `building` fallback is ever built, it will patch `state` and must add `updated_at` first.
+  plan_repeat: {naturalKeys: [['source_workspace_id', 'new_start_date'], ['new_workspace_id']], enumFields: ['state'], appendOnly: true},
 
   // ── CAT-1 (phase-6): item-type / method catalogs ────────────────────
   // Built 2026-10-24 as local files 135/136; Xano assigns the real ids.

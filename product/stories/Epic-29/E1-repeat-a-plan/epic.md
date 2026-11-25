@@ -179,6 +179,26 @@ can be tested alone.
 - **Tests written first:** T-REPEAT-02-1 (dates move across a month end, a year end and a leap day; 7, 14 and 31-day plans keep their length) — 3 unit tests, passing against `shiftDate` in `repeatPreviewModel.ts`.
 - **Table pushed 2026-11-25 (founder's yes):** `plan_repeat`, live table id 181, from `static/tables/181_plan_repeat.xs`. New table only; no existing table changed. Live schema read back: every field and all 4 indexes present (unique source+date, unique new plan, account btree).
 - **Race guard proved live:** a scratch function inserted two rows with the same (source plan, start date) in one transaction → refused ("Duplicate record detected"), whole transaction rolled back. Two different start dates for the same source → both accepted (then rolled back on purpose). Table read back empty afterwards; scratch function deleted.
+- **Built:** `repeat/create_plan` (live function 465) and `POST workspace/{workspace_id}/repeat` (live endpoint 683, planner group). Not wired into the app yet: the button arrives once stories 03–04 add jobs and slots to the same write.
+- **Fixture:** a throwaway plan in test account 13: 3 people (Ana with a login and 7.5 hours; Bot, an AI with a model and hidden; Old, inactive), 4 days (one published), 2 accepted maps (one belonging to another account, so unusable). Deleted afterwards with all copies, `plan_repeat` rows and scratch functions. Event-log rows were kept as history.
+
+| Test | Result |
+|---|---|
+| T-REPEAT-02-1 dates | ✅ unit (3 tests). Live: 7-day plan moved by 7 and by 14 days; window and every day landed right |
+| T-REPEAT-02-2 maps from the plan | ✅ live: the plan's usable map copied; the other account's map left out and named `map_unavailable` |
+| T-REPEAT-02-3 people, every field | ✅ live: name, kind, colour, daily hours, login, hidden flag and AI model all equal to the source |
+| T-REPEAT-02-4 left off and named | ✅ live: inactive person not copied, named with `inactive`; `plan.repeat_skipped_person` (warn) logged. Login-off path is build_plan's rule, proven live in story 01 (Tony) |
+| T-REPEAT-02-5 days | ✅ live: 3 of 4 days copied (the left-off person's day is not), start times 07:30 / 08:00 / 09:15 kept, all `draft`, including the one that was published |
+| T-REPEAT-02-6 parallel confirms | ✅ real HTTP, 3 identical confirms at once: 1 created, 2 answered `exists` with the same plan id. One loser was a true overlap (`lost_race: true`: the unique index refused it mid-write and it rolled back). Exactly 1 plan and 3 days in the database |
+| T-REPEAT-02-7 forced failure | ✅ live (`test_fail_at = 1`, throws after every row is written): no plan, day, person or `plan_repeat` row left; `plan.repeat_failed` / E-REPEAT-006 logged with the counts |
+| T-REPEAT-02-8 source unchanged | ✅ a hash of the source's plan, maps, people and days was identical before and after 9 calls |
+| T-REPEAT-02-9 second account | ✅ function: "Not Found". HTTP: another account's plan → 404 "Plan not found" |
+| Refusals over HTTP | ✅ empty name 400 E-REPEAT-004 · empty date 400 E-REPEAT-002 · overlap 400 E-REPEAT-003 · taken name 400 E-PLN-001 · second click 200 `exists` · no token 401. Each refusal logged as `plan.repeat` / rejected |
+| Suites | ✅ `npm test` 1,112 of 1,112 (after the fix below) · `tsc` clean. Workflow tests and Playwright not run |
+
+- **The governance audit caught two gaps in `plan_repeat`** (FT-GOV-1-01): no `updated_at`, and `created_by` not indexed. Fixed locally: marked append-only in the audit manifest (the row is written once) and added a `created_by` index to `181_plan_repeat.xs`. **That index is not live yet**: adding it changes the table, so it waits for the founder's yes.
+- **Differences from the story:** "already repeated" answers 200 with `outcome: "exists"` and the plan id, not an error, so the screen can link to it. "Profile off the roster" cannot be checked yet: a plan person has no profile link until REQ-1 story 03. Hidden people are copied, still hidden. A race on the same NAME but different start dates would surface as E-REPEAT-006 instead of E-PLN-001 (rare; noted for the Opus review).
+- **Learning:** a `db.query { where = … return = … }` written on ONE line returned empty results with no error. Multi-line blocks work. `throw` inside a transaction gives `$error.message` = "Throw Error Statement", not its value.
 - **Learning:** `db.query … return = {type: "count"}` on a query matching nothing came back as `[]`, not `0`. Treat a zero count as "empty or 0" (`|count` or a loose `== 0`), not a strict int.
 - **Design decided from story 00's timing:** one all-or-nothing write, so the row is written as `ready`; no plan is ever visible half-built, and no existing plan list needs a "hide building plans" change.
 - **Known limit:** the race guard is unique on (source plan, start date). Plans are archived, never deleted, so once a repeat to a date exists, repeating the same plan to the same date again is refused with a link to the existing plan.

@@ -73,5 +73,6 @@ table plan_repeat {
     {type: "btree|unique", field: [{name: "source_workspace_id", op: "asc"}, {name: "new_start_date", op: "asc"}]}
     {type: "btree|unique", field: [{name: "new_workspace_id", op: "asc"}]}
     {type: "btree", field: [{name: "account_id", op: "asc"}]}
+    {type: "btree", field: [{name: "created_by", op: "asc"}]}
   ]
 }

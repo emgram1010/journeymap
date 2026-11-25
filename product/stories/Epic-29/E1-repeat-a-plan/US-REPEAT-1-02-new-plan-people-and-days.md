@@ -1,6 +1,6 @@
 # US-REPEAT-1-02 — The new plan, its people and its days
 
-**Epic:** REPEAT-1 · **Size:** M · **Model:** Sonnet 5.5 · **Status:** 📋 Not built
+**Epic:** REPEAT-1 · **Size:** M · **Model:** Sonnet 5.5 · **Status:** 🔨 Plan, people and days built and tested; hidden until 03–04
 **Depends on:** stories 00, 01
 
 ## Description

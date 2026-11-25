@@ -9,6 +9,7 @@ import {
   canTick,
   toggleSkip,
   shiftDate,
+  validateRepeatName,
   groupJobs,
   reasonText,
   capList,
@@ -183,6 +184,18 @@ test('T-REPEAT-02-1: 7, 14 and 31-day plans keep their length when moved', () =>
     const shift = shiftDays(start, next);
     assert.equal(shiftDate(end, shift), shiftDate(next, shiftDays(start, end)), `${start}..${end}`);
   }
+});
+
+// ── E-REPEAT-004 (story 02): the new plan's name ───────────────────
+
+test('E-REPEAT-004: an empty, blank or over-80-character name is refused; trimmed names are judged trimmed', () => {
+  for (const bad of ['', '   ', 'x'.repeat(81)]) {
+    const r = validateRepeatName(bad);
+    assert.equal(r.ok === false && r.code, 'E-REPEAT-004', JSON.stringify(bad));
+  }
+  assert.deepEqual(validateRepeatName('Week 49 (2026-12-01)'), {ok: true});
+  assert.deepEqual(validateRepeatName('x'.repeat(80)), {ok: true});
+  assert.deepEqual(validateRepeatName(`  ${'x'.repeat(80)}  `), {ok: true});
 });
 
 test('T-REPEAT-02-1: a bad date moves to empty, never to a wrong day', () => {

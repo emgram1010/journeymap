@@ -573,6 +573,36 @@
     "severity": "info",
     "fix_hint": "Use the date offered (the day after the plan ends) or any later date. Nothing was created."
   },
+  "E-REPEAT-004": {
+    "code": "E-REPEAT-004",
+    "feature": "REPEAT-1",
+    "user_message": "Give the new plan a name (up to 80 characters).",
+    "what_happened": "A repeat was refused because the new plan's name was empty or longer than 80 characters.",
+    "likely_cause": "The name box was cleared, or a very long name was pasted.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Type a shorter name. What was typed is kept on screen, and nothing was created."
+  },
+  "E-REPEAT-005": {
+    "code": "E-REPEAT-005",
+    "feature": "REPEAT-1",
+    "user_message": "This plan has already been repeated to that start date.",
+    "what_happened": "A repeat was refused because a repeat of the same plan to the same start date already exists. The answer links to that plan.",
+    "likely_cause": "Repeat was clicked twice, or two people repeated the same plan at the same time.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Open the plan the message links to. Nothing new was created. Pick another start date to make a different copy."
+  },
+  "E-REPEAT-006": {
+    "code": "E-REPEAT-006",
+    "feature": "REPEAT-1",
+    "user_message": "The new plan couldn't be created. Nothing was saved. Try again.",
+    "what_happened": "A repeat failed partway through writing. The whole write was rolled back, so no part of the new plan exists, and the source plan was not changed.",
+    "likely_cause": "A database error or a timeout during the write. Look for plan.repeat_failed on the Health page.",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "Try once more. If it fails again, open the plan.repeat_failed event on the Health page and send its details to support."
+  },
   "E-PLN-001": {
     "code": "E-PLN-001",
     "feature": "PLN-3",

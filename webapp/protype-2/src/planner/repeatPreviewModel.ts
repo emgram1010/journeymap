@@ -109,6 +109,16 @@ export const validateStartDate = (newStart: string, sourceStart: string, sourceE
   return {ok: true};
 };
 
+export type RepeatNameCheck = {ok: true} | {ok: false; code: 'E-REPEAT-004'; message: string};
+
+/** The same name rule the server applies (repeat/create_plan): 1-80 characters after trimming. */
+export const validateRepeatName = (name: string): RepeatNameCheck => {
+  const n = name.trim().length;
+  return n === 0 || n > 80
+    ? {ok: false, code: 'E-REPEAT-004', message: 'Give the new plan a name (up to 80 characters).'}
+    : {ok: true};
+};
+
 /** Only a job that would repeat, or one the planner unticked, has a working tick box. */
 export const canTick = (job: RepeatJob): boolean => job.verdict === 'repeat' || job.verdict === 'left_out';
 
