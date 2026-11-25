@@ -543,6 +543,36 @@
     "severity": "info",
     "fix_hint": "Reload the Agents screen. Only this account’s agents can go on a template roster."
   },
+  "E-REPEAT-001": {
+    "code": "E-REPEAT-001",
+    "feature": "REPEAT-1",
+    "user_message": "That plan could not be found.",
+    "what_happened": "A repeat or a repeat preview was asked for a plan that does not exist in this account.",
+    "likely_cause": "The plan was deleted, or the link points at a plan in another account.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload the plan list and start the repeat again from a plan that is listed there."
+  },
+  "E-REPEAT-002": {
+    "code": "E-REPEAT-002",
+    "feature": "REPEAT-1",
+    "user_message": "Pick a start date for the new plan.",
+    "what_happened": "A repeat preview was refused because the start date was missing, badly written, or not a real day.",
+    "likely_cause": "The date box was cleared, or a date like 31 February was typed.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Choose the date from the date picker. Nothing was created, so it is safe to try again."
+  },
+  "E-REPEAT-003": {
+    "code": "E-REPEAT-003",
+    "feature": "REPEAT-1",
+    "user_message": "The new plan would overlap this one. Pick a start date after this plan ends.",
+    "what_happened": "A repeat preview was refused because the new plan's dates would share at least one day with the plan being repeated.",
+    "likely_cause": "The start date chosen falls inside the original plan, or close enough before it that the new plan runs into it.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Use the date offered (the day after the plan ends) or any later date. Nothing was created."
+  },
   "E-PLN-001": {
     "code": "E-PLN-001",
     "feature": "PLN-3",
