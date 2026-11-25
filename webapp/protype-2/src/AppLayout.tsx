@@ -298,6 +298,9 @@ export default function AppLayout({children}: {children: React.ReactNode}) {
      Intelligent Layer; the server refuses again. */
   const [copilotOpen, setCopilotOpen] = useState(false);
   const canUseCopilot = modulesLoading || hasModule({modules}, 'intelligence');
+  /* The map editor has its own AI chat, so a second assistant button there is
+     redundant. Hidden on the map screen only; every other screen keeps it. */
+  const onMapScreen = pathname.startsWith('/maps/');
 
   const navItems = useMemo(
     () =>
@@ -460,7 +463,7 @@ export default function AppLayout({children}: {children: React.ReactNode}) {
         {children}
       </div>
 
-      {canUseCopilot && user && !copilotOpen && (
+      {canUseCopilot && user && !copilotOpen && !onMapScreen && (
         <button
           type="button"
           id="copilot-open-btn"
@@ -471,7 +474,7 @@ export default function AppLayout({children}: {children: React.ReactNode}) {
         </button>
       )}
       {canUseCopilot && user && (
-        <CopilotPanel open={copilotOpen} onClose={() => setCopilotOpen(false)} userId={user.id} isAdmin={isAdmin} />
+        <CopilotPanel open={copilotOpen && !onMapScreen} onClose={() => setCopilotOpen(false)} userId={user.id} isAdmin={isAdmin} />
       )}
     </div>
   );
