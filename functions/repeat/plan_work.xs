@@ -75,6 +75,10 @@ function "repeat/plan_work" {
       value = {}
     }
 
+    var $all_titles {
+      value = {}
+    }
+
     foreach ($input.plan.jobs) {
       each as $j {
         var.update $t {
@@ -103,6 +107,10 @@ function "repeat/plan_work" {
 
         var.update $ver_no_of {
           value = $ver_no_of|set:$k:$j.to_version_no
+        }
+
+        var.update $all_titles {
+          value = $all_titles|set:$k:$j.title
         }
       }
     }
@@ -613,6 +621,20 @@ function "repeat/plan_work" {
       value = 0
     }
 
+    var $sig {
+      value = ""
+    }
+
+    var $job_prep {
+      value = []
+    }
+
+    var $sig_set {
+      value = {}
+    }
+
+    // Pass 1, per job: its own facts (version, window, attributes, lines) and a signature of what
+    // decides its steps and lengths (version + lines). Jobs that share a signature share the work.
     foreach ($src_jobs) {
       each as $sj {
         var.update $jt {
@@ -638,22 +660,6 @@ function "repeat/plan_work" {
         var.update $win {
           value = $win_of|get:$k:null
         }
-
-        var.update $t {
-          value = $ver|to_text
-        }
-
-        var.update $kk {
-          value = "v:" ~ $t
-        }
-
-        var.update $snap {
-          value = ($snap_of|get:$kk:null) ?? {}
-        }
-
-        function.run "jobs/tasks_from_version" {
-          input = {snapshot: $snap}
-        } as $tf
 
         // Attributes: same values, marked as coming from a repeat, entered now.
         var.update $attrs_in {
@@ -709,11 +715,82 @@ function "repeat/plan_work" {
           }
         }
 
+        var.update $t {
+          value = $ver|to_text
+        }
+
+        var.update $sig {
+          value = ("v:" ~ $t ~ "::" ~ ($jl_est|json_encode))|sha256
+        }
+
+        var.update $sig {
+          value = "g:" ~ $sig
+        }
+
+        var.update $kv {
+          value = {sig: $sig, ver: $ver, est_lines: $jl_est}
+        }
+
+        var.update $sig_set {
+          value = $sig_set|set:$sig:$kv
+        }
+
+        var.update $has_win {
+          value = ($win != null)|to_int
+        }
+
+        array.push $job_prep {
+          value = {
+            src_id    : $sj.id
+            jt        : $jt
+            title     : $sj.title
+            attributes: $attrs
+            version_id: $ver
+            version_no: $ver_no
+            newer     : $newer
+            lines     : $jl
+            sig       : $sig
+            has_window: $has_win
+            window    : $win
+          }
+        }
+      }
+    }
+
+    // Pass 2, once per signature: the steps (jobs/tasks_from_version) and each step's expected
+    // minutes (estimate/compute_estimate + jobs/step_expected_minutes). 50 jobs on one version with
+    // no lines is one run, not fifty.
+    var $sig_out {
+      value = {}
+    }
+
+    var $rows {
+      value = []
+    }
+
+    foreach ($sig_set|values) {
+      each as $g {
+        var.update $t {
+          value = $g.ver|to_text
+        }
+
+        var.update $kk {
+          value = "v:" ~ $t
+        }
+
+        var.update $snap {
+          value = ($snap_of|get:$kk:null) ?? {}
+        }
+
+        function.run "jobs/tasks_from_version" {
+          input = {snapshot: $snap}
+        } as $tf
+
         function.run "estimate/compute_estimate" {
-          input = {snapshot: $snap, lines: $jl_est}
+          input = {snapshot: $snap, lines: $g.est_lines}
         } as $est
 
-        var.update $task_rows {
+        var.update $rows {
           value = []
         }
 
@@ -723,8 +800,49 @@ function "repeat/plan_work" {
               input = {snapshot: $snap, stage_key: $tk.stage_key, lens_key: $tk.lens_key, estimate: $est}
             } as $em
 
+            array.push $rows {
+              value = {stage_key: $tk.stage_key, lens_key: $tk.lens_key, minutes: $em.minutes}
+            }
+          }
+        }
+
+        var.update $kv {
+          value = {tasks: $tf.tasks, rows: $rows}
+        }
+
+        var.update $kk {
+          value = $g.sig
+        }
+
+        var.update $sig_out {
+          value = $sig_out|set:$kk:$kv
+        }
+      }
+    }
+
+    // Pass 3, per job: its own step keys, lengths and changes from its signature's answer.
+    var $g_out {
+      value = {}
+    }
+
+    foreach ($job_prep) {
+      each as $jp {
+        var.update $kk {
+          value = $jp.sig
+        }
+
+        var.update $g_out {
+          value = $sig_out|get:$kk:null
+        }
+
+        var.update $task_rows {
+          value = []
+        }
+
+        foreach ($g_out.rows) {
+          each as $tr {
             var.update $sk {
-              value = "x:" ~ $jt ~ "::" ~ $tk.stage_key ~ "::" ~ $tk.lens_key
+              value = "x:" ~ $jp.jt ~ "::" ~ $tr.stage_key ~ "::" ~ $tr.lens_key
             }
 
             var.update $new_set {
@@ -732,40 +850,36 @@ function "repeat/plan_work" {
             }
 
             var.update $minutes_of {
-              value = $minutes_of|set:$sk:$em.minutes
+              value = $minutes_of|set:$sk:$tr.minutes
             }
 
             var.update $is_new {
-              value = ($newer|to_int) * (1 - (($src_step_set|get:$sk:null) ?? 0))
+              value = ($jp.newer|to_int) * (1 - (($src_step_set|get:$sk:null) ?? 0))
             }
 
             array.push $task_rows {
-              value = {stage_key: $tk.stage_key, lens_key: $tk.lens_key, key: $sk, minutes: $em.minutes, is_new: $is_new}
+              value = {stage_key: $tr.stage_key, lens_key: $tr.lens_key, key: $sk, minutes: $tr.minutes, is_new: $is_new}
             }
 
             array.push $step_changes {
-              value = {job_id: $sj.id, title: $sj.title, stage_key: $tk.stage_key, lens_key: $tk.lens_key, change: "added", keep: $is_new}
+              value = {job_id: $jp.src_id, title: $jp.title, stage_key: $tr.stage_key, lens_key: $tr.lens_key, change: "added", keep: $is_new}
             }
           }
         }
 
-        var.update $has_win {
-          value = ($win != null)|to_int
-        }
-
         array.push $jobs_make {
           value = {
-            src_id    : $sj.id
-            title     : $sj.title
-            attributes: $attrs
-            version_id: $ver
-            version_no: $ver_no
-            newer     : $newer
-            tasks     : $tf.tasks
+            src_id    : $jp.src_id
+            title     : $jp.title
+            attributes: $jp.attributes
+            version_id: $jp.version_id
+            version_no: $jp.version_no
+            newer     : $jp.newer
+            tasks     : $g_out.tasks
             task_rows : $task_rows
-            lines     : $jl
-            has_window: $has_win
-            window    : $win
+            lines     : $jp.lines
+            has_window: $jp.has_window
+            window    : $jp.window
           }
         }
       }
@@ -1056,6 +1170,18 @@ function "repeat/plan_work" {
       value = ""
     }
 
+    var $s_label {
+      value = ""
+    }
+
+    var $off_who {
+      value = 0
+    }
+
+    var $tb_by {
+      value = {}
+    }
+
     foreach ($slots) {
       each as $p {
         var.update $tl_t {
@@ -1083,7 +1209,7 @@ function "repeat/plan_work" {
         }
 
         var.update $owner_off {
-          value = ($agent_off|get:$kk:null) ?? 0
+          value = ($agent_off|get:$kk:null) ?? $placed
         }
 
         var.update $kk {
@@ -1246,6 +1372,39 @@ function "repeat/plan_work" {
           value = $p.title ?? ""
         }
 
+        var.update $t {
+          value = $sjob|to_text
+        }
+
+        var.update $kk {
+          value = "j:" ~ $t
+        }
+
+        var.update $s_label {
+          value = (($s_title != "") ? $s_title : (($all_titles|get:$kk:null) ?? ""))
+        }
+
+        // Whose absence sent this slot to the backlog (the day's person first, else the assignee).
+        var.update $off_who {
+          value = (($owner_off == 1) ? $owner : $asg)
+        }
+
+        var.update $t {
+          value = $off_who|to_text
+        }
+
+        var.update $kk {
+          value = "a:" ~ $t
+        }
+
+        var.update $n {
+          value = (($tb_by|get:$kk:null) ?? 0) + ($keep * $to_backlog)
+        }
+
+        var.update $tb_by {
+          value = $tb_by|set:$kk:$n
+        }
+
         var.update $s_notes {
           value = $p.notes ?? ""
         }
@@ -1269,6 +1428,7 @@ function "repeat/plan_work" {
             src_job_id       : $sjob
             step_key         : $sk
             title            : $s_title
+            label            : $s_label
             notes            : $s_notes
             status           : $s_status
             needs_info_reason: $s_reason
@@ -1334,6 +1494,7 @@ function "repeat/plan_work" {
                 src_job_id       : $jm.src_id
                 step_key         : $tr.key
                 title            : ""
+                label            : $jm.title
                 notes            : ""
                 status           : "planned"
                 needs_info_reason: ""
@@ -1426,7 +1587,7 @@ function "repeat/plan_work" {
         conditional {
           if ($sc.keep == 0 && $sc.src_id != 0) {
             array.push $left_out {
-              value = {kind: "slot", id: $sc.src_id, job_id: $sc.src_job_id, name: $sc.title, reason: $sc.drop_reason}
+              value = {kind: "slot", id: $sc.src_id, job_id: $sc.src_job_id, name: $sc.label, reason: $sc.drop_reason}
             }
           }
         }
@@ -1460,11 +1621,12 @@ function "repeat/plan_work" {
   }
 
   response = {
-    jobs_make   : $jobs_make
-    slots_make  : $slots_make
-    step_changes: $changes
-    left_out    : $left_out
-    job_counts  : $job_counts
-    slot_counts : $slot_counts
+    jobs_make          : $jobs_make
+    slots_make         : $slots_make
+    step_changes       : $changes
+    left_out           : $left_out
+    job_counts         : $job_counts
+    slot_counts        : $slot_counts
+    to_backlog_by_agent: $tb_by
   }
 }

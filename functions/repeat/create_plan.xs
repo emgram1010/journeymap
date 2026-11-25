@@ -872,6 +872,53 @@ function "repeat/create_plan" {
       }
     }
 
+    // Opus review: a failed write with no winner on (source, date) may have lost a race on the NAME
+    // (same name, another start date; planner_workspace is unique on account + name). Answer it as
+    // the name refusal it is (E-PLN-001), not as a failed write.
+    var $name_taken {
+      value = false
+    }
+
+    conditional {
+      if ($write_ok == false && $existing_id == 0) {
+        db.query planner_workspace {
+          where = $db.planner_workspace.account_id == $input.account_id && $db.planner_workspace.name == $input.name
+          return = {type: "list"}
+          output = ["id"]
+        } as $name_after
+
+        var.update $name_taken {
+          value = (($name_after|count) > 0)
+        }
+      }
+    }
+
+    conditional {
+      if ($name_taken == true) {
+        function.run "ops/log_event" {
+          input = {
+            feature       : "REPEAT-1"
+            step          : "plan.repeat"
+            outcome       : "rejected"
+            severity      : "info"
+            error_code    : "E-PLN-001"
+            message       : "You already have a plan with this name. (E-PLN-001)"
+            user_id       : $input.user_id
+            account_id    : $input.account_id
+            entity_type   : "planner_workspace"
+            entity_id     : $input.workspace_id
+            correlation_id: $input.correlation_id
+            metadata      : {start_date: $input.start_date, name: $input.name, lost_race: true}
+          }
+        } as $_logged_name
+      }
+    }
+
+    precondition ($name_taken == false) {
+      error_type = "inputerror"
+      error = "You already have a plan with this name. (E-PLN-001)"
+    }
+
     var $outcome {
       value = (($write_ok == true) ? "created" : "exists")
     }

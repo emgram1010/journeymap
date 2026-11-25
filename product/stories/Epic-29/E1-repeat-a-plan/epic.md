@@ -255,3 +255,22 @@ can be tested alone.
   - A new step goes to the backlog only if its job had a slot at all.
 - **Learning (new trap, live):** inside a MULTI-LINE object literal, a bare number value (`src_id : 0`) turned into `null` and swallowed the next key, with no error. Values from a variable (`$zero`) are safe. Inline `{a: 0, b: 1}` literals were fine.
 
+### Opus review of stories 02–04 (2026-11-25)
+
+Read again end to end: `build_plan`, `plan_work`, `create_plan` and the preview and repeat endpoints. Each fix was pushed, then proven live on a rebuilt fixture and over real HTTP. The fixture was deleted afterwards.
+
+| # | Finding | Fix | Proof |
+|---|---|---|---|
+| R1 | Preview and copy disagreed on slots: a slot GIVEN to a left-off person, and a step the new version dropped, were counted as copied | Preview (endpoint 682) now runs `repeat/plan_work`, the same function as the copy, for every slot, line and window count and for each person's "to backlog" | HTTP preview: 2 to backlog (was 1), Old 2, 3 not created (was 2), matching the copy exactly |
+| R2 | Same name, different start dates, at the same moment: the loser got E-REPEAT-006 "couldn't be created" | After a failed write with no winner, the name is checked again; a taken name is answered with E-PLN-001 and logged with `lost_race: true` | Two parallel HTTP repeats (both about 8.8 s, overlapping): one created, one 400 E-PLN-001, `lost_race: true` |
+| R3 | Slow: every job re-ran steps and lengths | Steps and lengths are worked out once per (version + lines) signature | 50 jobs: planning 18 s → 10 s (build_plan 3.2 s + plan_work 6.8 s); save 8.8 s including 150 review marks; 19.6 s in total, was 26 s |
+| R4 | A day whose person is not on the plan would put its slots in a backlog position already taken | Such a slot now counts as "person left off" and goes to the backlog in order | Covered by the order audit (`audit_sequences` clean); no live data has this shape |
+| R5 | Slots left out for a job step had an empty name | Named after their job | HTTP preview names "Monday run", "Unticked run", "Cancelled run" |
+
+- **Regression:** the rebuilt fixture copied exactly as before: 2 jobs, 11 steps, 1 line, 1 window, 4 placed, 5 backlog and 7 review marks. The order audit is clean.
+- **Not fixed, recommended:**
+  - (a) The rest of the time is Xano's per-statement cost, about 1.5 ms per step of work, so 100 jobs is about 40 s. The screen needs a "building…" state (story 06 or the button), and the preview should warn above about 100 jobs.
+  - (b) `planner_ops/schedule_work_task` still holds its own copy of the length rule. Switch it to `jobs/step_expected_minutes`, with a before/after replay. Not done here: it changes a live endpoint outside this epic.
+  - (c) Deleting a slot leaves its review mark behind until story 05 adds it to `planner/delete_task`. No slot can be deleted in a repeated plan before the button ships.
+- **Verdict:** stories 02–04 pass review, with (a)–(c) carried forward.
+

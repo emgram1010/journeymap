@@ -45,6 +45,13 @@ export interface RepeatCounts {
   backlog: number;
   slots_dropped: number;
   row_estimate: number;
+  // From repeat/plan_work, the same function the copy runs (Opus review): optional for older answers.
+  new_steps?: number;
+  lengths_reset?: number;
+  start_times?: number;
+  lines?: number;
+  lines_left_out?: number;
+  windows?: number;
 }
 
 export interface RepeatPreview {
@@ -53,6 +60,8 @@ export interface RepeatPreview {
   counts: RepeatCounts;
   people: RepeatPerson[];
   jobs: RepeatJob[];
+  step_changes?: RepeatStepChange[];
+  left_out?: {kind: string; id: number; job_id?: number; name: string; reason: string}[];
 }
 
 const DAY_MS = 86_400_000;
