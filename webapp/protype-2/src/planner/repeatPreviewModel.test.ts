@@ -8,6 +8,7 @@ import {
   validateStartDate,
   canTick,
   toggleSkip,
+  shiftDate,
   groupJobs,
   reasonText,
   capList,
@@ -163,4 +164,28 @@ test('T-REPEAT-01-2: the summary states people, days, jobs, slots and backlog, w
 test('long lists are capped with "and N more"', () => {
   assert.deepEqual(capList([1, 2, 3], 5), {shown: [1, 2, 3], more: 0});
   assert.deepEqual(capList([1, 2, 3, 4, 5, 6, 7], 5), {shown: [1, 2, 3, 4, 5], more: 2});
+});
+
+// ── T-REPEAT-02-1 (story 02): every date moves by the same number of days ──
+
+test('T-REPEAT-02-1: a day moves by the shift, across a month end, a year end and a leap day', () => {
+  // TS twin of the server's date maths (ms + days * 86 400 000, formatted in UTC).
+  assert.equal(shiftDate('2026-12-01', 14), '2026-12-15');
+  assert.equal(shiftDate('2026-11-24', 7), '2026-12-01');
+  assert.equal(shiftDate('2026-12-28', 7), '2027-01-04');
+  assert.equal(shiftDate('2028-02-25', 7), '2028-03-03'); // 2028 is a leap year: 29 Feb is counted
+  assert.equal(shiftDate('2027-02-25', 7), '2027-03-04'); // 2027 is not
+});
+
+test('T-REPEAT-02-1: 7, 14 and 31-day plans keep their length when moved', () => {
+  for (const [start, end] of [['2026-12-01', '2026-12-07'], ['2026-12-01', '2026-12-14'], ['2027-01-01', '2027-01-31']]) {
+    const next = defaultRepeatStart(end);
+    const shift = shiftDays(start, next);
+    assert.equal(shiftDate(end, shift), shiftDate(next, shiftDays(start, end)), `${start}..${end}`);
+  }
+});
+
+test('T-REPEAT-02-1: a bad date moves to empty, never to a wrong day', () => {
+  assert.equal(shiftDate('2027-02-31', 7), '');
+  assert.equal(shiftDate('', 7), '');
 });

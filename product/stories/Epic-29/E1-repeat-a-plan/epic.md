@@ -174,3 +174,10 @@ can be tested alone.
 - `%` gives the remainder; `sort = {table.field: "asc"}` works on a list query.
 - A chain of `var.update $x { value = ((cond) ? "a" : $x) }` lines inside a `foreach` works, including when the condition reads variables set earlier in the same pass. It is the safe replacement for a `conditional` there.
 
+### Story 02 — new plan, people and days (started 2026-11-25)
+
+- **Tests written first:** T-REPEAT-02-1 (dates move across a month end, a year end and a leap day; 7, 14 and 31-day plans keep their length) — 3 unit tests, passing against `shiftDate` in `repeatPreviewModel.ts`.
+- **Table drafted, not pushed:** `static/tables/181_plan_repeat.xs`. Waiting for the founder's yes before any schema push.
+- **Design decided from story 00's timing:** one all-or-nothing write, so the row is written as `ready`; no plan is ever visible half-built, and no existing plan list needs a "hide building plans" change.
+- **Known limit:** the race guard is unique on (source plan, start date). Plans are archived, never deleted, so once a repeat to a date exists, repeating the same plan to the same date again is refused with a link to the existing plan.
+

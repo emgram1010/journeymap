@@ -170,3 +170,9 @@ export const isRepeatPlanUiEnabled = (): boolean => {
     return false;
   }
 };
+
+/** A YYYY-MM-DD date moved by a number of days (UTC, so no daylight-saving drift). '' for a bad date. */
+export const shiftDate = (date: string, days: number): string => {
+  const ms = toMs(date);
+  return ms === null ? '' : toIso(ms + days * DAY_MS);
+};
