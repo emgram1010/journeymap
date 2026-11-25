@@ -2,6 +2,7 @@
 // made, how many days everything moved, who did it, and what was left out.
 //
 // Pushed 2026-11-25 with the founder's yes (new table; no existing table changed).
+// created_by index added live the same day, with the founder's yes (GOV-1 audit catch).
 //
 // WHY A NEW TABLE, NOT A COLUMN ON `planner_workspace`: changes to existing tables are
 // additive-only, and `updateTableSchema` silently drops trim validators (planner_workspace.name
