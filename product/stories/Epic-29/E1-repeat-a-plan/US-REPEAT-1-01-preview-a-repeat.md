@@ -1,6 +1,6 @@
 # US-REPEAT-1-01 — Preview a repeat
 
-**Epic:** REPEAT-1 · **Size:** M · **Model:** Sonnet 5.5 · **Status:** 📋 Not built
+**Epic:** REPEAT-1 · **Size:** M · **Model:** Sonnet 5.5 · **Status:** 🟡 Server built and tested live 2026-11-25; screen not built
 **Depends on:** story 00
 
 ## Description

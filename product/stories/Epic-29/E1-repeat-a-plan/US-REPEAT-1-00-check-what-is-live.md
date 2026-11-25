@@ -1,6 +1,6 @@
 # US-REPEAT-1-00 — Check what is live before building
 
-**Epic:** REPEAT-1 · **Size:** S · **Model:** Sonnet 5.5 · **Status:** 📋 Not built
+**Epic:** REPEAT-1 · **Size:** S · **Model:** Sonnet 5.5 · **Status:** ✅ Done 2026-11-25 (results in epic.md sections 2a and 9)
 **Depends on:** nothing. **Read-only: this story writes nothing to the real account.**
 
 ## Description

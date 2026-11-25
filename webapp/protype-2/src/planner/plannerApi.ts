@@ -5,6 +5,7 @@
 // deliberately keeps unchanged where possible.
 import {performRequest, getJourneyMapBaseUrl, getAccountsBaseUrl} from '../perform/performApi';
 import {getXanoCatalogBaseUrl} from '../xano';
+import type {RepeatPreview} from './repeatPreviewModel';
 
 // ── Workspaces (plans) ──────────────────────────────────────────────────
 
@@ -386,6 +387,14 @@ export const createWorkspaceFromTemplate = (templateId: number, body: {name: str
     agent_count: number;
     skipped_agents: SkippedAgent[];
   }>(`/template/${templateId}/instance`, {method: 'POST', body});
+
+// ── Repeat a plan (REPEAT-1 story 01) ──────────────────────────────────────
+//
+// A read, sent as POST only because it carries a list (the jobs the planner
+// unticked). It writes nothing. The same server function will drive the real
+// copy, so what this returns is what a repeat does.
+export const previewRepeat = (workspaceId: number, body: {start_date?: string; skip_job_ids?: number[]}) =>
+  performRequest<RepeatPreview>(`/workspace/${workspaceId}/repeat-preview`, {method: 'POST', body});
 
 /** Why a roster agent was left off a new plan (gap-fix #1). */
 export interface SkippedAgent {

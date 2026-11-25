@@ -137,3 +137,37 @@ can be tested alone.
 - **How it was measured:** a scratch function wrote the rows inside a transaction and then forced a rollback; a count afterwards found 0 rows left each time. The scratch function was deleted. Nothing else was written to Xano.
 - **Learned on the way:** `work_task` refuses two steps with the same job, stage and row (the first run stopped at the second step). A repeat gets this for free from `jobs/tasks_from_version`. Also confirmed live: `while` loops nest, a `throw` inside `db.transaction` rolls it back, and a `var.update` made inside the transaction before the throw is still readable after the `try_catch`.
 - One thing from the same-day review still matters here: `live/build_publication` loads the whole link table on every publish (README F-15). Each repeated week makes publishing slower, so measure it with the large write.
+
+### Story 01 — preview a repeat (2026-11-25, in progress: server done, screen not built)
+
+**Built:** `functions/repeat/build_plan.xs` (live id 459), endpoint `POST workspace/{id}/repeat-preview` (live id 682), `webapp/protype-2/src/planner/repeatPreviewModel.ts` with its tests, `previewRepeat` in `plannerApi.ts`, and three entries in `errorCatalog.json`.
+
+| Test | Result |
+|---|---|
+| T-REPEAT-01-1 offered start and name | ✅ live: 7-day plan 145 offers 2026-11-28; 14-day plan 115 offers 2026-12-15; name "<plan> (<start>)" is free. Unit: 3 cases |
+| T-REPEAT-01-2 counts | ✅ live on plan 115: 26 jobs = 12 repeat + 2 left out + 12 will not; steps, slots and backlog add up |
+| T-REPEAT-01-3 one-off jobs | ✅ live: 9 outside orders, 2 exception children and 1 cancelled job on plan 115 all `will_not_repeat` with the right reason. Unit: not tickable |
+| T-REPEAT-01-4 inactive person | ✅ live on plan 42: Tony (login switched off) is left off, 1 slot goes to the backlog |
+| T-REPEAT-01-5 map versions | 🟡 "newer version" ✅ live (plan 42: 3 jobs move from version 27 to 29). **Archived map and no-published-version: not run**, no fixture exists; the code path is the same lookup returning 0 |
+| T-REPEAT-01-6 weekday warning, overlap | ✅ live: shift of 9 days gives `weekdays_align: false`; start inside the window returns E-REPEAT-003. Unit: 5 cases |
+| T-REPEAT-01-7 writes nothing | ✅ by construction: the function has no add, patch or delete (checked by search). Row counts were not compared |
+| T-REPEAT-01-8 second account | ✅ live: account 13 asking for account 2's plan 42 gets "Not Found" |
+| Bad dates (E-REPEAT-002) | ✅ live: "tomorrow", "2026-13-45" and "2027-02-31" all refused with the plain message |
+
+- Unit: `repeatPreviewModel.test.ts` 16 of 16. Full `npm test` 1,092 of 1,092. `tsc` clean.
+- **Not verified:** the endpoint over real HTTP with a signed-in user (it needs a test login token). The function behind it was run directly. Workflow tests and Playwright were not run.
+- **Not built yet:** the preview screen (the "Repeat this plan" action and its panel).
+
+**Differs from the story, and why**
+- The endpoint is a POST, not a GET: it carries the list of unticked jobs, and optional list inputs on a GET are unreliable here. It still writes nothing.
+- Lists are returned whole, not capped; the screen caps them ("and N more"). The real copy needs the whole list from the same function.
+- E-REPEAT-001 is in the catalog but the server returns the planner's usual "Plan not found", so another account's plan looks exactly like a missing one.
+- The three codes were added to `errorCatalog.json` only. The server copy (`functions/ops/error_catalog.xs`) holds 55 of 324 codes and has someone's unpushed edit, so it was left alone.
+- `errorCatalog.json` and `package.json` already had uncommitted edits from other work (BRIEF-1), so they are **not committed** here, and the new test is not yet in the `npm test` list. Run it with `node --import tsx --test src/planner/repeatPreviewModel.test.ts`.
+
+**Learned (XanoScript, confirmed live)**
+- `to_timestamp` throws on a month or day that cannot exist ("2026-13-45") and rolls over a day that is only too large ("2027-02-31" becomes 3 March). Validate the shape, catch the throw, and compare the round trip.
+- `output = [...]` works on a `list` query and keeps the rows loopable.
+- `%` gives the remainder; `sort = {table.field: "asc"}` works on a list query.
+- A chain of `var.update $x { value = ((cond) ? "a" : $x) }` lines inside a `foreach` works, including when the condition reads variables set earlier in the same pass. It is the safe replacement for a `conditional` there.
+
