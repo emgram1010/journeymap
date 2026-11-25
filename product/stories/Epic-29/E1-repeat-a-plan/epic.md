@@ -32,6 +32,34 @@ instead of rebuilding what did not.
 | A slot may carry a manual start time | `static/tables/142_planner_task_start_override.xs` |
 | Publish to live freezes one day into `plan_publication`; history hangs off that, never off a slot | `apis/planner/562_…publish_POST.xs` |
 
+### 2a. Everything that hangs off a plan (story 00, 2026-11-25)
+
+Found by searching every table in `static/tables/` for a reference to a plan, day, person, slot, job or step, then checking the live schema of the main ones. Live and repo agree on every table checked (115, 116, 117, 118, 119, 122, 123, 124, 125, 129, 130, 142, 175; planner code was compared the same day).
+
+| Table | Hangs off | Repeat does |
+|---|---|---|
+| `planner_workspace` (115) | the plan itself. Has `plan_template_id` and `is_archived` | **new row**, not copied. `plan_template_id` is carried so the new plan remembers its template |
+| `planner_workspace_map` (121) | plan | **copied** (accepted maps) |
+| `planner_agent` (116) | plan | **copied** (roster), with REQ-1 story 03 adding the profile link |
+| `planner_timeline` (117) | plan + person | **copied**, dates moved, always `draft` |
+| `planner_task` (118) | plan + day + person | **copied**, marked needs review |
+| `planner_task_start_override` (142) | slot | **copied** only if D-3 says a manual start carries over (decide in story 04) |
+| `work_item` (122) | plan, pinned to a map version | **created fresh**, pinned to the map's current published version |
+| `work_task` (123) | job | **created fresh** by `jobs/tasks_from_version`; status `not_started` |
+| `planner_task_work_task` (124) | slot + step | **created fresh** (a step is scheduled at most once) |
+| `work_item_line` (139), `work_item_time_window` (141) | job | **copied** (shape of the job) |
+| `work_item_unmatched_line` (171) | job | **not copied (history)**: a fact about one order import |
+| `work_item_origin` (175), `order_inbox` (177) | job | **not copied (one-off)**: an outside order is never duplicated (unique on account + source + external id) |
+| `work_item_exception` (140) | parent + child job | **not copied (one-off)**: children of an exception are not repeated |
+| `plan_publication` (125), `plan_change_log` (126), `live_day_addition` (179) | day | **not copied (history)** |
+| `activity_log` (127) | job, step, person | **not copied (history)** |
+| `order_route` (176), `order_route_live_day` (178) | plan, person | **not copied**: routing points at one plan; the owner re-points it. Listed in the preview so it is not a surprise |
+| `ai_member_profile.plan_ids` (172, a json list) | plan | **not copied**: an AI member keeps access only to the plans it was given. A repeat never widens an AI's reach. Listed in the preview |
+
+No table is marked unknown. Two things not in the epic before: `work_item.parent_work_item_id` (a plain int, no reference) and the json `plan_ids` on AI members, both of which a repeat must handle on purpose.
+
+**Frontend:** the planner in use is `webapp/protype-2/src/planner/PlannerApp.tsx` (routed at `/planner`). `webapp/planningFrontendv2` was last changed 2026-10-03 and is not routed. The "from template" flow (`TemplatesModal`, `createWorkspaceFromTemplate`) is where a "Repeat" action sits beside it; the preview (story 01) opens from the plan list and the board header.
+
 ## 3. Rule
 
 **A repeat makes a new plan. It never changes the old one, and it never copies history.**
@@ -96,4 +124,13 @@ can be tested alone.
 
 ## 9. Test Results
 
-Not built. Nothing has been run.
+### Story 00 — check what is live (2026-11-25, branch `epic-29-repeat-1`)
+
+| Test | Result |
+|---|---|
+| T-REPEAT-00-1 live compared | ✅ every table in section 2 fetched live or compared by the same-day planner pull; no differences |
+| T-REPEAT-00-2 no table unknown | ✅ see section 2a |
+| T-REPEAT-00-3 large-write timing | ⏳ **not run.** It needs a scratch function pushed to live Xano and rows written (then rolled back). Waiting for the founder's yes |
+
+- Nothing was written to Xano or to the repo outside docs.
+- One thing from the same-day review still matters here: `live/build_publication` loads the whole link table on every publish (README F-15). Each repeated week makes publishing slower, so measure it with the large write.
