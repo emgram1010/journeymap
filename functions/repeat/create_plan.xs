@@ -750,6 +750,22 @@ function "repeat/create_plan" {
                           }
                         } as $slot_row
 
+                        // D-2: every slot the repeat puts on a day, and every slot it sends to the backlog for a reason, needs a person to look.
+                        conditional {
+                          if ($sm.on_day == 1 || $sm.review_code != "copied") {
+                            db.add planner_task_review {
+                              data = {
+                                account_id         : $input.account_id
+                                workspace_id       : $new_ws.id
+                                planner_task_id    : $slot_row.id
+                                reason_code        : $sm.review_code
+                                reason_text        : $sm.review_text
+                                source_workspace_id: $input.workspace_id
+                              }
+                            } as $_review_row
+                          }
+                        }
+
                         conditional {
                           if ($sm.linked == 1) {
                             var.update $sk {
@@ -985,8 +1001,15 @@ function "repeat/create_plan" {
           output = ["id"]
         } as $w_backlog
 
+        db.query planner_task_review {
+          where = $db.planner_task_review.workspace_id == $new_ws_id
+          return = {type: "list"}
+          output = ["id"]
+        } as $w_reviews
+
         var.update $written {
           value = {
+            reviews: ($w_reviews|count)
             jobs   : ($w_jobs|count)
             steps  : ($w_steps|count)
             lines  : ($w_lines|count)

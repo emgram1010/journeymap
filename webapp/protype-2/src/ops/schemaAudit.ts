@@ -151,6 +151,8 @@ export const TABLE_MANIFEST: Record<string, TableExpectation> = {
   // never edited (a repeat is one all-or-nothing write, so it is born `ready`). If the staged
   // `building` fallback is ever built, it will patch `state` and must add `updated_at` first.
   plan_repeat: {naturalKeys: [['source_workspace_id', 'new_start_date'], ['new_workspace_id']], enumFields: ['state'], appendOnly: true},
+  // REPEAT-1 story 04: one "needs review" mark per slot; cleared in place (story 05), so it has updated_at.
+  planner_task_review: {naturalKeys: [['planner_task_id']]},
 
   // ── CAT-1 (phase-6): item-type / method catalogs ────────────────────
   // Built 2026-10-24 as local files 135/136; Xano assigns the real ids.

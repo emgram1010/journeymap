@@ -203,7 +203,7 @@ can be tested alone.
 - **Design decided from story 00's timing:** one all-or-nothing write, so the row is written as `ready`; no plan is ever visible half-built, and no existing plan list needs a "hide building plans" change.
 - **Known limit:** the race guard is unique on (source plan, start date). Plans are archived, never deleted, so once a repeat to a date exists, repeating the same plan to the same date again is refused with a link to the existing plan.
 
-### Stories 03–04 — jobs, slots and order (2026-11-25, Opus 5.5; review marks wait on a table push)
+### Stories 03–04 — jobs, slots and order (2026-11-25, Opus 5.5)
 
 - **Tests written first:** reason wording for every new "left out" reason, step changes grouped per job (T-REPEAT-03-2), and the Health rule "more slots to the backlog than placed" (story 04): `repeatPreviewModel.test.ts`, 23 of 23.
 - **Built:**
@@ -212,8 +212,9 @@ can be tested alone.
   - `repeat/create_plan` (465): now writes jobs (through `jobs/create_job`), windows, slots, step links and manual start times in the same transaction, then re-reads the counts.
   - `repeat/build_plan` (459): a job whose map the plan no longer accepts is now `cannot_repeat` / `map_not_accepted`.
   - `E-REPEAT-007` in the catalog.
-- **Not built yet:** the "needs review" row on each copied slot (T-REPEAT-04-4). It needs a new table, `planner_task_review`, drafted in `static/tables/182_planner_task_review.xs` and **not pushed**: it waits for the founder's yes.
-- **Fixture:** plan 156 in account 13, with 3 people (Old inactive) and 5 days (one published). It has 8 jobs:
+- **Table pushed 2026-11-25 (founder's yes):** `planner_task_review`, live table id 182, from `static/tables/182_planner_task_review.xs`. New table only; every field and all 5 indexes read back (unique slot; workspace, account, cleared_by). Added to the governance audit manifest.
+- **Review marks:** written in the same transaction, one per slot the repeat puts on a day (`copied from <plan>`), plus one per slot it sends to the backlog for a reason (`<name> is no longer on the plan`, `new step in this version`). Slots that were already in the source backlog are not marked.
+- **Fixture (deleted afterwards with every copy, map, version, rate, item and scratch function; event-log rows kept):** plan 156 in account 13, with 3 people (Old inactive) and 5 days (one published). It has 8 jobs:
   - "Monday run" on map A v1, where v2 drops step s2 and adds s4. It has a window from 22:00 to 02:00 the next day and an attribute.
   - "Chairs" on map B, with 3 lines: one good, one switched-off item, one item not in the version's rates.
   - One job each that is cancelled, an exception child, an outside order, on an archived map, on a map the plan no longer accepts, and unticked.
@@ -234,7 +235,7 @@ can be tested alone.
 | T-REPEAT-04-1 day and position | ✅ every kept slot landed on its person's day 7 days later, in source order; positions 1..n |
 | T-REPEAT-04-2 given to another person | ✅ "Sweep yard" (Ben's day, given to Ana) → new Ben's day, given to new Ana |
 | T-REPEAT-04-3 free slots and backlog | ✅ title, length, notes and `needs_info` reason copied; backlog order kept (Call customer 1, Chairs s2 2) |
-| T-REPEAT-04-4 review marks | ⏸ waits for the table push |
+| T-REPEAT-04-4 review marks | ✅ second repeat (to 03-15): 7 marks: 4 `copied` on the placed slots, 2 `person_left_off` with "Old is no longer on the plan", 1 `new_step`; the 2 plain backlog copies unmarked; re-read count `reviews: 7`. A forced failure after this change also left no plan, slot or mark |
 | T-REPEAT-04-5 left-off person | ✅ Old's own slot and the slot given to Old both went to the backlog (positions 3, 4) with "Old is no longer on the plan" |
 | T-REPEAT-04-6 step gone / new | ✅ s2's slot not created and named `step_gone`; new s4 in the backlog (position 5), reason "new step in this version" |
 | T-REPEAT-04-7 lengths | ✅ the tweaked 99-minute slot came back at the new estimate (22); `lengths_reset: 1` |
