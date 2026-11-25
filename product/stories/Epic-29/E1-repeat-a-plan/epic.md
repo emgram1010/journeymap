@@ -1,0 +1,99 @@
+# REPEAT-1 — Repeat a plan for the next period
+
+**Epic ID:** REPEAT-1 (E1 in this folder)
+**Status:** 📋 Not built (docs only, 2026-11-25)
+**Size:** L
+**Model:** Sonnet 5.5 for stories 00–02 and 05–07. **Opus 5.5** for 03 and 04 (jobs pinned to versions, race guards, one large write). Then an Opus review.
+**Depends on:** nothing in this folder. Built on PLAN-1/2/3, JOB-1, SCHED-1, TW-1, LIVE-1.
+**Read first:** `../README.md`.
+
+---
+
+## 1. Goal
+
+**Pain:** a planner builds a week by hand: the days, the jobs, the order, who does what. Next
+week is mostly the same, and all of it is built by hand again.
+
+**Win:** one action makes the next period from the last one. The planner reviews what changed
+instead of rebuilding what did not.
+
+## 2. What exists today (repo and live compared 2026-11-25: planner code identical; see README F-6, F-8, F-15–F-17)
+
+| Fact | Where |
+|---|---|
+| A plan is a `planner_workspace` with a start and end date. Its name is unique per account | `static/tables/115_planner_workspace.xs` |
+| A plan template copies **only** the window length, accepted maps and roster into a new plan | `apis/planner/551_template_template_id_instance_POST.xs` |
+| A day is one person's `planner_timeline` for one date, unique per (person, date), with a start time and `draft`/`published` | `static/tables/117_planner_timeline.xs` |
+| A person on a plan is a `planner_agent`, created fresh in every plan | `static/tables/116_planner_agent.xs` |
+| A job (`work_item`) is pinned to one published map version; its steps (`work_task`) are pointers to that version | `static/tables/122_work_item.xs`, `123_work_task.xs` |
+| Jobs are written in one place: `jobs/create_job`, with steps from `jobs/tasks_from_version` | `functions/jobs/` |
+| A scheduled slot is a `planner_task`, linked to its step through `planner_task_work_task` (a step is scheduled at most once) | `static/tables/118_…`, `124_…` |
+| A job may carry item lines, a time window and an outside-order origin | tables 139, 141, 175 |
+| A slot may carry a manual start time | `static/tables/142_planner_task_start_override.xs` |
+| Publish to live freezes one day into `plan_publication`; history hangs off that, never off a slot | `apis/planner/562_…publish_POST.xs` |
+
+## 3. Rule
+
+**A repeat makes a new plan. It never changes the old one, and it never copies history.**
+
+- The new plan is its own plan from the moment it exists (the same rule the template follows).
+- Every date moves forward by the same number of days.
+- **Shape is copied** (days, order, who). **Facts are not** (statuses, the activity log, published days).
+- **Definitions are read fresh**: every repeated job is pinned to its map's current published version.
+- Every copied assignment is marked **needs review** (D-2).
+- Anything that could not be copied is **named with a reason**. Nothing is dropped quietly.
+
+## 4. Do not break
+
+- Creating a plan from a template works exactly as it does today.
+- The source plan is not written to: no row in it changes (checked before and after by counts and a hash of its board).
+- No published day, publication or activity-log row is copied or changed.
+- An outside order is never duplicated (`work_item_origin`'s unique index is never hit).
+- No column is added to an existing table.
+
+## 5. Non-goals
+
+- A plan that repeats by itself on a schedule, with no click (D-14).
+- Repeating into the **same** plan (extending a plan's window).
+- Copying a plan to another account.
+- Merging a repeat into a plan that already has work.
+- Smart rebalancing of who does what. That is MATCH-1.
+
+## 6. New tables (additive)
+
+| Table | What it holds | Guard |
+|---|---|---|
+| `plan_repeat` | One row per repeat: source plan, new plan, days moved, who, when, state (`building`, `ready`, `failed`), the counts and the list of what was left out | Unique on (source plan, new start date): two clicks cannot make two copies |
+| `planner_task_review` | One row per slot that needs a person to look at it: slot, reason, raised when, cleared when and by whom | Unique on slot; absence of a row means nothing to review |
+
+## 7. Stories
+
+| File | Story |
+|---|---|
+| `US-REPEAT-1-00-check-what-is-live.md` | Read-only: compare live to the repo, list everything that hangs off a plan, measure one large write |
+| `US-REPEAT-1-01-preview-a-repeat.md` | See what will be copied and what will not, before anything is written |
+| `US-REPEAT-1-02-new-plan-people-and-days.md` | Create the new plan, its people and its days |
+| `US-REPEAT-1-03-jobs-read-the-current-version.md` | Repeat the jobs, pinned to the current published version |
+| `US-REPEAT-1-04-order-and-people-carry-over.md` | Carry the order and the assignments, drop who cannot be carried |
+| `US-REPEAT-1-05-needs-review.md` | Show, clear and publish-through the "needs review" marks |
+| `US-REPEAT-1-06-several-periods-and-history.md` | Repeat several periods at once; see where a plan came from |
+| `US-REPEAT-1-07-ai-can-draft-a-repeat.md` | A connector and copilot tool that drafts a repeat and never publishes |
+
+Stories 02, 03 and 04 are one user action and one all-or-nothing write. They are split so each
+can be tested alone.
+
+## 8. Completion gate
+
+- A plan with 3 people, 5 days and 10 jobs is repeated; the new plan shows the same shape 7 days later.
+- The source plan is byte-for-byte unchanged.
+- A job whose map got a new published version reads the new version; the summary names it.
+- An outside order, an exception child and a cancelled job are not in the new plan, and the summary says so.
+- An inactive person's work is in the backlog with the reason.
+- Every copied slot is marked needs review; publishing a day clears that day's marks.
+- Two clicks at once make one plan.
+- A second account cannot repeat, preview or see the first account's plan.
+- Existing suites green. Test Results filled in.
+
+## 9. Test Results
+
+Not built. Nothing has been run.
