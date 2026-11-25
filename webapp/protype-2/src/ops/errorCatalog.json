@@ -603,6 +603,16 @@
     "severity": "error",
     "fix_hint": "Try once more. If it fails again, open the plan.repeat_failed event on the Health page and send its details to support."
   },
+  "E-REPEAT-007": {
+    "code": "E-REPEAT-007",
+    "feature": "REPEAT-1",
+    "user_message": "The new plan was made, but none of its jobs could be repeated.",
+    "what_happened": "A repeat created the plan, its people and days, but every job was left out: cancelled, an outside order, made by an exception, unticked, or its map can no longer be used.",
+    "likely_cause": "The source plan held only one-off work, or its maps were archived, deleted, removed from the plan or never published.",
+    "owner": "user",
+    "severity": "warn",
+    "fix_hint": "Open the new plan and add its jobs, or publish the maps it needs and repeat again to another start date."
+  },
   "E-PLN-001": {
     "code": "E-PLN-001",
     "feature": "PLN-3",

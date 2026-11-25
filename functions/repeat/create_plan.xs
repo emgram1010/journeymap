@@ -1,4 +1,4 @@
-// REPEAT-1 story 02 — Make the new plan from a repeat: the plan itself, its accepted maps, its people and their days, moved forward. Stories 03 and 04 add the jobs and slots to the SAME write. What to copy is decided by repeat/build_plan (the rule the preview shows), never re-decided here. One all-or-nothing db.transaction (story 00: 550 rows in 5.9 s), so the plan_repeat row is written straight as `ready` and a half-built plan is never visible. THE RACE GUARD is plan_repeat's unique index on (source plan, start date), plus planner_workspace's unique (account, name): two confirms at once both reach the insert, the database refuses the second, its whole transaction rolls back, and the loser is answered with the winner's plan (outcome "exists", E-REPEAT-005). A "does it exist?" read is only the fast path for a second click (EXC-1). A person who is switched off (inactive, or their login is off) is not added and is named with the reason. A map the source accepts that is now archived, deleted or another account's is not copied and is named. Days keep their start time, move by shift_days, and are always draft. The source plan is only read. test_fail_at = 1 throws inside the transaction after every row is written, to prove nothing is left behind; the endpoint always passes 0.
+// REPEAT-1 story 02 — Make the new plan from a repeat: the plan itself, its accepted maps, its people and their days, moved forward. Stories 03-04 add the jobs and slots to the SAME write: repeat/plan_work decides every row first (read-only), jobs/create_job writes each job, and every slot lands on its matching day and position. What to copy is decided by repeat/build_plan (the rule the preview shows), never re-decided here. One all-or-nothing db.transaction (story 00: 550 rows in 5.9 s), so the plan_repeat row is written straight as `ready` and a half-built plan is never visible. THE RACE GUARD is plan_repeat's unique index on (source plan, start date), plus planner_workspace's unique (account, name): two confirms at once both reach the insert, the database refuses the second, its whole transaction rolls back, and the loser is answered with the winner's plan (outcome "exists", E-REPEAT-005). A "does it exist?" read is only the fast path for a second click (EXC-1). A person who is switched off (inactive, or their login is off) is not added and is named with the reason. A map the source accepts that is now archived, deleted or another account's is not copied and is named. Days keep their start time, move by shift_days, and are always draft. The source plan is only read. test_fail_at = 1 throws inside the transaction after every row is written, to prove nothing is left behind; the endpoint always passes 0.
 function "repeat/create_plan" {
   input {
     int account_id
@@ -139,6 +139,11 @@ function "repeat/create_plan" {
 
     var $k {
       value = ""
+    }
+
+    // A bare number inside a multi-line object literal becomes null and swallows the next key (found live 2026-11-25).
+    var $zero {
+      value = 0
     }
 
     // People: the left-off verdict comes from build_plan, so the copy matches the preview.
@@ -426,7 +431,7 @@ function "repeat/create_plan" {
         }
 
         array.push $tl_checks {
-          value = {agent_id: $tl.agent_id, off: $off_n, new_date: $new_date, start_time: $tl.start_time}
+          value = {src_id: $tl.id, agent_id: $tl.agent_id, off: $off_n, new_date: $new_date, start_time: $tl.start_time}
         }
       }
     }
@@ -447,6 +452,27 @@ function "repeat/create_plan" {
       }
     }
 
+    // Stories 03-04: jobs, lines, windows and slots, all decided before the write (read-only).
+    function.run "repeat/plan_work" {
+      input = {account_id: $input.account_id, workspace_id: $input.workspace_id, plan: $plan, shift_days: $plan.offer.shift_days, source_name: $src.name}
+    } as $work
+
+    foreach ($work.left_out) {
+      each as $wl {
+        array.push $left_out {
+          value = $wl
+        }
+      }
+    }
+
+    var $job_counts {
+      value = $work.job_counts
+    }
+
+    var $slot_counts {
+      value = $work.slot_counts
+    }
+
     var $counts {
       value = {
         people         : ($agents_copy|count)
@@ -454,7 +480,22 @@ function "repeat/create_plan" {
         days           : ($days_copy|count)
         maps           : ($maps_copy|count)
         maps_left_out  : (($map_checks|count) - ($maps_copy|count))
+        jobs           : $job_counts
+        slots          : $slot_counts
       }
+    }
+
+    // Health rule (story 04): more slots sent to the backlog than placed is a warning.
+    var $mostly_backlog {
+      value = ($slot_counts.to_backlog > $slot_counts.placed)
+    }
+
+    var $sched_severity {
+      value = (($mostly_backlog == true) ? "warn" : "info")
+    }
+
+    var $sched_message {
+      value = (($mostly_backlog == true) ? "Plan repeated, but more of its slots went to the backlog than onto days." : "Slots carried over to the new plan.")
     }
 
     // ── The write: all of it, or none of it ─────────────────────────
@@ -546,6 +587,10 @@ function "repeat/create_plan" {
                       value = 0
                     }
 
+                    var $new_tl {
+                      value = {}
+                    }
+
                     foreach ($days_copy) {
                       each as $dc {
                         var.update $t {
@@ -568,7 +613,166 @@ function "repeat/create_plan" {
                             start_time  : $dc.start_time
                             status      : "draft"
                           }
-                        } as $_day_row
+                        } as $day_row
+
+                        var.update $t {
+                          value = $dc.src_id|to_text
+                        }
+
+                        var.update $k {
+                          value = "t:" ~ $t
+                        }
+
+                        var.update $new_tl {
+                          value = $new_tl|set:$k:$day_row.id
+                        }
+                      }
+                    }
+
+                    // Story 03: each job made through the one job writer, pinned to its current version.
+                    var $step_new {
+                      value = {}
+                    }
+
+                    var $jt {
+                      value = ""
+                    }
+
+                    var $sk {
+                      value = ""
+                    }
+
+                    foreach ($work.jobs_make) {
+                      each as $jm {
+                        function.run "jobs/create_job" {
+                          input = {
+                            account_id            : $input.account_id
+                            workspace_id          : $new_ws.id
+                            journey_map_version_id: $jm.version_id
+                            title                 : $jm.title
+                            attributes            : $jm.attributes
+                            parent_work_item_id   : $zero
+                            created_by            : $input.user_id
+                            tasks                 : $jm.tasks
+                            order_lines           : $jm.lines
+                            unmatched_lines       : []
+                          }
+                        } as $nj
+
+                        var.update $jt {
+                          value = $jm.src_id|to_text
+                        }
+
+                        db.query work_task {
+                          where = $db.work_task.work_item_id == $nj.id
+                          return = {type: "list"}
+                          output = ["id", "stage_key", "lens_key"]
+                        } as $nj_steps
+
+                        foreach ($nj_steps) {
+                          each as $ns {
+                            var.update $sk {
+                              value = "x:" ~ $jt ~ "::" ~ $ns.stage_key ~ "::" ~ $ns.lens_key
+                            }
+
+                            var.update $step_new {
+                              value = $step_new|set:$sk:$ns.id
+                            }
+                          }
+                        }
+
+                        conditional {
+                          if ($jm.has_window == 1) {
+                            db.add work_item_time_window {
+                              data = {
+                                work_item_id   : $nj.id
+                                start_date     : $jm.window.start_date
+                                start_time     : $jm.window.start_time
+                                end_date       : $jm.window.end_date
+                                end_time       : $jm.window.end_time
+                                note           : $jm.window.note
+                                constraint_type: "soft"
+                                updated_by     : $input.user_id
+                              }
+                            } as $_win_row
+                          }
+                        }
+                      }
+                    }
+
+                    // Story 04: every slot on its matching day and position (dense by construction), linked to the new step.
+                    var $dest_tl {
+                      value = 0
+                    }
+
+                    var $new_asg {
+                      value = 0
+                    }
+
+                    var $new_step_id {
+                      value = 0
+                    }
+
+                    foreach ($work.slots_make) {
+                      each as $sm {
+                        var.update $k {
+                          value = $sm.dest
+                        }
+
+                        var.update $dest_tl {
+                          value = ($new_tl|get:$k:null) ?? 0
+                        }
+
+                        var.update $t {
+                          value = $sm.assignee_src|to_text
+                        }
+
+                        var.update $k {
+                          value = "a:" ~ $t
+                        }
+
+                        var.update $new_asg {
+                          value = ($new_agent|get:$k:null) ?? 0
+                        }
+
+                        db.add planner_task {
+                          data = {
+                            workspace_id     : $new_ws.id
+                            timeline_id      : $dest_tl
+                            assignee_agent_id: $new_asg
+                            title            : $sm.title
+                            seq              : $sm.pos
+                            duration_minutes : $sm.duration_minutes
+                            notes            : $sm.notes
+                            status           : $sm.status
+                            needs_info_reason: $sm.needs_info_reason
+                            tweak_reason     : ""
+                          }
+                        } as $slot_row
+
+                        conditional {
+                          if ($sm.linked == 1) {
+                            var.update $sk {
+                              value = $sm.step_key
+                            }
+
+                            var.update $new_step_id {
+                              value = ($step_new|get:$sk:null) ?? 0
+                            }
+
+                            db.add planner_task_work_task {
+                              data = {planner_task_id: $slot_row.id, work_task_id: $new_step_id, position: 1}
+                            } as $_link_row
+                          }
+                        }
+
+                        conditional {
+                          if ($sm.on_day == 1 && $sm.start_time != "") {
+                            db.add planner_task_start_override {
+                              data = {planner_task_id: $slot_row.id, start_time: $sm.start_time, reason: "Carried over by a repeat", updated_by: $input.user_id}
+                            } as $_ov_row
+                          }
+                        }
                       }
                     }
 
@@ -726,6 +930,142 @@ function "repeat/create_plan" {
       }
     }
 
+    // The counts in the answer are re-read from the new plan, never the loops' own tallies (T-REPEAT-04-11).
+    var $written {
+      value = {}
+    }
+
+    conditional {
+      if ($write_ok == true) {
+        db.query work_item {
+          where = $db.work_item.workspace_id == $new_ws_id
+          return = {type: "list"}
+          output = ["id"]
+        } as $w_jobs
+
+        var $w_job_ids {
+          value = [-1]
+        }
+
+        foreach ($w_jobs) {
+          each as $wj {
+            array.push $w_job_ids {
+              value = $wj.id
+            }
+          }
+        }
+
+        db.query work_task {
+          where = $db.work_task.work_item_id in $w_job_ids
+          return = {type: "list"}
+          output = ["id"]
+        } as $w_steps
+
+        db.query work_item_line {
+          where = $db.work_item_line.work_item_id in $w_job_ids
+          return = {type: "list"}
+          output = ["id"]
+        } as $w_lines
+
+        db.query work_item_time_window {
+          where = $db.work_item_time_window.work_item_id in $w_job_ids
+          return = {type: "list"}
+          output = ["id"]
+        } as $w_windows
+
+        db.query planner_task {
+          where = $db.planner_task.workspace_id == $new_ws_id && $db.planner_task.timeline_id != 0
+          return = {type: "list"}
+          output = ["id"]
+        } as $w_placed
+
+        db.query planner_task {
+          where = $db.planner_task.workspace_id == $new_ws_id && $db.planner_task.timeline_id == 0
+          return = {type: "list"}
+          output = ["id"]
+        } as $w_backlog
+
+        var.update $written {
+          value = {
+            jobs   : ($w_jobs|count)
+            steps  : ($w_steps|count)
+            lines  : ($w_lines|count)
+            windows: ($w_windows|count)
+            placed : ($w_placed|count)
+            backlog: ($w_backlog|count)
+          }
+        }
+
+        function.run "ops/log_event" {
+          input = {
+            feature       : "REPEAT-1"
+            step          : "plan.repeat_jobs"
+            outcome       : "success"
+            severity      : "info"
+            error_code    : ""
+            message       : "Jobs repeated on their maps' current versions."
+            user_id       : $input.user_id
+            account_id    : $input.account_id
+            entity_type   : "planner_workspace"
+            entity_id     : $new_ws_id
+            correlation_id: $input.correlation_id
+            metadata      : {source_workspace_id: $input.workspace_id, counts: $job_counts, step_changes: $work.step_changes}
+          }
+        } as $_logged_jobs
+
+        function.run "ops/log_event" {
+          input = {
+            feature       : "REPEAT-1"
+            step          : "plan.repeat_schedule"
+            outcome       : "success"
+            severity      : $sched_severity
+            error_code    : ""
+            message       : $sched_message
+            user_id       : $input.user_id
+            account_id    : $input.account_id
+            entity_type   : "planner_workspace"
+            entity_id     : $new_ws_id
+            correlation_id: $input.correlation_id
+            metadata      : {source_workspace_id: $input.workspace_id, counts: $slot_counts}
+          }
+        } as $_logged_sched
+      }
+    }
+
+    // E-REPEAT-007: the plan exists, but no job could be repeated. A warning in the answer, not a refusal.
+    var $jobs_seen {
+      value = $plan.jobs|count
+    }
+
+    var $warnings {
+      value = []
+    }
+
+    conditional {
+      if ($write_ok == true && $jobs_seen > 0 && $job_counts.repeated == 0) {
+        array.push $warnings {
+          value = {code: "E-REPEAT-007", message: "The new plan was made, but none of its jobs could be repeated. (E-REPEAT-007)"}
+        }
+
+        function.run "ops/log_event" {
+          input = {
+            feature       : "REPEAT-1"
+            step          : "plan.repeat_jobs"
+            outcome       : "success"
+            severity      : "warn"
+            error_code    : "E-REPEAT-007"
+            message       : "Plan repeated with no jobs: every job was left out."
+            user_id       : $input.user_id
+            account_id    : $input.account_id
+            entity_type   : "planner_workspace"
+            entity_id     : $new_ws_id
+            correlation_id: $input.correlation_id
+            metadata      : {source_workspace_id: $input.workspace_id, counts: $job_counts}
+          }
+        } as $_logged_nojobs
+      }
+    }
+
     var $people_skipped {
       value = $counts.people_left_off + $counts.maps_left_out
     }
@@ -762,5 +1102,8 @@ function "repeat/create_plan" {
     shift_days           : $plan.offer.shift_days
     counts               : $counts
     left_out             : $left_out
+    step_changes         : $work.step_changes
+    written              : $written
+    warnings             : $warnings
   }
 }

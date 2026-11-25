@@ -15,6 +15,8 @@ import {
   capList,
   summaryLines,
   peopleLeftOff,
+  stepChangesByJob,
+  mostlyToBacklog,
   type RepeatJob,
   type RepeatCounts,
 } from './repeatPreviewModel';
@@ -108,6 +110,35 @@ test('T-REPEAT-01-3: every reason has plain wording, and an unknown one never sh
   }
   assert.ok(!reasonText('something_new').includes('_'));
   assert.equal(reasonText(''), '');
+});
+
+test('T-REPEAT-03-7 / 04-6: the reasons a repeat leaves something out have plain wording too', () => {
+  for (const r of ['map_not_accepted', 'item_inactive', 'item_not_in_version', 'step_gone', 'job_not_repeated', 'inactive', 'login_off']) {
+    const text = reasonText(r);
+    assert.ok(text.length > 10, r);
+    assert.ok(!text.includes('_'), r);
+    assert.notEqual(text, reasonText('something_new'), r);
+  }
+});
+
+test('T-REPEAT-03-2: step changes are grouped per job, added and gone kept apart', () => {
+  const g = stepChangesByJob([
+    {job_id: 7, title: 'Monday run', stage_key: 's1', lens_key: 'driver', change: 'added'},
+    {job_id: 7, title: 'Monday run', stage_key: 's3', lens_key: 'driver', change: 'gone'},
+    {job_id: 9, title: 'Tuesday run', stage_key: 's2', lens_key: 'packer', change: 'gone'},
+  ]);
+  assert.deepEqual(g, [
+    {job_id: 7, title: 'Monday run', added: ['s1 · driver'], gone: ['s3 · driver']},
+    {job_id: 9, title: 'Tuesday run', added: [], gone: ['s2 · packer']},
+  ]);
+  assert.deepEqual(stepChangesByJob([]), []);
+});
+
+test('T-REPEAT-04 Health rule: more than half the slots sent to the backlog is a warning', () => {
+  assert.equal(mostlyToBacklog({placed: 4, to_backlog: 5}), true);
+  assert.equal(mostlyToBacklog({placed: 5, to_backlog: 5}), false);
+  assert.equal(mostlyToBacklog({placed: 0, to_backlog: 0}), false);
+  assert.equal(mostlyToBacklog({placed: 0, to_backlog: 1}), true);
 });
 
 test('T-REPEAT-01-5: jobs are grouped by verdict, and "newer version" is its own list', () => {

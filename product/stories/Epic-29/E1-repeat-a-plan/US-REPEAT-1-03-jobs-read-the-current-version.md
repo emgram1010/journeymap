@@ -1,6 +1,6 @@
 # US-REPEAT-1-03 — Repeated jobs read the current published version
 
-**Epic:** REPEAT-1 · **Size:** L · **Model:** **Opus 5.5** · **Status:** 📋 Not built
+**Epic:** REPEAT-1 · **Size:** L · **Model:** **Opus 5.5** · **Status:** ✅ Built and tested live (hidden until the button)
 **Depends on:** story 02
 
 ## Description

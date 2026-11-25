@@ -1,6 +1,6 @@
 # US-REPEAT-1-04 — The order and the people carry over
 
-**Epic:** REPEAT-1 · **Size:** L · **Model:** **Opus 5.5** · **Status:** 📋 Not built
+**Epic:** REPEAT-1 · **Size:** L · **Model:** **Opus 5.5** · **Status:** 🔨 Built and tested live, except review marks (table not pushed)
 **Depends on:** stories 02, 03 · **Decision:** D-2 (founder, 2026-11-25), D-7 (builder)
 
 ## Description

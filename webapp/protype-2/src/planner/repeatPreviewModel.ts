@@ -132,7 +132,40 @@ const REASONS: Record<string, string> = {
   map_unavailable: 'Its map was archived or deleted.',
   no_published_version: 'Its map has no published version.',
   left_out: 'You chose to leave it out.',
+  map_not_accepted: 'Its map is no longer one this plan uses.',
+  item_inactive: 'That item has been switched off in Settings.',
+  item_not_in_version: 'That item is not on the map as it is published now.',
+  step_gone: 'That step is not in the map as it is published now.',
+  job_not_repeated: 'Its job was not repeated.',
+  inactive: 'This person is switched off on the plan.',
+  login_off: 'This person can no longer sign in.',
 };
+
+export interface RepeatStepChange {
+  job_id: number;
+  title: string;
+  stage_key: string;
+  lens_key: string;
+  change: 'added' | 'gone';
+}
+
+/** The flat change list from the server, one entry per job, in the order jobs first appear. */
+export const stepChangesByJob = (changes: RepeatStepChange[]) => {
+  const out: {job_id: number; title: string; added: string[]; gone: string[]}[] = [];
+  for (const c of changes) {
+    let row = out.find(r => r.job_id === c.job_id);
+    if (!row) {
+      row = {job_id: c.job_id, title: c.title, added: [], gone: []};
+      out.push(row);
+    }
+    row[c.change].push(`${c.stage_key} · ${c.lens_key}`);
+  }
+  return out;
+};
+
+/** Health rule (story 04): a repeat that sent more than half its slots to the backlog is a warning. */
+export const mostlyToBacklog = (c: {placed: number; to_backlog: number}): boolean =>
+  c.to_backlog > c.placed;
 
 /** Plain wording for a reason. An unknown reason never shows its raw code. */
 export const reasonText = (reason: string): string => {

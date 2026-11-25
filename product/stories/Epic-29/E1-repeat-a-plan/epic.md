@@ -203,3 +203,54 @@ can be tested alone.
 - **Design decided from story 00's timing:** one all-or-nothing write, so the row is written as `ready`; no plan is ever visible half-built, and no existing plan list needs a "hide building plans" change.
 - **Known limit:** the race guard is unique on (source plan, start date). Plans are archived, never deleted, so once a repeat to a date exists, repeating the same plan to the same date again is refused with a link to the existing plan.
 
+### Stories 03–04 — jobs, slots and order (2026-11-25, Opus 5.5; review marks wait on a table push)
+
+- **Tests written first:** reason wording for every new "left out" reason, step changes grouped per job (T-REPEAT-03-2), and the Health rule "more slots to the backlog than placed" (story 04): `repeatPreviewModel.test.ts`, 23 of 23.
+- **Built:**
+  - `repeat/plan_work` (live 472): read-only, decides every job, line, window and slot before the write.
+  - `jobs/step_expected_minutes` (live 471): SCHED-1's "how long is this step" rule, taken out so a copied slot is sized the way a person's click sizes it.
+  - `repeat/create_plan` (465): now writes jobs (through `jobs/create_job`), windows, slots, step links and manual start times in the same transaction, then re-reads the counts.
+  - `repeat/build_plan` (459): a job whose map the plan no longer accepts is now `cannot_repeat` / `map_not_accepted`.
+  - `E-REPEAT-007` in the catalog.
+- **Not built yet:** the "needs review" row on each copied slot (T-REPEAT-04-4). It needs a new table, `planner_task_review`, drafted in `static/tables/182_planner_task_review.xs` and **not pushed**: it waits for the founder's yes.
+- **Fixture:** plan 156 in account 13, with 3 people (Old inactive) and 5 days (one published). It has 8 jobs:
+  - "Monday run" on map A v1, where v2 drops step s2 and adds s4. It has a window from 22:00 to 02:00 the next day and an attribute.
+  - "Chairs" on map B, with 3 lines: one good, one switched-off item, one item not in the version's rates.
+  - One job each that is cancelled, an exception child, an outside order, on an archived map, on a map the plan no longer accepts, and unticked.
+  - 11 slots: tweaked, a manual start, free-standing, given to another person, on the inactive person's day, backlog, and on dropped jobs.
+
+| Test | Result |
+|---|---|
+| T-REPEAT-03-1 same version | ✅ "Chairs" kept version 42; every new step `not_started`; job `open` |
+| T-REPEAT-03-2 newer version | ✅ "Monday run" pinned to v2 (41), steps s1 · s3 · s4; change list = s4 added, s2 gone |
+| T-REPEAT-03-3 newer draft ignored | ✅ by construction: a `journey_map_version` row is only ever written by Publish version (checked in `create_work_item`'s header: 0 of 26 rows without `published_at`); a map's draft is never a version |
+| T-REPEAT-03-4 lines | ✅ item 21 × 5 copied (flagged 2 → 0); switched-off item named `item_inactive`; item not in rates named `item_not_in_version` |
+| T-REPEAT-03-5 time window | ✅ 2027-03-01 22:00 → 03-02 02:00 became 03-08 22:00 → 03-09 02:00, note kept |
+| T-REPEAT-03-6 one-off jobs | ✅ cancelled, exception child, outside order: not repeated, each with its reason; no `work_item_origin` row on the copy |
+| T-REPEAT-03-7 unusable maps | ✅ archived map `map_unavailable`; map no longer accepted `map_not_accepted` (new rule) |
+| T-REPEAT-03-8 no history | ✅ new jobs: no parent, no start/finish, status `open`; attributes kept, marked `source: repeat` |
+| T-REPEAT-03-9 / 04-10 forced failure | ✅ `test_fail_at = 1` reached the throw after every row ("Throw Error Statement" in `plan.repeat_failed`); a re-count found no new plan, job, step, slot, line, day or person |
+| T-REPEAT-03-10 50 jobs | ⚠️ works, but slow. 50 jobs, 150 steps and 150 slots took 26 s in total: about 8 s writing (`duration_ms` 8,120) and about 18 s planning. Within the limit, but see the finding below |
+| T-REPEAT-04-1 day and position | ✅ every kept slot landed on its person's day 7 days later, in source order; positions 1..n |
+| T-REPEAT-04-2 given to another person | ✅ "Sweep yard" (Ben's day, given to Ana) → new Ben's day, given to new Ana |
+| T-REPEAT-04-3 free slots and backlog | ✅ title, length, notes and `needs_info` reason copied; backlog order kept (Call customer 1, Chairs s2 2) |
+| T-REPEAT-04-4 review marks | ⏸ waits for the table push |
+| T-REPEAT-04-5 left-off person | ✅ Old's own slot and the slot given to Old both went to the backlog (positions 3, 4) with "Old is no longer on the plan" |
+| T-REPEAT-04-6 step gone / new | ✅ s2's slot not created and named `step_gone`; new s4 in the backlog (position 5), reason "new step in this version" |
+| T-REPEAT-04-7 lengths | ✅ the tweaked 99-minute slot came back at the new estimate (22); `lengths_reset: 1` |
+| T-REPEAT-04-8 manual start | ✅ 10:00 carried on the placed slot |
+| T-REPEAT-04-9 order audit | ✅ `planner/audit_sequences` on account 13: no violations |
+| T-REPEAT-04-11 counts re-read | ✅ `written` (re-queried) = 2 jobs, 11 steps, 1 line, 1 window, 4 placed, 5 backlog, matching the planned counts |
+| Source unchanged | ✅ fingerprint of plan 156 `621c4ad0…` identical before and after both runs |
+| Suites | ✅ `npm test` 1,115 of 1,115 · `tsc` clean. Workflow tests and Playwright not run; endpoint 683 unchanged and not re-run over HTTP |
+
+- **Findings for the Opus review:**
+  - **Speed:** planning is about 18 s for 50 jobs, because each job and step runs its own function call. Fix: work out steps and lengths once per version for jobs with no lines. Writing is about 22 ms a row, against story 00's 11.
+  - **Preview gap:** the preview counts only slots on a left-off person's DAY as "to backlog". The copy also sends a slot GIVEN to a left-off person there (fixture: preview 1, copy 2). `build_plan` needs the same assignee check.
+  - **One copy of the length rule:** `planner_ops/schedule_work_task` still has its own copy. Switch it to `jobs/step_expected_minutes`, with a before/after replay.
+- **Differences from the story:**
+  - Slots are written straight with dense positions, not through `planner/place_task`. That function opens its own transaction and reorders other slots; the copy writes into an empty plan, and the audit proves the order.
+  - "New step" and "step gone" count only when a job moves to a newer version.
+  - A new step goes to the backlog only if its job had a slot at all.
+- **Learning (new trap, live):** inside a MULTI-LINE object literal, a bare number value (`src_id : 0`) turned into `null` and swallowed the next key, with no error. Values from a variable (`$zero`) are safe. Inline `{a: 0, b: 1}` literals were fine.
+

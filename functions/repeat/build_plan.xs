@@ -1,4 +1,4 @@
-// REPEAT-1 story 01 — THE one rule for "what does repeating this plan copy, and what does it leave out". Read-only: it writes nothing. The preview endpoint returns its answer; the real copy (stories 02-04) executes the same answer, so the preview cannot promise something the copy does not do. Tenancy is planner/assert_workspace (another account's plan is "not found"). A bad start date or an overlapping window is returned as reject_code / reject_msg, not thrown, so the caller can log the refusal before raising it. Verdict per job: repeat | left_out (the planner unticked it) | will_not_repeat (cancelled, an outside order, an exception child: one-off facts) | cannot_repeat (its map is gone, archived or has no published version). A repeated job reads its map's CURRENT published version (D-6). A person who is switched off is left off and their slots go to the backlog. No conditional inside a loop: every branch is arithmetic on the loop item or a map lookup, because a conditional that reads a variable updated in the same pass silently loses its writes (CLAUDE.md).
+// REPEAT-1 story 01 — THE one rule for "what does repeating this plan copy, and what does it leave out". Read-only: it writes nothing. The preview endpoint returns its answer; the real copy (stories 02-04) executes the same answer, so the preview cannot promise something the copy does not do. Tenancy is planner/assert_workspace (another account's plan is "not found"). A bad start date or an overlapping window is returned as reject_code / reject_msg, not thrown, so the caller can log the refusal before raising it. Verdict per job: repeat | left_out (the planner unticked it) | will_not_repeat (cancelled, an outside order, an exception child: one-off facts) | cannot_repeat (its map is gone, archived, no longer accepted by the plan, or has no published version). A repeated job reads its map's CURRENT published version (D-6). A person who is switched off is left off and their slots go to the backlog. No conditional inside a loop: every branch is arithmetic on the loop item or a map lookup, because a conditional that reads a variable updated in the same pass silently loses its writes (CLAUDE.md).
 function "repeat/build_plan" {
   input {
     int account_id
@@ -541,6 +541,37 @@ function "repeat/build_plan" {
       output = ["id", "title"]
     } as $usable_maps
 
+    // A map the plan no longer accepts cannot make a job (the same rule "add a job" applies, E-JOB-002).
+    db.query planner_workspace_map {
+      where = $db.planner_workspace_map.workspace_id == $input.workspace_id
+      return = {type: "list"}
+      output = ["journey_map_id"]
+    } as $accepted_rows
+
+    var $accepted_set {
+      value = {}
+    }
+
+    foreach ($accepted_rows) {
+      each as $ar {
+        var.update $t {
+          value = $ar.journey_map_id|to_text
+        }
+
+        var.update $k {
+          value = "m:" ~ $t
+        }
+
+        var.update $accepted_set {
+          value = $accepted_set|set:$k:1
+        }
+      }
+    }
+
+    var $accepted {
+      value = 0
+    }
+
     var $map_ok {
       value = {}
     }
@@ -866,12 +897,16 @@ function "repeat/build_plan" {
           value = ($map_title|get:$k:null) ?? ""
         }
 
+        var.update $accepted {
+          value = ($accepted_set|get:$k:null) ?? 0
+        }
+
         var.update $one_off {
           value = (($is_origin + $is_child + $is_cancelled) > 0)|to_int
         }
 
         var.update $blocked {
-          value = (($usable == 0) || ($to_version == 0))|to_int
+          value = (($usable == 0) || ($to_version == 0) || ($accepted == 0))|to_int
         }
 
         // Lowest priority first; each later line overrides the one before.
@@ -881,6 +916,10 @@ function "repeat/build_plan" {
 
         var.update $reason {
           value = (($to_version == 0) ? "no_published_version" : $reason)
+        }
+
+        var.update $reason {
+          value = (($accepted == 0) ? "map_not_accepted" : $reason)
         }
 
         var.update $reason {
