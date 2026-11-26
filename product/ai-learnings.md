@@ -298,3 +298,12 @@ Second, smaller: the error-code registry guard (GUARD-REG-01) wants **one messag
 per code**. Writing several helpful variants under one code fails the build.
 Either use the catalog's exact sentence everywhere, or give the second meaning its
 own code (COP-9 added E-COP-086 and E-COP-087 for this).
+
+## Never link node_modules into a temporary git worktree (2026-11-26, REPEAT-1 deploy)
+
+To build a clean copy of the branch I made a `git worktree` and linked the real
+`node_modules` into it with a Windows junction. `git worktree remove --force` then
+deleted **through** the junction and emptied the real `webapp/protype-2/node_modules`.
+No source or data was lost; `npm ci` restored it and all tests passed again.
+**Rule:** in a temporary worktree run `npm ci` there (slower, safe). If a link is
+ever used, delete the link itself first (`cmd /c rmdir <link>`), never the folder around it.
