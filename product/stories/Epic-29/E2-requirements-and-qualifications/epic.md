@@ -1,7 +1,7 @@
 # REQ-1 — What a step needs, and who holds it
 
 **Epic ID:** REQ-1 (E2 in this folder)
-**Status:** ✅ Built and tested live (2026-11-26). Open items: frozen needs are not yet removed when a map is hard-deleted; the 200-requirement limit, an AI refused on holdings, and a failed-publish rollback were not run live
+**Status:** ✅ Built and tested live (2026-11-26). Open items: the 200-requirement limit, an AI refused on holdings, and a failed-publish rollback were not run live
 **Size:** L
 **Model:** Sonnet 5.5 for stories 00–04. **Opus 5.5** for story 05 (it adds to Publish version, PUB-1).
 **Depends on:** nothing in this folder for the data. MATCH-1 is what uses it.
@@ -187,7 +187,7 @@ version. A holding belongs to the person, so it lives on their lasting profile.*
 | T-REQ-05-5 (live) a map with no needs publishes unchanged | ✅ a second clone with no needs: `needs_frozen: 0`, no frozen rows, no hash row. The snapshot and its hash code are untouched |
 | T-REQ-05-6 every existing version still verifies | ✅ for the new check (no mismatch). ⚠️ the existing snapshot check (`ops/audit_rates`) reports 3 old hash mismatches (map 200, versions 1 to 3); the nightly audit logged the same 3 on 2026-10-24 and since, so they were already failing and are unrelated |
 | T-REQ-05-7 a failed publish leaves no version and no needs | ⚠️ not run live (no safe way to force a failure partway). By design the freeze is plain writes inside Publish's own all-or-nothing transaction, which the unit test checks |
-| T-REQ-05-10 hard delete of a map removes its frozen needs | ⚠️ not run live. `journey/delete_map_cascade` deletes each step's draft needs (pushed). It does NOT yet delete frozen needs or their hash rows; a hard-deleted map would leave them, and the nightly check would then log them. See "Found, not fixed" |
+| T-REQ-05-10 hard delete of a map removes its frozen needs | ✅ live (2026-11-26): a clone with two published versions (4 frozen needs) was hard-deleted; the cascade reported `frozen_needs_deleted: 4`, the version's needs read back empty, its hash row gone and the check passed. The version rows themselves stay (build guard green). A clone with no needs deleted 0 |
 | Suites | ✅ `npm test` all green · `tsc` clean. Playwright and workflow tests not run |
 | Browser | ✅ Requirements tab: added a requirement, a near match showed the "something like this exists" prompt and created nothing. Step panel: added a "Must have" need, it showed "No one holds this right now", removed it. Workspace Settings: "People and their profiles" with Create profile / Choose / Link |
 
@@ -212,6 +212,6 @@ Every requirement, profile, plan, map and row the probes made was deleted (inclu
 
 ### Found, not fixed
 
-- **Hard-deleting a map leaves its frozen needs behind.** `journey/delete_map_cascade` removes draft needs only. The frozen rows (`journey_map_version_requirement`) and hash rows should go with the map's versions; story 05 says so (T-REQ-05-10). Not done: the cascade also needs to delete the versions' own rows, which it does not today, so this belongs with that clean-up.
+- ~~Hard-deleting a map left its frozen needs behind~~ fixed 2026-11-26: `journey/delete_map_cascade` now deletes them, version rows untouched.
 - `DELETE journey_cell/{id}` (endpoint 37) exists only as a local file, with no sign-in check. It must never be pushed as is.
 - Live Publish and the repo differ by the BRIEF-1 block (above).

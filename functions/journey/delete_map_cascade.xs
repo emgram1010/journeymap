@@ -179,8 +179,51 @@ function "journey/delete_map_cascade" {
       return = {type: "list"}
     } as $tag_links
 
+    // REQ-1 story 05: the needs frozen at this map's published versions go with
+    // the map. The version rows themselves STAY (see the warning at the top);
+    // only the side rows keyed by them are removed, each by its own id.
+    db.query journey_map_version {
+      where = $db.journey_map_version.journey_map_id == $input.journey_map_id
+      return = {type: "list"}
+    } as $map_versions
+
+    var $version_ids { value = [-1] }
+    foreach ($map_versions) {
+      each as $mv {
+        array.push $version_ids { value = $mv.id }
+      }
+    }
+
+    db.query journey_map_version_requirement {
+      where = $db.journey_map_version_requirement.journey_map_version_id in $version_ids
+      return = {type: "list"}
+    } as $frozen_needs
+
+    db.query journey_map_version_needs_hash {
+      where = $db.journey_map_version_needs_hash.journey_map_version_id in $version_ids
+      return = {type: "list"}
+    } as $frozen_hashes
+
     db.transaction {
       stack {
+        foreach ($frozen_needs) {
+          each as $fn {
+            db.del journey_map_version_requirement {
+              field_name = "id"
+              field_value = $fn.id
+            }
+          }
+        }
+
+        foreach ($frozen_hashes) {
+          each as $fh {
+            db.del journey_map_version_needs_hash {
+              field_name = "id"
+              field_value = $fh.id
+            }
+          }
+        }
+
         foreach ($message_rows) {
           each as $m {
             db.del agent_message {
@@ -326,5 +369,6 @@ function "journey/delete_map_cascade" {
     messages_deleted     : $message_rows|count
     automation_deleted   : (($automation_configs|count) + ($automation_snapshots|count))
     pointers_cleared     : (($children|count) + ($clones|count))
+    frozen_needs_deleted : ($frozen_needs|count)
   }
 }
