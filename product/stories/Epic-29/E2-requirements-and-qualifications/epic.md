@@ -1,7 +1,7 @@
 # REQ-1 — What a step needs, and who holds it
 
 **Epic ID:** REQ-1 (E2 in this folder)
-**Status:** 🟡 Stories 00 to 04 built and tested live (2026-11-26). Story 05's functions are live; its change to Publish version waits for the founder's decision
+**Status:** ✅ Built and tested live (2026-11-26). Open items: frozen needs are not yet removed when a map is hard-deleted; the 200-requirement limit, an AI refused on holdings, and a failed-publish rollback were not run live
 **Size:** L
 **Model:** Sonnet 5.5 for stories 00–04. **Opus 5.5** for story 05 (it adds to Publish version, PUB-1).
 **Depends on:** nothing in this folder for the data. MATCH-1 is what uses it.
@@ -180,15 +180,22 @@ version. A holding belongs to the person, so it lives on their lasting profile.*
 | T-REQ-05-8 hash matches the TypeScript twin; "no needs" pinned | ✅ the sample hashes to `96fede33…` on both sides; the empty set to `e3b0c442…` |
 | T-REQ-05-9 build guard: only `req/step_needs` reads the frozen needs | ✅ unit test over every function and endpoint |
 | Tamper evidence and the nightly audit | ✅ an extra frozen row: `count_differs`; the audit lists it and logs an E-REQ-036 failure event |
-| **T-REQ-05-5, 05-6, 05-7, 05-10: Publish itself** | ⏸ **not run: the change to Publish version (endpoint 201) is written in the repo and NOT pushed.** See "Decision for the founder" below |
+| T-REQ-05-1 (live Publish) Publish version freezes hard and soft by key | ✅ on a clone of test map 261: Publish answered `needs_frozen: 2`; read back through `req/step_needs`, both needs on the step, by stage key `s1` and row key `lens-2` |
+| T-REQ-05-2 (live) a later draft edit does not reach the published version | ✅ the hard need was removed from the draft after Publish: version 1 still has both |
+| T-REQ-05-3 (live) a new version carries the edit; the old one keeps its own | ✅ version 2 froze a different set (the soft need only on that step, plus one on another step); version 1 unchanged |
+| T-REQ-05-4 (live) a job reads its own version | ✅ the reader answers per version (v1 two needs, v2 one, a version with no rows none); a job's step reads through its pinned version in `req/job_step_needs` |
+| T-REQ-05-5 (live) a map with no needs publishes unchanged | ✅ a second clone with no needs: `needs_frozen: 0`, no frozen rows, no hash row. The snapshot and its hash code are untouched |
+| T-REQ-05-6 every existing version still verifies | ✅ for the new check (no mismatch). ⚠️ the existing snapshot check (`ops/audit_rates`) reports 3 old hash mismatches (map 200, versions 1 to 3); the nightly audit logged the same 3 on 2026-10-24 and since, so they were already failing and are unrelated |
+| T-REQ-05-7 a failed publish leaves no version and no needs | ⚠️ not run live (no safe way to force a failure partway). By design the freeze is plain writes inside Publish's own all-or-nothing transaction, which the unit test checks |
+| T-REQ-05-10 hard delete of a map removes its frozen needs | ⚠️ not run live. `journey/delete_map_cascade` deletes each step's draft needs (pushed). It does NOT yet delete frozen needs or their hash rows; a hard-deleted map would leave them, and the nightly check would then log them. See "Found, not fixed" |
 | Suites | ✅ `npm test` all green · `tsc` clean. Playwright and workflow tests not run |
 | Browser | ✅ Requirements tab: added a requirement, a near match showed the "something like this exists" prompt and created nothing. Step panel: added a "Must have" need, it showed "No one holds this right now", removed it. Workspace Settings: "People and their profiles" with Create profile / Choose / Link |
 
-### Decision for the founder: Publish version (endpoint 201)
+### Publish version (endpoint 201): done with the founder's yes (2026-11-26)
 
-- **What is built:** one call to `req/freeze_needs` inside Publish's existing transaction (next to the rate card write), and `needs_frozen` in the answer and in the success event. A map with no needs writes nothing, so its publish and hash are unchanged. Not pushed.
-- **The conflict:** live Publish is MISSING the BRIEF-1 block (over-length task-brief text refused, E-BRIEF-001) that sits uncommitted in the same file. Pushing the working-copy file would also push BRIEF-1's unfinished work.
-- **Recommended:** patch the LIVE Publish with the REQ-1 call only, leave BRIEF-1 for its own push, and commit only the REQ-1 lines of the file here. Then run T-REQ-05-5/6/7/10 on a clone of map 178.
+- **What went live:** the live Publish was patched with ONLY the REQ-1 hook: one call to `req/freeze_needs` inside its existing transaction (beside the rate card write), plus `needs_frozen` in the answer and in the success event. 18 added lines; nothing else changed. A copy of the live source from before is saved in the session scratchpad as the undo.
+- **BRIEF-1 left out:** live Publish is still missing BRIEF-1's over-length task-brief check (E-BRIEF-001). It sits uncommitted in the working copy of the same file and was not pushed. The commit of this file holds the REQ-1 lines only.
+- **Tested** on clones of test map 261 (map 178 belongs to the founder's account, so it was not used). The clones needed stage owners and durations to pass the publish checklist, which a clone does not copy.
 
 ### Differences from the stories
 
@@ -205,5 +212,6 @@ Every requirement, profile, plan, map and row the probes made was deleted (inclu
 
 ### Found, not fixed
 
+- **Hard-deleting a map leaves its frozen needs behind.** `journey/delete_map_cascade` removes draft needs only. The frozen rows (`journey_map_version_requirement`) and hash rows should go with the map's versions; story 05 says so (T-REQ-05-10). Not done: the cascade also needs to delete the versions' own rows, which it does not today, so this belongs with that clean-up.
 - `DELETE journey_cell/{id}` (endpoint 37) exists only as a local file, with no sign-in check. It must never be pushed as is.
 - Live Publish and the repo differ by the BRIEF-1 block (above).

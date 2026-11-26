@@ -1,6 +1,6 @@
 # US-REQ-1-05 — Needs are frozen at Publish version
 
-**Epic:** REQ-1 · **Size:** M · **Model:** **Opus 5.5** · **Status:** 🟡 Functions live; Publish change not pushed (decision pending)
+**Epic:** REQ-1 · **Size:** M · **Model:** **Opus 5.5** · **Status:** ✅ Built (2026-11-26); one open item: remove frozen needs on a map hard delete
 **Depends on:** story 04 · **Touches:** Publish version (PUB-1, endpoint 201). Ask before pushing.
 
 ## Description
