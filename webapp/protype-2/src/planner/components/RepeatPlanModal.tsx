@@ -12,6 +12,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {X, Repeat, AlertTriangle, Info} from 'lucide-react';
 import {previewRepeat, createRepeat, listRepeatPeriods, getRepeatHistory} from '../plannerApi';
+import {DEFAULT_CHOICES, setChoice, assignmentsLocked, choicesToRequest, choicesLine, type RepeatChoices} from '../repeatChoicesModel';
 import {
   MAX_PERIODS,
   validatePeriodCount,
@@ -89,6 +90,8 @@ export function RepeatPlanModal({isOpen, workspaceId, onClose, onPlansChanged, o
   const [preview, setPreview] = useState<RepeatPreview | null>(null);
   const [startDate, setStartDate] = useState('');
   const [skipIds, setSkipIds] = useState<number[]>([]);
+  // REPEAT-2 — what comes along: people, jobs, assignments. All ticked unless the planner unticks one.
+  const [choices, setChoices] = useState<RepeatChoices>(DEFAULT_CHOICES);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestNo = useRef(0);
@@ -107,12 +110,12 @@ export function RepeatPlanModal({isOpen, workspaceId, onClose, onPlansChanged, o
       .catch(() => setHistory(null)); // a failed read only hides the section
   }, [workspaceId]);
 
-  const load = useCallback(async (start: string, skip: number[]) => {
+  const load = useCallback(async (start: string, skip: number[], carry: RepeatChoices) => {
     const mine = ++requestNo.current;
     setLoading(true);
     setError(null);
     try {
-      const data = await previewRepeat(workspaceId, {start_date: start, skip_job_ids: skip});
+      const data = await previewRepeat(workspaceId, {start_date: start, skip_job_ids: skip, ...choicesToRequest(carry)});
       if (mine !== requestNo.current) return; // a newer request has started; drop this answer
       setPreview(data);
       if (start === '') setStartDate(data.offer.start_date);
@@ -129,11 +132,12 @@ export function RepeatPlanModal({isOpen, workspaceId, onClose, onPlansChanged, o
     setPreview(null);
     setStartDate('');
     setSkipIds([]);
+    setChoices(DEFAULT_CHOICES);
     setPeriods(1);
     setOutcomes(null);
     // A run still going (the window can't be closed while one is) keeps its own state; nothing to reset.
     if (!inFlight.current) setRunning(false);
-    void load('', []);
+    void load('', [], DEFAULT_CHOICES);
     // Where this plan came from and what was made from it.
     setHistory(null);
     loadHistory();
@@ -156,7 +160,7 @@ export function RepeatPlanModal({isOpen, workspaceId, onClose, onPlansChanged, o
       setError(`${check.message} (${check.code})`);
       return;
     }
-    void load(value, skipIds);
+    void load(value, skipIds, choices);
   };
 
   const onCreate = async () => {
@@ -176,7 +180,7 @@ export function RepeatPlanModal({isOpen, workspaceId, onClose, onPlansChanged, o
       const correlationId = `repeat-${workspaceId}-${Date.now()}`;
       // Every period is made from THIS plan (workspaceId), never from the copy before it.
       const result = await runPeriods(list.periods, p =>
-        createRepeat(workspaceId, {start_date: p.start_date, name: p.name, skip_job_ids: skipIds, correlation_id: correlationId}),
+        createRepeat(workspaceId, {start_date: p.start_date, name: p.name, skip_job_ids: skipIds, correlation_id: correlationId, ...choicesToRequest(choices)}),
       );
       if (mine !== runNo.current) return;
       setOutcomes(result);
@@ -200,7 +204,14 @@ export function RepeatPlanModal({isOpen, workspaceId, onClose, onPlansChanged, o
     setOutcomes(null);
     const next = toggleSkip(skipIds, jobId);
     setSkipIds(next);
-    void load(startDate, next);
+    void load(startDate, next, choices);
+  };
+
+  const onChoice = (key: keyof RepeatChoices, value: boolean) => {
+    const next = setChoice(choices, key, value);
+    setOutcomes(null);
+    setChoices(next);
+    void load(startDate, skipIds, next);
   };
 
   const groups = preview ? groupJobs(preview.jobs) : null;
@@ -283,6 +294,34 @@ export function RepeatPlanModal({isOpen, workspaceId, onClose, onPlansChanged, o
                 This plan is archived. Repeating it is fine; the new plan will not be archived.
               </p>
             )}
+          </section>
+
+          <section className="border border-neutral-200 rounded-md p-3 flex flex-col gap-2" data-testid="repeat-choices">
+            <h3 className="text-xs font-semibold text-neutral-900">What comes along</h3>
+            <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-neutral-800">
+              <label className="flex items-center gap-1.5">
+                <input id="repeat-carry-people" type="checkbox" checked={choices.people} disabled={running} onChange={e => onChoice('people', e.target.checked)} />
+                People
+              </label>
+              <label className="flex items-center gap-1.5">
+                <input id="repeat-carry-jobs" type="checkbox" checked={choices.jobs} disabled={running} onChange={e => onChoice('jobs', e.target.checked)} />
+                Jobs
+              </label>
+              <label className={`flex items-center gap-1.5 ${assignmentsLocked(choices) ? 'text-neutral-400' : ''}`}>
+                <input
+                  id="repeat-carry-assignments"
+                  type="checkbox"
+                  checked={choices.assignments}
+                  disabled={running || assignmentsLocked(choices)}
+                  onChange={e => onChoice('assignments', e.target.checked)}
+                />
+                Assignments (days and scheduled slots)
+              </label>
+            </div>
+            <p className="text-[11px] text-neutral-500">
+              {choicesLine(choices)}
+              {assignmentsLocked(choices) ? ' Assignments need people.' : ''}
+            </p>
           </section>
 
           {error && (
@@ -374,7 +413,7 @@ export function RepeatPlanModal({isOpen, workspaceId, onClose, onPlansChanged, o
                 {loading && <p className="text-[11px] text-neutral-500 mt-1.5">Updating…</p>}
               </section>
 
-              {leftOffPeople.length > 0 && (
+              {choices.people && leftOffPeople.length > 0 && (
                 <section className="border border-amber-200 bg-amber-50/40 rounded-md p-3">
                   <h3 className="text-xs font-semibold text-neutral-900 mb-2">People who will be left off ({leftOffPeople.length})</h3>
                   <ul className="flex flex-col gap-1 text-xs text-neutral-800">
@@ -387,6 +426,7 @@ export function RepeatPlanModal({isOpen, workspaceId, onClose, onPlansChanged, o
                 </section>
               )}
 
+              {choices.jobs && (<>
               <JobList title="Jobs that will repeat" jobs={[...groups.repeat, ...groups.leftOut].sort((a, b) => a.id - b.id)} tone="neutral" uncapped>
                 {job => (
                   <input
@@ -406,6 +446,7 @@ export function RepeatPlanModal({isOpen, workspaceId, onClose, onPlansChanged, o
 
               <JobList title="Will not repeat" jobs={groups.willNot} tone="amber" />
               <JobList title="Cannot repeat" jobs={groups.cannot} tone="amber" />
+              </>)}
             </>
           )}
         </div>

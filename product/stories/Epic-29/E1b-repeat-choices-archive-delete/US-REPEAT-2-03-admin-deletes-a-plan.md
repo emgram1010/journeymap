@@ -1,6 +1,6 @@
 # US-REPEAT-2-03 — An admin deletes a plan that has no history
 
-**Epic:** REPEAT-2 · **Size:** M · **Status:** 🚧 In build · **Risk:** high (first plan delete)
+**Epic:** REPEAT-2 · **Size:** M · **Status:** ✅ Built (2026-11-26) · **Risk:** high (first plan delete)
 **Depends on:** PLN-3 (the held delete), REPEAT-1 story 00 (the list of everything that hangs off a plan)
 
 ## Description

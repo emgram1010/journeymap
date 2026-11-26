@@ -355,7 +355,7 @@
     "code": "E-P3A-001",
     "feature": "P3A-1",
     "user_message": "This plan has work recorded against it. Archive it instead.",
-    "what_happened": "A delete was refused because the plan already has jobs, a publication or logged activity.",
+    "what_happened": "A delete was refused because one of the plan's days was published to live or work was recorded on its jobs.",
     "likely_cause": "Someone tried to delete a plan that has already been used, rather than archiving it.",
     "owner": "user",
     "severity": "info",
@@ -380,6 +380,36 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Publishing freezes a day. Its contents can still be reassigned, but the day itself stays."
+  },
+  "E-P3A-004": {
+    "code": "E-P3A-004",
+    "feature": "REPEAT-2",
+    "user_message": "This plan holds customer orders or exception work, so it can't be deleted. Archive it instead.",
+    "what_happened": "A delete was refused because a job in the plan came from a customer order, is linked to an exception, or has an unmatched order line.",
+    "likely_cause": "An admin tried to delete a plan that customer orders were imported into.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Archive the plan. Deleting it would lose the record of those orders, and the same orders could then be imported twice."
+  },
+  "E-P3A-005": {
+    "code": "E-P3A-005",
+    "feature": "REPEAT-2",
+    "user_message": "Customer orders are routed into this plan. Point them at another plan first, or archive this one.",
+    "what_happened": "A delete was refused because an order route sends new customer orders into this plan.",
+    "likely_cause": "An admin tried to delete the plan that incoming orders land in.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Open the order routing settings and point the route at another plan, then delete. Or archive this plan instead."
+  },
+  "E-P3A-006": {
+    "code": "E-P3A-006",
+    "feature": "REPEAT-2",
+    "user_message": "The plan couldn't be deleted. Nothing was removed. Try again.",
+    "what_happened": "A plan delete failed part-way and was rolled back, or reported success while rows were left behind.",
+    "likely_cause": "A database error during the delete, or a new table that hangs off a plan and is not yet in planner/delete_workspace_cascade.",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "Read the event's metadata: `cause` is the database error, `left` names what stayed. If a table was added since REPEAT-2, add it to planner/delete_workspace_cascade and planner/delete_check."
   },
   "E-PLAN-001": {
     "code": "E-PLAN-001",

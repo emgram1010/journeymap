@@ -1,6 +1,6 @@
 # US-REPEAT-2-04 — Delete a copy, then repeat again
 
-**Epic:** REPEAT-2 · **Size:** S · **Status:** 🚧 In build
+**Epic:** REPEAT-2 · **Size:** S · **Status:** ✅ Built (2026-11-26)
 **Depends on:** story 03
 
 ## Description

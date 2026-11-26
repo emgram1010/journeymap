@@ -5,6 +5,11 @@ function "repeat/build_plan" {
     int workspace_id
     text start_date? filters=trim
     int[] skip_job_ids?
+
+    // REPEAT-2: what the planner chose NOT to carry. SKIP flags on purpose: an omitted bool arrives as false, and false means copy, so a caller that says nothing copies everything.
+    bool skip_people?
+    bool skip_jobs?
+    bool skip_assignments?
   }
 
   stack {
@@ -114,6 +119,23 @@ function "repeat/build_plan" {
       }
     }
 
+    // REPEAT-2: the three choices as 0/1, set before any loop reads them. No people means no assignments (a slot sits on someone's day), whatever the caller sent.
+    var $sp {
+      value = ($input.skip_people == true)|to_int
+    }
+
+    var $sj {
+      value = ($input.skip_jobs == true)|to_int
+    }
+
+    var $sa {
+      value = ((($input.skip_assignments == true)|to_int) + $sp) > 0
+    }
+
+    var.update $sa {
+      value = $sa|to_int
+    }
+
     var $agent_off {
       value = {}
     }
@@ -149,7 +171,7 @@ function "repeat/build_plan" {
         }
 
         var.update $flag {
-          value = ((($a.is_active == false)|to_int) + $n) > 0
+          value = ((($a.is_active == false)|to_int) + $n + $sp) > 0
         }
 
         var.update $flag {
@@ -230,6 +252,11 @@ function "repeat/build_plan" {
           value = $days_copy + (1 - $flag)
         }
       }
+    }
+
+    // REPEAT-2: no assignments means no days.
+    var.update $days_copy {
+      value = $days_copy * (1 - $sa)
     }
 
     db.query work_item {
@@ -737,7 +764,7 @@ function "repeat/build_plan" {
         }
 
         var.update $is_skipped {
-          value = ($skip_set|get:$jk:null) ?? 0
+          value = (($skip_set|get:$jk:null) ?? 0) + $sj
         }
 
         var.update $steps_n {
@@ -1015,6 +1042,23 @@ function "repeat/build_plan" {
       }
     }
 
+    // REPEAT-2: no assignments means no slots are carried, placed or waiting.
+    var.update $slots_copy {
+      value = $slots_copy * (1 - $sa)
+    }
+
+    var.update $slots_to_backlog {
+      value = $slots_to_backlog * (1 - $sa)
+    }
+
+    var.update $backlog_copy {
+      value = $backlog_copy * (1 - $sa)
+    }
+
+    var.update $slots_dropped {
+      value = $slots_dropped * (1 - $sa)
+    }
+
     var $people {
       value = []
     }
@@ -1054,7 +1098,7 @@ function "repeat/build_plan" {
     }
 
     var $people_left_off {
-      value = $people_total - $people_copy
+      value = ($people_total - $people_copy) * (1 - $sp)
     }
 
     var $row_estimate {
@@ -1078,6 +1122,10 @@ function "repeat/build_plan" {
         slots_dropped   : $slots_dropped
         row_estimate    : $row_estimate
       }
+    }
+
+    var $choices {
+      value = {skip_people: ($sp == 1), skip_jobs: ($sj == 1), skip_assignments: ($sa == 1)}
     }
 
     var $source {
@@ -1111,5 +1159,6 @@ function "repeat/build_plan" {
     counts     : $counts
     people     : $people
     jobs       : $jobs
+    choices    : $choices
   }
 }

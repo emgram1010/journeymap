@@ -9,12 +9,34 @@ function "repeat/create_plan" {
     int[] skip_job_ids?
     text correlation_id? filters=trim
     int test_fail_at?
+
+    // REPEAT-2: what the planner chose NOT to carry. Omitted = false = copy (see repeat/build_plan).
+    bool skip_people?
+    bool skip_jobs?
+    bool skip_assignments?
   }
 
   stack {
     function.run "repeat/build_plan" {
-      input = {account_id: $input.account_id, workspace_id: $input.workspace_id, start_date: $input.start_date, skip_job_ids: $input.skip_job_ids}
+      input = {account_id: $input.account_id, workspace_id: $input.workspace_id, start_date: $input.start_date, skip_job_ids: $input.skip_job_ids, skip_people: $input.skip_people, skip_jobs: $input.skip_jobs, skip_assignments: $input.skip_assignments}
     } as $plan
+
+    // REPEAT-2: the choices as build_plan settled them (people off forces assignments off). Set once, before every loop.
+    var $no_people {
+      value = ($plan.choices.skip_people == true)
+    }
+
+    var $no_jobs {
+      value = ($plan.choices.skip_jobs == true)
+    }
+
+    var $no_days {
+      value = ($plan.choices.skip_assignments == true)
+    }
+
+    var $np {
+      value = $no_people|to_int
+    }
 
     var $reject_code {
       value = $plan.reject_code
@@ -231,8 +253,9 @@ function "repeat/create_plan" {
           }
         }
 
+        // A person left off by the planner's own choice is not "left out": nothing is named.
         conditional {
-          if ($c.off == 1) {
+          if ($c.off == 1 && $no_people == false) {
             array.push $left_out {
               value = {kind: "person", id: $c.agent.id, name: $c.agent.name, reason: $c.reason}
             }
@@ -452,6 +475,15 @@ function "repeat/create_plan" {
       }
     }
 
+    // REPEAT-2: no assignments means no days.
+    conditional {
+      if ($no_days == true) {
+        var.update $days_copy {
+          value = []
+        }
+      }
+    }
+
     // Stories 03-04: jobs, lines, windows and slots, all decided before the write (read-only).
     function.run "repeat/plan_work" {
       input = {account_id: $input.account_id, workspace_id: $input.workspace_id, plan: $plan, shift_days: $plan.offer.shift_days, source_name: $src.name}
@@ -476,12 +508,13 @@ function "repeat/create_plan" {
     var $counts {
       value = {
         people         : ($agents_copy|count)
-        people_left_off: (($agent_checks|count) - ($agents_copy|count))
+        people_left_off: ((($agent_checks|count) - ($agents_copy|count)) * (1 - $np))
         days           : ($days_copy|count)
         maps           : ($maps_copy|count)
         maps_left_out  : (($map_checks|count) - ($maps_copy|count))
         jobs           : $job_counts
         slots          : $slot_counts
+        choices        : $plan.choices
       }
     }
 
@@ -1112,7 +1145,7 @@ function "repeat/create_plan" {
     }
 
     conditional {
-      if ($write_ok == true && $jobs_seen > 0 && $job_counts.repeated == 0) {
+      if ($write_ok == true && $jobs_seen > 0 && $job_counts.repeated == 0 && $no_jobs == false) {
         array.push $warnings {
           value = {code: "E-REPEAT-007", message: "The new plan was made, but none of its jobs could be repeated. (E-REPEAT-007)"}
         }

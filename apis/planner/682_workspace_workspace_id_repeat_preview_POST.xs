@@ -7,6 +7,11 @@ query "workspace/{workspace_id}/repeat-preview" verb=POST {
     int workspace_id filters=min:1
     text start_date? filters=trim
     int[] skip_job_ids?
+
+    // REPEAT-2: what the planner chose NOT to carry. Omitted = false = copy everything.
+    bool skip_people?
+    bool skip_jobs?
+    bool skip_assignments?
   }
 
   stack {
@@ -15,7 +20,7 @@ query "workspace/{workspace_id}/repeat-preview" verb=POST {
     } as $actor
 
     function.run "repeat/preview" {
-      input = {account_id: $actor.account_id, workspace_id: $input.workspace_id, start_date: $input.start_date, skip_job_ids: $input.skip_job_ids}
+      input = {account_id: $actor.account_id, workspace_id: $input.workspace_id, start_date: $input.start_date, skip_job_ids: $input.skip_job_ids, skip_people: $input.skip_people, skip_jobs: $input.skip_jobs, skip_assignments: $input.skip_assignments}
     } as $preview
 
     conditional {
@@ -52,5 +57,6 @@ query "workspace/{workspace_id}/repeat-preview" verb=POST {
     jobs        : $preview.jobs
     step_changes: $preview.step_changes
     left_out    : $preview.left_out
+    choices     : $preview.choices
   }
 }

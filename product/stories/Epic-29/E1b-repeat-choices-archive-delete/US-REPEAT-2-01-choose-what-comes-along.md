@@ -1,6 +1,6 @@
 # US-REPEAT-2-01 — Choose what comes along
 
-**Epic:** REPEAT-2 · **Size:** M · **Status:** 🚧 In build
+**Epic:** REPEAT-2 · **Size:** M · **Status:** ✅ Built (2026-11-26)
 **Depends on:** REPEAT-1
 
 ## Description

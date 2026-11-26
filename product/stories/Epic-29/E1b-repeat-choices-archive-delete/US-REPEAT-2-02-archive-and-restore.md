@@ -1,6 +1,6 @@
 # US-REPEAT-2-02 — Archive a plan and bring it back
 
-**Epic:** REPEAT-2 · **Size:** S · **Status:** 🚧 In build
+**Epic:** REPEAT-2 · **Size:** S · **Status:** ✅ Built (2026-11-26)
 **Depends on:** P3A-1 (endpoint 527, live)
 
 ## Description

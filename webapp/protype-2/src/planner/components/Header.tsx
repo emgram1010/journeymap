@@ -37,6 +37,9 @@ interface HeaderProps {
   onOpenTemplates: () => void;
   // REPEAT-1 (US-REPEAT-1-01) — preview repeating the open plan. Hidden (undefined) until the copy exists.
   onOpenRepeat?: () => void;
+  // REPEAT-2 (US-REPEAT-2-02) — archived plans are listed only when this is on.
+  showArchived?: boolean;
+  onToggleShowArchived?: (show: boolean) => void;
 }
 
 export function Header({
@@ -50,6 +53,8 @@ export function Header({
   onOpenAgentProfiles,
   onOpenTemplates,
   onOpenRepeat,
+  showArchived = false,
+  onToggleShowArchived,
 }: HeaderProps) {
   // Workspace dropdown state
   const [isWsDropdownOpen, setIsWsDropdownOpen] = useState(false);
@@ -141,6 +146,18 @@ export function Header({
                 Workspaces
               </div>
 
+              {onToggleShowArchived && (
+                <label className="px-3 py-1 flex items-center gap-1.5 text-[11px] text-neutral-600 cursor-pointer">
+                  <input
+                    id="show-archived-plans"
+                    type="checkbox"
+                    checked={showArchived}
+                    onChange={(e) => onToggleShowArchived(e.target.checked)}
+                  />
+                  Show archived
+                </label>
+              )}
+
               <div className="max-h-60 overflow-y-auto py-1">
                 {workspaces.map((ws) => (
                   <div
@@ -184,6 +201,7 @@ export function Header({
                           <span className={`truncate ${ws.id === activeWorkspace?.id ? 'ml-0' : 'ml-5.5'}`}>
                             {ws.name}
                           </span>
+                          {ws.isArchived && <span className="shrink-0 text-[10px] text-neutral-400">(archived)</span>}
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button

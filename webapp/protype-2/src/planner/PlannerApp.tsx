@@ -18,6 +18,8 @@ import { formatMinutes } from './varianceDisplay';
 import { adaptWorkspace, adaptBoard } from './plannerAdapter';
 import { markedOnDay, publishReviewNotice } from './reviewModel';
 import { repeatedFromText, type RepeatedFrom, type RepeatedTo } from './repeatPeriodsModel';
+import { useAuth } from '../AuthContext';
+import { canManageTeam } from '../team/teamModel';
 import { indexWindowsByJob, formatDayShort } from './timeWindowModel';
 import { calculateAgentDayLoad } from './utils/agentUtils';
 import { windowEnd } from '../planTemplate';
@@ -127,6 +129,13 @@ export default function PlannerApp() {
   const refuseCopilotOffTimeline = (timelineId: string | undefined): boolean =>
     refuseCopilotOff(timelineId ? timelines.find(t => t.id === timelineId)?.agentId : undefined);
 
+  // REPEAT-2 — archived plans are listed only when asked for. The ref is what every list reload
+  // reads, so a reload started from an older render still honours the current choice.
+  const [showArchived, setShowArchived] = useState(false);
+  const showArchivedRef = useRef(false);
+  const {user: signedInUser} = useAuth();
+  const isAccountAdmin = canManageTeam(signedInUser);
+
   const reportActionError = (err: unknown) => {
     setActionError(err instanceof Error ? err.message : 'Something went wrong — please try again.');
     setTimeout(() => setActionError(null), 6000);
@@ -149,7 +158,7 @@ export default function PlannerApp() {
   // same default behaviour as before.
   useEffect(() => {
     let cancelled = false;
-    listWorkspaces()
+    listWorkspaces(showArchivedRef.current)
       .then(({ workspaces: entries }) => {
         if (cancelled) return;
         const mapped = entries.map(adaptWorkspace);
@@ -315,7 +324,7 @@ export default function PlannerApp() {
         input_tokens_per_minute: updates.inputTokensPerMinute,
         output_tokens_per_minute: updates.outputTokensPerMinute,
       });
-      const { workspaces: entries } = await listWorkspaces();
+      const { workspaces: entries } = await listWorkspaces(showArchivedRef.current);
       setWorkspaces(entries.map(adaptWorkspace));
       return true;
     } catch (err) {
@@ -373,7 +382,7 @@ export default function PlannerApp() {
   ): Promise<{ok: true; skippedAgents: SkippedAgent[]} | {ok: false}> => {
     try {
       const { workspace, skipped_agents } = await createWorkspaceFromTemplate(templateId, { name, start_date: startDate });
-      const { workspaces: entries } = await listWorkspaces();
+      const { workspaces: entries } = await listWorkspaces(showArchivedRef.current);
       setWorkspaces(entries.map(adaptWorkspace));
       setActiveTimelineId(null);
       setActiveWorkspaceId(String(workspace.id));
@@ -395,7 +404,7 @@ export default function PlannerApp() {
         planning_window_start: startDate,
         planning_window_end: windowEnd(startDate, windowDays),
       });
-      const { workspaces: entries } = await listWorkspaces();
+      const { workspaces: entries } = await listWorkspaces(showArchivedRef.current);
       setWorkspaces(entries.map(adaptWorkspace));
       setActiveTimelineId(null);
       setActiveWorkspaceId(String(workspace.id));
@@ -406,10 +415,38 @@ export default function PlannerApp() {
     }
   };
 
+  // REPEAT-2 story 02 — show or hide archived plans in the plan list.
+  const handleToggleShowArchived = (show: boolean) => {
+    showArchivedRef.current = show;
+    setShowArchived(show);
+    listWorkspaces(show)
+      .then(({ workspaces: entries }) => setWorkspaces(entries.map(adaptWorkspace)))
+      .catch(reportActionError);
+  };
+
+  // REPEAT-2 stories 02-04 — after a plan was archived, restored or deleted: reload the list, and
+  // leave a plan that is no longer in it.
+  const handlePlanChanged = (what: 'archived' | 'restored' | 'deleted', workspaceId: string) => {
+    listWorkspaces(showArchivedRef.current)
+      .then(({ workspaces: entries }) => {
+        const mapped = entries.map(adaptWorkspace);
+        setWorkspaces(mapped);
+        const stillListed = mapped.some(w => w.id === workspaceId);
+        if (!stillListed) {
+          setActiveTimelineId(null);
+          setActiveAgentId(null);
+          setActiveWorkspaceId(mapped.length > 0 ? mapped[0].id : '');
+        }
+        setRepeatHistoryNonce(n => n + 1);
+        showBoardNotice(what === 'deleted' ? 'Plan deleted.' : what === 'archived' ? 'Plan archived. Tick "Show archived" in the plan list to see it.' : 'Plan restored.');
+      })
+      .catch(reportActionError);
+  };
+
   // Handler: Rename Workspace
   const handleRenameWorkspace = (id: string, newName: string) => {
     updateWorkspace(Number(id), { name: newName })
-      .then(() => listWorkspaces())
+      .then(() => listWorkspaces(showArchivedRef.current))
       .then(({ workspaces: entries }) => setWorkspaces(entries.map(adaptWorkspace)))
       .catch(reportActionError);
   };
@@ -1464,6 +1501,8 @@ export default function PlannerApp() {
           onOpenAgentProfiles={() => setIsAgentProfilesOpen(true)}
           onOpenTemplates={() => setIsTemplatesOpen(true)}
           onOpenRepeat={isRepeatPlanUiEnabled() ? () => setIsRepeatOpen(true) : undefined}
+          showArchived={showArchived}
+          onToggleShowArchived={handleToggleShowArchived}
         />
 
         {/* REPEAT-1 story 06 — where this plan came from, and what was repeated from it. Nothing shows for a plan with no history. */}
@@ -1705,6 +1744,8 @@ export default function PlannerApp() {
         onClose={() => setIsWorkspaceSettingsOpen(false)}
         onSave={handleUpdateWorkspaceSettings}
         onOpenGlobalSettings={() => setIsSettingsOpen(true)}
+        isAdmin={isAccountAdmin}
+        onPlanChanged={handlePlanChanged}
       />
 
       {/* Agents (PLAN-2, US-PLAN-2-03): account-wide, not workspace-scoped */}
@@ -1728,7 +1769,7 @@ export default function PlannerApp() {
           workspaceId={Number(activeWorkspace.id)}
           onClose={() => setIsRepeatOpen(false)}
           onPlansChanged={() => {
-            listWorkspaces()
+            listWorkspaces(showArchivedRef.current)
               .then(({ workspaces: entries }) => setWorkspaces(entries.map(adaptWorkspace)))
               .catch(() => {});
             setRepeatHistoryNonce(n => n + 1);

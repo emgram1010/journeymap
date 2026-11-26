@@ -9,6 +9,11 @@ query "workspace/{workspace_id}/repeat" verb=POST {
     text name? filters=trim
     int[] skip_job_ids?
     text correlation_id? filters=trim
+
+    // REPEAT-2: what the planner chose NOT to carry. Omitted = false = copy everything.
+    bool skip_people?
+    bool skip_jobs?
+    bool skip_assignments?
   }
 
   stack {
@@ -25,6 +30,9 @@ query "workspace/{workspace_id}/repeat" verb=POST {
         name          : $input.name
         skip_job_ids  : $input.skip_job_ids
         correlation_id: $input.correlation_id
+        skip_people   : $input.skip_people
+        skip_jobs     : $input.skip_jobs
+        skip_assignments: $input.skip_assignments
         test_fail_at  : 0
       }
     } as $result

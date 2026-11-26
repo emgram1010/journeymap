@@ -30,6 +30,7 @@ export function adaptWorkspace(entry: WorkspaceListEntry): Workspace {
     planningWindowEnd: w.planning_window_end,
     inputTokensPerMinute: w.input_tokens_per_minute,
     outputTokensPerMinute: w.output_tokens_per_minute,
+    isArchived: w.is_archived === true,
   };
 }
 

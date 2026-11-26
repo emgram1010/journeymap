@@ -66,6 +66,8 @@ export interface Workspace {
   // particular body of work is. Rates (what a token costs) stay global.
   inputTokensPerMinute: number;
   outputTokensPerMinute: number;
+  /** REPEAT-2 — an archived plan is hidden from the list unless asked for, and accepts no edits. */
+  isArchived?: boolean;
 }
 
 export interface Timeline {

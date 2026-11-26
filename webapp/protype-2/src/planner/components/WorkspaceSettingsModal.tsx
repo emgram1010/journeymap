@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { X, CalendarRange, Bot, Settings as SettingsIcon, Map as MapIcon } from 'lucide-react';
 import { Workspace } from '../types';
 import { getDaysDifference } from '../utils/dateUtils';
-import { listWorkspaceMaps, addWorkspaceMaps, searchJourneyMaps, RawWorkspaceMap, JourneyMapSearchResult } from '../plannerApi';
+import { listWorkspaceMaps, addWorkspaceMaps, searchJourneyMaps, RawWorkspaceMap, JourneyMapSearchResult, archiveWorkspace, getDeleteCheck, deleteWorkspace } from '../plannerApi';
+import { canDeletePlan, deleteConfirmLines, type DeleteCheck } from '../repeatChoicesModel';
 
 interface WorkspaceSettingsModalProps {
   isOpen: boolean;
@@ -13,6 +14,10 @@ interface WorkspaceSettingsModalProps {
   // the user's edits intact — same contract as EditModal's handlers.
   onSave: (workspaceId: string, updates: Partial<Workspace>) => boolean | void | Promise<boolean | void>;
   onOpenGlobalSettings: () => void;
+  // REPEAT-2 — Delete is offered to admins only (the server refuses everyone else anyway).
+  isAdmin?: boolean;
+  /** Called after the plan was archived, restored or deleted, so the plan list can be reloaded. */
+  onPlanChanged?: (what: 'archived' | 'restored' | 'deleted', workspaceId: string) => void;
 }
 
 export function WorkspaceSettingsModal({
@@ -21,7 +26,14 @@ export function WorkspaceSettingsModal({
   onClose,
   onSave,
   onOpenGlobalSettings,
+  isAdmin = false,
+  onPlanChanged,
 }: WorkspaceSettingsModalProps) {
+  // REPEAT-2 — archive / delete. Declared with the other hooks, before the early return.
+  const [lifeBusy, setLifeBusy] = useState(false);
+  const [lifeError, setLifeError] = useState<string | null>(null);
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [deleteCheck, setDeleteCheck] = useState<DeleteCheck | null>(null);
   const [windowStart, setWindowStart] = useState('');
   const [windowEnd, setWindowEnd] = useState('');
   const [inputTpm, setInputTpm] = useState(0);
@@ -61,9 +73,37 @@ export function WorkspaceSettingsModal({
     setInputTpm(workspace.inputTokensPerMinute);
     setOutputTpm(workspace.outputTokensPerMinute);
     setError(null);
+    setLifeError(null);
+    setConfirmArchive(false);
+    setDeleteCheck(null);
     void refreshMaps(workspace.id);
     searchJourneyMaps().then(({ results }) => setCandidateMaps(results)).catch(() => setCandidateMaps([]));
   }, [isOpen, workspace, refreshMaps]);
+
+  // REPEAT-2 — one plan-level action at a time. A refusal keeps the window open and shows the server's sentence.
+  const runLife = (what: 'archived' | 'restored' | 'deleted') => {
+    if (!workspace || lifeBusy) return;
+    setLifeBusy(true);
+    setLifeError(null);
+    const id = Number(workspace.id);
+    const call: Promise<unknown> = what === 'deleted' ? deleteWorkspace(id) : archiveWorkspace(id, what === 'archived');
+    call
+      .then(() => { onPlanChanged?.(what, workspace.id); onClose(); })
+      .catch((err) => setLifeError(err instanceof Error ? err.message : 'That did not work. Nothing was changed.'))
+      .finally(() => setLifeBusy(false));
+  };
+
+  // Ask the server first: the confirm shows its counts, or its reason for refusing.
+  const askDelete = () => {
+    if (!workspace || lifeBusy) return;
+    setLifeBusy(true);
+    setLifeError(null);
+    setConfirmArchive(false);
+    getDeleteCheck(Number(workspace.id))
+      .then(setDeleteCheck)
+      .catch((err) => setLifeError(err instanceof Error ? err.message : 'Could not check this plan.'))
+      .finally(() => setLifeBusy(false));
+  };
 
   const handleAddMap = () => {
     if (!workspace || !pickedMapId) return;
@@ -282,6 +322,59 @@ export function WorkspaceSettingsModal({
                   {isAddingMap ? 'Adding…' : 'Add'}
                 </button>
               </div>
+            )}
+          </section>
+
+          {/* REPEAT-2 — archive, restore, delete */}
+          <section className="border-t border-neutral-100 pt-4 flex flex-col gap-2" data-testid="plan-lifecycle">
+            <h3 className="text-xs font-semibold text-neutral-900">Archive or delete this plan</h3>
+            {lifeError && <p className="text-xs text-red-700" role="alert">{lifeError}</p>}
+            {workspace.isArchived ? (
+              <div className="flex items-center gap-2">
+                <p className="text-[11px] text-neutral-500 flex-1">This plan is archived. It is hidden from the plan list and cannot be changed.</p>
+                <button id="restore-plan-btn" type="button" disabled={lifeBusy} onClick={() => runLife('restored')} className="px-3 py-1.5 border border-neutral-300 rounded-md text-xs font-semibold text-neutral-800 hover:bg-neutral-100 disabled:opacity-50">
+                  Restore plan
+                </button>
+              </div>
+            ) : confirmArchive ? (
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-neutral-800 flex-1">Archive this plan? Nothing is deleted, and you can restore it from the plan list with "Show archived".</p>
+                <button type="button" disabled={lifeBusy} onClick={() => setConfirmArchive(false)} className="px-2.5 py-1.5 text-xs text-neutral-600 hover:text-neutral-900">Cancel</button>
+                <button id="confirm-archive-plan-btn" type="button" disabled={lifeBusy} onClick={() => runLife('archived')} className="px-3 py-1.5 rounded-md text-xs font-semibold text-white bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50">
+                  {lifeBusy ? 'Archiving…' : 'Archive'}
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <p className="text-[11px] text-neutral-500 flex-1">Archiving hides the plan and keeps everything in it.</p>
+                <button id="archive-plan-btn" type="button" disabled={lifeBusy} onClick={() => { setDeleteCheck(null); setConfirmArchive(true); }} className="px-3 py-1.5 border border-neutral-300 rounded-md text-xs font-semibold text-neutral-800 hover:bg-neutral-100 disabled:opacity-50">
+                  Archive plan
+                </button>
+              </div>
+            )}
+            {canDeletePlan(isAdmin) && (
+              deleteCheck ? (
+                <div className="border border-red-200 bg-red-50/50 rounded-md p-3 flex flex-col gap-1.5" data-testid="delete-plan-confirm">
+                  {deleteConfirmLines(deleteCheck).map(line => <p key={line} className="text-xs text-neutral-900">{line}</p>)}
+                  <div className="flex items-center justify-end gap-2 mt-1">
+                    <button type="button" disabled={lifeBusy} onClick={() => setDeleteCheck(null)} className="px-2.5 py-1.5 text-xs text-neutral-600 hover:text-neutral-900">
+                      {deleteCheck.allowed ? 'Cancel' : 'Close'}
+                    </button>
+                    {deleteCheck.allowed && (
+                      <button id="confirm-delete-plan-btn" type="button" disabled={lifeBusy} onClick={() => runLife('deleted')} className="px-3 py-1.5 rounded-md text-xs font-semibold text-white bg-red-700 hover:bg-red-800 disabled:opacity-50">
+                        {lifeBusy ? 'Deleting…' : 'Delete for good'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <p className="text-[11px] text-neutral-500 flex-1">Deleting removes the plan for good. Only a plan with no published days or recorded work can be deleted.</p>
+                  <button id="delete-plan-btn" type="button" disabled={lifeBusy} onClick={askDelete} className="px-3 py-1.5 border border-red-300 rounded-md text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
+                    Delete plan
+                  </button>
+                </div>
+              )
             )}
           </section>
 

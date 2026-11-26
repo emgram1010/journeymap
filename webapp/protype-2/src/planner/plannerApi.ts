@@ -27,7 +27,21 @@ export interface WorkspaceListEntry {
   counts: {agent_count: number; timeline_count: number; task_count: number; backlog_count: number};
 }
 
-export const listWorkspaces = () => performRequest<{workspaces: WorkspaceListEntry[]}>('/workspace');
+/** REPEAT-2 story 02 — archived plans are left out unless asked for. */
+export const listWorkspaces = (includeArchived = false) =>
+  performRequest<{workspaces: WorkspaceListEntry[]}>(includeArchived ? '/workspace?include_archived=true' : '/workspace');
+
+/** REPEAT-2 story 02 — archive a plan, or bring it back (`false`). Nothing is deleted either way. */
+export const archiveWorkspace = (workspaceId: number, isArchived: boolean) =>
+  performRequest<{workspace: RawWorkspace}>(`/workspace/${workspaceId}/archive`, {method: 'POST', body: {is_archived: isArchived}});
+
+/** REPEAT-2 story 04 — may this plan be deleted, and what would go? Read-only; the same rule the delete obeys. */
+export const getDeleteCheck = (workspaceId: number) =>
+  performRequest<import('./repeatChoicesModel').DeleteCheck>(`/workspace/${workspaceId}/delete-check`);
+
+/** REPEAT-2 story 03 — delete a plan with no history. Admin only; the server refuses everyone else. */
+export const deleteWorkspace = (workspaceId: number) =>
+  performRequest<{deleted_workspace_id: number; name: string; left_behind: number; freed_repeat_date: boolean}>(`/workspace/${workspaceId}`, {method: 'DELETE'});
 
 /**
  * Phase-3's plain create, no template — reinstated in the UI on the
@@ -396,13 +410,13 @@ export const createWorkspaceFromTemplate = (templateId: number, body: {name: str
 // A read, sent as POST only because it carries a list (the jobs the planner
 // unticked). It writes nothing. The same server function will drive the real
 // copy, so what this returns is what a repeat does.
-export const previewRepeat = (workspaceId: number, body: {start_date?: string; skip_job_ids?: number[]}) =>
+export const previewRepeat = (workspaceId: number, body: {start_date?: string; skip_job_ids?: number[]; skip_people?: boolean; skip_jobs?: boolean; skip_assignments?: boolean}) =>
   performRequest<RepeatPreview>(`/workspace/${workspaceId}/repeat-preview`, {method: 'POST', body});
 
 /** REPEAT-1 story 02-04 — make ONE new plan from this one (its own all-or-nothing write). An already-made period answers `outcome: "exists"`. */
 export const createRepeat = (
   workspaceId: number,
-  body: {start_date: string; name: string; skip_job_ids?: number[]; correlation_id?: string},
+  body: {start_date: string; name: string; skip_job_ids?: number[]; correlation_id?: string; skip_people?: boolean; skip_jobs?: boolean; skip_assignments?: boolean},
 ) => performRequest<CreateAnswer & {name: string; start_date: string; end_date: string}>(`/workspace/${workspaceId}/repeat`, {method: 'POST', body});
 
 /** REPEAT-1 story 06 — the dates, free names and "already made" flags of a repeat for several periods. Writes nothing. */

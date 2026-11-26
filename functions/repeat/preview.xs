@@ -5,11 +5,16 @@ function "repeat/preview" {
     int workspace_id
     text start_date? filters=trim
     int[] skip_job_ids?
+
+    // REPEAT-2: what the planner chose NOT to carry. Omitted = false = copy.
+    bool skip_people?
+    bool skip_jobs?
+    bool skip_assignments?
   }
 
   stack {
     function.run "repeat/build_plan" {
-      input = {account_id: $input.account_id, workspace_id: $input.workspace_id, start_date: $input.start_date, skip_job_ids: $input.skip_job_ids}
+      input = {account_id: $input.account_id, workspace_id: $input.workspace_id, start_date: $input.start_date, skip_job_ids: $input.skip_job_ids, skip_people: $input.skip_people, skip_jobs: $input.skip_jobs, skip_assignments: $input.skip_assignments}
     } as $plan
 
     var $counts {
@@ -132,5 +137,6 @@ function "repeat/preview" {
     jobs        : $plan.jobs
     step_changes: $step_changes
     left_out    : $left_out
+    choices     : $plan.choices
   }
 }

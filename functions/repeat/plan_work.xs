@@ -1594,6 +1594,78 @@ function "repeat/plan_work" {
       }
     }
 
+    // REPEAT-2: the planner chose not to carry assignments (or people, which forces it): no slot is
+    // made, none is counted, and no slot is reported as "left out" (it was a choice, not a loss).
+    // Decided by repeat/build_plan and read from the plan, so the preview and the copy agree. These
+    // conditions read a value set before any loop, and sit outside every loop.
+    var $choices {
+      value = $input.plan.choices ?? {}
+    }
+
+    var $no_slots {
+      value = ($choices|get:"skip_assignments":false) == true
+    }
+
+    var $left_no_slots {
+      value = []
+    }
+
+    foreach ($left_out) {
+      each as $lo {
+        conditional {
+          if ($lo.kind != "slot") {
+            array.push $left_no_slots {
+              value = $lo
+            }
+          }
+        }
+      }
+    }
+
+    conditional {
+      if ($no_slots == true) {
+        var.update $slots_make {
+          value = []
+        }
+
+        var.update $left_out {
+          value = $left_no_slots
+        }
+
+        var.update $tb_by {
+          value = {}
+        }
+
+        var.update $placed_n {
+          value = 0
+        }
+
+        var.update $backlog_n {
+          value = 0
+        }
+
+        var.update $to_backlog_n {
+          value = 0
+        }
+
+        var.update $new_step_n {
+          value = 0
+        }
+
+        var.update $dropped_n {
+          value = 0
+        }
+
+        var.update $tweaked_n {
+          value = 0
+        }
+
+        var.update $starts_n {
+          value = 0
+        }
+      }
+    }
+
     var $job_counts {
       value = {
         repeated   : ($jobs_make|count)

@@ -1,6 +1,6 @@
 # EPIC REPEAT-2 — Choose what a repeat carries; archive and delete a plan
 
-**Status:** 🚧 In build (2026-11-26)
+**Status:** ✅ Built and tested live (2026-11-26). Waiting for the founder's check on the live site.
 **Depends on:** REPEAT-1 (done, gate passed 2026-11-26)
 **Model:** Fable 5.2 (asked for by the founder on 2026-11-26). The delete path is the risky part: it gets a live fixture test before it is trusted.
 **Asked for by the founder, 2026-11-26**, after the first real repeat: "is there a reason I can't archive or delete the plan?" and "a check mark to carry the people, the jobs and the assignments".
@@ -95,4 +95,45 @@
 
 ## 9. Test Results
 
-_Filled in as each story is built._
+### All four stories (2026-11-26, Fable 5.2)
+
+- **Tests written first:** `repeatChoicesModel.test.ts`, 8 tests: the three boxes and their request, "no people means no assignments", the plain line, the archived filter, the admin-only rule, the confirm's sentences, and two tests that read the server source (skip flags decided in one place; delete = admin person + no history + one transaction + every table, history tables never deleted).
+- **Built (backend, all live):**
+  - `repeat/build_plan` (459), `repeat/plan_work` (472), `repeat/preview` (515), `repeat/create_plan` (465), endpoints 682 and 683: three **skip** flags. People off forces assignments off on the server. The choices are returned by the preview and stored with the repeat's counts.
+  - `planner/delete_check` (524, read-only): may this plan be deleted, what would go, and does it free a repeat date.
+  - `planner/delete_workspace_cascade` (525): the PLN-3 draft rewritten for all 13 tables, one transaction, every row by its own id.
+  - `DELETE workspace/{id}` (688) and `GET workspace/{id}/delete-check` (689).
+  - Catalog: `E-P3A-004`, `E-P3A-005`, `E-P3A-006`; `E-P3A-001`'s explanation updated (a job alone is no longer "history").
+- **Built (app):** three boxes on the repeat window ("What comes along"); "Show archived" in the plan list with an "(archived)" label; "Archive plan" / "Restore plan" in Workspace Settings; "Delete plan" for admins only, with a confirm that shows the server's own counts or its reason for refusing.
+- **Live test:** `tests/repeat2_probe.py` over real HTTP in the test account, as an admin and as a member. Phase 1: 23 of 23. Phase 2: 14 of 14.
+
+| Test | Result |
+|---|---|
+| T-REPEAT2-01-1 all ticked = REPEAT-1 | ✅ copy of plan 115: same people, days, jobs (14) and slots (7) as the preview |
+| T-REPEAT2-01-2 jobs unticked | ✅ preview and copy: 0 jobs, people and days kept, no "no jobs" warning |
+| T-REPEAT2-01-3 assignments unticked | ✅ preview and copy: 14 jobs, people kept, 0 days, 0 slots; the new board has no days, slots or review marks |
+| T-REPEAT2-01-4 people unticked | ✅ sent with assignments still on: server made 0 people, 0 days, 0 slots and reported assignments off; nobody named as "left out" |
+| T-REPEAT2-01-5 preview equals copy | ✅ for each of the four choices |
+| T-REPEAT2-02-1 / 02-2 archive, restore, list | ✅ archived plan leaves the list, appears with `include_archived`, keeps its people and days, returns on restore |
+| T-REPEAT2-03-1 full delete | ✅ plan 205: 1 person, 1 day, 14 jobs, 28 steps, 7 slots, 7 slot links, 7 review marks, 1 map link, 1 repeat row deleted; `left_behind: 0` |
+| Independent re-count | ✅ every row id of plan 205 was recorded before the delete (14 jobs, 28 steps, 7 slots); a separate count by those ids afterwards found 0 in all 13 tables |
+| T-REPEAT2-03-2 neighbour untouched | ✅ plan 115's counts identical before and after 6 deletes |
+| T-REPEAT2-03-3 member refused | ✅ 4xx "Only an account admin can do that. (E-USR-001)"; nothing deleted |
+| T-REPEAT2-03-4 AI refused | ⚠️ not run live (no AI login was set up for this run). Covered by the source test: the endpoint calls `copilot/assert_person_only`, the same guard proved live in REPEAT-1 story 05 |
+| T-REPEAT2-03-5 published plan refused | ✅ plan 115: 400 "This plan has work recorded against it. Archive it instead. (E-P3A-001)", logged as `plan.delete_refused` with what was found |
+| T-REPEAT2-03-6 orders / order route | ⚠️ the check counted plan 115's 9 order jobs and 2 unmatched lines, but E-P3A-001 outranks them, so E-P3A-004 and E-P3A-005 were never the answer shown. Not proved alone |
+| T-REPEAT2-03-7 other account | ✅ delete and delete-check both 404 |
+| T-REPEAT2-04-1 delete, then repeat again | ✅ same plan, same date: a new plan was made |
+| T-REPEAT2-04-2 original deleted | ✅ the copy's board loads; its history says `exists: false` |
+| T-REPEAT2-04-3 delete check | ✅ draft copy: allowed, counts, frees the date. Plan 115: not allowed, E-P3A-001 |
+| Events | ✅ `plan.deleted` (warn, with the counts and `left` all 0) and `plan.delete_refused` in the log |
+| Browser | ✅ member: Archive shown, Delete not shown. Admin: Delete shows the confirm ("This removes 2 people, 1 day, 0 jobs and 0 slots. This cannot be undone."). Repeat window: unticking People greys Assignments and the preview drops to 0 people, 0 days. Confirming a delete and an archive was not clicked in the browser (proved over HTTP) |
+| Suites | ✅ `npm test` 1,144 of 1,144 · `tsc` clean. Playwright and workflow tests not run |
+
+- **Differences from the stories:**
+  - The repeat window does not show a per-job list when Jobs is unticked, and no "left off" list when People is unticked: it was a choice, not a loss.
+  - Unticking Jobs with Assignments on still copies the days and any free-standing slot; slots that belonged to a job are named as not created.
+  - The AI tool `plan_repeat` was not changed: it sends no choices, so it copies everything.
+- **Cleaned up:** every plan the probe made was deleted by the new endpoint itself (6 plans, nothing left behind); the scratch function is deleted. Event-log rows kept.
+- **Known gaps:** E-P3A-004 and E-P3A-005 and the AI refusal are not proved live on their own. `planner/workspace_has_history` (any job = history) is now unused by the plan delete and still used by nothing else; left in place.
+- **Founder's first repeat explained:** plan 145 "Item Turn Around" has no people and no jobs, so its copy (204) is correctly empty.
