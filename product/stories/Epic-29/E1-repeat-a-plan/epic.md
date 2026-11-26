@@ -305,3 +305,32 @@ Read again end to end: `build_plan`, `plan_work`, `create_plan` and the preview 
   - A mark is also cleared when a slot is given to someone else (not only moved), because that is the same "a person looked at it".
 - **Cleaned up:** the test plan, its map and version, publication, 7 marks and every scratch function deleted. Event-log rows kept.
 - **Learning:** publishing a day needs every person on it to have a login (`Ben doesn't have a login yet`), so a fixture used for a publish test must give each person a user.
+
+### Story 06 — several periods and history (2026-11-26, Sonnet 5.5)
+
+- **Tests written first:** `repeatPeriodsModel.test.ts`, 7 tests: the 1 to 8 limit, periods made in order each from the same source, an existing period skipped and named, a lost race counted as a skip, a failure on period 3 keeping 1 and 2 and not trying 4, plain words for a failure that is not an Error, the "repeated from" / "repeated to" wording including a deleted source. They now run in `npm test`.
+- **Design:** the server works out the periods; the app makes each one with its own request. A single request for 8 plans of a big plan would time out (one 50-job plan alone took 20 s), and a failure partway would be hard to report. One correlation id is shared by every period's events. Period n starts at the first start + (n-1) x the plan's length, computed from the first date each time.
+- **Built (backend, all live):**
+  - `repeat/period_dates` (503) and `repeat/free_name` (504): the date rules and the name rule taken out of `repeat/build_plan` (459, now calls them), so the preview and the period list can never disagree.
+  - `repeat/list_periods` (506) and `POST workspace/{id}/repeat-periods` (686): dates, own free name and "already made" for each period; refuses outside 1 to 8 with E-REPEAT-010.
+  - `repeat/history` (507) and `GET workspace/{id}/repeat-history` (687): where a plan came from (`exists: false` when that plan is gone) and the plans made from it, with how many of their copied slots still need a look.
+  - `E-REPEAT-010` in the error catalog.
+- **Built (app, still behind `VITE_REPEAT_PLAN_UI`):** the repeat window now makes plans: a "How many periods (1 to 8)" field, "Create plan" / "Create N plans", a result list ("3 made, 1 already there…", each with Open), and a History section. A line under the header says "Repeated from <plan>" (with Open) and "N plans repeated from this one".
+
+| Test | Result |
+|---|---|
+| T-REPEAT-06-1 4 periods: dates, no gap, no overlap, all from the source | ✅ HTTP: starts 06-14, 06-21, 06-28, 07-05, each 7 days, no gap, shift 7 / 14 / 21 / 28 days from the source, names all distinct. Browser: 3 periods made 08-09, 08-16, 08-23 |
+| T-REPEAT-06-2 limit of 8 | ✅ HTTP: 0, 9 and 100 periods → 400 "You can repeat a plan for 1 to 8 periods at a time. (E-REPEAT-010)"; a start inside the source → E-REPEAT-003; 2027-13-45 → E-REPEAT-002. Each refusal logged |
+| T-REPEAT-06-3 existing period skipped and named | ✅ HTTP: period 2 made first, then the list marked it `exists` with its plan; the run skipped it and made 1, 3 and 4 |
+| T-REPEAT-06-4 failure on a period | ✅ 5 and 6 made, then a forced failure on 7 (`test_fail_at = 1`): E-REPEAT-006, no plan for that date, 5 and 6 stayed. "Period 4 is not tried" is the app's runner, proved in the unit test (the server makes one period per request) |
+| T-REPEAT-06-5 "repeated from" / "repeated to", deleted source | ✅ HTTP and browser: the source lists its 4 plans with dates and open-mark counts; a copy says "Repeated from <plan>" and opens its source; after the source was deleted the copy's history answered `exists: false` |
+| Preview unchanged by the refactor | ✅ default start 2027-06-14; a taken name gets " 2"; overlap and bad date refused with the same codes and words as before |
+| Other account / unknown plan / no token | ✅ other account: "Not Found"; unknown plan 404 "Plan not found"; no token 401 |
+| Suites | ✅ `npm test` 1,127 of 1,127 · `tsc` clean · no console errors. Workflow tests and Playwright not run |
+
+- **Differences from the story:**
+  - "The plan list shows each plan's needs-review total": done in the History list (`N to review` per plan), not in the main plan switcher, which still shows names only.
+  - The 8-period limit is enforced by the period-list endpoint, not by the single-plan endpoint (683), which stays one period.
+  - One shared correlation id covers the events of a batch; there is no single "batch" event.
+- **Cleaned up:** all test plans, marks and `plan_repeat` rows, and every scratch function deleted. Event-log rows kept.
+- **Learning:** a `where` using `~` (text match) failed with "Not Found" in this workspace; and a sentinel `-1` kept in an id list must never be looped over by a `db.del` (it was deleted as if it were a real id and failed). Delete from the query's own result list.

@@ -5,11 +5,25 @@
 // screen only lays it out. Changing the date or unticking a job asks the server again, so the
 // counts are always the server's. A refused date keeps what was typed and shows the reason.
 //
-// Preview only: the "Create plan" button arrives with stories 02-04. Until then the whole action
-// is hidden behind isRepeatPlanUiEnabled().
+// Story 06: the same window now makes the plans, for 1 to 8 periods. The dates and names of every
+// period come from the server (repeat-periods); each period is then made by its OWN request, so a
+// failed period never undoes one already made and the periods after it are not tried. The whole
+// action stays hidden behind isRepeatPlanUiEnabled() until the founder switches it on.
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {X, Repeat, AlertTriangle, Info} from 'lucide-react';
-import {previewRepeat} from '../plannerApi';
+import {previewRepeat, createRepeat, listRepeatPeriods, getRepeatHistory} from '../plannerApi';
+import {
+  MAX_PERIODS,
+  validatePeriodCount,
+  runPeriods,
+  outcomeCounts,
+  outcomeLine,
+  repeatedFromText,
+  repeatedToLine,
+  type PeriodOutcome,
+  type RepeatedFrom,
+  type RepeatedTo,
+} from '../repeatPeriodsModel';
 import {
   canTick,
   capList,
@@ -27,6 +41,10 @@ interface RepeatPlanModalProps {
   isOpen: boolean;
   workspaceId: number;
   onClose: () => void;
+  /** Called after plans were made, so the plan list can be reloaded. */
+  onPlansChanged?: () => void;
+  /** Open one of the plans (made, or already there). */
+  onOpenPlan?: (workspaceId: number) => void;
 }
 
 const LIST_CAP = 8;
@@ -63,13 +81,17 @@ function JobList({title, jobs, tone, children, uncapped = false}: {title: string
   );
 }
 
-export function RepeatPlanModal({isOpen, workspaceId, onClose}: RepeatPlanModalProps) {
+export function RepeatPlanModal({isOpen, workspaceId, onClose, onPlansChanged, onOpenPlan}: RepeatPlanModalProps) {
   const [preview, setPreview] = useState<RepeatPreview | null>(null);
   const [startDate, setStartDate] = useState('');
   const [skipIds, setSkipIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestNo = useRef(0);
+  const [periods, setPeriods] = useState(1);
+  const [running, setRunning] = useState(false);
+  const [outcomes, setOutcomes] = useState<PeriodOutcome[] | null>(null);
+  const [history, setHistory] = useState<{from: RepeatedFrom | null; to: RepeatedTo[]} | null>(null);
 
   const load = useCallback(async (start: string, skip: number[]) => {
     const mine = ++requestNo.current;
@@ -93,7 +115,15 @@ export function RepeatPlanModal({isOpen, workspaceId, onClose}: RepeatPlanModalP
     setPreview(null);
     setStartDate('');
     setSkipIds([]);
+    setPeriods(1);
+    setOutcomes(null);
+    setRunning(false);
     void load('', []);
+    // Where this plan came from and what was made from it. A failed read only hides the section.
+    setHistory(null);
+    getRepeatHistory(workspaceId)
+      .then(h => setHistory({from: h.repeated_from, to: h.repeated_to}))
+      .catch(() => setHistory(null));
   }, [isOpen, workspaceId, load]);
 
   if (!isOpen) return null;
@@ -107,6 +137,31 @@ export function RepeatPlanModal({isOpen, workspaceId, onClose}: RepeatPlanModalP
       return;
     }
     void load(value, skipIds);
+  };
+
+  const onCreate = async () => {
+    const check = validatePeriodCount(periods);
+    if (check.ok === false) {
+      setError(`${check.message} (${check.code})`);
+      return;
+    }
+    setRunning(true);
+    setError(null);
+    setOutcomes(null);
+    try {
+      const list = await listRepeatPeriods(workspaceId, {start_date: startDate, periods});
+      const correlationId = `repeat-${workspaceId}-${Date.now()}`;
+      const result = await runPeriods(list.periods, p =>
+        createRepeat(workspaceId, {start_date: p.start_date, name: p.name, skip_job_ids: skipIds, correlation_id: correlationId}),
+      );
+      setOutcomes(result);
+      if (result.some(o => o.status === 'created')) onPlansChanged?.();
+    } catch (err) {
+      // The period list itself was refused (limit, date, overlap): nothing was made.
+      setError(errorMessage(err));
+    } finally {
+      setRunning(false);
+    }
   };
 
   const onToggle = (jobId: number) => {
@@ -159,6 +214,24 @@ export function RepeatPlanModal({isOpen, workspaceId, onClose}: RepeatPlanModalP
                 className="text-xs px-2 py-1.5 border border-neutral-200 rounded-md focus:outline-none focus:border-neutral-900 font-mono"
               />
             </label>
+            <label className="flex flex-col gap-1 max-w-[220px]">
+              <span className="text-[10px] text-neutral-500">How many periods (1 to {MAX_PERIODS})</span>
+              <input
+                id="repeat-periods"
+                type="number"
+                min={1}
+                max={MAX_PERIODS}
+                value={periods}
+                disabled={running}
+                onChange={e => setPeriods(Number(e.target.value))}
+                className="text-xs px-2 py-1.5 border border-neutral-200 rounded-md focus:outline-none focus:border-neutral-900 font-mono w-24"
+              />
+            </label>
+            {periods > 1 && (
+              <p className="text-[11px] text-neutral-500">
+                Each period is as long as this plan and follows the one before it, with no gap. Every period is copied from this plan, not from the copy before it.
+              </p>
+            )}
             {preview && (
               <p className="text-xs text-neutral-700">
                 <span className="font-medium">{preview.offer.name}</span>
@@ -184,6 +257,76 @@ export function RepeatPlanModal({isOpen, workspaceId, onClose}: RepeatPlanModalP
               <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden="true" />
               {error}
             </p>
+          )}
+
+          {running && <p className="text-xs text-neutral-700" role="status">Making the plans, one at a time…</p>}
+
+          {outcomes && (
+            <section className="border border-neutral-200 rounded-md p-3" aria-live="polite" data-testid="repeat-outcomes">
+              <h3 className="text-xs font-semibold text-neutral-900 mb-1.5">
+                {(() => {
+                  const c = outcomeCounts(outcomes);
+                  return `${c.created} made${c.skipped > 0 ? `, ${c.skipped} already there` : ''}${c.failed > 0 ? `, ${c.failed} failed` : ''}${c.notAttempted > 0 ? `, ${c.notAttempted} not tried` : ''}`;
+                })()}
+              </h3>
+              <ul className="flex flex-col gap-1 text-xs text-neutral-800">
+                {outcomes.map(o => (
+                  <li key={o.n} className="flex items-start gap-2 min-w-0">
+                    <span className={`min-w-0 break-words ${o.status === 'failed' ? 'text-red-700' : ''}`}>{outcomeLine(o)}</span>
+                    {o.workspace_id && onOpenPlan && (
+                      <button
+                        type="button"
+                        onClick={() => { onOpenPlan(o.workspace_id as number); onClose(); }}
+                        className="shrink-0 underline text-neutral-600 hover:text-neutral-900"
+                      >
+                        Open
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {history && (history.from || history.to.length > 0) && (
+            <section className="border border-neutral-200 rounded-md p-3" data-testid="repeat-history">
+              <h3 className="text-xs font-semibold text-neutral-900 mb-1.5">History</h3>
+              {history.from && (
+                <p className="text-xs text-neutral-800 mb-1.5">
+                  {repeatedFromText(history.from)}
+                  {history.from.exists && onOpenPlan && (
+                    <button
+                      type="button"
+                      onClick={() => { onOpenPlan(history.from!.workspace_id); onClose(); }}
+                      className="ml-2 underline text-neutral-600 hover:text-neutral-900"
+                    >
+                      Open
+                    </button>
+                  )}
+                </p>
+              )}
+              {history.to.length > 0 && (
+                <>
+                  <p className="text-[11px] text-neutral-500 mb-1">Plans repeated from this one</p>
+                  <ul className="flex flex-col gap-1 text-xs text-neutral-800">
+                    {history.to.map(t => (
+                      <li key={t.workspace_id} className="flex items-start gap-2 min-w-0">
+                        <span className="min-w-0 break-words">{repeatedToLine(t)}</span>
+                        {onOpenPlan && (
+                          <button
+                            type="button"
+                            onClick={() => { onOpenPlan(t.workspace_id); onClose(); }}
+                            className="shrink-0 underline text-neutral-600 hover:text-neutral-900"
+                          >
+                            Open
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </section>
           )}
 
           {loading && !preview && <p className="text-xs text-neutral-500">Working out what would be copied…</p>}
@@ -235,14 +378,25 @@ export function RepeatPlanModal({isOpen, workspaceId, onClose}: RepeatPlanModalP
         </div>
 
         <div className="px-4 sm:px-6 py-3 border-t border-neutral-200 bg-neutral-50 flex items-center justify-between gap-3 shrink-0">
-          <p className="text-[11px] text-neutral-500">Preview only. Creating the new plan is not available yet.</p>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-1.5 border border-neutral-300 rounded-md text-xs font-semibold text-neutral-800 hover:bg-neutral-100"
-          >
-            Close
-          </button>
+          <p className="text-[11px] text-neutral-500">This plan is not changed.</p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-1.5 border border-neutral-300 rounded-md text-xs font-semibold text-neutral-800 hover:bg-neutral-100"
+            >
+              Close
+            </button>
+            <button
+              type="button"
+              id="repeat-create-btn"
+              disabled={running || loading || !preview || outcomes !== null}
+              onClick={() => void onCreate()}
+              className="px-3 py-1.5 rounded-md text-xs font-semibold text-white bg-neutral-900 hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {running ? 'Making…' : periods > 1 ? `Create ${periods} plans` : 'Create plan'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

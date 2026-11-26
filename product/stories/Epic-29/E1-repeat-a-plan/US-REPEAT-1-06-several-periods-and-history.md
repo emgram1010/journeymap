@@ -1,6 +1,6 @@
 # US-REPEAT-1-06 — Several periods at once, and where a plan came from
 
-**Epic:** REPEAT-1 · **Size:** S to M · **Model:** Sonnet 5.5 · **Status:** 📋 Not built
+**Epic:** REPEAT-1 · **Size:** S to M · **Model:** Sonnet 5.5 · **Status:** ✅ Built and tested live (hidden until switched on)
 **Depends on:** stories 02–05
 
 ## Description

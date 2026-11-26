@@ -6,6 +6,7 @@
 import {performRequest, getJourneyMapBaseUrl, getAccountsBaseUrl} from '../perform/performApi';
 import {getXanoCatalogBaseUrl} from '../xano';
 import type {RepeatPreview} from './repeatPreviewModel';
+import type {CreateAnswer, RepeatPeriod, RepeatedFrom, RepeatedTo} from './repeatPeriodsModel';
 
 // ── Workspaces (plans) ──────────────────────────────────────────────────
 
@@ -397,6 +398,23 @@ export const createWorkspaceFromTemplate = (templateId: number, body: {name: str
 // copy, so what this returns is what a repeat does.
 export const previewRepeat = (workspaceId: number, body: {start_date?: string; skip_job_ids?: number[]}) =>
   performRequest<RepeatPreview>(`/workspace/${workspaceId}/repeat-preview`, {method: 'POST', body});
+
+/** REPEAT-1 story 02-04 — make ONE new plan from this one (its own all-or-nothing write). An already-made period answers `outcome: "exists"`. */
+export const createRepeat = (
+  workspaceId: number,
+  body: {start_date: string; name: string; skip_job_ids?: number[]; correlation_id?: string},
+) => performRequest<CreateAnswer & {name: string; start_date: string; end_date: string}>(`/workspace/${workspaceId}/repeat`, {method: 'POST', body});
+
+/** REPEAT-1 story 06 — the dates, free names and "already made" flags of a repeat for several periods. Writes nothing. */
+export const listRepeatPeriods = (workspaceId: number, body: {start_date?: string; periods: number}) =>
+  performRequest<{source: {id: number; name: string; start_date: string; end_date: string; length_days: number}; periods: RepeatPeriod[]}>(
+    `/workspace/${workspaceId}/repeat-periods`,
+    {method: 'POST', body},
+  );
+
+/** REPEAT-1 story 06 — where a plan came from and the plans made from it. */
+export const getRepeatHistory = (workspaceId: number) =>
+  performRequest<{repeated_from: RepeatedFrom | null; repeated_to: RepeatedTo[]}>(`/workspace/${workspaceId}/repeat-history`);
 
 /** REPEAT-1 story 05 — mark ONE slot as reviewed (clears its "needs review" mark; the server keeps who and when). */
 export const clearSlotReview = (plannerTaskId: number) =>

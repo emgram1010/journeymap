@@ -16,166 +16,52 @@ function "repeat/build_plan" {
       value = $guard.workspace
     }
 
-    // ── Dates ────────────────────────────────────────────────────────
-    var $src_start_ms {
-      value = $ws.planning_window_start|to_timestamp
-    }
-
-    var $src_end_ms {
-      value = $ws.planning_window_end|to_timestamp
-    }
-
-    var $length_days {
-      value = (($src_end_ms - $src_start_ms) / 86400000) + 1
-    }
-
-    var $new_start_ms {
-      value = $src_end_ms + 86400000
-    }
-
-    var $has_start {
-      value = ($input.start_date != null && $input.start_date != "")
-    }
-
-    var $shape_ok {
-      value = "/^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/"|regex_matches:$input.start_date
-    }
+    // ── Dates: the one rule, shared with repeat/list_periods ────────
+    function.run "repeat/period_dates" {
+      input = {src_start: $ws.planning_window_start, src_end: $ws.planning_window_end, start_date: $input.start_date}
+    } as $dates
 
     var $reject_code {
-      value = ""
+      value = $dates.reject_code
     }
 
     var $reject_msg {
-      value = ""
-    }
-
-    // to_timestamp throws on a day that does not exist; the catch leaves the default in place and the round trip below refuses it.
-    try_catch {
-      try {
-        group {
-          stack {
-            conditional {
-              if ($has_start == true && $shape_ok == true) {
-                var.update $new_start_ms {
-                  value = $input.start_date|to_timestamp
-                }
-              }
-            }
-          }
-        }
-      }
-
-      catch {
-        var.update $shape_ok {
-          value = false
-        }
-      }
+      value = $dates.reject_msg
     }
 
     var $new_start {
-      value = $new_start_ms|format_timestamp:"Y-m-d":"UTC"
-    }
-
-    // A date that has the right shape but is not a real day (2026-13-45) does not survive the round trip.
-    conditional {
-      if ($has_start == true && ($shape_ok == false || $new_start != $input.start_date)) {
-        var.update $reject_code {
-          value = "E-REPEAT-002"
-        }
-
-        var.update $reject_msg {
-          value = "Pick a start date for the new plan. (E-REPEAT-002)"
-        }
-      }
-    }
-
-    var $new_end_ms {
-      value = $new_start_ms + (($length_days - 1) * 86400000)
+      value = $dates.new_start
     }
 
     var $new_end {
-      value = $new_end_ms|format_timestamp:"Y-m-d":"UTC"
+      value = $dates.new_end
     }
 
     var $shift_days {
-      value = ($new_start_ms - $src_start_ms) / 86400000
+      value = $dates.shift_days
     }
 
     var $weekdays_align {
-      value = (($shift_days % 7) == 0)
+      value = $dates.weekdays_align
     }
 
-    var $overlaps {
-      value = ($new_start_ms <= $src_end_ms && $new_end_ms >= $src_start_ms)
+    var $length_days {
+      value = $dates.length_days
     }
 
-    conditional {
-      if ($reject_code == "" && $overlaps == true) {
-        var.update $reject_code {
-          value = "E-REPEAT-003"
-        }
+    // ── A free name that shows the start date: the one rule, shared with repeat/list_periods ──
+    function.run "repeat/free_name" {
+      input = {account_id: $input.account_id, source_name: $ws.name, start_date: $new_start}
+    } as $fname
 
-        var.update $reject_msg {
-          value = "The new plan would overlap this one. Pick a start date after this plan ends. (E-REPEAT-003)"
-        }
-      }
-    }
-
-    // ── A free name that shows the start date ───────────────────────
-    var $base_full {
-      value = "/ [(][0-9]{4}-[0-9]{2}-[0-9]{2}[)]( [0-9])?$/"|regex_replace:"":$ws.name
-    }
-
-    var $base {
-      value = $base_full|substr:0:64
-    }
-
-    var $suffix {
-      value = " (" ~ $new_start ~ ")"
-    }
-
-    var $try {
-      value = 1
-    }
-
-    var $try_text {
-      value = "1"
+    var $candidate {
+      value = $fname.name
     }
 
     var $name_free {
-      value = false
+      value = $fname.free
     }
 
-    var $candidate {
-      value = $base ~ $suffix
-    }
-
-    while ($name_free == false && $try <= 9) {
-      each {
-        var.update $try_text {
-          value = $try|to_text
-        }
-
-        var.update $candidate {
-          value = (($try == 1) ? ($base ~ $suffix) : ($base ~ $suffix ~ " " ~ $try_text))
-        }
-
-        db.query planner_workspace {
-          where = $db.planner_workspace.account_id == $input.account_id && $db.planner_workspace.name == $candidate
-          return = {type: "count"}
-        } as $clash
-
-        var.update $name_free {
-          value = ($clash == 0)
-        }
-
-        var.update $try {
-          value = $try + 1
-        }
-      }
-    }
-
-    // ── People ───────────────────────────────────────────────────────
     db.query planner_agent {
       where = $db.planner_agent.workspace_id == $input.workspace_id
       return = {type: "list"}
@@ -292,7 +178,6 @@ function "repeat/build_plan" {
       }
     }
 
-    // ── Days ─────────────────────────────────────────────────────────
     db.query planner_timeline {
       where = $db.planner_timeline.workspace_id == $input.workspace_id
       return = {type: "list"}
@@ -347,7 +232,6 @@ function "repeat/build_plan" {
       }
     }
 
-    // ── Jobs, and the facts that decide each one ────────────────────
     db.query work_item {
       where = $db.work_item.workspace_id == $input.workspace_id && $db.work_item.account_id == $input.account_id
       return = {type: "list"}
@@ -726,7 +610,6 @@ function "repeat/build_plan" {
       }
     }
 
-    // ── The verdict for each job ────────────────────────────────────
     var $jobs {
       value = []
     }
@@ -1005,7 +888,6 @@ function "repeat/build_plan" {
       }
     }
 
-    // ── Slots ────────────────────────────────────────────────────────
     db.query planner_task {
       where = $db.planner_task.workspace_id == $input.workspace_id
       return = {type: "list"}
@@ -1133,7 +1015,6 @@ function "repeat/build_plan" {
       }
     }
 
-    // ── People, with what happens to each ───────────────────────────
     var $people {
       value = []
     }

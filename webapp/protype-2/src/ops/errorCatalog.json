@@ -603,6 +603,16 @@
     "severity": "error",
     "fix_hint": "Try once more. If it fails again, open the plan.repeat_failed event on the Health page and send its details to support."
   },
+  "E-REPEAT-010": {
+    "code": "E-REPEAT-010",
+    "feature": "REPEAT-1",
+    "user_message": "You can repeat a plan for 1 to 8 periods at a time.",
+    "what_happened": "A repeat for several periods was refused because the number of periods was below 1 or above 8. Nothing was made.",
+    "likely_cause": "A number outside 1 to 8 was typed. The screen checks this too, so it usually means an old screen or a script.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Choose between 1 and 8 periods. To plan further ahead, repeat the last plan made."
+  },
   "E-REPEAT-007": {
     "code": "E-REPEAT-007",
     "feature": "REPEAT-1",

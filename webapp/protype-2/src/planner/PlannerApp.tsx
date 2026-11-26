@@ -5,7 +5,7 @@ import { DEFAULT_SETTINGS, DEFAULT_INPUT_TOKENS_PER_MINUTE, DEFAULT_OUTPUT_TOKEN
 import {
   listWorkspaces, getBoard,
   createAgent, updateAgent, setWorkspaceAgentVisibility,
-  createTimeline, updateTimeline, publishTimeline as publishTimelineApi, reorderTimeline, clearSlotReview, clearDayReview,
+  createTimeline, updateTimeline, publishTimeline as publishTimelineApi, reorderTimeline, clearSlotReview, clearDayReview, getRepeatHistory,
   createTask, updateTask, placeTask, deleteAgent, deleteTimeline,
   putStartOverride, deleteStartOverride,
   listTemplates, createWorkspaceFromTemplate, createWorkspace, TemplateListEntry, SkippedAgent,
@@ -17,6 +17,7 @@ import { logEvent } from '../ops/logEvent';
 import { formatMinutes } from './varianceDisplay';
 import { adaptWorkspace, adaptBoard } from './plannerAdapter';
 import { markedOnDay, publishReviewNotice } from './reviewModel';
+import { repeatedFromText, type RepeatedFrom, type RepeatedTo } from './repeatPeriodsModel';
 import { indexWindowsByJob, formatDayShort } from './timeWindowModel';
 import { calculateAgentDayLoad } from './utils/agentUtils';
 import { windowEnd } from '../planTemplate';
@@ -78,6 +79,9 @@ export default function PlannerApp() {
   const [isAgentProfilesOpen, setIsAgentProfilesOpen] = useState(false);
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   const [isRepeatOpen, setIsRepeatOpen] = useState(false);
+  // REPEAT-1 story 06 — where the open plan came from and what was repeated from it. Only read while the repeat action is switched on.
+  const [repeatHistory, setRepeatHistory] = useState<{from: RepeatedFrom | null; to: RepeatedTo[]} | null>(null);
+  const [repeatHistoryNonce, setRepeatHistoryNonce] = useState(0);
   // GAP-FIX W1 — the screen that turns a map into real work.
   // PUX-1 — the Jobs modal is only the list of jobs now; one job opens in
   // the side panel (`openJobId`).
@@ -319,6 +323,18 @@ export default function PlannerApp() {
       return false;
     }
   };
+
+  useEffect(() => {
+    if (!isRepeatPlanUiEnabled() || !activeWorkspaceId) {
+      setRepeatHistory(null);
+      return;
+    }
+    let alive = true;
+    getRepeatHistory(Number(activeWorkspaceId))
+      .then(h => { if (alive) setRepeatHistory({from: h.repeated_from, to: h.repeated_to}); })
+      .catch(() => { if (alive) setRepeatHistory(null); });
+    return () => { alive = false; };
+  }, [activeWorkspaceId, repeatHistoryNonce]);
 
   // Handler: Select Workspace
   // PUX-3-01 — the board load that follows a plan switch picks the day
@@ -1442,6 +1458,39 @@ export default function PlannerApp() {
           onOpenRepeat={isRepeatPlanUiEnabled() ? () => setIsRepeatOpen(true) : undefined}
         />
 
+        {/* REPEAT-1 story 06 — where this plan came from, and what was repeated from it. Nothing shows for a plan with no history. */}
+        {repeatHistory && (repeatHistory.from || repeatHistory.to.length > 0) && (
+          <div
+            data-testid="repeat-history-line"
+            className="shrink-0 flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-1 bg-neutral-50 border-b border-neutral-200 text-[11px] text-neutral-600"
+          >
+            {repeatHistory.from && (
+              <span data-testid="repeat-from-line">
+                {repeatedFromText(repeatHistory.from)}
+                {repeatHistory.from.exists && (
+                  <button
+                    type="button"
+                    onClick={() => handleSelectWorkspace(String(repeatHistory.from!.workspace_id))}
+                    className="ml-2 underline hover:text-neutral-900"
+                  >
+                    Open
+                  </button>
+                )}
+              </span>
+            )}
+            {repeatHistory.to.length > 0 && (
+              <button
+                type="button"
+                data-testid="repeat-to-line"
+                onClick={() => setIsRepeatOpen(true)}
+                className="underline hover:text-neutral-900"
+              >
+                {repeatHistory.to.length === 1 ? '1 plan repeated from this one' : `${repeatHistory.to.length} plans repeated from this one`}
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Workspace Body: Board/Grid + Backlog */}
         <div className="flex-1 flex min-h-0 overflow-hidden">
           {/* Center Column: Day Board (Plan View) or Schedule Grid (Schedule View) + Backlog Drawer */}
@@ -1664,12 +1713,19 @@ export default function PlannerApp() {
         }}
       />
 
-      {/* Repeat this plan (REPEAT-1 story 01): preview only; hidden until the copy is built */}
+      {/* Repeat this plan (REPEAT-1 stories 01-06): preview, then make 1 to 8 plans. Hidden until switched on. */}
       {activeWorkspace && (
         <RepeatPlanModal
           isOpen={isRepeatOpen}
           workspaceId={Number(activeWorkspace.id)}
           onClose={() => setIsRepeatOpen(false)}
+          onPlansChanged={() => {
+            listWorkspaces()
+              .then(({ workspaces: entries }) => setWorkspaces(entries.map(adaptWorkspace)))
+              .catch(() => {});
+            setRepeatHistoryNonce(n => n + 1);
+          }}
+          onOpenPlan={(id) => handleSelectWorkspace(String(id))}
         />
       )}
 
