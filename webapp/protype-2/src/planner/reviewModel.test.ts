@@ -66,3 +66,27 @@ test('every reason has plain wording and an unknown one never shows its raw code
   // The server's own sentence wins when it has one (it names the plan or the person).
   assert.equal(reviewReasonText('copied', 'copied from Week 12'), 'copied from Week 12');
 });
+
+// Opus review, 2026-11-26: the model was tested, the wiring was not. A typo in `board.reviews` or
+// `planner_task_id` would leave every sign and count at 0 while the tests above stayed green.
+test('UT-REPEAT-05-W: the board answer carries each mark onto its slot, and the counts follow', async () => {
+  const {adaptBoard} = await import('./plannerAdapter');
+  const task = (id: number, timeline: number) => ({
+    id, workspace_id: 1, timeline_id: timeline, seq: id, title: `Slot ${id}`, duration_minutes: 30, notes: '',
+    status: 'planned' as const, needs_info_reason: '', tweak_reason: '', assignee_agent_id: 0, planned_start: null,
+    effective_assignee: {agent_id: 0, name: null},
+  });
+  const board = {
+    workspace: {} as never, agents: [], timelines: [], models: [],
+    settings: {currency_symbol: '$', human_hourly_rate: 0} as never,
+    tasks: [task(7, 3), task(8, 3), task(9, 4)],
+    reviews: [r(7), r(9, 'length_reset', 'the step length changed')],
+  };
+  const out = adaptBoard(board as never);
+  const byId = new Map(out.tasks.map(t => [t.id, t]));
+  assert.ok(byId.get('7')?.review, 'slot 7 is marked');
+  assert.equal(byId.get('8')?.review, undefined, 'slot 8 is not');
+  assert.equal(byId.get('9')?.review?.code, 'length_reset');
+  assert.equal(totalMarked(out.tasks), 2);
+  assert.equal(markedOnDay(out.tasks, '3'), 1);
+});

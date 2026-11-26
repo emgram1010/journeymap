@@ -361,3 +361,21 @@ Read again end to end: `build_plan`, `plan_work`, `create_plan` and the preview 
   - `debugTool` cannot test this tool (it reads the caller from real request headers), so the proof is the real door.
 - **Cleaned up:** all test plans, the test AI member, its tokens and module grants, and every scratch function deleted. Event-log and tool-call-log rows kept.
 - **Learning:** the door only lists tools for a caller who holds the Intelligent Layer module. An AI member needs `intelligence` (and `planning` for planner tools) granted, or it sees an empty list that looks like a broken door. Empty `scope_actions` on a token left it with no tools; pass `["read","draft_plan"]`.
+
+### Opus review — stories 05 to 07 (2026-11-26, Opus 5.5)
+
+Backend read in full (mark clearing, publish, move/reassign, periods, history, preview, the AI tool, the Planner permission path). Frontend read by a second reviewer, each finding then checked in the code.
+
+| # | Finding | Severity | Outcome |
+|---|---|---|---|
+| R6 | The repeat window could be closed while plans were being made; reopening reset "running", so a second run could start alongside the first and both make the same period | Important | ✅ Fixed: Close, X and the backdrop are off while a run is going; a synchronous guard stops a second Create; a run number drops answers from an old run |
+| R7 | The window's own History list did not update after plans were made | Minor | ✅ Fixed: reloaded after any plan is made |
+| R8 | The plan's "Repeated from" line kept the previous plan's text while a new plan loaded | Minor | ✅ Fixed: cleared first |
+| R9 | A refused Create showed "Couldn't load the preview", a raw server error could reach the screen, and a failed run could not be retried without closing the window | Minor | ✅ Fixed: own message for Create, raw errors never shown; Create works again after a failed period (made periods are skipped as "already there"); changing date, periods or jobs clears the old result |
+| R10 | "Reviewed" for a day ignored the server's own re-count (`still_open`), so a part-finished clear said nothing | Minor | ✅ Fixed: says how many still need review and logs a failure event |
+| R11 | No test reached the board wiring: a typo in `reviews` would zero every sign while the model tests stayed green | Test gap | ✅ Added UT-REPEAT-05-W (`adaptBoard` carries each mark to its slot; counts follow) |
+| R12 | A preview never names a plan's map link the draft drops because the map was archived or deleted (its jobs are already shown with the reason) | Minor | Recorded, not fixed: low impact, and the fix touches the reviewed write path |
+| R13 | An AI member allowed only to "read" cannot preview a repeat (the tool is one class, draft a plan) | Design note | Recorded: decision for the founder if wanted |
+
+- **Checked and correct:** marks cleared only by a person (AI refused E-COP-025); publish clears marks inside its transaction; move/reassign clear only for a person and only on a real move; the mark is deleted with its slot; periods are computed from the first date, each from the source; history and the open-mark counts avoid the `|get` variable-key trap; the new endpoints default to needing the Planner grant; the AI tool never publishes, never clears a mark, never touches `plan_ids`.
+- **Suites after fixes:** `npm test` 1,136 of 1,136 · `tsc` clean · repeat window opens with no app errors in the browser. The two-runs case was not reproduced in the browser (it needs a slow multi-period run); it is fixed by reading the code path.

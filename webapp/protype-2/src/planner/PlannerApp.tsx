@@ -330,6 +330,7 @@ export default function PlannerApp() {
       return;
     }
     let alive = true;
+    setRepeatHistory(null); // never show the previous plan's "Repeated from" while this one loads
     getRepeatHistory(Number(activeWorkspaceId))
       .then(h => { if (alive) setRepeatHistory({from: h.repeated_from, to: h.repeated_to}); })
       .catch(() => { if (alive) setRepeatHistory(null); });
@@ -762,7 +763,14 @@ export default function PlannerApp() {
 
   const handleClearDayReview = (timelineId: string) => {
     clearDayReview(Number(timelineId))
-      .then(() => refreshBoard())
+      .then(res => {
+        // The server re-counts after clearing; anything still open means the clear did not finish.
+        if ((res?.still_open ?? 0) > 0) {
+          reportActionError(new Error(`${res.still_open} slot${res.still_open === 1 ? '' : 's'} on this day still need review. Try "Reviewed" again.`));
+          void logEvent({feature: 'REPEAT-1', step: 'plan.review_cleared', outcome: 'failure', severity: 'warn', message: 'Day review clear left marks open.', entityType: 'planner_timeline', entityId: Number(timelineId)});
+        }
+        return refreshBoard();
+      })
       .catch(reportActionError);
   };
 
