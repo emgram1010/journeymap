@@ -118,6 +118,46 @@ query "task/{task_id}/place" verb=POST {
       }
     } as $placed
 
+    // REPEAT-1 story 05: moving a slot to another person, another day or the backlog is plainly
+    // looking at it, so its "needs review" mark clears. Re-ordering inside the same container does
+    // not. A person's action only: an AI identity moving a slot does not clear a mark.
+    function.run "copilot/identity_for_user" {
+      input = {user_id: $actor.user_id}
+    } as $who
+
+    var $changed_container {
+      value = (($placed.source_timeline_id != $input.timeline_id) && ($who.is_ai != true))
+    }
+
+    conditional {
+      if ($changed_container == true) {
+        function.run "review/clear_marks" {
+          input = {account_id: $actor.account_id, user_id: $actor.user_id, how: "moved", planner_task_id: $input.task_id, timeline_id: 0}
+        } as $cleared_marks
+
+        conditional {
+          if ($cleared_marks.cleared > 0) {
+            function.run "ops/log_event" {
+              input = {
+                feature       : "REPEAT-1"
+                step          : "plan.review_cleared"
+                outcome       : "success"
+                severity      : "info"
+                error_code    : ""
+                message       : "Needs-review mark cleared: the slot was moved."
+                user_id       : $actor.user_id
+                account_id    : $actor.account_id
+                entity_type   : "planner_task"
+                entity_id     : $input.task_id
+                correlation_id: $input.correlation_id
+                metadata      : {how: "moved", cleared: $cleared_marks.cleared, workspace_id: $workspace_id}
+              }
+            } as $_logged_cleared
+          }
+        }
+      }
+    }
+
     function.run "planner/derive_tasks" {
       input = {workspace_id: $workspace_id, timeline_id: $input.timeline_id}
     } as $dest_view

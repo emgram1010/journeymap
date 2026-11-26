@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Agent, Timeline, Task, Workspace } from '../types';
 import { canRepublish, cardSubtitle, jobCardDropRefusal, versionBadge } from '../boardModel';
+import { markedOnDay, totalMarked } from '../reviewModel';
 import { isPlacementOutsideWindow, type TimeWindow } from '../timeWindowModel';
 import { CapacityHint } from './CapacityHint';
 import { TimeWindowChip } from './TimeWindowChip';
@@ -96,6 +97,10 @@ interface DayBoardProps {
       whole card comes off this day. `jobTitle`/`dayLabel` are the words
       the confirmation names — never an id. */
   onRequestUnscheduleJobSlot: (workTaskId: number, jobTitle: string, dayLabel: string) => void;
+  /** REPEAT-1 story 05 — mark one copied slot as reviewed. Optional: with no handler the sign shows but is not a button. */
+  onClearTaskReview?: (taskId: string) => void;
+  /** REPEAT-1 story 05 — mark every copied slot on a day as reviewed. */
+  onClearDayReview?: (timelineId: string) => void;
 }
 
 export function DayBoard({
@@ -141,6 +146,8 @@ export function DayBoard({
   onDropJobCardOnNewDay,
   onJobCardDropRefused,
   onRequestUnscheduleJobSlot,
+  onClearTaskReview,
+  onClearDayReview,
 }: DayBoardProps) {
   // Drag state across columns
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
@@ -590,6 +597,16 @@ export function DayBoard({
             showLabel="Show on board"
           />
           {buildPlanButton}
+          {/* REPEAT-1 story 05 — how many copied slots in the whole plan nobody has looked at yet. Nothing shows for a plan with none. */}
+          {totalMarked(tasks) > 0 && (
+            <span
+              data-testid="dayboard-plan-review-total"
+              className="inline-flex items-center px-2 py-1 text-[10px] font-semibold text-amber-800 bg-amber-100 rounded-md shrink-0"
+              title="Copied slots in this plan that have not been marked as reviewed"
+            >
+              {totalMarked(tasks)} to review
+            </span>
+          )}
           <button
             id="publish-day-bulk-btn"
             type="button"
@@ -723,6 +740,32 @@ export function DayBoard({
                             <span>{dayLoad.blockedCount} blocked</span>
                           </span>
                         )}
+
+                        {/* REPEAT-1 story 05 — this day's copied slots that nobody has looked at yet, and one click to say they have been. */}
+                        {(() => {
+                          const reviewN = markedOnDay(dayLoad.tasks, timeline.id);
+                          if (reviewN === 0) return null;
+                          return (
+                            <span
+                              data-testid="dayboard-day-review"
+                              className="inline-flex items-center gap-1 px-1 py-0.2 text-[9px] font-semibold text-amber-800 bg-amber-100 rounded"
+                              title="Copied slots on this day that nobody has looked at yet"
+                            >
+                              <span>{reviewN} to review</span>
+                              {onClearDayReview && (
+                                <button
+                                  type="button"
+                                  data-testid="dayboard-day-review-clear"
+                                  onClick={(e) => { e.stopPropagation(); onClearDayReview(timeline.id); }}
+                                  className="underline hover:text-amber-950"
+                                  title="Mark every slot on this day as reviewed"
+                                >
+                                  Reviewed
+                                </button>
+                              )}
+                            </span>
+                          );
+                        })()}
 
                         {timeline.status === 'published' ? (
                           <>
@@ -896,6 +939,28 @@ export function DayBoard({
                                   >
                                     set
                                   </span>
+                                )}
+                                {/* REPEAT-1 story 05 — copied from last time and not yet looked at. Click = reviewed. */}
+                                {task.review && (
+                                  onClearTaskReview ? (
+                                    <button
+                                      type="button"
+                                      data-testid="dayboard-needs-review"
+                                      onClick={(e) => { e.stopPropagation(); onClearTaskReview(task.id); }}
+                                      title={`Needs review: ${task.review.text}. Click to mark as reviewed.`}
+                                      className="text-[9px] font-semibold uppercase tracking-wide text-amber-700 hover:text-amber-900 underline decoration-dotted"
+                                    >
+                                      review
+                                    </button>
+                                  ) : (
+                                    <span
+                                      data-testid="dayboard-needs-review"
+                                      title={`Needs review: ${task.review.text}`}
+                                      className="text-[9px] font-semibold uppercase tracking-wide text-amber-700"
+                                    >
+                                      review
+                                    </span>
+                                  )
                                 )}
                                 <span className="text-neutral-400">
                                   {task.duration}m

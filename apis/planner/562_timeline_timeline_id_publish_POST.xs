@@ -47,6 +47,11 @@
 // live/build_publication (publication|v2 carries each job's time
 // window), falling back to v1 for a builder that doesn't report one.
 //
+// REPEAT-1 (US-REPEAT-1-05): publishing NEVER waits for a "needs review" mark (D-8: the planner
+// is told, not blocked). It clears the day's open marks inside the same transaction, recorded as
+// cleared at publish, and reports how many in `reviews_cleared`. The marks are not part of the
+// snapshot, so its hash is the same with or without them.
+//
 // `GET` the same path to preview blockers without publishing.
 query "timeline/{timeline_id}/publish" verb=POST {
   api_group = "planner"
@@ -273,6 +278,10 @@ query "timeline/{timeline_id}/publish" verb=POST {
       value = 0
     }
 
+    var $reviews_cleared {
+      value = 0
+    }
+
     try_catch {
       try {
         db.transaction {
@@ -294,11 +303,22 @@ query "timeline/{timeline_id}/publish" verb=POST {
               field_value = $input.timeline_id
               data = {status: "published", updated_at: "now"}
             } as $patched
+
+            // REPEAT-1 story 05: publishing never waits for a review (D-8), but it does clear the
+            // day's open "needs review" marks, recorded as cleared at publish. Inside the same
+            // transaction: a failed publish clears nothing.
+            function.run "review/clear_marks" {
+              input = {account_id: $actor.account_id, user_id: $actor.user_id, how: "publish", planner_task_id: 0, timeline_id: $input.timeline_id}
+            } as $cleared_marks
           }
         }
 
         var.update $new_pub_id {
           value = $publication.id
+        }
+
+        var.update $reviews_cleared {
+          value = $cleared_marks.cleared
         }
 
         var.update $txn_ok {
@@ -359,12 +379,34 @@ query "timeline/{timeline_id}/publish" verb=POST {
         }
       }
     }
+
+    conditional {
+      if ($reviews_cleared > 0) {
+        function.run "ops/log_event" {
+          input = {
+            feature       : "REPEAT-1"
+            step          : "plan.review_cleared"
+            outcome       : "success"
+            severity      : "info"
+            error_code    : ""
+            message       : "Needs-review marks cleared at Publish to live."
+            user_id       : $actor.user_id
+            account_id    : $actor.account_id
+            entity_type   : "planner_timeline"
+            entity_id     : $input.timeline_id
+            correlation_id: $input.correlation_id
+            metadata      : {how: "publish", cleared: $reviews_cleared, publication_id: $new_pub_id}
+          }
+        } as $_logged_cleared
+      }
+    }
   }
 
   response = {
-    publication : {id: $new_pub_id, timeline_id: $input.timeline_id, version: $next_version, item_count: $pub.item_count, snapshot_hash: $pub.snapshot_hash}
-    published_at: $now_ms
-    is_republish: $is_republish
-    items       : $pub.items
+    publication    : {id: $new_pub_id, timeline_id: $input.timeline_id, version: $next_version, item_count: $pub.item_count, snapshot_hash: $pub.snapshot_hash}
+    published_at   : $now_ms
+    is_republish   : $is_republish
+    items          : $pub.items
+    reviews_cleared: $reviews_cleared
   }
 }

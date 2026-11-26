@@ -18,6 +18,7 @@
 import type {Agent, AppSettings, ModelPricing, Task, Timeline, Workspace} from './types';
 import type {BoardResponse, LinkedStep, RawAgent, RawModel, RawTask, RawTimeline, RawWorkspace, WorkspaceListEntry} from './plannerApi';
 import {groupStepsBySlot, linkedCardTitle} from '../scheduleModel';
+import {reviewByTask} from './reviewModel';
 
 export function adaptWorkspace(entry: WorkspaceListEntry): Workspace {
   const w: RawWorkspace = entry.workspace;
@@ -99,10 +100,13 @@ export function adaptBoard(board: BoardResponse) {
     stepsByTask.set(slot.plannerTaskId, slot.steps);
   }
 
+  // REPEAT-1 story 05 — the slots a person should look at. Optional so an older server still parses.
+  const marks = reviewByTask(board.reviews ?? []);
+
   return {
     agents: board.agents.map(adaptAgent),
     timelines: board.timelines.map(adaptTimeline),
-    tasks: board.tasks.map((t) => adaptTask(t, stepsByTask.get(t.id))),
+    tasks: board.tasks.map((t) => adaptTask(t, stepsByTask.get(t.id), marks.get(String(t.id)))),
     settings: adaptSettings(board),
     // O4 — passed through raw. The Jobs screen needs to list what is
     // ALREADY scheduled (to offer "Unschedule"), and that is a
@@ -111,7 +115,7 @@ export function adaptBoard(board: BoardResponse) {
   };
 }
 
-export function adaptTask(raw: RawTask, steps?: LinkedStep[]): Task {
+export function adaptTask(raw: RawTask, steps?: LinkedStep[], review?: {code: string; text: string}): Task {
   // A linked slot stores no title of its own (see Task.jobStepTitle).
   // `linkedCardTitle` ends its fallback chain at the stage key so a
   // card is never blank, even if a version somehow has no text for
@@ -129,6 +133,7 @@ export function adaptTask(raw: RawTask, steps?: LinkedStep[]): Task {
     seq: raw.seq,
     planned_start: raw.planned_start ?? '',
     startOverride: raw.start_override ?? '',
+    ...(review ? {review} : {}),
     duration: raw.duration_minutes,
     assignee: raw.effective_assignee.name ?? undefined,
     notes: raw.notes,

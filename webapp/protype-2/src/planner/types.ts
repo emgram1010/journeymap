@@ -92,6 +92,8 @@ export interface Task {
   planned_start: string; // e.g., "09:00"
   /** SCHED-2 — "HH:MM" when the planner set the start by hand ("" = computed). */
   startOverride?: string;
+  /** REPEAT-1 story 05 — a copied slot a person should look at ("needs review"), with the reason. Absent = nothing to review. */
+  review?: {code: string; text: string};
   duration: number; // minutes
   assignee?: string; // optional; inherits timeline's if unset or blank
   notes: string;

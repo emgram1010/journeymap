@@ -1,6 +1,6 @@
 # US-REPEAT-1-05 — "Needs review" marks
 
-**Epic:** REPEAT-1 · **Size:** M · **Model:** Sonnet 5.5 · **Status:** 📋 Not built
+**Epic:** REPEAT-1 · **Size:** M · **Model:** Sonnet 5.5 · **Status:** ✅ Built and tested live
 **Depends on:** story 04 · **Decision:** D-2 (founder), D-8 (builder)
 
 ## Description

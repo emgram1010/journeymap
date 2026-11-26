@@ -5,7 +5,7 @@ import { DEFAULT_SETTINGS, DEFAULT_INPUT_TOKENS_PER_MINUTE, DEFAULT_OUTPUT_TOKEN
 import {
   listWorkspaces, getBoard,
   createAgent, updateAgent, setWorkspaceAgentVisibility,
-  createTimeline, updateTimeline, publishTimeline as publishTimelineApi, reorderTimeline,
+  createTimeline, updateTimeline, publishTimeline as publishTimelineApi, reorderTimeline, clearSlotReview, clearDayReview,
   createTask, updateTask, placeTask, deleteAgent, deleteTimeline,
   putStartOverride, deleteStartOverride,
   listTemplates, createWorkspaceFromTemplate, createWorkspace, TemplateListEntry, SkippedAgent,
@@ -16,6 +16,7 @@ import {
 import { logEvent } from '../ops/logEvent';
 import { formatMinutes } from './varianceDisplay';
 import { adaptWorkspace, adaptBoard } from './plannerAdapter';
+import { markedOnDay, publishReviewNotice } from './reviewModel';
 import { indexWindowsByJob, formatDayShort } from './timeWindowModel';
 import { calculateAgentDayLoad } from './utils/agentUtils';
 import { windowEnd } from '../planTemplate';
@@ -727,7 +728,24 @@ export default function PlannerApp() {
     if (!readiness.ready) return;
     // Final review R12: publishing a day gives its work to that column's identity.
     if (refuseCopilotOff(tl.agentId)) return;
+    // REPEAT-1 story 05: publishing is never blocked by a copied slot nobody has looked at (D-8),
+    // but the planner is told how many there are. Publishing clears those marks on the server.
+    const unreviewed = markedOnDay(tasks, tl.id);
+    if (unreviewed > 0 && !confirm(publishReviewNotice(unreviewed))) return;
     publishTimelineApi(Number(timelineId))
+      .then(() => refreshBoard())
+      .catch(reportActionError);
+  };
+
+  // REPEAT-1 story 05: "Reviewed" on one slot, or on a whole day. The server keeps who and when.
+  const handleClearTaskReview = (taskId: string) => {
+    clearSlotReview(Number(taskId))
+      .then(() => refreshBoard())
+      .catch(reportActionError);
+  };
+
+  const handleClearDayReview = (timelineId: string) => {
+    clearDayReview(Number(timelineId))
       .then(() => refreshBoard())
       .catch(reportActionError);
   };
@@ -1193,6 +1211,9 @@ export default function PlannerApp() {
       setActionError(COPILOT_OFF_MESSAGE);
       setTimeout(() => setActionError(null), 6000);
     }
+    // REPEAT-1 story 05: the same plain notice for "publish day" (never a block).
+    const unreviewedTotal = timelineIdsToPublish.reduce((n, id) => n + markedOnDay(tasks, id), 0);
+    if (unreviewedTotal > 0 && !confirm(publishReviewNotice(unreviewedTotal))) return;
     Promise.allSettled(timelineIdsToPublish.map(id => publishTimelineApi(Number(id))))
       .then((results) => {
         const failures = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
@@ -1514,6 +1535,8 @@ export default function PlannerApp() {
                 onDropJobCardOnNewDay={handleDropJobCardOnNewDay}
                 onJobCardDropRefused={handleJobCardDropRefused}
                 onRequestUnscheduleJobSlot={handleRequestUnscheduleJobSlot}
+                onClearTaskReview={handleClearTaskReview}
+                onClearDayReview={handleClearDayReview}
                 />
               </div>
             ) : (
@@ -1573,6 +1596,7 @@ export default function PlannerApp() {
               onDeleteTask={handleDeleteTask}
               onDropTaskIntoBucket={handleMoveTaskToBacklog}
               onRequestUnscheduleJobSlot={handleRequestUnscheduleJobSlot}
+              onClearTaskReview={handleClearTaskReview}
               workspaceId={activeWorkspaceId || null}
               jobsReloadNonce={jobsReloadNonce}
               onPlaceCard={handlePlaceJobCard}

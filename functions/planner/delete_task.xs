@@ -35,9 +35,29 @@ function "planner/delete_task" {
       value = $task.timeline_id
     }
 
-    db.del planner_task {
-      field_name = "id"
-      field_value = $input.task_id
+    // REPEAT-1 story 05: the slot's "needs review" mark goes with it, in the same transaction.
+    db.query planner_task_review {
+      where = $db.planner_task_review.planner_task_id == $input.task_id
+      return = {type: "list"}
+      output = ["id"]
+    } as $dead_marks
+
+    db.transaction {
+      stack {
+        foreach ($dead_marks) {
+          each as $dm {
+            db.del planner_task_review {
+              field_name = "id"
+              field_value = $dm.id
+            }
+          }
+        }
+
+        db.del planner_task {
+          field_name = "id"
+          field_value = $input.task_id
+        }
+      }
     }
 
     function.run "planner/resequence" {

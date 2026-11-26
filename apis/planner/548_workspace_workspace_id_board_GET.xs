@@ -44,6 +44,11 @@
 // function's result; both fields default to their "never published"
 // values (version 0, not sealed) so the frontend never needs a
 // separate null check.
+//
+// REPEAT-1 (US-REPEAT-1-05) — `reviews[]`, additive: the slots a person
+// should look at (still-open "needs review" marks), ONE query for the
+// whole plan. A side table needs its own read here or the board never
+// sees it (AUTH-1).
 query "workspace/{workspace_id}/board" verb=GET {
   api_group = "planner"
   auth = "user"
@@ -255,6 +260,31 @@ query "workspace/{workspace_id}/board" verb=GET {
     function.run "planner/job_step_hydration" {
       input = {workspace_id: $input.workspace_id}
     } as $hydration
+
+    // REPEAT-1 story 05: the slots a person should look at. ONE query for the plan, still-open
+    // marks only (a cleared mark is history, not a sign on the board). This is a side table
+    // (planner_task_review), so it needs its own read here or the board never sees it (AUTH-1).
+    db.query planner_task_review {
+      where = $db.planner_task_review.workspace_id == $input.workspace_id && $db.planner_task_review.account_id == $actor.account_id
+      return = {type: "list"}
+      output = ["planner_task_id", "reason_code", "reason_text", "cleared_at"]
+    } as $review_rows
+
+    var $reviews {
+      value = []
+    }
+
+    foreach ($review_rows) {
+      each as $rv {
+        conditional {
+          if ($rv.cleared_at == 0) {
+            array.push $reviews {
+              value = {planner_task_id: $rv.planner_task_id, reason_code: $rv.reason_code, reason_text: $rv.reason_text}
+            }
+          }
+        }
+      }
+    }
   }
 
   response = {
@@ -263,6 +293,7 @@ query "workspace/{workspace_id}/board" verb=GET {
     timelines   : $timeline_views
     tasks       : $tasks
     linked_steps: $hydration.steps
+    reviews     : $reviews
     settings    : {
       currency_symbol  : $settings.currency_symbol
       human_hourly_rate: $settings.human_hourly_rate

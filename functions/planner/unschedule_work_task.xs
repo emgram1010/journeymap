@@ -103,8 +103,25 @@ function "planner/unschedule_work_task" {
           }
         }
 
+        // REPEAT-1 story 05: a slot's "needs review" mark is deleted with the slot (never left
+        // behind as an orphan). Queried first; each mark deleted by its own id.
+        db.query planner_task_review {
+          where = $db.planner_task_review.planner_task_id == $link.planner_task_id
+          return = {type: "list"}
+          output = ["id"]
+        } as $dead_marks
+
         db.transaction {
           stack {
+            foreach ($dead_marks) {
+              each as $dm {
+                db.del planner_task_review {
+                  field_name = "id"
+                  field_value = $dm.id
+                }
+              }
+            }
+
             foreach ($siblings) {
               each as $s2 {
                 db.del planner_task_work_task {

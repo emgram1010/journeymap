@@ -271,6 +271,46 @@ query "task/{task_id}" verb=PATCH {
       }
     } as $updated
 
+    // REPEAT-1 story 05: giving a slot to someone else is plainly looking at it, so its
+    // "needs review" mark clears. A person's action only: an AI identity changing a slot does not
+    // clear a mark (the clearing is a person's call).
+    function.run "copilot/identity_for_user" {
+      input = {user_id: $actor.user_id}
+    } as $who
+
+    var $reassigned {
+      value = (($raw_input|has:"assignee_agent_id") && ($next_assignee != $existing.assignee_agent_id) && ($who.is_ai != true))
+    }
+
+    conditional {
+      if ($reassigned == true) {
+        function.run "review/clear_marks" {
+          input = {account_id: $actor.account_id, user_id: $actor.user_id, how: "moved", planner_task_id: $input.task_id, timeline_id: 0}
+        } as $cleared_marks
+
+        conditional {
+          if ($cleared_marks.cleared > 0) {
+            function.run "ops/log_event" {
+              input = {
+                feature       : "REPEAT-1"
+                step          : "plan.review_cleared"
+                outcome       : "success"
+                severity      : "info"
+                error_code    : ""
+                message       : "Needs-review mark cleared: the slot was given to someone else."
+                user_id       : $actor.user_id
+                account_id    : $actor.account_id
+                entity_type   : "planner_task"
+                entity_id     : $input.task_id
+                correlation_id: $input.correlation_id
+                metadata      : {how: "moved", cleared: $cleared_marks.cleared, workspace_id: $workspace_id}
+              }
+            } as $_logged_cleared
+          }
+        }
+      }
+    }
+
     function.run "planner/derive_tasks" {
       input = {workspace_id: $workspace_id, timeline_id: $existing.timeline_id}
     } as $view

@@ -42,6 +42,11 @@ function "planner/integrity_audit" {
       input = {account_id: $input.account_id}
     } as $sequences_result
 
+    // REPEAT-1 (US-REPEAT-1-05): a "needs review" mark must never outlive its slot.
+    function.run "planner/audit_reviews" {
+      input = {account_id: $input.account_id}
+    } as $reviews_result
+
     var $violations {
       value = []
     }
@@ -71,6 +76,14 @@ function "planner/integrity_audit" {
     }
 
     foreach ($sequences_result.violations) {
+      each as $v {
+        array.push $violations {
+          value = $v
+        }
+      }
+    }
+
+    foreach ($reviews_result.violations) {
       each as $v {
         array.push $violations {
           value = $v

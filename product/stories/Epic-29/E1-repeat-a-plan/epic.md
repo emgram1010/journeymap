@@ -274,3 +274,34 @@ Read again end to end: `build_plan`, `plan_work`, `create_plan` and the preview 
   - (c) Deleting a slot leaves its review mark behind until story 05 adds it to `planner/delete_task`. No slot can be deleted in a repeated plan before the button ships.
 - **Verdict:** stories 02–04 pass review, with (a)–(c) carried forward.
 
+### Story 05 — "needs review" marks (2026-11-26, Sonnet 5.5)
+
+- **Tests written first:** `reviewModel.test.ts`, 5 tests: each slot's mark and reason, counts per day and for the plan (a backlog mark counts for the plan, not for a day), nothing shown when there are no marks, the publish sentence (singular and plural), plain wording for every reason. They now run in `npm test`.
+- **Built (backend, all live):**
+  - `review/clear_marks` (function 493): the one place a mark is cleared; the cleared row is kept as history (when, who, how).
+  - `POST planner_task/{id}/review-clear` (684) and `POST timeline/{id}/review-clear` (685): person only, own account only, logged as `plan.review_cleared`. The day endpoint re-counts and answers `still_open`.
+  - Board `GET workspace/{id}/board` (548): now returns `reviews[]`, still-open marks only.
+  - Publish to live (562): clears the day's marks inside the same transaction, `how: publish`, and answers `reviews_cleared`. It never blocks.
+  - Move a slot (543) and give a slot to someone else (545): clear its mark (`how: moved`) when a person does it; reordering inside one day does not.
+  - Unschedule (function 169): the mark is deleted with the slot. The same change is in the held `planner/delete_task`, not pushed.
+  - `planner/audit_reviews` (501), added to `planner/integrity_audit` (118): reports `ORPHAN_REVIEW`.
+- **Built (app):** a "REVIEW" sign on each marked card and backlog row (click = reviewed, hover = the reason), "N to review" and a "Reviewed" button on each day, "N to review" for the whole plan next to Publish day, and one plain sentence before publishing: "4 items were copied and not yet reviewed. Publish anyway?" (one day, or Publish day for several). Marks load through `adaptBoard`.
+
+| Test | Result |
+|---|---|
+| T-REPEAT-05-1 board returns marks and reasons; counts per day and plan | ✅ HTTP: 7 open marks listed with their reasons; the already-cleared one hidden. Unit: counts per day and plan. Browser: "3 to review" for the plan, "2 to review" for Ana's day |
+| T-REPEAT-05-2 clear one, clear a day | ✅ HTTP: clear one → `cleared: 1`; again → `cleared: 0`; clear a day → `cleared: 1`, `still_open: 0`. Browser: A1 cleared (day 2 → 1), then the day cleared, then the backlog sign cleared; each chip disappeared at zero |
+| T-REPEAT-05-3 moving a slot clears its mark | ✅ HTTP: moved to another person's day → mark gone; reassigned a backlog slot → mark gone; reordered inside one day → mark stays |
+| T-REPEAT-05-4 publish | ✅ HTTP: day with 2 open marks → 200, `reviews_cleared: 2`, the other day's mark untouched; event `plan.review_cleared` / `publish`. The sentence wording is unit-tested; the browser confirm box itself was not clicked |
+| T-REPEAT-05-5 hash equal with and without marks | ✅ `live/build_publication` on a day: identical `snapshot_hash` with no mark, with an open mark and after clearing (`0e3bf6f7…`) |
+| T-REPEAT-05-6 delete removes the mark; audit finds no orphan | ✅ unscheduling a linked slot removed its mark (the other marks stayed). The audit flagged a planted mark with no slot as `ORPHAN_REVIEW` and was clean once it was removed. The held `delete_task` change is written, not run |
+| T-REPEAT-05-7 AI caller, second account | ⚠️ second account: `review/clear_marks` for account 2 cleared 0, for account 13 cleared 1; unknown slot or day → 404 "Task not found" / "Timeline not found"; no token → 401. AI refusal is the shared `copilot/assert_person_only` (E-COP-025, already proved by COP-5); no AI identity was used here |
+| History kept | ✅ cleared rows hold `cleared_by` 21, `cleared_at` and `cleared_how` one / day / moved / publish; a pre-cleared row stayed hidden from the board |
+| Suites | ✅ `npm test` 1,120 of 1,120 · `tsc` clean · no console errors in the browser. Workflow tests and Playwright not run |
+
+- **Differences from the story:**
+  - No new error codes: a missing slot is the standard "Task not found", and "a person must clear" is the shared E-COP-025 (one code means one thing). E-REPEAT-008 and E-REPEAT-009 are not used.
+  - There is no server-side publish preview (the old header comment mentions one that was never built), so the sentence is a confirm box in the app, shown before the publish call.
+  - A mark is also cleared when a slot is given to someone else (not only moved), because that is the same "a person looked at it".
+- **Cleaned up:** the test plan, its map and version, publication, 7 marks and every scratch function deleted. Event-log rows kept.
+- **Learning:** publishing a day needs every person on it to have a login (`Ben doesn't have a login yet`), so a fixture used for a publish test must give each person a user.

@@ -54,6 +54,8 @@ interface BacklogDrawerProps {
   onAddToAgentDay: (taskId: string, agentId: string, day: string, targetIndex?: number) => void;
   onCreateBacklogTask: (title: string, duration: number, assignee?: string) => void;
   onDeleteTask: (taskId: string) => void;
+  /** REPEAT-1 story 05 — mark a copied backlog slot as reviewed. Optional: with no handler the sign shows but is not a button. */
+  onClearTaskReview?: (taskId: string) => void;
   onDropTaskIntoBucket: (taskId: string) => void;
   /** QUE-1 (US-QUE-1-05/06) — a job slot dragged back onto this panel
       confirms first; see `classifyUnscheduleTarget`. */
@@ -94,6 +96,7 @@ export function BacklogDrawer({
   onAddToAgentDay,
   onCreateBacklogTask,
   onDeleteTask,
+  onClearTaskReview,
   onDropTaskIntoBucket,
   onRequestUnscheduleJobSlot,
   workspaceId,
@@ -914,6 +917,19 @@ export function BacklogDrawer({
                             <span className="inline-flex items-center gap-1 min-w-0">
                               <GripVertical className="w-3 h-3 shrink-0 text-neutral-300" />
                               <span className="font-medium text-neutral-900 truncate" title={task.title}>{task.title}</span>
+                              {/* REPEAT-1 story 05 — copied from last time and not yet looked at. Click = reviewed. */}
+                              {task.review && (
+                                <button
+                                  type="button"
+                                  data-testid="backlog-needs-review"
+                                  disabled={!onClearTaskReview}
+                                  onClick={(e) => { e.stopPropagation(); onClearTaskReview?.(task.id); }}
+                                  title={`Needs review: ${task.review.text}${onClearTaskReview ? '. Click to mark as reviewed.' : ''}`}
+                                  className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-amber-700 hover:text-amber-900 underline decoration-dotted"
+                                >
+                                  review
+                                </button>
+                              )}
                             </span>
                           </td>
                           <td className="px-2 py-1 text-right text-neutral-300 font-mono">—</td>

@@ -251,6 +251,8 @@ export interface BoardResponse {
   tasks: RawTask[];
   /** GAP-FIX W1 — the real text behind each scheduled job step. Optional so an older server still parses. */
   linked_steps?: LinkedStep[];
+  /** REPEAT-1 story 05 — the slots a person should look at (still-open "needs review" marks). Optional so an older server still parses. */
+  reviews?: {planner_task_id: number; reason_code: string; reason_text: string}[];
   settings: RawPlannerSettings;
   models: RawModel[];
 }
@@ -395,6 +397,14 @@ export const createWorkspaceFromTemplate = (templateId: number, body: {name: str
 // copy, so what this returns is what a repeat does.
 export const previewRepeat = (workspaceId: number, body: {start_date?: string; skip_job_ids?: number[]}) =>
   performRequest<RepeatPreview>(`/workspace/${workspaceId}/repeat-preview`, {method: 'POST', body});
+
+/** REPEAT-1 story 05 — mark ONE slot as reviewed (clears its "needs review" mark; the server keeps who and when). */
+export const clearSlotReview = (plannerTaskId: number) =>
+  performRequest<{planner_task_id: number; cleared: number}>(`/planner_task/${plannerTaskId}/review-clear`, {method: 'POST', body: {}});
+
+/** REPEAT-1 story 05 — mark a whole DAY as reviewed. `still_open` is the server's own re-count (0 when it worked). */
+export const clearDayReview = (timelineId: number) =>
+  performRequest<{timeline_id: number; cleared: number; still_open: number}>(`/timeline/${timelineId}/review-clear`, {method: 'POST', body: {}});
 
 /** Why a roster agent was left off a new plan (gap-fix #1). */
 export interface SkippedAgent {
