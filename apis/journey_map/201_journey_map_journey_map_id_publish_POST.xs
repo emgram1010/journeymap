@@ -466,6 +466,11 @@ query "journey_map/{journey_map_id}/publish" verb=POST {
       value = $rates_to_write|count
     }
 
+    // REQ-1 story 05 - how many needs were frozen with this version (0 when the flag is off or the map has none).
+    var $needs_frozen {
+      value = 0
+    }
+
     var $map_version {
       value = null
     }
@@ -546,6 +551,17 @@ query "journey_map/{journey_map_id}/publish" verb=POST {
                 } as $_rate_added
               }
             }
+
+            // REQ-1 story 05 - freeze what each step needs WITH the version, by stage key and row key.
+            // Plain writes inside this same transaction: a failed publish leaves no needs, and no
+            // version without them. A map with no needs writes nothing, so its publish is unchanged.
+            function.run "req/freeze_needs" {
+              input = {account_id: $journey_map.account_id, journey_map_id: $input.journey_map_id, journey_map_version_id: $written_version.id}
+            } as $frozen_needs
+
+            var.update $needs_frozen {
+              value = $frozen_needs.frozen
+            }
           }
         }
       }
@@ -563,7 +579,7 @@ query "journey_map/{journey_map_id}/publish" verb=POST {
             account_id : $journey_map.account_id
             entity_type: "journey_map_version"
             entity_id  : $map_version.id
-            metadata   : {rates_written: $rates_written, journey_map_id: $input.journey_map_id, map_version_no: $map_version_no}
+            metadata   : {rates_written: $rates_written, needs_frozen: $needs_frozen, journey_map_id: $input.journey_map_id, map_version_no: $map_version_no}
           }
         } as $_rates_logged
       }
@@ -767,5 +783,7 @@ query "journey_map/{journey_map_id}/publish" verb=POST {
     // RATE-1 — stage_rate rows written with this version (0 when the gate
     // flag is off or the map has no Items row).
     rates_written: $rates_written
+    // REQ-1 story 05 - needs frozen with this version.
+    needs_frozen : $needs_frozen
   }
 }

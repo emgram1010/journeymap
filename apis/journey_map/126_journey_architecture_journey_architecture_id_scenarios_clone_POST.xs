@@ -227,6 +227,11 @@ query "journey_architecture/{journey_architecture_id}/scenarios/clone" verb=POST
             is_locked    : false
           }
         } as $_cell_added
+
+        // REQ-1: a cloned map keeps what each step needs.
+        function.run "req/copy_cell_needs" {
+          input = {from_cell_id: $cell.id, to_cell_id: $_cell_added.id, to_map_id: $new_map.id, user_id: $auth.id}
+        } as $_needs_copied
       }
     }
 

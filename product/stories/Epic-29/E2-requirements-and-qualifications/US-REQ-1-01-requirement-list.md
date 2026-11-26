@@ -1,6 +1,6 @@
 # US-REQ-1-01 — One list of requirements per account
 
-**Epic:** REQ-1 · **Size:** M · **Model:** Sonnet 5.5 · **Status:** 📋 Not built
+**Epic:** REQ-1 · **Size:** M · **Model:** Sonnet 5.5 · **Status:** ✅ Built (2026-11-26)
 **Depends on:** story 00
 
 ## Description

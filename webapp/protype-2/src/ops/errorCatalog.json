@@ -3326,5 +3326,175 @@
     "owner": "user",
     "severity": "info",
     "fix_hint": "Follow the message. Nothing was changed."
+  },
+  "E-REQ-001": {
+    "code": "E-REQ-001",
+    "feature": "REQ-1",
+    "user_message": "Give the requirement a name.",
+    "what_happened": "A requirement was saved with an empty name.",
+    "likely_cause": "The name was left blank.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Type a short name, for example Forklift licence."
+  },
+  "E-REQ-002": {
+    "code": "E-REQ-002",
+    "feature": "REQ-1",
+    "user_message": "A name cannot contain HTML tags.",
+    "what_happened": "A requirement's name held something that looks like an HTML tag.",
+    "likely_cause": "Text was pasted from a web page or an email.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Remove the angle brackets and tags. A plain < or & is fine."
+  },
+  "E-REQ-003": {
+    "code": "E-REQ-003",
+    "feature": "REQ-1",
+    "user_message": "A requirement with that name already exists.",
+    "what_happened": "A requirement was added or renamed to a name another one already has (case and spaces do not matter).",
+    "likely_cause": "The same thing was typed twice, in a different case or with extra spaces.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Use the one that is already in the list, or pick a different name."
+  },
+  "E-REQ-004": {
+    "code": "E-REQ-004",
+    "feature": "REQ-1",
+    "user_message": "That requirement is in use, so it can't be deleted. Archive it instead.",
+    "what_happened": "A delete was refused because a step needs it, a person holds it, or a published version froze it.",
+    "likely_cause": "An admin tried to delete a requirement that is already used.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Archive it. It can no longer be picked, and everything already using it keeps working."
+  },
+  "E-REQ-005": {
+    "code": "E-REQ-005",
+    "feature": "REQ-1",
+    "user_message": "This account already has 200 requirements, which is the limit. Archive or delete one you no longer use.",
+    "what_happened": "A requirement was refused because the account is at its limit of 200.",
+    "likely_cause": "The list has grown very long, often with near-duplicates.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Archive or delete the ones you no longer use, then add the new one."
+  },
+  "E-REQ-006": {
+    "code": "E-REQ-006",
+    "feature": "REQ-1",
+    "user_message": "Requirement not found.",
+    "what_happened": "A requirement id was used that does not exist or belongs to another account.",
+    "likely_cause": "An old link, or an id from a different account.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload the list and pick from it."
+  },
+  "E-REQ-011": {
+    "code": "E-REQ-011",
+    "feature": "REQ-1",
+    "user_message": "That requirement is archived, so it cannot be newly recorded. Restore it first.",
+    "what_happened": "A holding was refused because its requirement is archived.",
+    "likely_cause": "Someone tried to record a person as holding something that was retired.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Restore the requirement in Catalog, or pick another."
+  },
+  "E-REQ-012": {
+    "code": "E-REQ-012",
+    "feature": "REQ-1",
+    "user_message": "That is not a real date. Use the form 2027-03-31, or leave it empty for no end.",
+    "what_happened": "A holding's end date was refused because it is not a real calendar day.",
+    "likely_cause": "A typo in the date, or a date in another format.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Use the date picker, or leave the date empty for no end."
+  },
+  "E-REQ-030": {
+    "code": "E-REQ-030",
+    "feature": "REQ-1",
+    "user_message": "That requirement is archived, so it cannot be added to a step.",
+    "what_happened": "A need was refused because its requirement is archived.",
+    "likely_cause": "A requirement was retired but is still in someone's open picker.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Restore the requirement, or pick another."
+  },
+  "E-REQ-031": {
+    "code": "E-REQ-031",
+    "feature": "REQ-1",
+    "user_message": "This row is not marked as planned work, so its steps cannot have needs. Mark the row as planned work first.",
+    "what_happened": "A need was refused because its row does not do planned work.",
+    "likely_cause": "Needs only make sense on work that is planned and given to someone.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Mark the row as planned work first, then add the need."
+  },
+  "E-REQ-032": {
+    "code": "E-REQ-032",
+    "feature": "REQ-1",
+    "user_message": "A step can have at most 10 needs.",
+    "what_happened": "A need was refused because the step already has 10.",
+    "likely_cause": "Too many needs on one step.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Remove one you do not need, or split the step."
+  },
+  "E-REQ-033": {
+    "code": "E-REQ-033",
+    "feature": "REQ-1",
+    "user_message": "This step is locked, so it can't be changed. Unlock it first.",
+    "what_happened": "A need was refused because the step is locked.",
+    "likely_cause": "The step was locked to protect it.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Unlock the step, then change its needs."
+  },
+  "E-REQ-034": {
+    "code": "E-REQ-034",
+    "feature": "REQ-1",
+    "user_message": "A need is either a must (hard) or a preference (soft).",
+    "what_happened": "A need was refused because its strength was neither hard nor soft.",
+    "likely_cause": "An old screen or a script sent a wrong value.",
+    "owner": "engineer",
+    "severity": "info",
+    "fix_hint": "Reload and pick Must have or Preferred."
+  },
+  "E-REQ-035": {
+    "code": "E-REQ-035",
+    "feature": "REQ-1",
+    "user_message": "That step was not found.",
+    "what_happened": "A need was set on a step that does not exist.",
+    "likely_cause": "The step was deleted while the page was open.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Reload the map and try again."
+  },
+  "E-REQ-008": {
+    "code": "E-REQ-008",
+    "feature": "REQ-1",
+    "user_message": "A name can be at most 60 characters.",
+    "what_happened": "A requirement was saved with a name longer than 60 characters.",
+    "likely_cause": "The name was pasted from a long text.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Use a short name, for example Forklift licence."
+  },
+  "E-REQ-009": {
+    "code": "E-REQ-009",
+    "feature": "REQ-1",
+    "user_message": "The description can be at most 300 characters and cannot contain HTML tags.",
+    "what_happened": "A requirement's description was too long or held something that looks like an HTML tag.",
+    "likely_cause": "Text was pasted from a web page or an email.",
+    "owner": "user",
+    "severity": "info",
+    "fix_hint": "Shorten it and remove any tags."
+  },
+  "E-REQ-036": {
+    "code": "E-REQ-036",
+    "feature": "REQ-1",
+    "user_message": "A published version's frozen needs do not match the hash stored when it was published.",
+    "what_happened": "The nightly check rebuilt a version's frozen needs and the result differs from the hash stored at Publish version, or the check itself could not run.",
+    "likely_cause": "A frozen need row was changed or removed outside the app, or a version was published with a partial write.",
+    "owner": "engineer",
+    "severity": "error",
+    "fix_hint": "Open the event: reason says what differs (rows_without_hash, hash_without_rows, count_differs, hash_differs). Do not edit frozen rows by hand; restore from a backup or republish the version."
   }
 }

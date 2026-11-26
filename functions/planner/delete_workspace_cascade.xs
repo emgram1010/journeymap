@@ -198,6 +198,11 @@ function "planner/delete_workspace_cascade" {
 
         foreach ($agents) {
           each as $a {
+            // REQ-1 story 03: a person's profile link goes with them.
+            function.run "req/delete_person_link" {
+              input = {planner_agent_id: $a.id}
+            } as $_link_gone
+
             db.del planner_agent {
               field_name = "id"
               field_value = $a.id

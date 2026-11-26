@@ -53,6 +53,7 @@ import { JourneyHealthWidget } from './JourneyHealthWidget';
 import {ActorSetupWizard} from './ActorSetupWizard';
 import type {ActorWizardInput} from './ActorSetupWizard';
 import {StageEditPanel} from './StageEditPanel';
+import StepNeeds from './requirements/StepNeeds';
 import {buildCellReferenceLabel, buildCellShorthand, buildSelectedCellContext} from './cellIdentifiers';
 import type {CellUpdateSummary} from './cellIdentifiers';
 import {
@@ -4148,6 +4149,17 @@ export default function App({ journeyMapId }: { journeyMapId?: number }) {
                     </div>
                   </div>
                 </div>
+
+                {/* REQ-1 (US-REQ-1-04) — what this step needs: hard (must) or soft (preferred). A draft edit; frozen at Publish version. */}
+                {journeyMapRecord?.id != null && (
+                  <StepNeeds
+                    mapId={Number(journeyMapRecord.id)}
+                    cellXanoId={selectedCell.xanoId}
+                    lensXanoId={selectedCell.lensXanoId}
+                    plannedWork={doesPlannedWork(selectedCellLens?.actorType ?? null, selectedCellLens?.plannedWorkOverride ?? null)}
+                    locked={selectedCell.isLocked === true}
+                  />
+                )}
 
                 {/* ── Link to Map (only when inside an architecture) ──────── */}
                 {architectureId && (

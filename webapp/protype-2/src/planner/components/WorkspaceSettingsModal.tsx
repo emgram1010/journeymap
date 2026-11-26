@@ -4,6 +4,7 @@ import { Workspace } from '../types';
 import { getDaysDifference } from '../utils/dateUtils';
 import { listWorkspaceMaps, addWorkspaceMaps, searchJourneyMaps, RawWorkspaceMap, JourneyMapSearchResult, archiveWorkspace, getDeleteCheck, deleteWorkspace } from '../plannerApi';
 import { canDeletePlan, deleteConfirmLines, type DeleteCheck } from '../repeatChoicesModel';
+import PlanPeopleProfiles from '../../requirements/PlanPeopleProfiles';
 
 interface WorkspaceSettingsModalProps {
   isOpen: boolean;
@@ -324,6 +325,9 @@ export function WorkspaceSettingsModal({
               </div>
             )}
           </section>
+
+          {/* REQ-1 story 03 — which lasting profile each person on this plan is tied to */}
+          <PlanPeopleProfiles workspaceId={Number(workspace.id)} isAdmin={isAdmin} />
 
           {/* REPEAT-2 — archive, restore, delete */}
           <section className="border-t border-neutral-100 pt-4 flex flex-col gap-2" data-testid="plan-lifecycle">

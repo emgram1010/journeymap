@@ -13,6 +13,7 @@
 import {useEffect, useState} from 'react';
 import {X, Users, Plus, Lock} from 'lucide-react';
 import {useAuth} from '../../AuthContext';
+import ProfileHoldings from '../../requirements/ProfileHoldings';
 import {
   listAgentProfiles,
   createAgentProfile,
@@ -37,6 +38,8 @@ export function AgentProfilesModal({isOpen, onClose}: AgentProfilesModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [newAiName, setNewAiName] = useState('');
   const [busyUserId, setBusyUserId] = useState<number | null>(null);
+  // REQ-1: which person's holdings are open.
+  const [openHoldings, setOpenHoldings] = useState<number | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -145,10 +148,17 @@ export function AgentProfilesModal({isOpen, onClose}: AgentProfilesModalProps) {
               ) : (
                 <ul className="divide-y divide-neutral-100 border border-neutral-200 rounded-md">
                   {profiles.map(({profile, display_name: displayName}) => (
-                    <li key={profile.id} className="flex items-center justify-between px-3 py-2">
+                    <li key={profile.id} className="px-3 py-2">
+                     <div className="flex items-center justify-between">
                       <div className="min-w-0">
                         <p className="text-xs font-medium text-neutral-900 truncate">{displayName || '(unnamed)'}</p>
-                        <p className="text-[10px] text-neutral-400">{profile.kind === 'ai' ? 'AI agent' : 'Person'}</p>
+                        <p className="text-[10px] text-neutral-400">
+                          {profile.kind === 'ai' ? 'AI agent' : 'Person'}
+                          {' · '}
+                          <button type="button" onClick={() => setOpenHoldings(openHoldings === profile.id ? null : profile.id)} className="underline decoration-dotted hover:text-neutral-700" aria-expanded={openHoldings === profile.id}>
+                            {openHoldings === profile.id ? 'Hide what they hold' : 'What they hold'}
+                          </button>
+                        </p>
                       </div>
                       <label
                         className={`flex items-center gap-1.5 text-[11px] shrink-0 ${
@@ -164,6 +174,8 @@ export function AgentProfilesModal({isOpen, onClose}: AgentProfilesModalProps) {
                         />
                         Eligible
                       </label>
+                     </div>
+                     {openHoldings === profile.id && <ProfileHoldings profileId={profile.id} isAdmin={isAdmin} />}
                     </li>
                   ))}
                 </ul>

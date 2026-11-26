@@ -438,6 +438,70 @@ export const clearSlotReview = (plannerTaskId: number) =>
 export const clearDayReview = (timelineId: number) =>
   performRequest<{timeline_id: number; cleared: number; still_open: number}>(`/timeline/${timelineId}/review-clear`, {method: 'POST', body: {}});
 
+// ── REQ-1: what a person holds, and which lasting profile a person on a plan is tied to ───────────
+export interface RawHolding {
+  requirement_id: number;
+  name: string;
+  archived: boolean;
+  held_until: string;
+  held: boolean;
+  ends_soon: boolean;
+  days_left: number | null;
+}
+
+/** What one person (lasting profile) holds, on a date (default today). */
+export const listHoldings = (profileId: number, onDate?: string) =>
+  performRequest<{holdings: RawHolding[]; on_date: string}>(`/agent-profile/${profileId}/requirement${onDate ? `?on_date=${onDate}` : ''}`);
+
+/** Record a holding, or change its end date ("" = no end). Admin only; an AI is refused. */
+export const recordHolding = (profileId: number, body: {requirement_id: number; held_until?: string}) =>
+  performRequest<{created: boolean}>(`/agent-profile/${profileId}/requirement`, {method: 'POST', body});
+
+export const removeHolding = (profileId: number, requirementId: number) =>
+  performRequest<{removed: boolean}>(`/agent-profile/${profileId}/requirement/${requirementId}`, {method: 'DELETE'});
+
+export interface PersonLinkRow {
+  planner_agent_id: number;
+  name: string;
+  kind: 'person' | 'ai';
+  user_id: number;
+  is_active: boolean;
+  profile_id: number;
+  profile_name: string;
+  /** The one profile that belongs to this person's login (0 when none, or when the login has several). */
+  login_profile_id: number;
+  /** A profile with exactly the same name (0 when none or more than one). Only ever OFFERED. */
+  name_match_profile_id: number;
+  name_match_count: number;
+}
+
+export const listPersonLinks = (workspaceId: number) =>
+  performRequest<{people: PersonLinkRow[]}>(`/workspace/${workspaceId}/person-link`);
+
+export const linkPerson = (workspaceId: number, plannerAgentId: number, agentProfileId: number) =>
+  performRequest<{result: string}>(`/workspace/${workspaceId}/person-link`, {method: 'POST', body: {planner_agent_id: plannerAgentId, agent_profile_id: agentProfileId}});
+
+export const unlinkPerson = (workspaceId: number, plannerAgentId: number) =>
+  performRequest<{removed: boolean}>(`/workspace/${workspaceId}/person-link/${plannerAgentId}`, {method: 'DELETE'});
+
+export const createProfileForPerson = (workspaceId: number, plannerAgentId: number) =>
+  performRequest<{agent_profile_id: number; made_new_profile: boolean}>(`/workspace/${workspaceId}/person-link/create-profile`, {method: 'POST', body: {planner_agent_id: plannerAgentId}});
+
+export interface FillAnswer {
+  applied: boolean;
+  people_checked: number;
+  would_link: number;
+  linked: number;
+  already_linked: number;
+  no_login: {planner_agent_id: number; plan: number; name: string}[];
+  no_profile_yet: {planner_agent_id: number; plan: number; name: string; user_id: number}[];
+  several_profiles: {planner_agent_id: number; plan: number; name: string; user_id: number}[];
+}
+
+/** The one-time fill by login. REPORTS first (apply = false); send apply = true to write. */
+export const fillPersonLinks = (apply: boolean) =>
+  performRequest<FillAnswer>('/person-link-fill', {method: 'POST', body: {apply}});
+
 /** Why a roster agent was left off a new plan (gap-fix #1). */
 export interface SkippedAgent {
   profile_id: number;

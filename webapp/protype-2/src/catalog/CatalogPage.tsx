@@ -28,12 +28,14 @@ import {normaliseKey, validateKey, validateLabel, validateUnit, validateSizeLabe
 import type {ItemType, CatalogMethod, CatalogUnit} from './catalogTypes';
 import OutsideProductsTab from '../orders/OutsideProductsTab';
 import IncomingOrdersTab from '../orders/IncomingOrdersTab';
+import RequirementsTab from '../requirements/RequirementsTab';
 
-type Tab = 'items' | 'methods' | 'outside-products' | 'incoming-orders';
+type Tab = 'items' | 'methods' | 'requirements' | 'outside-products' | 'incoming-orders';
 
 const TAB_LABELS: Record<Tab, string> = {
   items: 'Items',
   methods: 'Methods',
+  requirements: 'Requirements',
   'outside-products': 'Outside products',
   'incoming-orders': 'Incoming orders',
 };
@@ -118,6 +120,7 @@ export default function CatalogPage() {
         <div className="mt-6">
           {tab === 'items' && <ItemTypesTab isAdmin={isAdmin} />}
           {tab === 'methods' && <MethodsTab isAdmin={isAdmin} />}
+          {tab === 'requirements' && <RequirementsTab isAdmin={isAdmin} />}
           {tab === 'outside-products' && <OutsideProductsTab />}
           {tab === 'incoming-orders' && <IncomingOrdersTab />}
         </div>

@@ -153,6 +153,15 @@ export const TABLE_MANIFEST: Record<string, TableExpectation> = {
   plan_repeat: {naturalKeys: [['source_workspace_id', 'new_start_date'], ['new_workspace_id']], enumFields: ['state'], appendOnly: true},
   // REPEAT-1 story 04: one "needs review" mark per slot; cleared in place (story 05), so it has updated_at.
   planner_task_review: {naturalKeys: [['planner_task_id']]},
+  // REQ-1 (stories 01-05). One list of requirements per account; unique on the lower-case name key.
+  requirement: {naturalKeys: [['account_id', 'name_key']]},
+  agent_profile_requirement: {naturalKeys: [['agent_profile_id', 'requirement_id']]},
+  // A person on a plan -> their lasting profile. A re-link is a delete and a fresh row, so it is append-only.
+  planner_agent_profile: {naturalKeys: [['planner_agent_id']], appendOnly: true},
+  journey_cell_requirement: {naturalKeys: [['journey_cell_id', 'requirement_id']]},
+  // Frozen at Publish version and never edited.
+  journey_map_version_requirement: {naturalKeys: [['journey_map_version_id', 'stage_key', 'lens_key', 'requirement_id']], appendOnly: true},
+  journey_map_version_needs_hash: {naturalKeys: [['journey_map_version_id']], appendOnly: true},
 
   // ── CAT-1 (phase-6): item-type / method catalogs ────────────────────
   // Built 2026-10-24 as local files 135/136; Xano assigns the real ids.

@@ -1,7 +1,7 @@
 # REQ-1 — What a step needs, and who holds it
 
 **Epic ID:** REQ-1 (E2 in this folder)
-**Status:** 🚧 In build (2026-11-26). Story 00 done; stories 01 to 04 next; story 05 waits on BRIEF-1
+**Status:** 🟡 Stories 00 to 04 built and tested live (2026-11-26). Story 05's functions are live; its change to Publish version waits for the founder's decision
 **Size:** L
 **Model:** Sonnet 5.5 for stories 00–04. **Opus 5.5** for story 05 (it adds to Publish version, PUB-1).
 **Depends on:** nothing in this folder for the data. MATCH-1 is what uses it.
@@ -130,6 +130,80 @@ version. A holding belongs to the person, so it lives on their lasting profile.*
 | T-REQ-00-2 counts add up | ✅ account 2: 0 + 5 + 12 = 17; account 13: 0 + 0 + 97 = 97; total 114 |
 | T-REQ-00-3 nothing changed | ✅ read-only; the one scratch function used was deleted |
 
-## Test Results (stories 01 to 05)
+## Test Results (stories 01 to 05, 2026-11-26, Sonnet 5.5)
 
-Not built yet.
+- **Tests written first:** `requirementModel.test.ts`, 19 tests: the name rule and its limits, "held until" on the date of the work (last day counts, every empty form means no end, ends soon at 30 days), the person-link label, hard/soft and the 10-need limit, the frozen-needs canonical string and hash (pinned on both sides), and source tests for the rules that must not drift (one name function, admin-only writes, delete blocked while used, an AI cannot record a holding, freezing by plain writes inside Publish's transaction, only `req/step_needs` reads the frozen needs).
+- **Built (live):** six tables (183 to 188); functions `req/*` (528 to 545: name rule, usage, guard, near matches, date rule, link, set_need, delete/copy helpers, needs hash, freeze, step_needs, job_step_needs, verify, audit); 18 endpoints (catalog group: list, add, rename, archive, delete, holders; planner group: holdings list/record/remove and person-link list/link/unlink/create-profile/fill; journey-map group: map needs, step need set/remove, apply to row); cleanup and clone changes to existing objects (remove row, remove stage, delete map, remove person, delete plan, scenario clone, template instance, repeat) and the nightly integrity task (calls `req/audit_needs`).
+- **Built (app):** Catalog → Requirements tab; "What they hold" under each person in Agents; "People and their profiles" in Workspace Settings (link, create profile, clear, check all plans); "What this step needs" in the selected-step panel of the map.
+- **Live tests (real HTTP, test account 13, admin and member):** `tests/req1_probe_a.py` 71 of 71 (stories 01 to 03), `req1_probe_b.py` 32 of 32 (story 04), `req1_probe_c.py` 21 of 21 (links from template and repeat, the fill, removal, clone). Story 05's functions were run on a fake version id (see below).
+
+| Test | Result |
+|---|---|
+| T-REQ-01-1 add, list, rename, archive, restore | ✅ |
+| T-REQ-01-2 case and spaces make one requirement | ✅ lower case, upper case with spaces, inner spaces: all "exists", nothing created |
+| T-REQ-01-3 name rules and the limit | ✅ empty E-REQ-001, 61 characters E-REQ-008, HTML E-REQ-002; a lone `<` or `&` accepted. ⚠️ the 200 limit was not run live (needs 200 rows); the rule is one precondition, read in the source test |
+| T-REQ-01-4 delete refused when used, allowed when unused | ✅ refused with the count while a person holds it (E-REQ-004); deleted once unused |
+| T-REQ-01-5 two parallel adds leave one | ✅ four parallel adds of one name: 1 created, 3 "exists", one row in the list |
+| T-REQ-01-6 archived not offered, still shown where used | ✅ |
+| T-REQ-01-7 non-admin cannot write; second account sees nothing | ✅ member refused E-USR-001; another account's requirement: rename, delete and holders all "not found", and absent from the list |
+| T-REQ-01-8 AI near match creates nothing | ✅ by design: a near match answers "similar" and creates nothing until the caller asks again; no AI tool exists to test |
+| T-REQ-02-1 record, change the date, remove | ✅ saving twice updates; removing twice is not an error |
+| T-REQ-02-2 the last day counts, the day after does not | ✅ 2027-03-31 held, 2027-04-01 not |
+| T-REQ-02-3 every empty date form means no end | ✅ `""` and left out |
+| T-REQ-02-4 ends soon at 30 days | ✅ 30 days yes (30 left), 31 no |
+| T-REQ-02-5 archived requirement refused for a new holding | ✅ E-REQ-011; an existing holding of one can still change and shows as archived |
+| T-REQ-02-6 an AI caller is refused and logged | ⚠️ not run live (no AI login set up). Covered by the source test: the endpoint calls `copilot/assert_person_only` first, the guard proved live in REPEAT-1 story 05 |
+| T-REQ-02-7 other account's profile refused | ✅ record, read and link: "not found" |
+| T-REQ-02-8 profile delete removes its holdings | n/a: no profile delete exists. Holdings deletion is tested through requirement and person removal |
+| T-REQ-03-1 template and repeat link their people | ✅ every roster person linked to their profile; the repeat's copy carried each link |
+| T-REQ-03-2 add by profile links; by hand does not | ✅ people added by hand have no link |
+| T-REQ-03-3 the fill: one login one profile linked; no login listed; two profiles listed | ✅ reports first and writes nothing by default; linked on apply. ⚠️ "a login with two profiles" not run live (needs a second profile for one login) |
+| T-REQ-03-4 the fill twice changes nothing | ✅ second run: 0 linked, 0 to link |
+| T-REQ-03-5 a profile from another account is refused | ✅ |
+| T-REQ-03-6 the people list returns the link and "no profile" | ✅ with name matches offered (one match) or only counted (two) |
+| T-REQ-03-7 deleting a person or a plan removes the link | ✅ a person removed: link gone; two plans deleted: 0 left behind |
+| T-REQ-03-8 existing template tests still pass | ✅ unit suites green; the template and repeat flows ran live (probe C). The older Playwright specs were not re-run |
+| T-REQ-04-1 add hard, soft, switch, remove | ✅ |
+| T-REQ-04-2 same need twice | ✅ "same", still exactly two on the step |
+| T-REQ-04-3 whole row, count correct | ✅ the locked step skipped and named, the rest changed; counts re-read from the database; again changes nothing |
+| T-REQ-04-4 row not planned work refused | ✅ E-REQ-031, single step and whole row (uses the shared `does_planned_work` rule) |
+| T-REQ-04-5 archived refused; limit of 10 | ✅ E-REQ-030; 10 allowed, the 11th E-REQ-032; changing one already there still works |
+| T-REQ-04-6 locked step refused | ✅ E-REQ-033, adding and removing |
+| T-REQ-04-7 clone copies needs | ✅ the clone has the same need on the same step; the source keeps its own |
+| T-REQ-04-8 deleting a step, row, stage, map leaves no orphan | ✅ row removed: its steps' needs gone; stage removed: gone. ⚠️ the single-cell delete endpoint (37) is not live, and the map hard delete (`delete_map_cascade`) was changed and pushed but not run live |
+| T-REQ-04-9 people who hold this now, including zero | ✅ 0, then 1, and an ended holding does not count |
+| T-REQ-04-10 second account refused | ✅ read, set and apply-to-row all refused |
+| T-REQ-05-1 freeze hard and soft by key | ✅ `req/freeze_needs` on a fake version: 3 needs frozen by stage key and row key |
+| T-REQ-05-2 a draft edit does not reach a frozen version | ✅ a need deleted from the draft afterwards: the frozen rows and their hash still verify |
+| T-REQ-05-3 two versions hold different needs | ✅ 3 frozen, then 2 |
+| T-REQ-05-4 a job on an older version reads the older needs | ✅ `req/step_needs` on a version with no rows answers no needs (the same answer a job on a version from before this feature gets) |
+| T-REQ-05-8 hash matches the TypeScript twin; "no needs" pinned | ✅ the sample hashes to `96fede33…` on both sides; the empty set to `e3b0c442…` |
+| T-REQ-05-9 build guard: only `req/step_needs` reads the frozen needs | ✅ unit test over every function and endpoint |
+| Tamper evidence and the nightly audit | ✅ an extra frozen row: `count_differs`; the audit lists it and logs an E-REQ-036 failure event |
+| **T-REQ-05-5, 05-6, 05-7, 05-10: Publish itself** | ⏸ **not run: the change to Publish version (endpoint 201) is written in the repo and NOT pushed.** See "Decision for the founder" below |
+| Suites | ✅ `npm test` all green · `tsc` clean. Playwright and workflow tests not run |
+| Browser | ✅ Requirements tab: added a requirement, a near match showed the "something like this exists" prompt and created nothing. Step panel: added a "Must have" need, it showed "No one holds this right now", removed it. Workspace Settings: "People and their profiles" with Create profile / Choose / Link |
+
+### Decision for the founder: Publish version (endpoint 201)
+
+- **What is built:** one call to `req/freeze_needs` inside Publish's existing transaction (next to the rate card write), and `needs_frozen` in the answer and in the success event. A map with no needs writes nothing, so its publish and hash are unchanged. Not pushed.
+- **The conflict:** live Publish is MISSING the BRIEF-1 block (over-length task-brief text refused, E-BRIEF-001) that sits uncommitted in the same file. Pushing the working-copy file would also push BRIEF-1's unfinished work.
+- **Recommended:** patch the LIVE Publish with the REQ-1 call only, leave BRIEF-1 for its own push, and commit only the REQ-1 lines of the file here. Then run T-REQ-05-5/6/7/10 on a clone of map 178.
+
+### Differences from the stories
+
+- **A sixth table** (`journey_map_version_needs_hash`) holds each version's needs hash, because the epic forbids a column on `journey_map_version`.
+- **Story 03 gained "Create profile"** (one click by an admin, never by name): in the founder's account 12 of 17 people on plans had no profile, so the one-time fill by login would have linked nobody.
+- **A re-link is a delete and a fresh row**, so the link table is append-only.
+- **Story 02:** no screen lists "ends soon" across all people; it shows on each person and in each requirement's holders list.
+- **Story 04:** "does planned work" uses the existing shared rule (`does_planned_work`), not only an explicit override.
+- **The AI tool** for requirements was not built (the stories build none).
+
+### Cleaned up
+
+Every requirement, profile, plan, map and row the probes made was deleted (including the two throwaway fixtures for "another account"); the scratch functions were deleted. One archived plan template (id 30) and event-log rows remain. The audit test left one E-REQ-036 failure event for the fake version.
+
+### Found, not fixed
+
+- `DELETE journey_cell/{id}` (endpoint 37) exists only as a local file, with no sign-in check. It must never be pushed as is.
+- Live Publish and the repo differ by the BRIEF-1 block (above).

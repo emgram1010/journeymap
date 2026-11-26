@@ -219,6 +219,11 @@ function "journey/delete_map_cascade" {
 
         foreach ($cells) {
           each as $cell {
+            // REQ-1: a step's needs go with the step.
+            function.run "req/delete_cell_needs" {
+              input = {journey_cell_id: $cell.id}
+            } as $_needs_gone
+
             db.del journey_cell {
               field_name = "id"
               field_value = $cell.id

@@ -602,6 +602,11 @@ function "repeat/create_plan" {
                           }
                         } as $na
 
+                        // REQ-1 story 03: the copy carries the link its source person had.
+                        function.run "req/copy_person_link" {
+                          input = {account_id: $input.account_id, from_agent_id: $ag.id, to_agent_id: $na.id, user_id: $input.user_id}
+                        } as $_link_copied
+
                         var.update $t {
                           value = $ag.id|to_text
                         }

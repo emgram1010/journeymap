@@ -464,6 +464,11 @@ query "template/{template_id}/instance" verb=POST {
                 is_active            : true
               }
             } as $copied_agent
+
+            // REQ-1 story 03: every person copied from the roster is tied to the profile they came from.
+            function.run "req/link_person" {
+              input = {account_id: $actor.account_id, planner_agent_id: $copied_agent.id, agent_profile_id: $ag.profile_id, how: "template", user_id: $actor.user_id}
+            } as $_linked
           }
         }
       }

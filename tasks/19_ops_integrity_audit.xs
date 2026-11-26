@@ -65,6 +65,22 @@ task ops_integrity_audit {
       input = {}
     } as $rate_audit
 
+    // REQ-1 story 05 - every version's frozen needs still match the hash stored when it was
+    // published. Logs its own E-REQ-036 failure per mismatch. A failure here never stops the audit.
+    try_catch {
+      try {
+        function.run "req/audit_needs" {
+          input = {}
+        } as $needs_audit
+      }
+
+      catch {
+        function.run "ops/log_event" {
+          input = {feature: "REQ-1", step: "needs_audit_failed", outcome: "failure", severity: "error", error_code: "E-REQ-036", message: "The nightly check of frozen needs could not run.", user_id: 0, account_id: 0, entity_type: "task", entity_id: 19, correlation_id: ""}
+        } as $_needs_audit_failed
+      }
+    }
+
     // SEC-3 story 06 (2026-11-16) - prove the AI tool address is still shut to a caller with no
     // sign-in. Lives here because the Xano plan allows 10 tasks and all 10 are used. An OPEN door
     // logs E-SEC-021 (error); a check that cannot run logs E-SEC-022.

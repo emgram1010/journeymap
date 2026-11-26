@@ -1,6 +1,6 @@
 # US-REQ-1-04 — What a step needs: hard or soft
 
-**Epic:** REQ-1 · **Size:** M · **Model:** Sonnet 5.5 · **Status:** 📋 Not built
+**Epic:** REQ-1 · **Size:** M · **Model:** Sonnet 5.5 · **Status:** ✅ Built (2026-11-26)
 **Depends on:** story 01 · **Decision:** D-4 (founder), D-11 (builder)
 
 ## Description

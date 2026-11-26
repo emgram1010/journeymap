@@ -104,6 +104,11 @@ function "planner/delete_agent_cascade" {
           }
         }
 
+        // REQ-1 story 03: the person's profile link goes with them.
+        function.run "req/delete_person_link" {
+          input = {planner_agent_id: $input.agent_id}
+        } as $_link_gone
+
         // 4) The agent.
         db.del planner_agent {
           field_name = "id"
