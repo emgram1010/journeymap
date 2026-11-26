@@ -28,6 +28,16 @@
  * Nothing is deleted (every delete needs the founder's approval).
  */
 import {test, expect, type Page} from '@playwright/test';
+import {createFreshPlan, archiveFreshPlan} from './helpers';
+
+// Each run uses its OWN plan (created below, archived afterwards) so cards
+// left behind by earlier runs can't fill a shared plan and trigger the
+// "Place anyway?" capacity prompt.
+let freshPlanId: number | null = null;
+test.afterEach(async ({page}) => {
+  await archiveFreshPlan(page, PLANNER_API, {Authorization: `Bearer ${AUTH_TOKEN}`}, freshPlanId);
+  freshPlanId = null;
+});
 
 const AUTH_TOKEN = process.env.E2E_AUTH_TOKEN ?? process.env.PERFORM_TEST_AUTH_TOKEN;
 const PLANNER_API = process.env.VITE_XANO_PLANNER_BASE_URL ?? 'https://xdjc-i7zz-jhm2.n7e.xano.io/api:PE5iDldw';
@@ -43,17 +53,8 @@ test('E2E-BOARD-1-01/02: drag a card onto a day; a published day refuses with a 
   test.skip(!(await signIn(page)), 'No auth token — see file header.');
   const auth = {Authorization: `Bearer ${AUTH_TOKEN}`};
 
-  // A plan with a map, same deterministic pick as the sibling specs.
-  const plans = (await (await page.request.get(`${PLANNER_API}/workspace`, {headers: auth})).json())
-    .workspaces as Array<{workspace: {id: number}}>;
-  let planId: number | null = null;
-  for (const entry of plans) {
-    const res = await page.request.get(`${PLANNER_API}/workspace/${entry.workspace.id}/map`, {headers: auth});
-    if (((await res.json()).maps as unknown[]).length > 0) {
-      planId = entry.workspace.id;
-      break;
-    }
-  }
+  // A fresh plan (with the same maps as the first plan that has one).
+  const planId = (freshPlanId = await createFreshPlan(page, PLANNER_API, auth, 'board'));
   test.skip(planId === null, 'No plan in this account has a map attached — add one in Workspace Settings first.');
 
   await page.goto('/planner');

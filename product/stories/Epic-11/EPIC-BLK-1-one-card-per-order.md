@@ -770,3 +770,10 @@ _All stories in scope pass. Details in the two Build results sections above._
 | **The expected minutes are wrong** | 11h 50m across eight stages describes a batch of returns, not one customer's order. Every duration in the map needs revisiting before capacity warnings mean anything. Small job, but it is yours to judge — nobody else knows the real times |
 | **What happens when a job genuinely cannot finish in one pass?** | Today's answer is that it always can. The moment one cannot, you are back to splitting a card across days, and dwell comes back with it. Worth knowing now whether that is a real case or truly never |
 | **Child jobs — when?** | `parent_work_item_id` exists on `work_item` but is **hardcoded to 0** in the create-job endpoint, so damaged items branching to a repair map cannot be built yet. It is the natural epic after this one |
+
+
+### 2026-11-25 — Playwright fix: fresh plan per run (REPEAT-1 gate follow-up)
+- The first-ever run failed because the shared plan "C4-560 202123 mv" was full (8h of 8h) from leftover cards, so the TW-1 "Place anyway?" prompt appeared and the spec timed out waiting for the toast.
+- Fix: each spec now creates its own plan (same maps, one person) via `createFreshPlan` in `webapp/protype-2/e2e/helpers.ts`, and archives it afterwards (archive, not delete). No other epic fixtures touched.
+- Result: planner-board, card-scheduling and jobs-and-day-navigation specs, **6/6 passed, twice in a row** (2026-11-25).
+- Side effect: each run leaves one archived plan "E2E fresh ..." in test account 13.

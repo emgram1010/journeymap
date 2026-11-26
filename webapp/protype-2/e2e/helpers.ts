@@ -88,3 +88,64 @@ export async function skipIfMapMissing(
   });
   test.skip(!res.ok(), `Fixture map ${mapId} is not in the test account (HTTP ${res.status()}) — re-create the EXC-1 fixture maps there to run this.`);
 }
+
+/**
+ * Planner specs: a FRESH plan for each run, so leftover cards from earlier
+ * runs (which fill a shared plan to its daily capacity and trigger the
+ * "Place anyway?" prompt, TW-1) can never affect a spec.
+ *
+ * Finds the first plan in the account that accepts at least one map (the
+ * same pick the specs used to make), then creates a new plan, attaches the
+ * same maps and adds one person. Returns the new plan id, or null when no
+ * plan has a map. The fresh plan is named "E2E fresh <label> <timestamp>"
+ * and is archived by `archiveFreshPlan` when the spec ends.
+ */
+export async function createFreshPlan(
+  page: Page,
+  plannerApi: string,
+  auth: Record<string, string>,
+  label: string,
+): Promise<number | null> {
+  const plans = (await (await page.request.get(`${plannerApi}/workspace`, {headers: auth})).json())
+    .workspaces as Array<{workspace: {id: number; name: string}}>;
+  let mapIds: number[] = [];
+  for (const entry of plans) {
+    if (entry.workspace.name.startsWith('E2E fresh')) continue;
+    const res = await page.request.get(`${plannerApi}/workspace/${entry.workspace.id}/map`, {headers: auth});
+    const maps = (await res.json()).maps as Array<{map_id: number}>;
+    if (maps.length > 0) {
+      mapIds = maps.map((m) => m.map_id);
+      break;
+    }
+  }
+  if (mapIds.length === 0) return null;
+  const created = await page.request.post(`${plannerApi}/workspace`, {
+    headers: auth,
+    data: {name: `E2E fresh ${label} ${Date.now()}`},
+  });
+  if (!created.ok()) throw new Error(`fresh plan create failed: ${created.status()} ${await created.text()}`);
+  const body = await created.json();
+  const planId: number = (body.workspace ?? body).id;
+  const attach = await page.request.post(`${plannerApi}/workspace/${planId}/map`, {
+    headers: auth,
+    data: {map_ids: mapIds},
+  });
+  if (!attach.ok()) throw new Error(`fresh plan map attach failed: ${attach.status()} ${await attach.text()}`);
+  const agent = await page.request.post(`${plannerApi}/workspace/${planId}/agent`, {
+    headers: auth,
+    data: {name: 'E2E person', kind: 'person'},
+  });
+  if (!agent.ok()) throw new Error(`fresh plan agent create failed: ${agent.status()} ${await agent.text()}`);
+  return planId;
+}
+
+/** Archive the fresh plan (never a delete) so the account's plan list stays tidy. */
+export async function archiveFreshPlan(
+  page: Page,
+  plannerApi: string,
+  auth: Record<string, string>,
+  planId: number | null,
+): Promise<void> {
+  if (planId === null) return;
+  await page.request.post(`${plannerApi}/workspace/${planId}/archive`, {headers: auth, data: {is_archived: true}}).catch(() => {});
+}

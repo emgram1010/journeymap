@@ -548,3 +548,10 @@ O9 is sidestepped rather than fixed — a different static prefix means no colli
 **Then W4 + W5** (half a day, removes the "it looks broken" class of problem), **then W3**, which is the real prize — the loop finally returning something.
 
 → W1, W2, W4, W5 and the rest were built on 2026-10-17 (see **What was built** above). **W3 is what's left**, and it is still the real prize: work gets done and the information dies there. Nothing reads back start/done times, blocked reasons, performer notes or variance — `variance.ts` and endpoint 568 both exist and are still unused.
+
+
+### 2026-11-25 — Playwright fix: fresh plan per run (REPEAT-1 gate follow-up)
+- The first-ever run failed because the shared plan "C4-560 202123 mv" was full (8h of 8h) from leftover cards, so the TW-1 "Place anyway?" prompt appeared and the spec timed out waiting for the toast.
+- Fix: each spec now creates its own plan (same maps, one person) via `createFreshPlan` in `webapp/protype-2/e2e/helpers.ts`, and archives it afterwards (archive, not delete). No other epic fixtures touched.
+- Result: planner-board, card-scheduling and jobs-and-day-navigation specs, **6/6 passed, twice in a row** (2026-11-25).
+- Side effect: each run leaves one archived plan "E2E fresh ..." in test account 13.

@@ -24,6 +24,16 @@
  * the founder's approval).
  */
 import {test, expect, type Page} from '@playwright/test';
+import {createFreshPlan, archiveFreshPlan} from './helpers';
+
+// Each run uses its OWN plan (created below, archived afterwards) so cards
+// left behind by earlier runs can't fill a shared plan and trigger the
+// "Place anyway?" capacity prompt.
+let freshPlanId: number | null = null;
+test.afterEach(async ({page}) => {
+  await archiveFreshPlan(page, PLANNER_API, {Authorization: `Bearer ${AUTH_TOKEN}`}, freshPlanId);
+  freshPlanId = null;
+});
 
 const AUTH_TOKEN = process.env.E2E_AUTH_TOKEN ?? process.env.PERFORM_TEST_AUTH_TOKEN;
 
@@ -50,17 +60,7 @@ test('E2E-W1-01 / E2E-O4-01: create a job from a map, schedule a step, and take 
   // under test — the Jobs screen — is still driven entirely through
   // the UI.
   const auth = {Authorization: `Bearer ${AUTH_TOKEN}`};
-  const plans = (await (await page.request.get(`${PLANNER_API}/workspace`, {headers: auth})).json())
-    .workspaces as Array<{workspace: {id: number}}>;
-  let planWithMap: number | null = null;
-  for (const entry of plans) {
-    const res = await page.request.get(`${PLANNER_API}/workspace/${entry.workspace.id}/map`, {headers: auth});
-    const maps = (await res.json()).maps as unknown[];
-    if (maps.length > 0) {
-      planWithMap = entry.workspace.id;
-      break;
-    }
-  }
+  const planWithMap = (freshPlanId = await createFreshPlan(page, PLANNER_API, auth, 'jobs'));
   test.skip(planWithMap === null, 'No plan in this account has a map attached — add one in Workspace Settings first.');
 
   await page.goto('/planner');

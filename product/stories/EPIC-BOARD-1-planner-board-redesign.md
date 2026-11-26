@@ -229,3 +229,10 @@ BacklogDrawer still sits below the board, as before.
 - No e2e has ever RUN (repo-wide: every spec skips without `E2E_AUTH_TOKEN`).
 - Nobody has opened the board in a real browser — the drag gesture especially wants a human pass.
 - Q-2 (fold plain tasks into the Jobs column) deferred as scoped.
+
+
+### 2026-11-25 — Playwright fix: fresh plan per run (REPEAT-1 gate follow-up)
+- The first-ever run failed because the shared plan "C4-560 202123 mv" was full (8h of 8h) from leftover cards, so the TW-1 "Place anyway?" prompt appeared and the spec timed out waiting for the toast.
+- Fix: each spec now creates its own plan (same maps, one person) via `createFreshPlan` in `webapp/protype-2/e2e/helpers.ts`, and archives it afterwards (archive, not delete). No other epic fixtures touched.
+- Result: planner-board, card-scheduling and jobs-and-day-navigation specs, **6/6 passed, twice in a row** (2026-11-25).
+- Side effect: each run leaves one archived plan "E2E fresh ..." in test account 13.

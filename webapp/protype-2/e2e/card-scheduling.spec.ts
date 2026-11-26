@@ -35,6 +35,16 @@
  * approval).
  */
 import {test, expect, type Page} from '@playwright/test';
+import {createFreshPlan, archiveFreshPlan} from './helpers';
+
+// Each run uses its OWN plan (created below, archived afterwards) so cards
+// left behind by earlier runs can't fill a shared plan and trigger the
+// "Place anyway?" capacity prompt.
+let freshPlanId: number | null = null;
+test.afterEach(async ({page}) => {
+  await archiveFreshPlan(page, PLANNER_API, {Authorization: `Bearer ${AUTH_TOKEN}`}, freshPlanId);
+  freshPlanId = null;
+});
 
 const AUTH_TOKEN = process.env.E2E_AUTH_TOKEN ?? process.env.PERFORM_TEST_AUTH_TOKEN;
 
@@ -86,21 +96,11 @@ test('E2E-BLK-1-07-01: place a whole card on a day from the Jobs screen, then re
   // on whichever plan comes first, which may not be one. Ask the API,
   // then select that plan by id — the thing under test is still driven
   // entirely through the UI.
-  const plans = (await (await page.request.get(`${PLANNER_API}/workspace`, {headers: auth})).json())
-    .workspaces as Array<{workspace: {id: number; planning_window_start: string; planning_window_end: string}}>;
-  let planId: number | null = null;
-  let windowStart = '';
-  let windowEnd = '';
-  for (const entry of plans) {
-    const res = await page.request.get(`${PLANNER_API}/workspace/${entry.workspace.id}/map`, {headers: auth});
-    if (((await res.json()).maps as unknown[]).length > 0) {
-      planId = entry.workspace.id;
-      windowStart = entry.workspace.planning_window_start;
-      windowEnd = entry.workspace.planning_window_end;
-      break;
-    }
-  }
+  const planId = (freshPlanId = await createFreshPlan(page, PLANNER_API, auth, 'cards'));
   test.skip(planId === null, 'No plan in this account has a map attached — add one in Workspace Settings first.');
+  const fresh = await (await page.request.get(`${PLANNER_API}/workspace/${planId}`, {headers: auth})).json();
+  const windowStart: string = (fresh.workspace ?? fresh).planning_window_start;
+  const windowEnd: string = (fresh.workspace ?? fresh).planning_window_end;
 
   await page.goto('/planner');
   await expect(page.locator('#workspace-switcher-btn')).toBeVisible();
