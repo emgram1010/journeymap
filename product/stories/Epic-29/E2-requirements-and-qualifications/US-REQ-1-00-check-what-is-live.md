@@ -1,6 +1,6 @@
 # US-REQ-1-00 — Check what is live, and settle the role question
 
-**Epic:** REQ-1 · **Size:** S · **Model:** Sonnet 5.5 · **Status:** 📋 Not built
+**Epic:** REQ-1 · **Size:** S · **Model:** Sonnet 5.5 · **Status:** ✅ Done (2026-11-26)
 **Depends on:** nothing. **Read-only.**
 
 ## Description

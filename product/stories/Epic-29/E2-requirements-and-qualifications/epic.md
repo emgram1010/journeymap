@@ -1,7 +1,7 @@
 # REQ-1 — What a step needs, and who holds it
 
 **Epic ID:** REQ-1 (E2 in this folder)
-**Status:** 📋 Not built (docs only, 2026-11-25)
+**Status:** 🚧 In build (2026-11-26). Story 00 done; stories 01 to 04 next; story 05 waits on BRIEF-1
 **Size:** L
 **Model:** Sonnet 5.5 for stories 00–04. **Opus 5.5** for story 05 (it adds to Publish version, PUB-1).
 **Depends on:** nothing in this folder for the data. MATCH-1 is what uses it.
@@ -104,4 +104,32 @@ version. A holding belongs to the person, so it lives on their lasting profile.*
 
 ## 10. Test Results
 
-Not built. Nothing has been run.
+### Story 00 — what is live (2026-11-26, Sonnet 5.5; read-only, no row changed)
+
+**1. Live vs repo.** Tables 9, 112, 116, 129, 130, 135 and 172 are the same live and in the repo. **Endpoint 201 (Publish version) is not:** the repo has a BRIEF-1 block (`E-BRIEF-001`, over-length task-brief text refused at publish) that is **not live**. It is uncommitted work from EPIC-BRIEF-1 (Epic-28, still in progress; it also changes `pub/canonical_hash`, `pub/build_map_snapshot` and adds `pub/brief_fields` and table 180). **Story 05 changes endpoint 201 too, so it must not be pushed until BRIEF-1's change to that same file is settled.** Stories 01 to 04 do not touch 201.
+
+**2. People who cannot be linked to a lasting profile** (every person on every non-archived plan, per account; 95 plans, 114 people, 6 profiles in total):
+
+| Account | People on plans | Linked through a login | Linkable by exact profile name | Not linkable |
+|---|---|---|---|---|
+| 2 (the founder's account) | 17 | 0 | 5 (all "Jav") | 12 (Tony, Gladys, Nick, Paris, Eli, Rochelle, across 5 plans) |
+| 13 (test account) | 97 | 0 | 0 | 97 (test data) |
+
+- **Nobody can be linked by login today.** The people with a login (Tony, Gladys, Nick, Paris, Eli, Rochelle, the test users) have **no lasting profile at all**, so there is nothing for a login to find. The one-time fill by login would link nobody.
+- **Consequence for story 03 (the founder should know):** the "create a profile for this person" action is not optional. Without it, no one in the founder's account could ever hold a requirement. Story 03 gets a **Create profile** button next to "no profile": one click by an admin, from the person's name, colour and hours, with a login if they have one. It never links by name on its own.
+
+**3. The role note (PRD §10, D-12): drafted, not written.** "Assignment is matched on needs and holdings (REQ-1, AVAIL-1, MATCH-1), not on a role. ROLE-1 stays deferred. MATCH-1 replaces SCHED-1 story 04. A role may later be added as a requirement." The PRD, ROLE-1 and SCHED-1 files are not edited until the founder says yes.
+
+**4. The on/off switch.** Not needed by REQ-1: it stores and freezes, and changes no behaviour. MATCH-1's switch will be a row in a new small side table (the fixed key list in `account_feature_flag` is not touched).
+
+**5. Tables.** Six, not five: `requirement` (183), `agent_profile_requirement` (184), `planner_agent_profile` (185), `journey_cell_requirement` (186), `journey_map_version_requirement` (187), plus `journey_map_version_needs_hash` (188), because the epic wants a per-version needs hash and also forbids adding a column to `journey_map_version`. Drafted in `static/tables/`; **not pushed**.
+
+| Test | Result |
+|---|---|
+| T-REQ-00-1 live vs repo | ✅ done; one real difference (endpoint 201, BRIEF-1, above) |
+| T-REQ-00-2 counts add up | ✅ account 2: 0 + 5 + 12 = 17; account 13: 0 + 0 + 97 = 97; total 114 |
+| T-REQ-00-3 nothing changed | ✅ read-only; the one scratch function used was deleted |
+
+## Test Results (stories 01 to 05)
+
+Not built yet.
