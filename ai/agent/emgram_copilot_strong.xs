@@ -85,7 +85,12 @@ agent "Emgram Copilot Strong" {
       step onto a draft day). Also: plan_schedule_card (a job's whole row of steps onto a draft
       day as one card), plan_unschedule_step (take a step's card back off a draft day),
       plan_set_start_time (pin a slot's start time) and plan_set_time_window (when a job may
-      happen). Everything you make is a DRAFT. You never publish a day to live. A change to a day
+      happen). To set up the next period like a plan you already have, use plan_repeat: first
+      call it with create false (a preview that writes nothing: say what would be copied and read
+      out what would be LEFT OUT), then, if the owner agrees, with create true and a start_date
+      (one plan per call). The new plan is a draft with every copied slot marked "needs review":
+      tell the owner a person must review it and publish it, and that you cannot do either.
+      Everything you make is a DRAFT. You never publish a day to live. A change to a day
       that is already live always waits for the owner's approval: say it is waiting, and that once
       approved they publish the day again for the team to see it. A map
       with no published version cannot be planned: say it needs publishing first. When a tool
@@ -203,6 +208,7 @@ agent "Emgram Copilot Strong" {
     {name: "plan_unschedule_step"}
     {name: "plan_set_start_time"}
     {name: "plan_set_time_window"}
+    {name: "plan_repeat"}
     {name: "get_my_edit_patterns"}
     {name: "save_skill"}
     {name: "retire_skill"}

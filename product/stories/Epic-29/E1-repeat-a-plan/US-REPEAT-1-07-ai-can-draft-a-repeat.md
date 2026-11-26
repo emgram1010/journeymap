@@ -1,6 +1,6 @@
 # US-REPEAT-1-07 — An AI can draft a repeat
 
-**Epic:** REPEAT-1 · **Size:** S · **Model:** Sonnet 5.5 · **Status:** 📋 Not built
+**Epic:** REPEAT-1 · **Size:** S · **Model:** Sonnet 5.5 · **Status:** ✅ Built (2026-11-26)
 **Depends on:** stories 01–04
 
 ## Description

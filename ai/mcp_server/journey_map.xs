@@ -62,6 +62,10 @@ mcp_server journey_map {
       Never ask the owner for a plan id: call plan_list, then plan_get.
       plan_create, plan_accept_map, plan_add_job, plan_add_person, plan_start_day, plan_schedule_step,
       plan_schedule_card, plan_unschedule_step, plan_set_start_time, plan_set_time_window
+      plan_repeat — set up the next period like an existing plan. Call it with create false first: a preview
+      that writes nothing and lists what would be copied and what would be LEFT OUT. Then call it with create
+      true and a start_date to make ONE new DRAFT plan (call again for each further period). Every copied slot
+      is marked "needs review"; a person reviews it and presses Publish to live. It never publishes.
       Every planner call needs the business: pass journey_architecture_id (a business in your own account;
       the server refuses any other). They act as YOU, under your own permissions (you need the Planner).
       Everything is a DRAFT. No tool here publishes a plan to live: Publish to live is a button a person
@@ -147,6 +151,7 @@ mcp_server journey_map {
     {name: "plan_unschedule_step"}
     {name: "plan_set_start_time"}
     {name: "plan_set_time_window"}
+    {name: "plan_repeat"}
     {name: "list_my_tasks"}
     {name: "record_my_task_event"}
   ]

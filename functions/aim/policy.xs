@@ -53,6 +53,7 @@ function "aim/policy" {
         plan_unschedule_step  : "draft_plan"
         plan_set_start_time   : "draft_plan"
         plan_set_time_window  : "draft_plan"
+        plan_repeat           : "draft_plan"
         record_my_task_event  : "own_work"
         publish_map           : "ceiling"
         create_workspace      : "ceiling"

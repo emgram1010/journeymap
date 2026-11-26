@@ -334,3 +334,30 @@ Read again end to end: `build_plan`, `plan_work`, `create_plan` and the preview 
   - One shared correlation id covers the events of a batch; there is no single "batch" event.
 - **Cleaned up:** all test plans, marks and `plan_repeat` rows, and every scratch function deleted. Event-log rows kept.
 - **Learning:** a `where` using `~` (text match) failed with "Not Found" in this workspace; and a sentinel `-1` kept in an id list must never be looped over by a `db.del` (it was deleted as if it were a real id and failed). Delete from the query's own result list.
+
+### Story 07 — an AI can draft a repeat (2026-11-26, Sonnet 5.5)
+
+- **Tests written first:** `repeatAiTool.test.ts`, 8 tests: tool in the connector and both copilots; one policy class (`draft_plan`); one gate call with a preview as a read and only a create as a draft write; omitted `create` can only preview; ticket kept out of the approval payload; same functions as the screen; no publish, no mark clearing, no `plan_ids` write; plan scope and manager event; the answer leads with what was left out.
+- **Built (all live):**
+  - `repeat/preview` (515): the one assembly of the preview, now used by the screen's endpoint 682 and by the tool, so they cannot disagree.
+  - `repeat/describe_left_out` (516): plain-words lines for what was left out.
+  - Tool `plan_repeat` (202), in the connector (MCP server 8) and both copilots (agents 40, 43). Preview is a read; creating makes ONE draft plan per call through `repeat/create_plan`, with every copied slot marked "needs review". Never publishes, never clears a mark, never touches `plan_ids`. `plan_repeat: draft_plan` in `aim/policy` (429).
+  - Event `plan.repeat_by_ai` (names the manager) when an AI member drafts one.
+- **Tested through the real outside door** (`tests/repeat07_door_probe.py`, 26 checks, all passed): as the admin test person and as an AI member with its own token.
+
+| Test | Result |
+|---|---|
+| T-REPEAT-07-1 preview writes nothing | ✅ person, `periods 3`: 3 dates listed, no plan made, repeat history unchanged |
+| T-REPEAT-07-2 draft matches a screen repeat | ✅ the tool's draft and a repeat made on the screen give identical counts; the screen preview and the tool preview give identical counts |
+| T-REPEAT-07-3 AI limited to some plans is refused outside them | ✅ plan outside its list: "not found" for preview and for create, like a plan that does not exist |
+| T-REPEAT-07-4 `plan_ids` unchanged | ✅ still `[181]` after 8 drafts by the AI |
+| T-REPEAT-07-5 caps counted | ✅ hourly cap stopped the AI with E-AIM-050; a preview still worked at the cap |
+| T-REPEAT-07-6 present in connector and copilots, no publish tool | ✅ door lists `plan_repeat`; no tool on the door publishes a plan to live; unit test covers both copilots |
+| Other checks | ✅ create without a start date refused with what to do; bad date E-REPEAT-002; start inside the source E-REPEAT-003; 9 periods E-REPEAT-010; same date again answers `exists`; every copied slot (placed and backlog) marked needs review; every day a draft |
+| Suites | ✅ `npm test` 1,135 of 1,135 · `tsc` clean. Workflow tests and Playwright not run |
+
+- **Differences from the story:**
+  - A call the AI makes on a plan outside its list still counts as one write at the gate (the gate logged it before the plan rule refused it). Same as every other planner tool.
+  - `debugTool` cannot test this tool (it reads the caller from real request headers), so the proof is the real door.
+- **Cleaned up:** all test plans, the test AI member, its tokens and module grants, and every scratch function deleted. Event-log and tool-call-log rows kept.
+- **Learning:** the door only lists tools for a caller who holds the Intelligent Layer module. An AI member needs `intelligence` (and `planning` for planner tools) granted, or it sees an empty list that looks like a broken door. Empty `scope_actions` on a token left it with no tools; pass `["read","draft_plan"]`.
